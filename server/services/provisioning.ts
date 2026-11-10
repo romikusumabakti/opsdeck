@@ -18,6 +18,8 @@ import {
 } from "@/lib/provisioning/repository";
 import { enqueue } from "@/lib/queue";
 import { failRun } from "@/lib/run-progress";
+import { TEARDOWN_ERRORS } from "@/lib/teardown/errors";
+import { CodedHTTPException } from "@/server/errors";
 import { callCloudflare } from "@/server/services/cloudflare-account";
 
 const notFound = (): never => {
@@ -146,6 +148,13 @@ export async function startProvisioning(
   const { userId, config } = await provisioningContext(environmentId);
   const specs = planOrFail(config);
   const started = await startProvisioningRun(environmentId, userId);
+  if ("tearingDown" in started) {
+    throw new CodedHTTPException(
+      409,
+      "teardownRunning",
+      TEARDOWN_ERRORS.teardownRunning
+    );
+  }
   if ("conflict" in started) {
     throw new HTTPException(409, {
       message: "Provisioning is already running for this environment",

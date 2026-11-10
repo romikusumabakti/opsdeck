@@ -120,3 +120,24 @@ export const getAuthorizedKeysLineQuery = (from: string) =>
     queryFn: () => getAuthorizedKeysLine(from),
     retry: false,
   });
+
+// --- Archives of deleted environments ---
+
+export async function listEnvironmentArchives() {
+  return parseResponse(routes["environment-archives"].$get());
+}
+
+export const listEnvironmentArchivesQuery = () =>
+  queryOptions({
+    queryKey: ["instance", "listEnvironmentArchives"],
+    queryFn: listEnvironmentArchives,
+  });
+
+/** The download link of one archived file (streamed, as an attachment). */
+export function environmentArchiveFileHref(id: string, name: string): string {
+  return `/api/instance/environment-archives/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`;
+}
+
+export type EnvironmentArchive = Awaited<
+  ReturnType<typeof listEnvironmentArchives>
+>[number];

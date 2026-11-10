@@ -893,7 +893,7 @@
     "dangerZoneDescription": "删除环境也会删除其任务历史记录。此操作无法撤销。",
     "deleteButton": "删除环境",
     "deleteTitle": "删除环境",
-    "deleteDescription": "删除环境 {name}？此操作无法撤销。",
+    "deleteDescription": "删除 {name} 将移除：",
     "deleteEscrowedTitle": "同时删除托管变量？",
     "deleteEscrowedDescription": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。删除环境会永久销毁它们：仅在已保存到别处后再确认。",
     "deleteFailed": "删除环境失败",
@@ -915,7 +915,20 @@
     "mockTimeTitle": "模拟时间",
     "mockTimeDescription": "后端的时间模拟 API，供“模拟时间”页面使用。",
     "serverMixedAdminOnly": "此环境的服务运行在不同的服务器上。只有拥有服务器管理权限的人才能重新绑定。",
-    "serverSharedDbElsewhere": "此环境的共享数据库位于另一台服务器的数据库主机上，将应用迁移到此处会导致其失效。请选择数据库主机所在的服务器或保留当前服务器。"
+    "serverSharedDbElsewhere": "此环境的共享数据库位于另一台服务器的数据库主机上，将应用迁移到此处会导致其失效。请选择数据库主机所在的服务器或保留当前服务器。",
+    "deleteRemovesContainers": "它的容器和卷",
+    "deleteRemovesDatabase": "它的数据库",
+    "deleteRemovesFolder": "它在服务器上的文件夹",
+    "deleteRemovesAddress": "它的公开地址",
+    "deleteBackupKept": "备份会保留 {days} 天。管理员可在 管理员 → 实例 → 备份 中下载。",
+    "deleteConfirmLabel": "输入 {name} 以确认",
+    "deleteConfirm": "删除",
+    "deleteProductionEngineer": "这是生产环境。只有管理员可以删除它。",
+    "deleteProductionConfirm": "这是生产环境。我确定要删除它。",
+    "deleteStarted": "正在删除 {name}。进度显示在页面顶部。",
+    "removeFromPanel": "仅从面板中移除",
+    "removeFromPanelDescription": "仅从面板中移除该环境。不会改动服务器或 Cloudflare 上的任何内容。在上方输入环境名称即可启用。",
+    "removedFromPanel": "已从面板中移除 {name}"
   },
   "userMenu": {
     "users": "用户管理",
@@ -1326,6 +1339,7 @@
     "noServerAvailable": "此项目没有可用的服务器。请让管理员设置默认服务器或开放一台服务器。"
   },
   "actionErrors": {
+    "environmentKindProductionAdminOnly": "只有管理员可以将环境标记为生产环境，或更改生产环境的类型。",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "姓名和邮箱为必填项",
     "domainNotAllowed": "只允许 @{domain} 邮箱",
@@ -2097,7 +2111,9 @@
     "projectDefaultServerSet": "{actor} 将 {project} 的默认服务器设为 {server}",
     "projectDefaultServerCleared": "{actor} 清除了 {project} 的默认服务器",
     "serverKeyRotated": "{actor} 轮换了 {server} 上的 SSH 密钥（来源 {from}）",
-    "serverKeyFromChanged": "{actor} 更新了 {server} 的 SSH 密钥地址（从 {before} 改为 {after}）"
+    "serverKeyFromChanged": "{actor} 更新了 {server} 的 SSH 密钥地址（从 {before} 改为 {after}）",
+    "environmentDeleted": "{actor} 删除了 {environment}",
+    "environmentDomainAdopted": "{actor} 为 {environment} 采用了主机名 {hostname}"
   },
   "jira": {
     "title": "Jira",
@@ -2898,7 +2914,77 @@
       "domainPublicForbidden": "只有管理员可以在不使用 Access 的情况下公开发布",
       "domainPortInUse": "此服务器上的另一个环境已使用该入口端口",
       "domainPortForbidden": "只有管理员可以选择 8100–8999 之外的入口端口",
-      "domainExternalInZone": "此主机名属于已注册的区域：请使用 Cloudflare 隧道类型"
+      "domainExternalInZone": "此主机名属于已注册的区域：请使用 Cloudflare 隧道类型",
+      "hostnameNotOnTunnel": "该主机名没有指向此隧道的 DNS 记录",
+      "domainAccessAppAmbiguous": "有多个 Access 应用覆盖此主机名",
+      "domainAccessAppShared": "此主机名的 Access 应用还覆盖其他主机名",
+      "domainRouteConflict": "该隧道已将此主机名路由到其他服务",
+      "domainTunnelConfigUnsafe": "该隧道配置没有兜底 ingress 规则，无法安全编辑"
+    },
+    "adopt": {
+      "title": "采用现有主机名",
+      "description": "用于已指向已注册隧道的主机名。面板会记录它，并在删除环境时将其移除。",
+      "hostname": "主机名",
+      "tunnel": "隧道",
+      "tunnelPlaceholder": "选择隧道",
+      "noTunnels": "没有已注册的隧道",
+      "service": "服务",
+      "serviceDescription": "隧道将流量发送到的位置。",
+      "serviceInvalid": "请输入源地址，例如 http://app:80",
+      "submit": "采用主机名",
+      "adopting": "正在采用…",
+      "adopted": "已采用 {hostname}",
+      "failed": "无法采用该主机名"
+    }
+  },
+  "teardown": {
+    "errors": {
+      "deployDirShared": "同一服务器上的另一个环境正在使用此部署目录",
+      "domainShared": "该 Cloudflare Access 应用或 DNS 记录是共享的：另一个环境记录了它，或者它之后被改为覆盖其他主机名",
+      "databaseBackupUnsupported": "只有 PostgreSQL 数据库可以在删除前归档。请改用“仅从面板移除”",
+      "unsafeDeployDir": "该部署目录不是可安全删除的路径",
+      "environmentBusy": "此环境有正在进行的部署或预配。请在完成后重试",
+      "teardownRunning": "此环境正在删除中",
+      "teardownCannotCancel": "此删除已开始移除环境，无法再取消。请重试以完成删除",
+      "databaseNotRegistered": "该环境的数据库服务或其数据库主机已不再是计划删除时的注册状态。请检查数据库服务后重试，或使用“仅从面板移除”",
+      "archiveFailed": "归档未能完成，因此未删除任何内容。重试以继续",
+      "confirmNameMismatch": "请准确输入环境名称以确认",
+      "environmentIsProduction": "只有管理员可以删除生产环境",
+      "productionConfirmRequired": "请确认你正在删除生产环境",
+      "stackHostsSharedDatabase": "该堆栈运行着共享数据库主机或其他环境正在使用的数据库容器",
+      "serverCommandFailed": "服务器上的命令失败。请查看运行日志后重试",
+      "cloudflareFailed": "无法删除 Cloudflare 对象。请查看运行日志后重试",
+      "stepFailed": "该步骤意外失败。请查看运行日志后重试",
+      "environmentHasEscrowedVariables": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此环境。"
+    },
+    "banner": {
+      "runningTitle": "正在删除此环境",
+      "runningStep": "当前：{step}",
+      "failedTitle": "此环境的删除已停止",
+      "failedStep": "停在：{step}",
+      "viewLog": "查看日志",
+      "retry": "重试",
+      "cancel": "取消删除",
+      "cancelTitle": "取消删除？",
+      "cancelDescription": "尚未移除任何内容，环境将重新接受部署。为备份而停止的 stack 会保持停止，直到你再次启动它。",
+      "cancelConfirm": "取消删除",
+      "cancelled": "已取消删除",
+      "logTitle": "删除日志",
+      "deleted": "环境已删除"
+    },
+    "steps": {
+      "check_stack": "检查 stack",
+      "archive_database": "备份数据库",
+      "stop_stack": "停止栈",
+      "archive_deploy_dir": "备份服务器文件夹",
+      "archive_volumes": "备份卷",
+      "stack_down": "停止并移除容器",
+      "drop_database": "删除数据库",
+      "remove_tunnel_route": "移除隧道路由",
+      "remove_access_app": "移除 Access 应用",
+      "remove_dns_record": "移除 DNS 记录",
+      "remove_deploy_dir": "移除服务器文件夹",
+      "delete_environment": "从面板中移除"
     }
   },
   "environmentSetup": {
@@ -3129,7 +3215,19 @@
       "unknown": "备份失败（{code}）。"
     },
     "restore": "恢复",
-    "colActions": "操作"
+    "colActions": "操作",
+    "deletedEnvironments": {
+      "title": "已删除的环境",
+      "description": "删除环境时生成的备份，保留 30 天。",
+      "empty": "没有已删除的环境",
+      "loadFailed": "无法加载已删除的环境",
+      "colProject": "项目",
+      "colEnvironment": "环境",
+      "colDeleted": "删除时间",
+      "colExpires": "到期",
+      "colFiles": "文件",
+      "incomplete": "未完成"
+    }
   },
   "instanceUpdates": {
     "versionTitle": "版本",

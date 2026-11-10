@@ -7,6 +7,7 @@ import {
   resolveEnvironmentQuery,
 } from "@/web/api/environments";
 import { EnvError } from "./-components/env/env-error";
+import { TeardownBanner } from "./-components/env/teardown-banner";
 
 // The environment area (the port of `[projectKey]/[envSlug]/layout.tsx`).
 // `/<KEY>/<envSlug>` resolves to an environment id and the caller's role on
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug")({
 
 function EnvironmentLayout() {
   const { environmentId, role } = Route.useRouteContext();
+  const { projectKey } = Route.useParams();
 
   // Bump the environment's recency for this user so the header switcher lists
   // it first. Runs on entering the environment (and when switching to
@@ -43,6 +45,8 @@ function EnvironmentLayout() {
 
   return (
     <ProjectRoleProvider role={role}>
+      {/* While the environment is being deleted, on every page. */}
+      <TeardownBanner environmentId={environmentId} projectKey={projectKey} />
       <Outlet />
     </ProjectRoleProvider>
   );

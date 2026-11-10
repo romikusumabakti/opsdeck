@@ -45,3 +45,22 @@ export function privileged(
       return `printf '%s\\n' ${shq(server.password as string)} | sudo -S ${sudoUser}${cmd}`;
   }
 }
+
+/**
+ * As privileged(), but in sudo-password mode the password travels on the
+ * command's stdin (`sudo -S -p ''`), so it is never part of the command
+ * string. Only for commands that do not read stdin themselves; pass
+ * `stdin` to executeRemoteCommand and the password in its `secrets`.
+ */
+export function privilegedViaStdin(
+  cmd: string,
+  server: PrivilegedServer
+): { command: string; stdin?: string } {
+  if (privilegeMode(server) === "sudo-password") {
+    return {
+      command: `sudo -S -p '' ${cmd}`,
+      stdin: `${server.password as string}\n`,
+    };
+  }
+  return { command: privileged(cmd, server) };
+}

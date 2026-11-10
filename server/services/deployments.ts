@@ -10,6 +10,8 @@ import {
 } from "@/lib/deploy/repository";
 import { deployTagSchema } from "@/lib/deploy/validation";
 import { enqueue } from "@/lib/queue";
+import { TEARDOWN_ERRORS } from "@/lib/teardown/errors";
+import { CodedHTTPException } from "@/server/errors";
 import { deployLockedMessage } from "@/server/services/deploy-locks";
 
 export type DeploymentRequest = {
@@ -33,18 +35,24 @@ export type DeploymentRequest = {
  * and a `manual` deployment or rollback is refused with a 409 naming the lock.
  * A lock past its expiry that the sweep has not removed yet is released first
  * (cause "expired"), so its held builds deploy before this request.
+ *
+ * While the environment is being deleted (lib/teardown/guard) nothing is
+ * placed: an `auto` deployment comes back `skipped`, a manual deploy or
+ * rollback is refused with 409 `teardownRunning`.
  */
 export type RequestedDeployment =
   | { deploymentId: string; runId: string; status: "queued" }
   // A held deployment has no run until the lock is released.
-  | { deploymentId: string; runId: null; status: "held" };
+  | { deploymentId: string; runId: null; status: "held" }
+  // An `auto` deployment into an environment being deleted: nothing placed.
+  | { deploymentId: null; runId: null; status: "skipped" };
 
 export async function requestDeployment(
   input: DeploymentRequest
 ): Promise<RequestedDeployment> {
   const { target, tag } = await resolveRequest(input);
   const placed = await placeDeployment(placementInput(input, target, tag));
-  return finishPlacement(target.environmentId, placed);
+  return finishPlacement(target.environmentId, placed, input.trigger);
 }
 
 /**
@@ -70,7 +78,8 @@ export async function requestFlaggedDeployment(
     }
     return null;
   }
-  return finishPlacement(target.environmentId, placed);
+  if (placed.kind === "tearingDown") return null;
+  return finishPlacement(target.environmentId, placed, input.trigger);
 }
 
 async function resolveRequest(input: DeploymentRequest) {
@@ -103,8 +112,20 @@ function placementInput(
 
 async function finishPlacement(
   environmentId: string,
-  placed: PlaceDeploymentResult
+  placed: PlaceDeploymentResult,
+  trigger: Deployment["trigger"]
 ): Promise<RequestedDeployment> {
+  if (placed.kind === "tearingDown") {
+    // The build hook has nobody to tell; a person is refused.
+    if (trigger === "auto") {
+      return { deploymentId: null, runId: null, status: "skipped" };
+    }
+    throw new CodedHTTPException(
+      409,
+      "teardownRunning",
+      TEARDOWN_ERRORS.teardownRunning
+    );
+  }
   if (placed.released) {
     // An expired lock the sweep had not removed yet: its held builds were
     // queued ahead of this request, so they are enqueued first.

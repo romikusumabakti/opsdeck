@@ -5,7 +5,6 @@ import {
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
-import { createRun } from "@/lib/run-progress";
 import {
   buildStatusCommand,
   getServiceConfig,
@@ -23,6 +22,7 @@ import {
   uuidSchema,
 } from "@/lib/validation";
 import { requireSharedDbServiceAccess } from "@/server/services/database-hosts";
+import { createRunOrRefuse } from "@/server/services/teardown-runs";
 
 export type ServiceStatusResult = {
   role: ServiceRole;
@@ -111,7 +111,7 @@ export async function controlService(
     parsedRole.data
   );
   const cfg = getServiceConfig(environment, parsedRole.data);
-  const runId = await createRun({
+  const runId = await createRunOrRefuse({
     environmentId: environment.id,
     userId: session.user.id,
     description: `${actionLabel(parsedAction.data)} ${parsedRole.data} service (${cfg.serviceName})`,

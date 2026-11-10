@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Deleting an environment cascades to its variables. Escrowed ones (e.g. the
+// The row-only delete ("Remove from Panel only") is for org server:manage
+// (admin, infra) only. Deleting an environment cascades to its variables. Escrowed ones (e.g. the
 // HRIS DATA_ENCRYPTION_KEY) exist nowhere else, so a delete is refused (409)
 // while the environment has any, unless an admin with org
 // integration:manage confirms it explicitly. Every delete that removes
@@ -50,6 +51,23 @@ vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,
 }));
 
+// No teardown under way (lib/teardown/guard has its own tests).
+vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),
+  tearingDownIn: async () => teardown.blocks,
+  holdEnvironmentExclusive: async () => {},
+}));
+const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
+
+vi.mock("@/lib/teardown/repository", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/teardown/repository")>()),
+  teardownState: async () => ({
+    planned: teardown.running,
+    running: teardown.running,
+    progressed: teardown.running,
+  }),
+}));
+
 vi.mock("@/lib/db", async () => {
   const schema = await import("@/lib/db/schema");
   const rowsFor = (table: unknown): unknown[] => {
@@ -75,23 +93,24 @@ vi.mock("@/lib/db", async () => {
     };
     return chain;
   };
-  return {
-    db: {
-      select,
-      delete: () => {
-        state.deletes++;
-        return {
-          where: () => ({ returning: async () => state.deleted }),
-        };
-      },
+  const db = {
+    select,
+    delete: () => {
+      state.deletes++;
+      return {
+        where: () => ({ returning: async () => state.deleted }),
+      };
     },
+    transaction: async (fn: (tx: unknown) => unknown) => fn(db),
   };
+  return { db };
 });
 
 const { deleteEnvironment } = await import("@/server/services/environments");
 
 beforeEach(() => {
-  state.orgRole = "member";
+  // server:manage, but not integration:manage.
+  state.orgRole = "infra";
   state.variables = [];
   state.deleted = [{ name: "HRIS Dev" }];
   state.deletes = 0;
@@ -99,6 +118,16 @@ beforeEach(() => {
 });
 
 describe("deleteEnvironment and escrowed variables", () => {
+  it("refuses (403) a caller without org server:manage", async () => {
+    for (const role of ["member", "observer"]) {
+      state.orgRole = role;
+      await expect(deleteEnvironment(ENV_ID)).rejects.toMatchObject({
+        status: 403,
+      });
+    }
+    expect(state.deletes).toBe(0);
+  });
+
   it("deletes an environment without variables and records nothing", async () => {
     expect(await deleteEnvironment(ENV_ID)).toMatchObject({ success: true });
     expect(state.deletes).toBe(1);
@@ -122,12 +151,12 @@ describe("deleteEnvironment and escrowed variables", () => {
 
   it("refuses the confirmation from a caller without integration:manage", async () => {
     state.variables = [{ name: "DATA_ENCRYPTION_KEY", escrow: true }];
-    for (const role of ["member", "infra", "observer"]) {
-      state.orgRole = role;
-      await expect(
-        deleteEnvironment(ENV_ID, { confirmEscrowedDeletion: true })
-      ).rejects.toMatchObject({ status: 409 });
-    }
+    await expect(
+      deleteEnvironment(ENV_ID, { confirmEscrowedDeletion: true })
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "environmentHasEscrowedVariables",
+    });
     expect(state.deletes).toBe(0);
   });
 
@@ -174,5 +203,18 @@ describe("deleteEnvironment and escrowed variables", () => {
       status: 409,
     });
     expect(state.activity).toEqual([]);
+  });
+
+  it("refuses (409 teardownRunning) while a teardown runs, deleting nothing", async () => {
+    teardown.running = true;
+    try {
+      await expect(deleteEnvironment(ENV_ID)).rejects.toMatchObject({
+        status: 409,
+        code: "teardownRunning",
+      });
+      expect(state.deletes).toBe(0);
+    } finally {
+      teardown.running = false;
+    }
   });
 });

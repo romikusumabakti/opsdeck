@@ -7,7 +7,6 @@ import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { dbBackupExtensionPattern, dbOsUser } from "@/lib/jobs/commands";
 import { enqueue } from "@/lib/queue";
-import { createRun } from "@/lib/run-progress";
 import { buildDbShellCommand, dbConfig } from "@/lib/services";
 import { executeRemoteCommand } from "@/lib/ssh";
 import { sshTarget } from "@/lib/ssh-connect";
@@ -23,6 +22,7 @@ import {
   requireAllowedDatabaseNames,
   requireUnconfined,
 } from "@/server/services/database-hosts";
+import { createRunOrRefuse } from "@/server/services/teardown-runs";
 
 type BackupListResult =
   | { success: true; data: Backup[] }
@@ -125,7 +125,7 @@ export async function createDatabaseBackup(
   await requireAllowedDatabaseNames(environment, session.user.role, [database]);
 
   const compress = options.compress ?? true;
-  const runId = await createRun({
+  const runId = await createRunOrRefuse({
     environmentId: environment.id,
     userId: session.user.id,
     description: compress
@@ -214,7 +214,7 @@ export async function restoreDatabaseBackup(
   }
 
   const isDefault = database === dbSvc.dbName;
-  const runId = await createRun({
+  const runId = await createRunOrRefuse({
     environmentId: environment.id,
     userId: session.user.id,
     description: options.restartBackend

@@ -12,6 +12,7 @@ import {
   servers,
 } from "@/lib/db/schema";
 import { domainUrl } from "@/lib/domains/validation";
+import { holdEnvironmentShared, teardownBlocks } from "@/lib/teardown/guard";
 
 // Database access for remote tunnels and environment domains. Permission and
 // rule checks are the services' job.
@@ -180,19 +181,31 @@ type DomainWrite = Pick<
 >;
 
 /**
+ * What a domain write did: `provisioned` (the existing binding forbids it) and
+ * `tearingDown` (a teardown is under way, lib/teardown/guard) wrote nothing.
+ */
+export type DomainSaveResult = "saved" | "provisioned" | "tearingDown";
+
+/**
  * Stores the binding, the environment's URL derived from it and the entry
  * port when given, together. A changed binding starts unprovisioned: the
- * provisioning ids are cleared. Returns false (and writes nothing) when the
- * existing binding is provisioned. Removing a binding keeps the URL.
+ * provisioning ids are cleared. Writes nothing when the existing binding is
+ * provisioned or a teardown is under way: a binding its plan does not hold
+ * would outlive the environment in Cloudflare. Removing a binding keeps the
+ * URL.
  */
 export async function saveDomain(
   environmentId: string,
   write: DomainWrite,
   entryPort?: number
-): Promise<boolean> {
-  return db.transaction((tx) =>
-    saveDomainIn(tx, environmentId, write, entryPort)
-  );
+): Promise<DomainSaveResult> {
+  return db.transaction(async (tx) => {
+    await holdEnvironmentShared(tx, environmentId);
+    if (await teardownBlocks(environmentId, tx)) return "tearingDown";
+    return (await saveDomainIn(tx, environmentId, write, entryPort))
+      ? "saved"
+      : "provisioned";
+  });
 }
 
 /** saveDomain inside the caller's transaction. */
@@ -221,6 +234,35 @@ export async function saveDomainIn(
     })
     .where(eq(environments.id, environmentId));
   return true;
+}
+
+/**
+ * Records a tunnel binding whose Cloudflare objects already exist, with their
+ * ids, and the environment's URL. Only for an environment without a binding
+ * (else `provisioned`) and not while a teardown is under way (`tearingDown`);
+ * neither writes anything. A hostname another environment holds fails with
+ * the unique violation (23505).
+ */
+export async function adoptDomain(
+  environmentId: string,
+  row: DomainWrite &
+    Pick<typeof environmentDomains.$inferInsert, "accessAppId" | "dnsRecordId">
+): Promise<DomainSaveResult> {
+  return db.transaction(async (tx) => {
+    await holdEnvironmentShared(tx, environmentId);
+    if (await teardownBlocks(environmentId, tx)) return "tearingDown";
+    const rows = await tx
+      .insert(environmentDomains)
+      .values({ environmentId, ...row })
+      .onConflictDoNothing({ target: environmentDomains.environmentId })
+      .returning({ id: environmentDomains.environmentId });
+    if (rows.length === 0) return "provisioned";
+    await tx
+      .update(environments)
+      .set({ url: domainUrl(row.hostname) })
+      .where(eq(environments.id, environmentId));
+    return "saved";
+  });
 }
 
 /** Removes an unprovisioned binding. False when none was removed. */

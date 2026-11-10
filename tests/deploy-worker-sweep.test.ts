@@ -8,6 +8,10 @@ const provisioning = vi.hoisted(() => ({
   failStaleProvisionRuns: vi.fn(async () => 0),
 }));
 vi.mock("@/lib/provisioning/repository", () => provisioning);
+const teardown = vi.hoisted(() => ({
+  failStaleTeardownRuns: vi.fn(async () => 0),
+}));
+vi.mock("@/lib/teardown/repository", () => teardown);
 vi.mock("@/lib/jobs/processor", () => ({ processJob: vi.fn() }));
 const queue = vi.hoisted(() => ({
   TASKS_QUEUE: "test",
@@ -15,6 +19,7 @@ const queue = vi.hoisted(() => ({
   scheduleJiraSweep: vi.fn(),
   scheduleDeployLockSweep: vi.fn(async () => {}),
   scheduleInstanceUpdateCheck: vi.fn(async () => {}),
+  scheduleEnvironmentArchivePrune: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/queue", () => queue);
 const locks = vi.hoisted(() => ({ sweepExpiredLocks: vi.fn(async () => 0) }));
@@ -124,6 +129,38 @@ describe("startWorker provision sweep", () => {
       )
     );
     expect(provisioning.failStaleProvisionRuns).toHaveBeenCalledTimes(1);
+
+    errors.mockRestore();
+    once.mockRestore();
+    vi.unstubAllEnvs();
+  });
+});
+
+describe("startWorker teardown sweep and archive prune", () => {
+  it("fails teardown runs left started, schedules the daily prune, and survives failures", async () => {
+    delete (globalThis as { __tasksWorker?: unknown }).__tasksWorker;
+    vi.stubEnv("REDIS_URL", "redis://test:6379");
+    const once = vi.spyOn(process, "once").mockImplementation(() => process);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    deploy.failStaleDeployments.mockResolvedValue(undefined);
+    teardown.failStaleTeardownRuns.mockRejectedValue(new Error("db down"));
+    queue.scheduleEnvironmentArchivePrune.mockRejectedValue(
+      new Error("redis down")
+    );
+
+    expect(startWorker()).not.toBeNull();
+    await vi.waitFor(() => {
+      expect(errors).toHaveBeenCalledWith(
+        "Failed to sweep stale teardown runs:",
+        expect.any(Error)
+      );
+      expect(errors).toHaveBeenCalledWith(
+        "Failed to schedule the environment archive prune:",
+        expect.any(Error)
+      );
+    });
+    expect(teardown.failStaleTeardownRuns).toHaveBeenCalledTimes(1);
+    expect(queue.scheduleEnvironmentArchivePrune).toHaveBeenCalledTimes(1);
 
     errors.mockRestore();
     once.mockRestore();

@@ -10,7 +10,15 @@ export const API_BASE = "https://api.cloudflare.com/client/v4";
 // keeps a hung call from holding a server action open.
 const REQUEST_TIMEOUT_MS = 10_000;
 
-export class CloudflareApiError extends Error {}
+export class CloudflareApiError extends Error {
+  /** The HTTP status when Cloudflare answered; unset for network failures. */
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 export type ResultInfo = {
   page?: number;
@@ -76,12 +84,16 @@ export async function requestWithInfo<T>(
     body = (await response.json()) as ApiEnvelope<T>;
   } catch {
     throw new CloudflareApiError(
-      `Cloudflare API returned ${response.status} with a non-JSON body`
+      `Cloudflare API returned ${response.status} with a non-JSON body`,
+      response.status
     );
   }
 
   if (!response.ok || !body.success) {
-    throw new CloudflareApiError(describeCloudflareErrors(body.errors ?? []));
+    throw new CloudflareApiError(
+      describeCloudflareErrors(body.errors ?? []),
+      response.status
+    );
   }
   return { result: body.result, info: body.result_info ?? {} };
 }

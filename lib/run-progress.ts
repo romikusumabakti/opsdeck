@@ -10,9 +10,13 @@ export type CreateRunInput = Omit<
   "id" | "status" | "output" | "errorMessage" | "completedAt" | "runAt"
 > & { runAt?: Date };
 
-export async function createRun(input: CreateRunInput): Promise<string> {
+/** Inserts a `started` run with `executor` (db, or a transaction). */
+export async function insertRun(
+  executor: Pick<typeof db, "insert">,
+  input: CreateRunInput
+): Promise<string> {
   const row = one(
-    await db
+    await executor
       .insert(runs)
       .values({
         ...input,
@@ -24,6 +28,10 @@ export async function createRun(input: CreateRunInput): Promise<string> {
     "run"
   );
   return row.id;
+}
+
+export async function createRun(input: CreateRunInput): Promise<string> {
+  return insertRun(db, input);
 }
 
 // Hard cap on stored run output. Bounds the row size and, more importantly,

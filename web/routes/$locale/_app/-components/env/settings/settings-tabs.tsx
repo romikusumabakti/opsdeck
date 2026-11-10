@@ -186,7 +186,10 @@ export function EnvironmentSettingsTabs({
               <CardDescription>{t("dangerZoneDescription")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <DeleteEnvironmentCard environment={environment} />
+              <DeleteEnvironmentCard
+                environment={environment}
+                projectKey={projectKey}
+              />
             </CardContent>
           </Card>
         </TabsContent>

@@ -469,6 +469,8 @@ export const runKindEnum = pgEnum("run_kind", [
   "deploy",
   // Added by the provisioning migration (outside its transaction).
   "provision",
+  // Added by the environment teardown migration.
+  "teardown",
 ]);
 
 export const runs = pgTable(
@@ -775,6 +777,122 @@ export const provisioningSteps = pgTable(
     ),
     // FK index: "on delete set null" scans by run when a run is deleted.
     index("provisioning_steps_last_run_idx").on(t.lastRunId),
+  ]
+);
+
+export const teardownStepKindEnum = pgEnum("teardown_step_kind", [
+  "check_stack",
+  "archive_database",
+  "stop_stack",
+  "archive_deploy_dir",
+  "archive_volumes",
+  "stack_down",
+  "drop_database",
+  "remove_tunnel_route",
+  "remove_access_app",
+  "remove_dns_record",
+  "remove_deploy_dir",
+  "delete_environment",
+]);
+
+export const teardownStepStatusEnum = pgEnum("teardown_step_status", [
+  "pending",
+  "running",
+  "done",
+  "failed",
+]);
+
+// Ordered steps of an environment's teardown; see lib/teardown. Deleted with
+// the environment (the last step deletes the environment row itself).
+export const teardownSteps = pgTable(
+  "teardown_steps",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, {
+        name: "teardown_steps_environment_id_fkey",
+        onDelete: "cascade",
+      }),
+    position: integer("position").notNull(),
+    kind: teardownStepKindEnum("kind").notNull(),
+    // Non-secret parameters only.
+    params: jsonb("params").$type<Record<string, unknown>>().notNull(),
+    status: teardownStepStatusEnum("status").notNull().default("pending"),
+    // Stable error code of the last failure; null otherwise.
+    lastError: text("last_error"),
+    // set null: the step outlives the run that last executed it.
+    lastRunId: uuid("last_run_id").references(() => runs.id, {
+      name: "teardown_steps_last_run_id_fkey",
+      onDelete: "set null",
+    }),
+    completedAt: timestamp("completed_at"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("teardown_steps_environment_position_idx").on(
+      t.environmentId,
+      t.position
+    ),
+    // FK index: "on delete set null" scans by run when a run is deleted.
+    index("teardown_steps_last_run_idx").on(t.lastRunId),
+  ]
+);
+
+export const environmentArchiveLocationEnum = pgEnum(
+  "environment_archive_location",
+  ["local", "s3"]
+);
+
+export type EnvironmentArchiveFile = { name: string; size: number };
+
+// What a teardown kept of a deleted environment (database dump, deploy dir
+// tarball). Names are snapshots and environmentId has no foreign key, so the
+// row survives the environment's delete. completedAt stays null until the
+// environment row is gone; the open row is how a retry finds its archive.
+export const environmentArchives = pgTable(
+  "environment_archives",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    environmentId: uuid("environment_id"),
+    projectName: text("project_name").notNull(),
+    environmentName: text("environment_name").notNull(),
+    environmentSlug: text("environment_slug").notNull(),
+    deletedById: uuid("deleted_by").references(() => users.id, {
+      name: "environment_archives_deleted_by_fkey",
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    location: environmentArchiveLocationEnum("location").notNull(),
+    // The S3 connection an `s3` archive was written to (null for `local`),
+    // so download and prune read the bucket it is in, not today's backup
+    // destination. set null: an `s3` archive without one is unreachable,
+    // and the prune keeps its row.
+    s3ConnectionId: uuid("s3_connection_id").references(
+      () => s3Connections.id,
+      {
+        name: "environment_archives_s3_connection_id_fkey",
+        onDelete: "set null",
+      }
+    ),
+    keyPrefix: text("key_prefix").notNull(),
+    files: jsonb("files")
+      .$type<EnvironmentArchiveFile[]>()
+      .notNull()
+      .default([]),
+    completedAt: timestamp("completed_at"),
+  },
+  (t) => [
+    index("environment_archives_environment_idx").on(t.environmentId),
+    // At most one open archive per environment: the teardown's.
+    uniqueIndex("environment_archives_open_idx")
+      .on(t.environmentId)
+      .where(sql`${t.completedAt} IS NULL`),
+    index("environment_archives_expires_at_idx").on(t.expiresAt),
+    index("environment_archives_deleted_by_idx").on(t.deletedById),
+    // FK index: "on delete set null" scans by connection.
+    index("environment_archives_s3_connection_idx").on(t.s3ConnectionId),
   ]
 );
 
@@ -2307,5 +2425,7 @@ export const sshKeyJobs = pgTable(
 
 export type InstanceSettings = InferSelectModel<typeof instanceSettings>;
 export type SshKeyJob = InferSelectModel<typeof sshKeyJobs>;
+export type TeardownStep = InferSelectModel<typeof teardownSteps>;
+export type EnvironmentArchive = InferSelectModel<typeof environmentArchives>;
 export type InstanceBackup = InferSelectModel<typeof instanceBackups>;
 export type NewInstanceBackup = InferInsertModel<typeof instanceBackups>;

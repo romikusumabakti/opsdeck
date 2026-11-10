@@ -1,10 +1,32 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/db", () => ({ db: {} }));
+// saveDomain and adoptDomain run in db.transaction under the teardown guard.
+const guard = vi.hoisted(() => ({
+  tx: null as unknown,
+  tearingDown: false,
+  calls: [] as string[],
+}));
+vi.mock("@/lib/db", () => ({
+  db: { transaction: (fn: (tx: unknown) => unknown) => fn(guard.tx) },
+}));
+vi.mock("@/lib/teardown/guard", () => ({
+  holdEnvironmentShared: vi.fn(async (_tx: unknown, id: string) => {
+    guard.calls.push(`hold ${id}`);
+  }),
+  teardownBlocks: vi.fn(async (id: string, tx: unknown) => {
+    expect(tx).toBe(guard.tx);
+    guard.calls.push(`check ${id}`);
+    return guard.tearingDown;
+  }),
+}));
 
 import type { DbTransaction } from "@/lib/db";
 import { environmentDomains, environments } from "@/lib/db/schema";
-import { saveDomainIn } from "@/lib/domains/repository";
+import {
+  adoptDomain,
+  saveDomain,
+  saveDomainIn,
+} from "@/lib/domains/repository";
 
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
 
@@ -18,6 +40,7 @@ function fakeTx(upserted: unknown[]) {
       return {
         values: () => ({
           onConflictDoUpdate: () => ({ returning: async () => upserted }),
+          onConflictDoNothing: () => ({ returning: async () => upserted }),
         }),
       };
     },
@@ -75,6 +98,58 @@ describe("the environment URL follows its domain", () => {
   it("a provisioned binding writes nothing", async () => {
     const { tx, updates } = fakeTx([]);
     expect(await saveDomainIn(tx, ENV_ID, tunnel)).toBe(false);
+    expect(updates).toEqual([]);
+  });
+});
+
+describe("domain writes and a teardown", () => {
+  const adopted = {
+    ...tunnel,
+    accessPolicyId: null,
+    accessAppId: "app-1",
+    dnsRecordId: "rec-1",
+  };
+
+  it("saveDomain and adoptDomain write under the shared environment lock", async () => {
+    guard.tearingDown = false;
+    for (const write of [
+      () => saveDomain(ENV_ID, tunnel),
+      () => adoptDomain(ENV_ID, adopted),
+    ]) {
+      guard.calls = [];
+      const { tx, updates } = fakeTx([{ id: ENV_ID }]);
+      guard.tx = tx;
+      expect(await write()).toBe("saved");
+      expect(guard.calls).toEqual([`hold ${ENV_ID}`, `check ${ENV_ID}`]);
+      expect(updates[0]?.values).toEqual({
+        url: "https://kmem-dev-2.example.net",
+      });
+    }
+  });
+
+  it("write nothing while a teardown is under way", async () => {
+    guard.tearingDown = true;
+    for (const write of [
+      () => saveDomain(ENV_ID, tunnel),
+      () => adoptDomain(ENV_ID, adopted),
+    ]) {
+      const { tx, updates } = fakeTx([{ id: ENV_ID }]);
+      guard.tx = {
+        ...(tx as object),
+        insert: () => {
+          throw new Error("must not insert");
+        },
+      };
+      expect(await write()).toBe("tearingDown");
+      expect(updates).toEqual([]);
+    }
+  });
+
+  it("adoptDomain reports an existing binding as provisioned", async () => {
+    guard.tearingDown = false;
+    const { tx, updates } = fakeTx([]);
+    guard.tx = tx;
+    expect(await adoptDomain(ENV_ID, adopted)).toBe("provisioned");
     expect(updates).toEqual([]);
   });
 });

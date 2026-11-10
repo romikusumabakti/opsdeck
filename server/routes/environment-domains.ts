@@ -1,8 +1,12 @@
 import { z } from "zod";
-import { domainInputSchema } from "@/lib/domains/validation";
+import {
+  adoptDomainInputSchema,
+  domainInputSchema,
+} from "@/lib/domains/validation";
 import { uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
+  adoptEnvironmentDomain,
   deleteEnvironmentDomain,
   getEnvironmentDomain,
   listDomainAccessPolicies,
@@ -14,7 +18,7 @@ const envParam = param(z.object({ id: uuidSchema }));
 
 /**
  * An environment's domain, mounted at /api/environments. Each service
- * function checks the project permission itself.
+ * function checks its permission itself (adopt: org server:manage).
  */
 export const environmentDomainsRouter = sessionRouter()
   .get("/:id/domain", envParam, async (c) =>
@@ -27,6 +31,18 @@ export const environmentDomainsRouter = sessionRouter()
     c.json(
       await putEnvironmentDomain(c.req.valid("param").id, c.req.valid("json"))
     )
+  )
+  .post(
+    "/:id/domain/adopt",
+    envParam,
+    json(adoptDomainInputSchema),
+    async (c) =>
+      c.json(
+        await adoptEnvironmentDomain(
+          c.req.valid("param").id,
+          c.req.valid("json")
+        )
+      )
   )
   .delete("/:id/domain", envParam, async (c) => {
     await deleteEnvironmentDomain(c.req.valid("param").id);

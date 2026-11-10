@@ -48,6 +48,11 @@ function memoryStore(initial: Record<string, string> = {}) {
       await writeFile(filePath, body);
       return body.length;
     },
+    async read(key) {
+      const body = objects.get(key);
+      if (!body) throw new Error(`no such key ${key}`);
+      return Readable.from([body]);
+    },
     async upload(key, filePath) {
       objects.set(key, await readFile(filePath));
       uploads.push(key);
@@ -127,7 +132,13 @@ function destination(
   store: ObjectStore,
   keep: Partial<BackupDestination> = {}
 ): BackupDeps["destination"] {
-  return async () => ({ store, keepDaily: 14, keepWeekly: 8, ...keep });
+  return async () => ({
+    connectionId: "conn-1",
+    store,
+    keepDaily: 14,
+    keepWeekly: 8,
+    ...keep,
+  });
 }
 
 beforeEach(async () => {
