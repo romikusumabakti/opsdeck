@@ -21,6 +21,7 @@ import {
   listSteps,
   loadDatabaseHost,
   markStep,
+  targetHasSuccessfulDeployment,
 } from "@/lib/provisioning/repository";
 import type { JobMap } from "@/lib/queue";
 import { appendRunOutput, completeRun, failRun } from "@/lib/run-progress";
@@ -131,6 +132,12 @@ async function deploy(
   const target = await getTarget(params.targetId);
   if (!target)
     throw new StepFailed(`Deploy target ${params.targetId} not found`);
+  // The step is the first deploy. A target deployed meanwhile (from the
+  // Deploys page or a build hook) gets no second one; the plan skips such
+  // targets, this covers a step stored before they deployed.
+  if (await targetHasSuccessfulDeployment(target.id)) {
+    return `${target.componentKey} already deployed; nothing to do`;
+  }
   // Flag first, then look: a build landing in between is then deployed by the
   // build hook (it sees the flag) or found here, never missed. Whichever
   // clears the flag places the deployment, so it happens once.
