@@ -70,34 +70,70 @@ export const buildImageSchema = z.object({
   context: directory,
 });
 
-export const buildSpecSchema = z.object({
-  // Woodpecker branch filter. The branch also becomes part of the image tag,
-  // so it has to pass the Panel's branch rule (no globs).
-  branches: z.array(branchSchema).min(1),
-  tagShaLength: z.number().int().min(7).max(40).default(7),
-  images: z
-    .array(buildImageSchema)
-    .min(1)
-    .superRefine(unique((image) => image.name, "Duplicate image name")),
-  // Files copied into the deploy bundle; `to` is relative to the deploy dir.
-  bundleFiles: z
-    .array(z.object({ from: relativePath, to: relativePath }))
-    .min(1)
-    .superRefine(unique((file) => file.to, "Duplicate bundle target")),
-  // Gate steps that run before the build, each in its own container.
-  checks: z
-    .array(
-      z.object({
-        name: stepName,
-        image: imageReference,
-        dir: directory,
-        commands: z.array(z.string().trim().min(1)).min(1),
-      })
-    )
-    .superRefine(unique((check) => check.name, "Duplicate check name"))
-    .default([]),
-  // Woodpecker repo timeout; applied to the repo settings, not the YAML.
-  timeoutMinutes: z.number().int().min(10).max(180).default(60),
+/**
+ * What an artifact build produces, relative to the repository root: a single
+ * jar file, or the directory of a static site (copied whole, `index.html`
+ * included).
+ */
+export const artifactSchema = z.object({
+  kind: z.enum(["jar", "static"]),
+  path: relativePath,
 });
+
+export const buildSpecSchema = z
+  .object({
+    // Woodpecker branch filter. The branch also becomes part of the image tag,
+    // so it has to pass the Panel's branch rule (no globs). Needs at least one
+    // entry unless `artifact` is set (see the refinement below).
+    branches: z.array(branchSchema),
+    tagShaLength: z.number().int().min(7).max(40).default(7),
+    images: z
+      .array(buildImageSchema)
+      .default([])
+      .superRefine(unique((image) => image.name, "Duplicate image name")),
+    // Files copied into the deploy bundle; `to` is relative to the deploy dir.
+    bundleFiles: z
+      .array(z.object({ from: relativePath, to: relativePath }))
+      .default([])
+      .superRefine(unique((file) => file.to, "Duplicate bundle target")),
+    // Gate steps that run before the build, each in its own container.
+    checks: z
+      .array(
+        z.object({
+          name: stepName,
+          image: imageReference,
+          dir: directory,
+          commands: z.array(z.string().trim().min(1)).min(1),
+        })
+      )
+      .superRefine(unique((check) => check.name, "Duplicate check name"))
+      .default([]),
+    // A jar or static site built by the checks and pushed as the deploy image's
+    // `/bundle/artifact/`. Replaces `images` and `bundleFiles`.
+    artifact: artifactSchema.optional(),
+    // Woodpecker repo timeout; applied to the repo settings, not the YAML.
+    timeoutMinutes: z.number().int().min(10).max(180).default(60),
+  })
+  .superRefine((spec, ctx) => {
+    const issue = (path: string, message: string) =>
+      ctx.addIssue({ code: "custom", path: [path], message });
+    if (spec.artifact) {
+      // An artifact component registers before an engineer picks a branch.
+      if (spec.images.length > 0) {
+        issue("images", "An artifact build has no images");
+      }
+      if (spec.bundleFiles.length > 0) {
+        issue("bundleFiles", "An artifact build has no bundle files");
+      }
+      if (spec.checks.length === 0) {
+        issue("checks", "An artifact build needs a check that builds it");
+      }
+      return;
+    }
+    if (spec.branches.length === 0) issue("branches", "Needs a branch");
+    if (spec.images.length === 0) issue("images", "Needs an image");
+    if (spec.bundleFiles.length === 0)
+      issue("bundleFiles", "Needs a bundle file");
+  });
 
 export type BuildSpec = z.infer<typeof buildSpecSchema>;

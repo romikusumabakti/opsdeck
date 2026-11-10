@@ -54,6 +54,8 @@ export type PipelineOptions = {
   // Registry the images are pushed to, `host[:port]`. Defaults to
   // DEPLOY_REGISTRY, which is where Panel deploys pull the bundle from.
   registry?: string;
+  // Woodpecker secret holding the Panel's build-notification HMAC key.
+  notifySecretName?: string;
 };
 
 /** Escape a shell command for Woodpecker's variable substitution. */
@@ -134,6 +136,14 @@ function buildStep(
   registry: string
 ) {
   const bundleCommands: string[] = [];
+  if (spec.artifact) {
+    bundleCommands.push(
+      "mkdir -p .bundle/bundle/artifact",
+      spec.artifact.kind === "jar"
+        ? `cp ${spec.artifact.path} .bundle/bundle/artifact/`
+        : `cp -r ${spec.artifact.path}/. .bundle/bundle/artifact/`
+    );
+  }
   const madeDirs = new Set<string>();
   for (const file of spec.bundleFiles) {
     const slash = file.to.lastIndexOf("/");
@@ -145,6 +155,52 @@ function buildStep(
     bundleCommands.push(`cp -r ${file.from} .bundle/bundle/${file.to}`);
   }
 
+  const tagAndLogin: Command[] = [
+    {
+      comment:
+        " Same tag Jenkins produced for a commit: origin-<branch, / -> ->-<sha>.",
+      text: lines(
+        `TAG="origin-$(printf '%s' "$\${CI_COMMIT_BRANCH}" | tr / -)-$(printf '%s' "$\${CI_COMMIT_SHA}" | cut -c1-${spec.tagShaLength})"`,
+        `printf '%s' "$\${TAG}" > .tag`,
+        `echo "tag $\${TAG}"`
+      ),
+    },
+    {
+      comment:
+        " docker login needs a daemon; write the client auth file directly.",
+      text: lines(
+        "mkdir -p ~/.docker",
+        `printf '{"auths":{"%s":{"auth":"%s"}}}' "$\${REGISTRY}" "$(printf '%s:%s' "$\${REGISTRY_USERNAME}" "$\${REGISTRY_PASSWORD}" | base64 | tr -d '\\n')" > ~/.docker/config.json`
+      ),
+    },
+    {
+      text: `docker buildx create --name remote --driver remote ${BUILDKIT_ADDR} --use`,
+    },
+  ];
+  const bundleStep: Command = {
+    comment: spec.artifact
+      ? " Deploy bundle: the built artifact, under /bundle/artifact."
+      : " Deploy bundle: only the listed files, laid out as the deploy dir.",
+    text: lines(
+      "TAG=$(cat .tag)",
+      "mkdir -p .bundle/bundle",
+      ...bundleCommands,
+      "printf 'FROM scratch\\nCOPY bundle /bundle\\n' > .bundle/Dockerfile",
+      `docker buildx build ${PUSH_FLAGS} -t "$\${REGISTRY}/${componentKey}-deploy:$\${TAG}" .bundle`
+    ),
+  };
+  const imageStep: Command = {
+    comment:
+      " Docker media types, no provenance: Podman ignores HEALTHCHECK in OCI images.",
+    text: lines(
+      "TAG=$(cat .tag)",
+      ...spec.images.map(
+        (image) =>
+          `docker buildx build ${PUSH_FLAGS} -f ${image.dockerfile} -t "$\${REGISTRY}/${image.name}:$\${TAG}" ${image.context}`
+      )
+    ),
+  };
+
   return step(doc, {
     name: "build",
     image: BUILD_IMAGE,
@@ -154,62 +210,26 @@ function buildStep(
       REGISTRY_USERNAME: { from_secret: "registry_username" },
       REGISTRY_PASSWORD: { from_secret: "registry_password" },
     },
-    commands: [
-      {
-        comment:
-          " Same tag Jenkins produced for a commit: origin-<branch, / -> ->-<sha>.",
-        text: lines(
-          `TAG="origin-$(printf '%s' "$\${CI_COMMIT_BRANCH}" | tr / -)-$(printf '%s' "$\${CI_COMMIT_SHA}" | cut -c1-${spec.tagShaLength})"`,
-          `printf '%s' "$\${TAG}" > .tag`,
-          `echo "tag $\${TAG}"`
-        ),
-      },
-      {
-        comment:
-          " docker login needs a daemon; write the client auth file directly.",
-        text: lines(
-          "mkdir -p ~/.docker",
-          `printf '{"auths":{"%s":{"auth":"%s"}}}' "$\${REGISTRY}" "$(printf '%s:%s' "$\${REGISTRY_USERNAME}" "$\${REGISTRY_PASSWORD}" | base64 | tr -d '\\n')" > ~/.docker/config.json`
-        ),
-      },
-      {
-        text: `docker buildx create --name remote --driver remote ${BUILDKIT_ADDR} --use`,
-      },
-      {
-        comment:
-          " Docker media types, no provenance: Podman ignores HEALTHCHECK in OCI images.",
-        text: lines(
-          "TAG=$(cat .tag)",
-          ...spec.images.map(
-            (image) =>
-              `docker buildx build ${PUSH_FLAGS} -f ${image.dockerfile} -t "$\${REGISTRY}/${image.name}:$\${TAG}" ${image.context}`
-          )
-        ),
-      },
-      {
-        comment:
-          " Deploy bundle: only the listed files, laid out as the deploy dir.",
-        text: lines(
-          "TAG=$(cat .tag)",
-          "mkdir -p .bundle/bundle",
-          ...bundleCommands,
-          "printf 'FROM scratch\\nCOPY bundle /bundle\\n' > .bundle/Dockerfile",
-          `docker buildx build ${PUSH_FLAGS} -t "$\${REGISTRY}/${componentKey}-deploy:$\${TAG}" .bundle`
-        ),
-      },
-    ],
+    commands: spec.artifact
+      ? [...tagAndLogin, bundleStep]
+      : [...tagAndLogin, imageStep, bundleStep],
   });
 }
 
 // Without check steps Woodpecker runs the steps in file order. With checks,
 // `build` declares `depends_on`, which switches the whole pipeline to a DAG in
 // which a step without `depends_on` starts at once — so notify must name build.
-function notifyStep(doc: Document, componentKey: string, dag: boolean) {
+function notifyStep(
+  doc: Document,
+  componentKey: string,
+  dag: boolean,
+  secretName: string
+) {
   return step(doc, {
     name: "notify-panel",
     image: NOTIFY_IMAGE,
     dependsOn: dag ? ["build"] : [],
-    environment: { OPSDECK_NOTIFY_SECRET: { from_secret: "opsdeck_notify" } },
+    environment: { OPSDECK_NOTIFY_SECRET: { from_secret: secretName } },
     commands: [
       { text: "apk add --no-cache curl openssl >/dev/null" },
       {
@@ -256,13 +276,20 @@ export function generateWoodpeckerPipeline(
   const trigger = when.items[0];
   if (!isMap(trigger)) throw new Error("unreachable: when item is not a map");
   trigger.set("event", flowSeq(doc, ["push", "manual"]));
-  trigger.set("branch", flowSeq(doc, parsed.branches));
+  // An artifact pipeline runs on every branch: the engineer picks the deploy
+  // branches in the Panel, and a branch filter would need a commit per pick.
+  if (!parsed.artifact) trigger.set("branch", flowSeq(doc, parsed.branches));
 
   const steps = new YAMLSeq();
   steps.items = [
     ...parsed.checks.map((check) => checkStep(doc, check)),
     buildStep(doc, key, parsed, registry),
-    notifyStep(doc, key, parsed.checks.length > 0),
+    notifyStep(
+      doc,
+      key,
+      parsed.checks.length > 0,
+      options.notifySecretName ?? "opsdeck_notify"
+    ),
   ];
   // Blank line between steps, as in the hand-written files.
   for (const item of steps.items.slice(1)) {
