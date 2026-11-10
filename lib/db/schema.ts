@@ -629,6 +629,10 @@ export const appComponents = pgTable(
     // Shared secret for the CI build-notify webhook. Encrypted at rest via
     // lib/secrets.ts; never sent to the client.
     notifySecret: text("notify_secret").notNull(),
+    // Name of the CI secret that carries the notify secret into the pipeline.
+    notifySecretName: text("notify_secret_name")
+      .notNull()
+      .default("opsdeck_notify"),
     pipelineMode: pipelineModeEnum("pipeline_mode").notNull().default("custom"),
     // Inputs for the generated pipeline; null while the mode is "custom".
     buildSpec: jsonb("build_spec").$type<BuildSpec>(),
@@ -642,8 +646,8 @@ export const appComponents = pgTable(
   (t) => [
     // FK index: components of an app, and the onDelete:restrict check.
     index("app_components_app_idx").on(t.appId),
-    // One component per CI repository; registration answers 409 on a clash.
-    uniqueIndex("app_components_ci_repo_idx").on(t.ciConnectionId, t.ciRepoId),
+    // Several components may share a CI repository (one per artifact).
+    index("app_components_ci_repo_lookup_idx").on(t.ciConnectionId, t.ciRepoId),
   ]
 );
 
@@ -896,6 +900,12 @@ export const environmentArchives = pgTable(
   ]
 );
 
+export const deployTargetKindEnum = pgEnum("deploy_target_kind", [
+  "compose",
+  "jar",
+  "static",
+]);
+
 // Where a component deploys to: one target per (environment, component).
 export const deployTargets = pgTable(
   "deploy_targets",
@@ -921,6 +931,11 @@ export const deployTargets = pgTable(
       }),
     sourceBranch: text("source_branch").notNull(),
     autoDeploy: boolean("auto_deploy").notNull().default(false),
+    kind: deployTargetKindEnum("kind").notNull().default("compose"),
+    // Jar kind only: file name the jar gets on deploy, and the systemd unit
+    // restarted afterwards.
+    jarName: text("jar_name"),
+    systemdUnit: text("systemd_unit"),
     deployDir: text("deploy_dir").notNull(),
     services: text("services").array().notNull(),
     tagVariable: text("tag_variable").notNull().default("IMAGE_TAG"),
@@ -944,6 +959,10 @@ export const deployTargets = pgTable(
       t.componentKey
     ),
     index("deploy_targets_component_idx").on(t.componentKey),
+    check(
+      "deploy_targets_kind_fields_check",
+      sql`(${t.kind} = 'jar' and ${t.jarName} is not null and ${t.systemdUnit} is not null) or (${t.kind} <> 'jar' and ${t.jarName} is null and ${t.systemdUnit} is null)`
+    ),
   ]
 );
 
@@ -2216,6 +2235,7 @@ export type AppComponent = InferSelectModel<typeof appComponents>;
 export type DeployTarget = InferSelectModel<typeof deployTargets>;
 export type AppVariableTemplate = InferSelectModel<typeof appVariableTemplates>;
 export type EnvironmentVariable = InferSelectModel<typeof environmentVariables>;
+export type DeployTargetKind = (typeof deployTargetKindEnum.enumValues)[number];
 export type VariableKind = (typeof variableKindEnum.enumValues)[number];
 export type NewDeployTarget = InferInsertModel<typeof deployTargets>;
 export type Build = InferSelectModel<typeof builds>;
