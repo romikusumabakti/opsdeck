@@ -338,6 +338,8 @@
     "rollbackTo": "Roll back to {tag}",
     "deployConfirmTitle": "Deploy {tag}?",
     "deployConfirmDescription": "{app} will run {tag}. These services restart: {services}.",
+    "deployConfirmDescriptionJar": "{app} will run {tag}. The systemd unit {unit} restarts.",
+    "deployConfirmDescriptionStatic": "{app} will serve {tag}. The web root is swapped and nginx reloads; nothing restarts.",
     "rollbackConfirmTitle": "Roll back to {tag}?",
     "rollbackConfirmDescription": "{app} will run {tag} again, as a new deployment. Database migrations are not reverted: if a newer release changed the schema, the older version may not work with it.",
     "runTitle": "Deploy {tag}",
