@@ -56,4 +56,45 @@ describe("teardown of legacy deploy kinds", () => {
       "stack_down"
     );
   });
+
+  describe("collisions with legacy directories", () => {
+    const refusal = (e: TeardownEnvironment) => {
+      const plan = planTeardown(e);
+      return "refusal" in plan ? plan.refusal : null;
+    };
+
+    it.each([
+      ["the same dir", "/srv/stacks/web", "/srv/stacks/web"],
+      [
+        "a dir nested inside a jar dir",
+        "/srv/stacks/web/app",
+        "/srv/stacks/web",
+      ],
+      ["a parent of a jar dir", "/srv/stacks", "/srv/stacks/web"],
+    ])(
+      "refuses a compose target on %s of its own jar target",
+      (_n, compose, jar) => {
+        expect(
+          refusal(env([target(compose, "compose"), target(jar, "jar")]))
+        ).toBe("deployDirShared");
+      }
+    );
+
+    it("refuses a compose dir that collides with its own static target", () => {
+      expect(
+        refusal(
+          env([target("/srv/site", "compose"), target("/srv/site", "static")])
+        )
+      ).toBe("deployDirShared");
+    });
+
+    it("refuses when another environment's jar target collides", () => {
+      expect(
+        refusal({
+          ...env([target("/srv/stacks/web", "compose")]),
+          otherTargets: [{ host: "app-1.lan", deployDir: "/srv/stacks/web" }],
+        })
+      ).toBe("deployDirShared");
+    });
+  });
 });

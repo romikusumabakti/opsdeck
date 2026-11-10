@@ -246,7 +246,11 @@ export async function loadStackGuard(
     .where(
       and(
         inArray(deployTargets.serverId, machine),
-        ne(deployTargets.environmentId, environmentId)
+        // The environment's own jar/static dirs stay on the machine too.
+        or(
+          ne(deployTargets.environmentId, environmentId),
+          ne(deployTargets.kind, "compose")
+        )
       )
     )
     .orderBy(asc(deployTargets.id));

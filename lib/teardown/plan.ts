@@ -125,11 +125,18 @@ export type TeardownPlan =
 export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   const dirs: DirParams[] = [];
   const machineDirs: { host: string; deployDir: string }[] = [];
+  const legacyDirs: { host: string; deployDir: string }[] = [];
   const seen = new Set<string>();
   for (const target of env.targets) {
     // jar and static targets live on long-lived client VMs: the Panel only
     // drops their records, so their dirs get no server steps.
-    if (target.kind && target.kind !== "compose") continue;
+    if (target.kind && target.kind !== "compose") {
+      legacyDirs.push({
+        host: normaliseHost(target.host),
+        deployDir: normaliseDeployDir(target.deployDir),
+      });
+      continue;
+    }
     if (!isSafeDeployDir(target.deployDir)) {
       return { refusal: "unsafeDeployDir" };
     }
@@ -141,8 +148,10 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
     dirs.push({ serverId: target.serverId, deployDir });
   }
 
+  // The environment's own jar/static dirs are never touched, so a compose dir
+  // that overlaps one is as unsafe as another environment's.
   const shared = machineDirs.some((ours) =>
-    env.otherTargets.some(
+    [...env.otherTargets, ...legacyDirs].some(
       (other) =>
         normaliseHost(other.host) === ours.host &&
         dirsCollide(ours.deployDir, normaliseDeployDir(other.deployDir))
