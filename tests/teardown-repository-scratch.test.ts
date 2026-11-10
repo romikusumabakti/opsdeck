@@ -96,7 +96,13 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
     }
     await db
       .delete(s.appComponents)
-      .where(inArray(s.appComponents.componentKey, ["td-it", "td-it-web"]));
+      .where(
+        inArray(s.appComponents.componentKey, [
+          "td-it",
+          "td-it-web",
+          "td-it-jar",
+        ])
+      );
     await db.delete(s.apps).where(eq(s.apps.appKey, "td-it"));
     await db.delete(s.ciConnections).where(eq(s.ciConnections.name, "td-it"));
     await db.delete(s.remoteTunnels).where(eq(s.remoteTunnels.name, "td-it"));
@@ -175,7 +181,7 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
           .returning({ id: s.apps.id })
       )
     ).id;
-    for (const componentKey of ["td-it", "td-it-web"]) {
+    for (const componentKey of ["td-it", "td-it-web", "td-it-jar"]) {
       await db.insert(s.appComponents).values({
         componentKey,
         appId: ids.app,
@@ -256,11 +262,13 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
           serverId: ids.server,
           host: "192.0.2.20",
           deployDir: "/deployments/td-it",
+          kind: "compose",
         },
         {
           serverId: ids.server,
           host: "192.0.2.20",
           deployDir: "/deployments/td-it/",
+          kind: "compose",
         },
       ],
       // Every other environment's target; the planner matches by host.
@@ -397,11 +405,13 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
   it("guards the environment's own jar and static dirs at run time", async () => {
     await db.insert(s.deployTargets).values({
       environmentId: ids.env,
-      componentKey: "td-it",
+      componentKey: "td-it-jar",
       serverId: ids.serverAlias,
       sourceBranch: "main",
       deployDir: "/srv/td-it-jar",
       kind: "jar",
+      jarName: "td-it.jar",
+      systemdUnit: "td-it.service",
       services: ["backend"],
     });
     try {
