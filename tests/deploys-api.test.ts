@@ -47,6 +47,7 @@ const repo = vi.hoisted(() => ({
   supersedeHeldDeployments: vi.fn(),
   deleteTarget: vi.fn(),
   environmentUsesServer: vi.fn(),
+  listTargetDirsOnMachine: vi.fn(),
   getDeployLock: vi.fn(),
   getEnvironmentForLock: vi.fn(),
 }));
@@ -123,7 +124,8 @@ beforeEach(() => {
     ownerId: null,
   });
   apps.getComponent.mockResolvedValue({ componentKey: "dplk-accounting" });
-  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(undefined);
+  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(null);
+  repo.listTargetDirsOnMachine.mockResolvedValue([]);
   repo.environmentUsesServer.mockImplementation(
     async (_env: string, server: string) => server === SERVER_ID
   );

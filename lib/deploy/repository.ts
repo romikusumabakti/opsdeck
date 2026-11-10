@@ -31,12 +31,14 @@ import {
   environments,
   type NewDeployTarget,
   runs,
+  servers,
   users,
 } from "@/lib/db/schema";
 import { isLockActive, placementFor, planHeldRelease } from "@/lib/deploy/lock";
 import { autoRunActor, PRE_DEPLOY_BACKUP_PREFIX } from "@/lib/deploy/run-actor";
 import { isUniqueViolation } from "@/lib/people/names";
 import { holdEnvironmentShared, teardownBlocks } from "@/lib/teardown/guard";
+import { normaliseHost } from "@/lib/teardown/paths";
 import type { UserRef } from "@/lib/types";
 
 const RECENT_LIMIT = 20;
@@ -1230,6 +1232,37 @@ export async function environmentUsesServer(
     )
     .limit(1);
   return row !== undefined;
+}
+
+/**
+ * Every target (any environment) on the machine behind `serverId`: the
+ * servers whose host normalises to the same one, as the teardown matches
+ * them. Empty when the server row is gone.
+ */
+export async function listTargetDirsOnMachine(
+  serverId: string,
+  executor: DbExecutor = db
+): Promise<
+  Pick<DeployTarget, "id" | "environmentId" | "kind" | "deployDir">[]
+> {
+  const all = await executor
+    .select({ id: servers.id, host: servers.host })
+    .from(servers);
+  const ours = all.find((server) => server.id === serverId);
+  if (!ours) return [];
+  const host = normaliseHost(ours.host);
+  const machine = all
+    .filter((server) => normaliseHost(server.host) === host)
+    .map((server) => server.id);
+  return executor
+    .select({
+      id: deployTargets.id,
+      environmentId: deployTargets.environmentId,
+      kind: deployTargets.kind,
+      deployDir: deployTargets.deployDir,
+    })
+    .from(deployTargets)
+    .where(inArray(deployTargets.serverId, machine));
 }
 
 export async function deleteTarget(id: string): Promise<void> {

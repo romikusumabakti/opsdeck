@@ -16,6 +16,8 @@ import {
   servers,
 } from "@/lib/db/schema";
 import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
+import { listTargetDirsOnMachine } from "@/lib/deploy/repository";
+import { staticRootConflict } from "@/lib/deploy/target-dirs";
 import { DOMAIN_ERRORS, pgErrorCode } from "@/lib/domains/errors";
 import { getZone, listZones, saveDomainIn } from "@/lib/domains/repository";
 import type { DomainInput } from "@/lib/domains/validation";
@@ -424,14 +426,23 @@ async function checkSetup(
     .where(eq(apps.id, input.appId))
     .limit(1);
   if (!app) checks.refuse("appId", setupError("appNotFound"));
-  const appComponentKeys = app
-    ? (
-        await db
-          .select({ componentKey: appComponents.componentKey })
-          .from(appComponents)
-          .where(eq(appComponents.appId, app.id))
-      ).map((c) => c.componentKey)
+  const appComponentRows = app
+    ? await db
+        .select({
+          componentKey: appComponents.componentKey,
+          buildSpec: appComponents.buildSpec,
+        })
+        .from(appComponents)
+        .where(eq(appComponents.appId, app.id))
     : [];
+  const appComponentKeys = appComponentRows.map((c) => c.componentKey);
+  // The wizard's targets are compose ones: an artifact component's would be
+  // refused by insertDeployTargetIn.
+  const artifactComponentKeys = new Set(
+    appComponentRows
+      .filter((c) => c.buildSpec?.artifact)
+      .map((c) => c.componentKey)
+  );
 
   const [server] = await db
     .select({ name: servers.name })
@@ -471,10 +482,20 @@ async function checkSetup(
       );
     } else if (seen.has(target.componentKey)) {
       checks.refuse(field, targetError("targetDuplicate"));
+    } else if (artifactComponentKeys.has(target.componentKey)) {
+      checks.refuse(field, targetError("targetKindMismatch"));
     }
     seen.add(target.componentKey);
     if (server && (await deployDirInUse(serverId, target.deployDir))) {
       checks.refuse(`targets.${i}.deployDir`, setupError("sharedDeployDir"));
+    } else if (server) {
+      const conflict = staticRootConflict(
+        { kind: "compose", deployDir: target.deployDir },
+        await listTargetDirsOnMachine(serverId)
+      );
+      if (conflict) {
+        checks.refuse(`targets.${i}.deployDir`, targetError(conflict));
+      }
     }
     // The deploy's backup needs a database it can dump (a shared binding);
     // any other kind would abort every deploy.

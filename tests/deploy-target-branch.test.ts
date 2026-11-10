@@ -34,6 +34,7 @@ const repo = vi.hoisted(() => ({
   upsertTarget: vi.fn(),
   supersedeHeldDeployments: vi.fn(),
   environmentUsesServer: vi.fn(),
+  listTargetDirsOnMachine: vi.fn(),
   getEnvironmentForLock: vi.fn(),
 }));
 vi.mock("@/lib/deploy/repository", () => repo);
@@ -158,7 +159,8 @@ beforeEach(() => {
     ...target,
     ...input,
   }));
-  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(undefined);
+  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(null);
+  repo.listTargetDirsOnMachine.mockResolvedValue([]);
   apps.appendBuildSpecBranch.mockResolvedValue(true);
   apps.getComponent.mockResolvedValue(component());
   forge.getForgeCredentials.mockResolvedValue({

@@ -84,6 +84,16 @@ const KIND_LABELS = {
 /** The `deploys.form` message key of a kind's name. */
 export const kindLabelKey = (kind: TargetKind) => KIND_LABELS[kind];
 
+/**
+ * The kind a component deploys as: its build spec's artifact kind, compose
+ * for a container component (the API refuses any other).
+ */
+export function componentTargetKind(component: {
+  buildSpec?: { artifact?: { kind: "jar" | "static" } } | null;
+}): TargetKind {
+  return component.buildSpec?.artifact?.kind ?? "compose";
+}
+
 /** The `deploys.form` message prefix of the directory field of a kind. */
 export const deployDirCopy = (kind: TargetKind) =>
   kind === "jar" ? "jarDeployDir" : kind === "static" ? "webRoot" : "deployDir";
@@ -330,9 +340,11 @@ export function TargetFormDialog({
       .min(1, tCommon("required"))
       .refine((value) => componentKeySchema.safeParse(value).success, invalid),
   });
+  const only = free.length === 1 ? free[0] : undefined;
   const defaults = (): Values => ({
-    componentKey: free.length === 1 ? (free[0]?.componentKey ?? "") : "",
+    componentKey: only?.componentKey ?? "",
     ...targetFormValues(null, servers),
+    ...(only && { kind: componentTargetKind(only) }),
   });
 
   const form = useForm<Values>({
@@ -368,6 +380,17 @@ export function TargetFormDialog({
         form.setError("tagVariable", { message: t("tagVariableIsVariable") });
       } else if (error instanceof ApiError && error.status === 404) {
         form.setError("componentKey", { message: t("componentNotFound") });
+      } else if (
+        error instanceof ApiError &&
+        error.code === "targetKindMismatch"
+      ) {
+        form.setError("kind", { message: t("kindMismatch") });
+      } else if (
+        error instanceof ApiError &&
+        (error.code === "staticRootContainsTarget" ||
+          error.code === "targetInsideStaticRoot")
+      ) {
+        form.setError("deployDir", { message: t(error.code) });
       } else if (error instanceof ApiError && error.status === 409) {
         form.setError("componentKey", {
           message:
@@ -481,7 +504,15 @@ export function TargetFormDialog({
                           `${c.componentKey} (${c.repoFullName})`,
                         ])
                       )}
-                      onValueChange={(value) => field.onChange(value ?? "")}
+                      onValueChange={(value) => {
+                        field.onChange(value ?? "");
+                        const picked = components?.find(
+                          (c) => c.componentKey === value
+                        );
+                        if (picked) {
+                          form.setValue("kind", componentTargetKind(picked));
+                        }
+                      }}
                     >
                       <FormControl>
                         <SelectTrigger id="target-component" className="w-full">
