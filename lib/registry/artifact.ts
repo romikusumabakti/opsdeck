@@ -7,6 +7,15 @@
  */
 
 const MANIFEST_TYPE = "application/vnd.docker.distribution.manifest.v2+json";
+// Docker first, then the types we reject: registry:2 answers 404 when the
+// stored manifest type is not acceptable, which would hide the real problem.
+const MANIFEST_ACCEPT = [
+  MANIFEST_TYPE,
+  "application/vnd.oci.image.index.v1+json",
+  "application/vnd.oci.image.manifest.v1+json",
+  "application/vnd.docker.distribution.manifest.list.v2+json",
+].join(", ");
+const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const LAYER_TYPE = "application/vnd.docker.image.rootfs.diff.tar.gzip";
 
 export class ArtifactImageError extends Error {
@@ -54,7 +63,7 @@ export async function openArtifactLayer(
 }> {
   const manifestReq = registryRequest(
     `/v2/${image}/manifests/${tag}`,
-    MANIFEST_TYPE
+    MANIFEST_ACCEPT
   );
   const manifestRes = await fetch(manifestReq.url, {
     headers: manifestReq.headers,
@@ -65,7 +74,12 @@ export async function openArtifactLayer(
   if (!manifestRes.ok)
     throw failStatus(`manifest ${image}:${tag}`, manifestRes);
 
-  const manifest = (await manifestRes.json()) as Manifest;
+  let manifest: Manifest;
+  try {
+    manifest = (await manifestRes.json()) as Manifest;
+  } catch {
+    throw new ArtifactImageError("manifest is not valid JSON");
+  }
   if (manifest.mediaType !== MANIFEST_TYPE) {
     throw new ArtifactImageError(
       `manifest media type is ${String(manifest.mediaType)}, expected ${MANIFEST_TYPE}`
@@ -81,8 +95,12 @@ export async function openArtifactLayer(
       `layer media type is ${String(layer.mediaType)}, expected ${LAYER_TYPE}`
     );
   }
-  if (typeof layer.digest !== "string" || typeof layer.size !== "number") {
-    throw new ArtifactImageError("layer has no digest or size");
+  if (
+    typeof layer.digest !== "string" ||
+    !DIGEST_PATTERN.test(layer.digest) ||
+    typeof layer.size !== "number"
+  ) {
+    throw new ArtifactImageError("layer has no valid sha256 digest or size");
   }
 
   const blobReq = registryRequest(`/v2/${image}/blobs/${layer.digest}`);
