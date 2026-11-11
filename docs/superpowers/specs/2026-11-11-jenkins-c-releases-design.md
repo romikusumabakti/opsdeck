@@ -60,7 +60,7 @@ Part C gives releases one source, the Panel, then switches Jenkins off.
   - The Panel streams the file through its own API, because Garage is not published and the engineer-only check must hold. There is no presigned URL.
   - The response sets `Content-Disposition` with a file name like `legacy-core-backend_TMLI-2026-11-2.jar` *(exact format is the builder's call)*.
 - **Audit:** creating, downloading and deleting a release go into `activity_log`.
-- **Storage note:** Garage lives on .113's disk. "Forever" is safe from registry pruning, but not from a disk loss on .113, until the offsite backup destination (R2, a separate open item) exists. The Releases page states the total size so disk growth stays visible.
+- **Storage note:** Garage lives on .113's disk. "Forever" is safe from registry pruning, but not from a disk loss on .113, until the offsite backup destination (R2, a separate open item) exists. The Releases page states the total size so disk growth stays visible. Instance backups skip the Garage prefix `releases/` (controller ruling, 2026-11-11), and a restore leaves the bucket's release files in place.
 
 ## Turning Jenkins off
 

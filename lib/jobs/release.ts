@@ -1,7 +1,10 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { garageSource } from "@/lib/instance-backup/destination";
+import {
+  garageSource,
+  type ObjectStore,
+} from "@/lib/instance-backup/destination";
 import type { JobMap } from "@/lib/queue";
 import { ArtifactImageError, openArtifactLayer } from "@/lib/registry/artifact";
 import {
@@ -69,6 +72,8 @@ export async function handlePrepareRelease(
   if (release.status !== "preparing") return { status: "already-finished" };
 
   let tempDir: string | undefined;
+  // Set once the file is in Garage, until the row holds its key.
+  let uploaded: { store: ObjectStore; key: string } | undefined;
   try {
     const kind = release.targetKind;
     if (kind !== "jar" && kind !== "static") {
@@ -101,6 +106,7 @@ export async function handlePrepareRelease(
       `Packaged ${fileName} (${packaged.sizeBytes} bytes, sha256 ${packaged.sha256})`
     );
     await store.upload(objectKey, packaged.filePath);
+    uploaded = { store, key: objectKey };
 
     const marked = await markReleaseReady(release.id, {
       objectKey,
@@ -123,12 +129,19 @@ export async function handlePrepareRelease(
       await bestEffort("complete the run", () => completeRun(runId));
       return { status: "already-finished" };
     }
+    uploaded = undefined;
     await bestEffort("append to the run", () =>
       appendRunOutput(runId, `Stored ${fileName}`)
     );
     await bestEffort("complete the run", () => completeRun(runId));
     return { status: "ready" };
   } catch (error) {
+    if (uploaded) {
+      const { store, key } = uploaded;
+      await bestEffort("remove the uploaded file", () =>
+        removeUnlessRecorded(store, release.id, key)
+      );
+    }
     const message = failureMessage(error);
     const detail = error instanceof Error ? error.message : String(error);
     if (message === UNEXPECTED_MESSAGE) {
@@ -154,6 +167,21 @@ export async function handlePrepareRelease(
       );
     }
   }
+}
+
+/**
+ * Deletes an uploaded file after marking the row ready threw, unless the
+ * write did commit (the row is ready with this key). A failed read keeps the
+ * file: an orphan is better than a ready release without one.
+ */
+async function removeUnlessRecorded(
+  store: ObjectStore,
+  releaseId: string,
+  key: string
+): Promise<void> {
+  const row = await getRelease(releaseId);
+  if (row?.status === "ready" && row.objectKey === key) return;
+  await store.delete([key]);
 }
 
 async function bestEffort(

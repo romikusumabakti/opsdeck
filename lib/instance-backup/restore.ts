@@ -21,7 +21,8 @@
 //     either the old one or the restored one. The old one is then dropped
 //     (the pre-restore safety backup is the way back).
 //  5. Mirror the stored files into Garage: upload every backed-up object,
-//     then delete the ones the backup does not have.
+//     then delete the ones the backup does not have. Release files are not in
+//     backups (archive.ts RELEASES_PREFIX), so they are left as they are.
 // A failure up to and including 4 is a refusal (nothing live changed); a
 // failure in 5 is `failed`.
 import { createHash } from "node:crypto";
@@ -30,7 +31,12 @@ import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import postgres from "postgres";
 import { BACKUP_OBJECT_KEY_RE } from "@/lib/updates/request";
-import { filesUnder, LOCAL_BACKUP_ROOT, pgEnv } from "./archive";
+import {
+  filesUnder,
+  LOCAL_BACKUP_ROOT,
+  pgEnv,
+  RELEASES_PREFIX,
+} from "./archive";
 import {
   type BackupDestination,
   loadBackupDestination,
@@ -260,7 +266,10 @@ async function verifyStaged(
   }
 }
 
-/** Makes the bucket hold exactly the files under `garageDir`. */
+/**
+ * Makes the bucket hold exactly the files under `garageDir`, apart from
+ * release files: backups skip them, so the bucket's own copies are kept.
+ */
 async function mirrorIntoGarage(
   garage: ObjectStore,
   garageDir: string
@@ -270,7 +279,7 @@ async function mirrorIntoGarage(
   const keep = new Set(files);
   const extra = (await garage.list(""))
     .map((o) => o.key)
-    .filter((key) => !keep.has(key));
+    .filter((key) => !keep.has(key) && !key.startsWith(RELEASES_PREFIX));
   if (extra.length > 0) await garage.delete(extra);
 }
 

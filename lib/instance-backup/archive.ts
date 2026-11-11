@@ -9,7 +9,9 @@
 //   /var/lib/opsdeck/backups/<instance>/<name>/   locally
 //   <name> = <YYYY-MM-DDTHHmmss.SSSZ>-<6 hex, random per run>-<version>
 //     database.dump   pg_dump -Fc of DATABASE_URL
-//     garage/<key>    every object of the app's Garage bucket
+//     garage/<key>    every object of the app's Garage bucket, except release
+//                     files (RELEASES_PREFIX): immutable, ~100 MB each and kept
+//                     forever, they would multiply in every backup on the disk
 //     manifest.json
 // Every backup is staged in the local folder first. After a successful upload
 // the local copy is removed; when the upload fails it is kept (and counted by
@@ -416,7 +418,13 @@ export async function filesUnder(dir: string): Promise<string[]> {
     .map((e) => relative(dir, join(e.parentPath, e.name)).split(sep).join("/"));
 }
 
-/** Mirrors the Garage bucket into `garageDir`; returns its totals. */
+/**
+ * Garage keys the instance backup skips: release files (lib/jobs/release).
+ * A restore therefore brings back their rows but not their files.
+ */
+export const RELEASES_PREFIX = "releases/";
+
+/** Mirrors the Garage bucket (minus release files) into `garageDir`; returns its totals. */
 async function mirrorGarage(
   garage: ObjectStore | null,
   garageDir: string
@@ -428,6 +436,7 @@ async function mirrorGarage(
   for (const { key, size } of await garage.list("")) {
     // A zero-byte "folder/" marker holds no data.
     if (key.endsWith("/") && size === 0) continue;
+    if (key.startsWith(RELEASES_PREFIX)) continue;
     const target = resolve(garageDir, key);
     // Keys are app-generated uuid paths; refuse anything that would leave
     // the folder or cannot be a file.

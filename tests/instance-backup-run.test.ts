@@ -454,6 +454,19 @@ describe("runInstanceBackup", () => {
     ]);
   });
 
+  it("skips release files but still copies the other Garage objects", async () => {
+    garage = memoryStore({
+      "attachments/a.png": "png",
+      "releases/p1/core/r1/core_v1.jar": "jar bytes",
+    });
+    const result = await runInstanceBackup("manual", deps());
+    expect(result.status).toBe("succeeded");
+    const dir = join(root, "test/2026-11-09T193005.000Z-abc123-1.2.3");
+    expect(await filesUnder(join(dir, "garage"))).toEqual([
+      "attachments/a.png",
+    ]);
+  });
+
   it("still returns the row id and location when recording the end fails", async () => {
     recorded.recorder.finish = async () => {
       throw new Error("connection reset");

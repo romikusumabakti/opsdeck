@@ -5,7 +5,7 @@ import { Readable } from "node:stream";
 import { promisify } from "node:util";
 import { gzip } from "node:zlib";
 import { pack } from "tar-stream";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f1";
 const RELEASE_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
@@ -125,6 +125,10 @@ beforeEach(async () => {
     digest: `sha256:${"b".repeat(64)}`,
     stream: await layerOf([{ name: "bundle/artifact/core.jar", body: JAR }]),
   }));
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("handlePrepareRelease", () => {
@@ -271,6 +275,39 @@ describe("handlePrepareRelease", () => {
   it("keeps the stored file when another delivery of the job already marked it ready", async () => {
     repo.markReleaseReady.mockResolvedValue(false);
     repo.getRelease.mockResolvedValue({ ...subject, status: "ready" });
+    await handlePrepareRelease(payload);
+    expect(store.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes the uploaded file when marking the release ready throws", async () => {
+    repo.markReleaseReady.mockRejectedValue(new Error("connection reset"));
+    repo.getRelease.mockResolvedValue({ ...subject, status: "preparing" });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(handlePrepareRelease(payload)).resolves.toEqual({
+      status: "failed",
+    });
+    expect(store.delete).toHaveBeenCalledWith([KEY]);
+    expect(repo.markReleaseFailed).toHaveBeenCalledWith(
+      RELEASE_ID,
+      "Preparing the release failed"
+    );
+  });
+
+  it("keeps the uploaded file when the ready write committed after all", async () => {
+    repo.markReleaseReady.mockRejectedValue(new Error("connection reset"));
+    repo.getRelease.mockResolvedValue({
+      ...subject,
+      status: "ready",
+      objectKey: KEY,
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await handlePrepareRelease(payload);
+    expect(store.delete).not.toHaveBeenCalled();
+  });
+
+  it("does not delete anything when the upload itself failed", async () => {
+    store.upload.mockRejectedValue(new Error("upload failed"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
     await handlePrepareRelease(payload);
     expect(store.delete).not.toHaveBeenCalled();
   });

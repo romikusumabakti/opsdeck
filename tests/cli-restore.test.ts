@@ -274,6 +274,22 @@ describe("runRestore success", () => {
     ).toEqual({ "a/one.txt": "one", "b/two.txt": "two!" });
   });
 
+  it("keeps the bucket's release files, which backups do not carry", async () => {
+    const key = await localBackup();
+    const d = deps({
+      garage: memoryStore({
+        "stale/orphan.txt": Buffer.from("old"),
+        "releases/p1/core/r1/core_v1.jar": Buffer.from("jar"),
+      }),
+    });
+    expect((await runRestore(key, d)).status).toBe("restored");
+    expect([...d.garage.objects.keys()].sort()).toEqual([
+      "a/one.txt",
+      "b/two.txt",
+      "releases/p1/core/r1/core_v1.jar",
+    ]);
+  });
+
   it("downloads an S3 backup into staging, then removes the staging copy", async () => {
     const local = await localBackup();
     const rel = local.slice("local:".length);
