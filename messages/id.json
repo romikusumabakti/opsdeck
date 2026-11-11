@@ -87,7 +87,9 @@
     "mail": "Email",
     "repositories": "Repositori",
     "variables": "Variabel",
-    "releases": "Rilis"
+    "releases": "Rilis",
+    "milestones": "Milestone",
+    "members": "Anggota"
   },
   "commandPalette": {
     "triggerLabel": "Cari atau buka…",

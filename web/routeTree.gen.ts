@@ -24,6 +24,8 @@ import { Route as LocaleAppKnowledgeRouteRouteImport } from './routes/$locale/_a
 import { Route as LocaleAcceptInviteTokenRouteImport } from './routes/$locale/accept-invite.$token'
 import { Route as LocaleAppProjectKeyIndexRouteImport } from './routes/$locale/_app/$projectKey.index'
 import { Route as LocaleAppProjectKeyEnvSlugRouteRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.route'
+import { Route as LocaleAppProjectKeyMembersRouteImport } from './routes/$locale/_app/$projectKey.members'
+import { Route as LocaleAppProjectKeyMilestonesRouteImport } from './routes/$locale/_app/$projectKey.milestones'
 import { Route as LocaleAppProjectKeyReleasesRouteImport } from './routes/$locale/_app/$projectKey.releases'
 import { Route as LocaleAppProjectKeySettingsRouteImport } from './routes/$locale/_app/$projectKey.settings'
 import { Route as LocaleAppAccountIndexRouteImport } from './routes/$locale/_app/account.index'
@@ -58,6 +60,7 @@ import { Route as LocaleAppProjectKeyEnvSlugRestoreDatabaseRouteImport } from '.
 import { Route as LocaleAppProjectKeyEnvSlugSettingsRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.settings'
 import { Route as LocaleAppProjectKeyEnvSlugVariablesRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.variables'
 import { Route as LocaleAppProjectKeyEnvironmentsNewRouteImport } from './routes/$locale/_app/$projectKey.environments.new'
+import { Route as LocaleAppProjectKeyIssuesIndexRouteImport } from './routes/$locale/_app/$projectKey.issues.index'
 import { Route as LocaleAppProjectKeyIssuesNumberRouteImport } from './routes/$locale/_app/$projectKey.issues.$number'
 import { Route as LocaleAppAdminCiIndexRouteImport } from './routes/$locale/_app/admin.ci.index'
 import { Route as LocaleAppAdminCiIdRouteImport } from './routes/$locale/_app/admin.ci.$id'
@@ -170,6 +173,18 @@ const LocaleAppProjectKeyEnvSlugRouteRoute =
   LocaleAppProjectKeyEnvSlugRouteRouteImport.update({
     id: '/$projectKey/$envSlug',
     path: '/$projectKey/$envSlug',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectKeyMembersRoute =
+  LocaleAppProjectKeyMembersRouteImport.update({
+    id: '/$projectKey/members',
+    path: '/$projectKey/members',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectKeyMilestonesRoute =
+  LocaleAppProjectKeyMilestonesRouteImport.update({
+    id: '/$projectKey/milestones',
+    path: '/$projectKey/milestones',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
 const LocaleAppProjectKeyReleasesRoute =
@@ -357,6 +372,12 @@ const LocaleAppProjectKeyEnvironmentsNewRoute =
   LocaleAppProjectKeyEnvironmentsNewRouteImport.update({
     id: '/$projectKey/environments/new',
     path: '/$projectKey/environments/new',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectKeyIssuesIndexRoute =
+  LocaleAppProjectKeyIssuesIndexRouteImport.update({
+    id: '/$projectKey/issues/',
+    path: '/$projectKey/issues/',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
 const LocaleAppProjectKeyIssuesNumberRoute =
@@ -587,6 +608,8 @@ export interface FileRoutesByFullPath {
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/': typeof LocaleAppIndexRoute
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  '/$locale/$projectKey/members': typeof LocaleAppProjectKeyMembersRoute
+  '/$locale/$projectKey/milestones': typeof LocaleAppProjectKeyMilestonesRoute
   '/$locale/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
   '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
@@ -634,6 +657,7 @@ export interface FileRoutesByFullPath {
   '/$locale/servers/$id/terminal': typeof LocaleAppServersIdTerminalRoute
   '/$locale/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/$projectKey/$envSlug/': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/$projectKey/issues/': typeof LocaleAppProjectKeyIssuesIndexRoute
   '/$locale/admin/ci/': typeof LocaleAppAdminCiIndexRoute
   '/$locale/admin/cloudflare/': typeof LocaleAppAdminCloudflareIndexRoute
   '/$locale/admin/jira/': typeof LocaleAppAdminJiraIndexRoute
@@ -670,6 +694,8 @@ export interface FileRoutesByTo {
   '/$locale/$': typeof LocaleAppSplatRoute
   '/$locale/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
+  '/$locale/$projectKey/members': typeof LocaleAppProjectKeyMembersRoute
+  '/$locale/$projectKey/milestones': typeof LocaleAppProjectKeyMilestonesRoute
   '/$locale/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
   '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
@@ -717,6 +743,7 @@ export interface FileRoutesByTo {
   '/$locale/servers/$id/terminal': typeof LocaleAppServersIdTerminalRoute
   '/$locale/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/$projectKey/issues': typeof LocaleAppProjectKeyIssuesIndexRoute
   '/$locale/admin/ci': typeof LocaleAppAdminCiIndexRoute
   '/$locale/admin/cloudflare': typeof LocaleAppAdminCloudflareIndexRoute
   '/$locale/admin/jira': typeof LocaleAppAdminJiraIndexRoute
@@ -759,6 +786,8 @@ export interface FileRoutesById {
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/_app/': typeof LocaleAppIndexRoute
   '/$locale/_app/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  '/$locale/_app/$projectKey/members': typeof LocaleAppProjectKeyMembersRoute
+  '/$locale/_app/$projectKey/milestones': typeof LocaleAppProjectKeyMilestonesRoute
   '/$locale/_app/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
   '/$locale/_app/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/_app/account/change-password': typeof LocaleAppAccountChangePasswordRoute
@@ -806,6 +835,7 @@ export interface FileRoutesById {
   '/$locale/_app/servers/$id/terminal': typeof LocaleAppServersIdTerminalRoute
   '/$locale/_app/storage/$id/files': typeof LocaleAppStorageIdFilesRoute
   '/$locale/_app/$projectKey/$envSlug/': typeof LocaleAppProjectKeyEnvSlugIndexRoute
+  '/$locale/_app/$projectKey/issues/': typeof LocaleAppProjectKeyIssuesIndexRoute
   '/$locale/_app/admin/ci/': typeof LocaleAppAdminCiIndexRoute
   '/$locale/_app/admin/cloudflare/': typeof LocaleAppAdminCloudflareIndexRoute
   '/$locale/_app/admin/jira/': typeof LocaleAppAdminJiraIndexRoute
@@ -848,6 +878,8 @@ export interface FileRouteTypes {
     | '/$locale/accept-invite/$token'
     | '/$locale/'
     | '/$locale/$projectKey/$envSlug'
+    | '/$locale/$projectKey/members'
+    | '/$locale/$projectKey/milestones'
     | '/$locale/$projectKey/releases'
     | '/$locale/$projectKey/settings'
     | '/$locale/account/change-password'
@@ -895,6 +927,7 @@ export interface FileRouteTypes {
     | '/$locale/servers/$id/terminal'
     | '/$locale/storage/$id/files'
     | '/$locale/$projectKey/$envSlug/'
+    | '/$locale/$projectKey/issues/'
     | '/$locale/admin/ci/'
     | '/$locale/admin/cloudflare/'
     | '/$locale/admin/jira/'
@@ -931,6 +964,8 @@ export interface FileRouteTypes {
     | '/$locale/$'
     | '/$locale/issues'
     | '/$locale/accept-invite/$token'
+    | '/$locale/$projectKey/members'
+    | '/$locale/$projectKey/milestones'
     | '/$locale/$projectKey/releases'
     | '/$locale/$projectKey/settings'
     | '/$locale/account/change-password'
@@ -978,6 +1013,7 @@ export interface FileRouteTypes {
     | '/$locale/servers/$id/terminal'
     | '/$locale/storage/$id/files'
     | '/$locale/$projectKey/$envSlug'
+    | '/$locale/$projectKey/issues'
     | '/$locale/admin/ci'
     | '/$locale/admin/cloudflare'
     | '/$locale/admin/jira'
@@ -1019,6 +1055,8 @@ export interface FileRouteTypes {
     | '/$locale/accept-invite/$token'
     | '/$locale/_app/'
     | '/$locale/_app/$projectKey/$envSlug'
+    | '/$locale/_app/$projectKey/members'
+    | '/$locale/_app/$projectKey/milestones'
     | '/$locale/_app/$projectKey/releases'
     | '/$locale/_app/$projectKey/settings'
     | '/$locale/_app/account/change-password'
@@ -1066,6 +1104,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/servers/$id/terminal'
     | '/$locale/_app/storage/$id/files'
     | '/$locale/_app/$projectKey/$envSlug/'
+    | '/$locale/_app/$projectKey/issues/'
     | '/$locale/_app/admin/ci/'
     | '/$locale/_app/admin/cloudflare/'
     | '/$locale/_app/admin/jira/'
@@ -1203,6 +1242,20 @@ declare module '@tanstack/react-router' {
       path: '/$projectKey/$envSlug'
       fullPath: '/$locale/$projectKey/$envSlug'
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$projectKey/members': {
+      id: '/$locale/_app/$projectKey/members'
+      path: '/$projectKey/members'
+      fullPath: '/$locale/$projectKey/members'
+      preLoaderRoute: typeof LocaleAppProjectKeyMembersRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$projectKey/milestones': {
+      id: '/$locale/_app/$projectKey/milestones'
+      path: '/$projectKey/milestones'
+      fullPath: '/$locale/$projectKey/milestones'
+      preLoaderRoute: typeof LocaleAppProjectKeyMilestonesRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
     '/$locale/_app/$projectKey/releases': {
@@ -1441,6 +1494,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectKey/environments/new'
       fullPath: '/$locale/$projectKey/environments/new'
       preLoaderRoute: typeof LocaleAppProjectKeyEnvironmentsNewRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$projectKey/issues/': {
+      id: '/$locale/_app/$projectKey/issues/'
+      path: '/$projectKey/issues'
+      fullPath: '/$locale/$projectKey/issues/'
+      preLoaderRoute: typeof LocaleAppProjectKeyIssuesIndexRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
     '/$locale/_app/$projectKey/issues/$number': {
@@ -1852,6 +1912,8 @@ interface LocaleAppRouteRouteChildren {
   LocaleAppIssuesRoute: typeof LocaleAppIssuesRoute
   LocaleAppIndexRoute: typeof LocaleAppIndexRoute
   LocaleAppProjectKeyEnvSlugRouteRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  LocaleAppProjectKeyMembersRoute: typeof LocaleAppProjectKeyMembersRoute
+  LocaleAppProjectKeyMilestonesRoute: typeof LocaleAppProjectKeyMilestonesRoute
   LocaleAppProjectKeyReleasesRoute: typeof LocaleAppProjectKeyReleasesRoute
   LocaleAppProjectKeySettingsRoute: typeof LocaleAppProjectKeySettingsRoute
   LocaleAppAccountChangePasswordRoute: typeof LocaleAppAccountChangePasswordRoute
@@ -1874,6 +1936,7 @@ interface LocaleAppRouteRouteChildren {
   LocaleAppServersIdFilesRoute: typeof LocaleAppServersIdFilesRoute
   LocaleAppServersIdTerminalRoute: typeof LocaleAppServersIdTerminalRoute
   LocaleAppStorageIdFilesRoute: typeof LocaleAppStorageIdFilesRoute
+  LocaleAppProjectKeyIssuesIndexRoute: typeof LocaleAppProjectKeyIssuesIndexRoute
   LocaleAppAppsAppKeyIndexRoute: typeof LocaleAppAppsAppKeyIndexRoute
   LocaleAppProjectsKeyIndexRoute: typeof LocaleAppProjectsKeyIndexRoute
   LocaleAppServersIdIndexRoute: typeof LocaleAppServersIdIndexRoute
@@ -1889,6 +1952,8 @@ const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
   LocaleAppIndexRoute: LocaleAppIndexRoute,
   LocaleAppProjectKeyEnvSlugRouteRoute:
     LocaleAppProjectKeyEnvSlugRouteRouteWithChildren,
+  LocaleAppProjectKeyMembersRoute: LocaleAppProjectKeyMembersRoute,
+  LocaleAppProjectKeyMilestonesRoute: LocaleAppProjectKeyMilestonesRoute,
   LocaleAppProjectKeyReleasesRoute: LocaleAppProjectKeyReleasesRoute,
   LocaleAppProjectKeySettingsRoute: LocaleAppProjectKeySettingsRoute,
   LocaleAppAccountChangePasswordRoute: LocaleAppAccountChangePasswordRoute,
@@ -1912,6 +1977,7 @@ const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
   LocaleAppServersIdFilesRoute: LocaleAppServersIdFilesRoute,
   LocaleAppServersIdTerminalRoute: LocaleAppServersIdTerminalRoute,
   LocaleAppStorageIdFilesRoute: LocaleAppStorageIdFilesRoute,
+  LocaleAppProjectKeyIssuesIndexRoute: LocaleAppProjectKeyIssuesIndexRoute,
   LocaleAppAppsAppKeyIndexRoute: LocaleAppAppsAppKeyIndexRoute,
   LocaleAppProjectsKeyIndexRoute: LocaleAppProjectsKeyIndexRoute,
   LocaleAppServersIdIndexRoute: LocaleAppServersIdIndexRoute,
