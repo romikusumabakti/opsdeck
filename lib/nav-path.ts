@@ -20,9 +20,12 @@ const ENV_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
 export type ProjectPage =
   | "overview"
-  | "settings"
+  | "issues"
   | "issue"
+  | "milestones"
   | "releases"
+  | "members"
+  | "settings"
   | "new-environment"
   | "other";
 
@@ -35,7 +38,13 @@ export type NavPath =
       // /KEY/env/services/<role>/logs — a page below Services.
       logs: boolean;
     }
-  | { scope: "project"; projectKey: string; page: ProjectPage }
+  | {
+      scope: "project";
+      projectKey: string;
+      page: ProjectPage;
+      // Set only for page "issue".
+      issueNumber: string | null;
+    }
   | { scope: null };
 
 export type NavProject = { id: string; key: string; name: string };
@@ -43,8 +52,10 @@ export type NavProject = { id: string; key: string; name: string };
 // A project's own sub-routes, keyed by their reserved second segment.
 const PROJECT_PAGES: Record<string, ProjectPage> = {
   settings: "settings",
-  issues: "issue",
+  issues: "issues",
+  milestones: "milestones",
   releases: "releases",
+  members: "members",
   environments: "new-environment",
 };
 
@@ -53,14 +64,30 @@ export function parseNavPath(pathname: string): NavPath {
   if (!key || !PROJECT_KEY.test(key) || RESERVED_PROJECT_KEYS.has(key)) {
     return { scope: null };
   }
-  if (!second) return { scope: "project", projectKey: key, page: "overview" };
+  if (!second) {
+    return {
+      scope: "project",
+      projectKey: key,
+      page: "overview",
+      issueNumber: null,
+    };
+  }
   // Reserved slugs are the project's own routes; an environment can never
   // carry one, so they are checked before the environment reading.
   if (RESERVED_ENV_SLUGS.has(second)) {
+    if (second === "issues" && third) {
+      return {
+        scope: "project",
+        projectKey: key,
+        page: "issue",
+        issueNumber: third,
+      };
+    }
     return {
       scope: "project",
       projectKey: key,
       page: PROJECT_PAGES[second] ?? "other",
+      issueNumber: null,
     };
   }
   if (!ENV_SLUG.test(second)) return { scope: null };
@@ -155,7 +182,6 @@ export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
   "databases",
   "mock-time",
   "mail",
-  "issues",
   "history",
   "settings",
 ]);
@@ -169,6 +195,59 @@ export const SECTION_PERMS = {
   settings: { environment: ["update"] },
   variables: { variable: ["read"] },
 } satisfies Record<string, ProjectPermissions>;
+
+export type ProjectNavKey =
+  | "overview"
+  | "issues"
+  | "milestones"
+  | "releases"
+  | "members"
+  | "settings";
+
+/**
+ * The project-level pages a role may open, in sidebar order. `releasable` is
+ * whether the project has any environment that deploys releases.
+ */
+export function projectNavItems(
+  projectKey: string,
+  role: ProjectRole | null,
+  releasable: boolean
+): { key: ProjectNavKey; href: string }[] {
+  if (!role) return [];
+  const base = `/${projectKey}`;
+  const allowed: Record<ProjectNavKey, boolean> = {
+    overview: true,
+    issues: true,
+    milestones: true,
+    releases: releasable && canProject(role, { deploy: ["view"] }),
+    members: canProject(role, { member: ["manage"] }),
+    settings: canProject(role, SECTION_PERMS.settings),
+  };
+  const keys: ProjectNavKey[] = [
+    "overview",
+    "issues",
+    "milestones",
+    "releases",
+    "members",
+    "settings",
+  ];
+  return keys
+    .filter((key) => allowed[key])
+    .map((key) => ({
+      key,
+      href: key === "overview" ? base : `${base}/${key}`,
+    }));
+}
+
+/** Whether any environment of the project deploys releases. */
+export function isProjectReleasable(
+  environments: readonly { projectId: string; projectReleasable: boolean }[],
+  projectId: string
+): boolean {
+  return environments.some(
+    (e) => e.projectId === projectId && e.projectReleasable
+  );
+}
 
 export type SwitchEnvironment = {
   key: string;
@@ -238,6 +317,7 @@ export function projectSwitchHref({
   role,
   from,
   visitedAt = {},
+  releasable = false,
 }: {
   projectKey: string;
   environments: readonly (SwitchEnvironment & {
@@ -248,13 +328,17 @@ export function projectSwitchHref({
   role: ProjectRole | null;
   from: NavPath;
   visitedAt?: Readonly<Record<string, number>>;
+  /** Whether the target project deploys releases. */
+  releasable?: boolean;
 }): string {
   const overview = `/${projectKey}`;
   if (from.scope !== null && from.projectKey === projectKey) return overview;
   if (from.scope === "project") {
-    return from.page === "settings" && canProject(role, SECTION_PERMS.settings)
-      ? `${overview}/settings`
-      : overview;
+    const key = from.page === "issue" ? "issues" : from.page;
+    const item = projectNavItems(projectKey, role, releasable).find(
+      (i) => i.key === key
+    );
+    return item?.href ?? overview;
   }
   if (from.scope === "env") {
     // A visit this session is newer than anything the shell loaded, so it
