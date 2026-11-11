@@ -8,6 +8,7 @@ import { Link, usePathname } from "@/i18n/navigation";
 import {
   environmentSwitchHref,
   environmentsOf,
+  isProjectReleasable,
   type NavPath,
   type NavProject,
   parseNavPath,
@@ -23,7 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { EnvironmentListItem } from "@/web/api/environments";
 
-type StaticSegment = {
+export type StaticSegment = {
   kind: "static";
   href?: string;
   // Either an i18n key or, for data-driven crumbs, the literal label to render.
@@ -141,7 +142,7 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
 
 // Crumbs after the switchers: the environment section (or Services / Logs), or
 // the project-level page's own name.
-function getTrailingSegments(
+export function getTrailingSegments(
   nav: NavPath,
   activeEnv: EnvironmentListItem | null
 ): StaticSegment[] {
@@ -162,10 +163,23 @@ function getTrailingSegments(
   }
   if (nav.scope === "project") {
     switch (nav.page) {
+      case "issues":
+        return [{ kind: "static", labelKey: "breadcrumbs.issues" }];
+      case "issue":
+        return [
+          {
+            kind: "static",
+            href: `/${nav.projectKey}/issues`,
+            labelKey: "breadcrumbs.issues",
+          },
+          { kind: "static", label: `${nav.projectKey}-${nav.issueNumber}` },
+        ];
+      case "milestones":
+        return [{ kind: "static", labelKey: "breadcrumbs.milestones" }];
+      case "members":
+        return [{ kind: "static", labelKey: "breadcrumbs.members" }];
       case "settings":
         return [{ kind: "static", labelKey: "breadcrumbs.settings" }];
-      case "issue":
-        return [{ kind: "static", labelKey: "breadcrumbs.issues" }];
       case "releases":
         return [{ kind: "static", labelKey: "breadcrumbs.releases" }];
       case "new-environment":
@@ -313,22 +327,27 @@ export function HeaderBreadcrumb({
               role: projectRoles[project.id] ?? null,
               from: nav,
               visitedAt,
+              releasable: isProjectReleasable(environments, project.id),
             })
           )
         }
       />
-      <Slash />
-      <EnvironmentSwitcher
-        environments={projectEnvs}
-        activeEnvironment={activeEnv}
-        projectName={activeProject.name}
-        createHref={
-          canProject(role, SETUP_PERMISSIONS)
-            ? `/${activeProject.key}/environments/new`
-            : null
-        }
-        onSelect={(env) => go(environmentSwitchHref(env, nav, role))}
-      />
+      {nav.scope === "env" && (
+        <>
+          <Slash />
+          <EnvironmentSwitcher
+            environments={projectEnvs}
+            activeEnvironment={activeEnv}
+            projectName={activeProject.name}
+            createHref={
+              canProject(role, SETUP_PERMISSIONS)
+                ? `/${activeProject.key}/environments/new`
+                : null
+            }
+            onSelect={(env) => go(environmentSwitchHref(env, nav, role))}
+          />
+        </>
+      )}
       {trailing.map((seg, i) => (
         <React.Fragment key={`${seg.labelKey ?? seg.label}-${i}`}>
           <Slash />
