@@ -49,14 +49,7 @@ export type SftpLease = {
 
 type Pool = Map<string, Promise<PooledConnection>>;
 
-// Cache the pool on globalThis so Next.js dev hot-reload (which re-evaluates
-// this module on every change) reuses the live connections instead of leaking a
-// new one per reload. Same rationale as the postgres client in lib/db.
-const globalForSftp = globalThis as unknown as { __sftpPool?: Pool };
-const pool: Pool = globalForSftp.__sftpPool ?? new Map();
-if (process.env.NODE_ENV !== "production") {
-  globalForSftp.__sftpPool = pool;
-}
+const pool: Pool = new Map();
 
 // The password and auth mode are part of the key so changing a server's
 // credentials (or moving it to the instance key) can never hand back a

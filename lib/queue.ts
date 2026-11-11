@@ -146,23 +146,15 @@ export function createRedisConnection(): IORedis {
   return new IORedis(url, { maxRetriesPerRequest: null });
 }
 
-// Cache the connection + queue on globalThis so Next.js dev hot-reload (which
-// re-evaluates this module) reuses one client instead of leaking a new Redis
-// connection per reload.
-const globalForQueue = globalThis as unknown as {
-  __runsQueue?: Queue;
-  __queueConnection?: IORedis;
-};
+// One producer queue (and its connection) per process, created on first use.
+let runsQueue: Queue | undefined;
 
 function getQueue(): Queue {
-  if (!globalForQueue.__runsQueue) {
-    if (!globalForQueue.__queueConnection) {
-      globalForQueue.__queueConnection = createRedisConnection();
-    }
-    const connection: ConnectionOptions = globalForQueue.__queueConnection;
-    globalForQueue.__runsQueue = new Queue(TASKS_QUEUE, { connection });
+  if (!runsQueue) {
+    const connection: ConnectionOptions = createRedisConnection();
+    runsQueue = new Queue(TASKS_QUEUE, { connection });
   }
-  return globalForQueue.__runsQueue;
+  return runsQueue;
 }
 
 // Per-job overrides on the defaults below. Kept to the few knobs that

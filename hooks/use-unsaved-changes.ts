@@ -7,7 +7,7 @@ import { useNavigationGuard } from "@/components/navigation-guard";
  * - Tab close / reload / external links — via `beforeunload`. Browsers ignore
  *   custom messages and show a generic prompt, but `preventDefault()` +
  *   `returnValue` is the documented activator.
- * - In-app navigation (clicking a Next.js `<Link>`) — via the app-wide
+ * - In-app navigation (clicking a TanStack Router `<Link>`) — via the app-wide
  *   {@link useNavigationGuard}, which intercepts internal anchor clicks and
  *   asks for confirmation before leaving.
  */

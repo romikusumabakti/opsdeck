@@ -14,7 +14,6 @@ vi.mock("drizzle-orm/postgres-js", () => ({
 
 afterEach(() => {
   postgresCalls.length = 0;
-  delete (globalThis as { __pgClient?: unknown }).__pgClient;
 });
 
 describe("database connection", () => {

@@ -22,18 +22,16 @@ import { failStaleTeardownRuns } from "@/lib/teardown/repository";
 // without letting an unbounded burst of jobs open unbounded SSH sessions.
 const WORKER_CONCURRENCY = 5;
 
-// Cache the worker on globalThis so a re-import of this module (a dev reload,
-// a second caller) doesn't spawn a second Worker consuming the same queue.
-const globalForWorker = globalThis as unknown as {
-  __tasksWorker?: Worker;
-};
+// One worker per process: a second caller gets the existing one instead of a
+// second Worker consuming the same queue.
+let tasksWorker: Worker | undefined;
 
 // Starts the BullMQ worker that drains the runs queue. Idempotent: a second
 // call returns the existing worker. No-op (returns null) when REDIS_URL is
 // unset so the app still boots for local development without Redis — only the
 // background operations are unavailable.
 export function startWorker(): Worker | null {
-  if (globalForWorker.__tasksWorker) return globalForWorker.__tasksWorker;
+  if (tasksWorker) return tasksWorker;
   if (!process.env.REDIS_URL) {
     console.warn("REDIS_URL not set — background job worker not started");
     return null;
@@ -107,7 +105,7 @@ export function startWorker(): Worker | null {
     console.error("Failed to schedule the environment archive prune:", error);
   });
 
-  globalForWorker.__tasksWorker = worker;
+  tasksWorker = worker;
   return worker;
 }
 

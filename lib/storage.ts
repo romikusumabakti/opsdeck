@@ -13,10 +13,10 @@ import { requireEnv } from "@/lib/env";
 // Garage needs path-style addressing (no per-bucket virtual-host DNS), so
 // `forcePathStyle: true` is mandatory here.
 
-const globalForS3 = globalThis as unknown as { __s3Client?: S3Client };
+let s3Client: S3Client | undefined;
 
 function getClient(): S3Client {
-  if (globalForS3.__s3Client) return globalForS3.__s3Client;
+  if (s3Client) return s3Client;
   const client = new S3Client({
     endpoint: requireEnv("S3_ENDPOINT"),
     region: process.env.S3_REGION ?? "garage",
@@ -26,7 +26,7 @@ function getClient(): S3Client {
       secretAccessKey: requireEnv("S3_SECRET_KEY"),
     },
   });
-  globalForS3.__s3Client = client;
+  s3Client = client;
   return client;
 }
 

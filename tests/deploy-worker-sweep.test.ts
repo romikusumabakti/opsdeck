@@ -36,7 +36,14 @@ vi.mock("bullmq", () => ({
   },
 }));
 
-const { startWorker } = await import("@/lib/jobs/worker");
+// startWorker is idempotent (one worker per module instance), so each test
+// that needs a fresh worker re-imports the module.
+async function freshStartWorker() {
+  vi.resetModules();
+  return (await import("@/lib/jobs/worker")).startWorker;
+}
+
+const { startWorker: firstStartWorker } = await import("@/lib/jobs/worker");
 
 describe("startWorker", () => {
   it("sweeps stale running deployments, and survives a sweep failure", async () => {
@@ -46,7 +53,7 @@ describe("startWorker", () => {
     const once = vi.spyOn(process, "once").mockImplementation(() => process);
     deploy.failStaleDeployments.mockRejectedValue(new Error("db down"));
 
-    expect(startWorker()).not.toBeNull();
+    expect(firstStartWorker()).not.toBeNull();
     await vi.waitFor(() =>
       expect(errors).toHaveBeenCalledWith(
         "Failed to sweep stale deployments:",
@@ -63,8 +70,7 @@ describe("startWorker", () => {
 
 describe("startWorker deploy lock sweep", () => {
   it("schedules the 60 s lock sweep and releases locks that expired while it was down", async () => {
-    // startWorker is idempotent (cached on globalThis); start a fresh one.
-    delete (globalThis as { __tasksWorker?: unknown }).__tasksWorker;
+    const startWorker = await freshStartWorker();
     vi.stubEnv("REDIS_URL", "redis://test:6379");
     const once = vi.spyOn(process, "once").mockImplementation(() => process);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -86,7 +92,7 @@ describe("startWorker deploy lock sweep", () => {
   });
 
   it("survives a lock sweep or scheduling failure", async () => {
-    delete (globalThis as { __tasksWorker?: unknown }).__tasksWorker;
+    const startWorker = await freshStartWorker();
     vi.stubEnv("REDIS_URL", "redis://test:6379");
     const once = vi.spyOn(process, "once").mockImplementation(() => process);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -114,7 +120,7 @@ describe("startWorker deploy lock sweep", () => {
 
 describe("startWorker provision sweep", () => {
   it("fails provision runs left started, and survives a failure", async () => {
-    delete (globalThis as { __tasksWorker?: unknown }).__tasksWorker;
+    const startWorker = await freshStartWorker();
     vi.stubEnv("REDIS_URL", "redis://test:6379");
     const once = vi.spyOn(process, "once").mockImplementation(() => process);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -138,7 +144,7 @@ describe("startWorker provision sweep", () => {
 
 describe("startWorker teardown sweep and archive prune", () => {
   it("fails teardown runs left started, schedules the daily prune, and survives failures", async () => {
-    delete (globalThis as { __tasksWorker?: unknown }).__tasksWorker;
+    const startWorker = await freshStartWorker();
     vi.stubEnv("REDIS_URL", "redis://test:6379");
     const once = vi.spyOn(process, "once").mockImplementation(() => process);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
