@@ -1,0 +1,20 @@
+{
+  "branches": [],
+  "images": [],
+  "bundleFiles": [],
+  "checks": [
+    {
+      "name": "gradle-build",
+      "image": "docker.io/library/eclipse-temurin:8-jdk",
+      "dir": ".",
+      "commands": [
+        "./gradlew build -x test --no-daemon"
+      ]
+    }
+  ],
+  "artifact": {
+    "kind": "jar",
+    "path": "build/libs/bakunawa-0.1.0.jar"
+  },
+  "timeoutMinutes": 60
+}

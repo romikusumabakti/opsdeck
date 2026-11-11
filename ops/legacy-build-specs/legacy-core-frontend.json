@@ -1,0 +1,15 @@
+{
+  "branches": [],
+  "images": [],
+  "bundleFiles": [],
+  "checks": [
+    {
+      "name": "grunt-release",
+      "image": "docker.io/library/node:24",
+      "dir": ".",
+      "commands": ["npx -y pnpm@9 install --frozen-lockfile", "npx -y pnpm@9 release"]
+    }
+  ],
+  "artifact": { "kind": "static", "path": "dist" },
+  "timeoutMinutes": 60
+}

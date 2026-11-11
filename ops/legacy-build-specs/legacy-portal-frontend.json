@@ -1,0 +1,31 @@
+{
+  "branches": [],
+  "images": [],
+  "bundleFiles": [],
+  "checks": [
+    {
+      "name": "vue-build",
+      "image": "docker.io/library/node:24",
+      "dir": ".",
+      "commands": [
+        "npm ci --no-audit --no-fund",
+        "npm run build"
+      ],
+      "environment": {
+        "NODE_OPTIONS": "--openssl-legacy-provider",
+        "VUE_APP_API_URL": "/api",
+        "VUE_APP_TITLE": "DPLK TMLI",
+        "VUE_APP_RECAPTCHA_SITE_KEY": "6Ldop2wtAAAAAFk2Ji2B-gBcqgaZpX3L44KpTv8u",
+        "VUE_APP_ZENDESK_KEY": "35061184-de76-457f-9482-8cf288932584",
+        "VUE_APP_STATIC_TOKEN": {
+          "fromSecret": "build_portal_static_token"
+        }
+      }
+    }
+  ],
+  "artifact": {
+    "kind": "static",
+    "path": "dist"
+  },
+  "timeoutMinutes": 60
+}
