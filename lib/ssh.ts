@@ -61,7 +61,8 @@ export async function executeRemoteCommand(
   let ssh: SshSession | undefined;
   try {
     // Bound the SSH handshake so an unreachable/overloaded DB host fails fast
-    // (ssh2's readyTimeout defaults to ~20s) instead of hanging a page render on it.
+    // (ssh2's readyTimeout defaults to ~20s) instead of hanging a page render
+    // on it.
     ssh = await openSsh(target, { readyTimeout: 5000 });
 
     // ssh2's exec has no command timeout, so race the command against a wall
@@ -168,10 +169,11 @@ const STREAM_STDERR_LIMIT = 4096;
  * Connects, execs `command` and hands the open channel to `wire`, which
  * returns the outcome. Owns the scaffold every streaming exec needs: fresh
  * client (5 s handshake bound), a mid-stream connection error failing the
- * call (ssh2 emits a late connection error as an event, not as a rejection), the wall-clock
- * timeout, and dispose. `wire` is not called if the call already settled
- * (timeout before the channel opened). `cleanup` runs in the end, whatever
- * the outcome, for resources the caller opened (a body stream).
+ * call (ssh2 emits a late connection error as an event, not as a
+ * rejection), the wall-clock timeout, and dispose. `wire` is not called if
+ * the call already settled (timeout before the channel opened). `cleanup`
+ * runs in the end, whatever the outcome, for resources the caller opened (a
+ * body stream).
  */
 async function withExecChannel<T>(
   target: SshTarget,

@@ -27,16 +27,6 @@ const ssh = vi.hoisted(() => ({
   onExec: null as null | ((call: ExecCall) => void),
 }));
 
-// The SSH session is faked, so no host key is ever offered: skip the factory's
-// server-row lookup (covered in ssh-connect.test).
-vi.mock("@/lib/ssh-connect", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/ssh-connect")>()),
-  connectConfig: async (target: { host: string; username: string }) => ({
-    host: target.host,
-    username: target.username,
-  }),
-}));
-
 vi.mock("@/lib/ssh-session", () => ({
   openSsh: async () => ({
     async execCommand(command: string, options?: { stdin?: string }) {
