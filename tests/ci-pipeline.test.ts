@@ -260,6 +260,35 @@ describe("generateWoodpeckerPipeline", () => {
       expect(yaml).not.toContain("from_secret: opsdeck_notify\n");
     });
 
+    it("passes a check's environment, plain values escaped and secrets by reference", () => {
+      const spec = {
+        ...STATIC_SPEC,
+        checks: STATIC_SPEC.checks.map((check) => ({
+          ...check,
+          environment: {
+            VUE_APP_API_URL: "/api",
+            VUE_APP_TITLE: "DPLK $TMLI",
+            VUE_APP_STATIC_TOKEN: { fromSecret: "legacy_portal_static_token" },
+          },
+        })),
+      } as BuildSpec;
+      const doc = parseDocument(render(spec, "backoffice"));
+      const step = (
+        doc.toJS().steps as { name: string; environment?: unknown }[]
+      )[0];
+      expect(step?.environment).toEqual({
+        VUE_APP_API_URL: "/api",
+        VUE_APP_TITLE: "DPLK $$TMLI",
+        VUE_APP_STATIC_TOKEN: { from_secret: "legacy_portal_static_token" },
+      });
+    });
+
+    it("leaves a check without environment unchanged", () => {
+      const doc = parseDocument(render(STATIC_SPEC, "backoffice"));
+      const step = (doc.toJS().steps as { environment?: unknown }[])[0];
+      expect(step?.environment).toBeUndefined();
+    });
+
     it("defaults the notify secret name", () => {
       expect(render(JAR_SPEC, "core")).toContain(
         "from_secret: opsdeck_notify\n"
@@ -285,6 +314,44 @@ describe("generateWoodpeckerPipeline", () => {
         /DEPLOY_REGISTRY/
       );
     });
+  });
+});
+
+describe("buildSpecSchema environment", () => {
+  const spec = (environment: unknown) => ({
+    branches: [],
+    artifact: { kind: "static", path: "dist" },
+    checks: [
+      {
+        name: "build-it",
+        image: "node:24",
+        dir: ".",
+        commands: ["npm ci"],
+        environment,
+      },
+    ],
+  });
+
+  it("accepts plain values and secret references", () => {
+    expect(
+      buildSpecSchema.safeParse(
+        spec({ VUE_APP_API_URL: "/api", TOKEN: { fromSecret: "legacy_token" } })
+      ).success
+    ).toBe(true);
+  });
+
+  it.each([
+    ["a lowercase name", { api_url: "/api" }],
+    ["a name with a dash", { "API-URL": "/api" }],
+    ["a multi-line value", { API_URL: "a\nb" }],
+    ["an invalid secret name", { TOKEN: { fromSecret: "Bad-Name" } }],
+    ["the notify secret", { TOKEN: { fromSecret: "opsdeck_notify" } }],
+    [
+      "a suffixed notify secret",
+      { TOKEN: { fromSecret: "opsdeck_notify_core" } },
+    ],
+  ])("rejects %s", (_label, environment) => {
+    expect(buildSpecSchema.safeParse(spec(environment)).success).toBe(false);
   });
 });
 

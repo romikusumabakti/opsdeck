@@ -67,6 +67,7 @@ import {
   ArtifactRegistrationError,
   notifySecretNameFor,
   registerArtifactComponent,
+  setComponentSecret,
 } from "@/lib/ci/register-artifact-component";
 import { repoRepresentative } from "@/lib/ci/registration";
 import { CiProviderError } from "@/lib/ci/types";
@@ -377,5 +378,69 @@ describe("a stored component's notify secret name", () => {
       expect.any(String),
       ["push", "manual"]
     );
+  });
+});
+
+describe("setComponentSecret", () => {
+  beforeEach(() => {
+    mocks.upsertRepoSecret.mockReset();
+    mocks.getComponent.mockReset();
+  });
+
+  const component = {
+    componentKey: "legacy-portal-frontend",
+    ciConnectionId: "conn-1",
+    ciRepoId: "4",
+  };
+
+  it("stores the secret on the component's repository for push and manual", async () => {
+    mocks.getComponent.mockResolvedValue(component);
+    await setComponentSecret(
+      "legacy-portal-frontend",
+      "legacy_portal_static_token",
+      "s3cret"
+    );
+    expect(mocks.upsertRepoSecret).toHaveBeenCalledWith(
+      "4",
+      "legacy_portal_static_token",
+      "s3cret",
+      ["push", "manual"]
+    );
+  });
+
+  it.each([
+    ["the notify secret", "opsdeck_notify", "x"],
+    ["a suffixed notify secret", "opsdeck_notify_core", "x"],
+    ["an invalid name", "Bad-Name", "x"],
+    ["an empty value", "legacy_token", ""],
+  ])("refuses %s", async (_label, name, value) => {
+    mocks.getComponent.mockResolvedValue(component);
+    await expect(
+      setComponentSecret("legacy-portal-frontend", name, value)
+    ).rejects.toThrow(ArtifactRegistrationError);
+    expect(mocks.upsertRepoSecret).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unknown component or one without a CI repository", async () => {
+    mocks.getComponent.mockResolvedValue(undefined);
+    await expect(
+      setComponentSecret("nope", "legacy_token", "x")
+    ).rejects.toThrow(ArtifactRegistrationError);
+    mocks.getComponent.mockResolvedValue({ ...component, ciRepoId: null });
+    await expect(
+      setComponentSecret("legacy-portal-frontend", "legacy_token", "x")
+    ).rejects.toThrow(ArtifactRegistrationError);
+    expect(mocks.upsertRepoSecret).not.toHaveBeenCalled();
+  });
+
+  it("never puts the value in an error message", async () => {
+    mocks.getComponent.mockResolvedValue(component);
+    mocks.upsertRepoSecret.mockRejectedValue(new Error("boom s3cret"));
+    const error = await setComponentSecret(
+      "legacy-portal-frontend",
+      "legacy_token",
+      "s3cret"
+    ).catch((e: Error) => e);
+    expect(String((error as Error).message)).not.toContain("s3cret");
   });
 });
