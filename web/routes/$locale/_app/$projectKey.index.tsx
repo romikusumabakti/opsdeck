@@ -1,6 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { ChevronRight, Plus, Settings } from "lucide-react";
+import { ChevronRight, PackageCheck, Plus, Settings } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { EnvironmentHost } from "@/components/nav/environment-host";
 import { EnvironmentOwner } from "@/components/nav/environment-owner";
@@ -104,6 +104,7 @@ function ProjectOverviewPage() {
   const tOv = useTranslations("projectOverview");
   const tDash = useTranslations("dashboard");
   const tKinds = useTranslations("environmentKinds");
+  const tNav = useTranslations("nav");
   const project = useSuspenseQuery(
     getProjectByKeyWithEnvironmentsQuery(projectKey)
   ).data;
@@ -118,6 +119,9 @@ function ProjectOverviewPage() {
   // offers only the ones they may place on).
   const canCreateEnvironment = canProject(role, SETUP_PERMISSIONS);
   const canManageMembers = canProject(role, { member: ["manage"] });
+  // The project's releases: the sidebar offers them only inside an
+  // environment.
+  const canViewReleases = canProject(role, { deploy: ["view"] });
 
   const issues = useSuspenseQuery(
     listIssuesQuery(project.id, statusesFor(status))
@@ -135,8 +139,19 @@ function ProjectOverviewPage() {
         title={project.name}
         subtitle={project.client ?? undefined}
         action={
-          canUpdateEnvironment || canCreateEnvironment ? (
+          canViewReleases || canUpdateEnvironment || canCreateEnvironment ? (
             <div className="flex items-center gap-2">
+              {canViewReleases && (
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href={`/${project.key}/releases`} />}
+                  aria-label={tNav("releases")}
+                >
+                  <PackageCheck className="size-4" />
+                  <span className="hidden sm:inline">{tNav("releases")}</span>
+                </Button>
+              )}
               {canUpdateEnvironment && (
                 <Button
                   variant="outline"
