@@ -7,10 +7,7 @@
       "name": "vue-build",
       "image": "docker.io/library/node:24",
       "dir": ".",
-      "commands": [
-        "npm install --no-audit --no-fund",
-        "npm run build"
-      ],
+      "commands": ["npm install --no-audit --no-fund", "npm run build"],
       "environment": {
         "NODE_OPTIONS": "--openssl-legacy-provider",
         "VUE_APP_TITLE": "DSS Akunting",
