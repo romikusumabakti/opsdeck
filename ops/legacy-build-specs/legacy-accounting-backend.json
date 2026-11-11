@@ -1,0 +1,20 @@
+{
+  "branches": [],
+  "images": [],
+  "bundleFiles": [],
+  "checks": [
+    {
+      "name": "maven-package",
+      "image": "docker.io/library/maven:3-eclipse-temurin-11",
+      "dir": ".",
+      "commands": [
+        "mvn -B clean package"
+      ]
+    }
+  ],
+  "artifact": {
+    "kind": "jar",
+    "path": "target/acc-backend-api-0.0.1-SNAPSHOT.jar"
+  },
+  "timeoutMinutes": 60
+}

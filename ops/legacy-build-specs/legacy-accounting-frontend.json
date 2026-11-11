@@ -1,0 +1,26 @@
+{
+  "branches": [],
+  "images": [],
+  "bundleFiles": [],
+  "checks": [
+    {
+      "name": "vue-build",
+      "image": "docker.io/library/node:24",
+      "dir": ".",
+      "commands": [
+        "npm install --no-audit --no-fund",
+        "npm run build"
+      ],
+      "environment": {
+        "NODE_OPTIONS": "--openssl-legacy-provider",
+        "VUE_APP_TITLE": "DSS Akunting",
+        "VUE_APP_API_URL": "http://192.168.55.114:2112/"
+      }
+    }
+  ],
+  "artifact": {
+    "kind": "static",
+    "path": "dist"
+  },
+  "timeoutMinutes": 60
+}
