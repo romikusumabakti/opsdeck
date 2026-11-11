@@ -1888,8 +1888,6 @@
     "prod": "Production"
   },
   "projectOverview": {
-    "environments": "Environments",
-    "issues": "Issues",
     "newEnvironment": "New environment",
     "editProject": "Edit project",
     "noEnvironments": "No environments yet",

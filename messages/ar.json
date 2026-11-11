@@ -1888,8 +1888,6 @@
     "prod": "إنتاج"
   },
   "projectOverview": {
-    "environments": "البيئات",
-    "issues": "المشكلات",
     "newEnvironment": "بيئة جديدة",
     "editProject": "تعديل المشروع",
     "noEnvironments": "لا توجد بيئات بعد",

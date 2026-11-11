@@ -44,7 +44,8 @@ describe("environment issues route", () => {
   it("redirects to the project issues page with the search intact", () => {
     expect(src).toContain("redirect(");
     expect(src).toMatch(/`\/\$\{projectKey\}\/issues/);
-    expect(src).toContain("URLSearchParams");
+    expect(src).toContain("location.searchStr");
+    expect(src).not.toContain("URLSearchParams");
     expect(src).not.toContain("IssuesClient");
   });
 });

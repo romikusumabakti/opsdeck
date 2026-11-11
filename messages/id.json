@@ -1888,8 +1888,6 @@
     "prod": "Produksi"
   },
   "projectOverview": {
-    "environments": "Environment",
-    "issues": "Isu",
     "newEnvironment": "Environment baru",
     "editProject": "Edit proyek",
     "noEnvironments": "Belum ada environment",
