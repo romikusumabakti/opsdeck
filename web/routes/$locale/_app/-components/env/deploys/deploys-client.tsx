@@ -396,12 +396,14 @@ function TargetCard({
               onMarkRelease={
                 canRelease &&
                 (target.kind === "jar" || target.kind === "static")
-                  ? (d) =>
+                  ? (d, build) =>
                       setReleaseSource({
                         environmentId,
                         deploymentId: d.id,
                         componentKey: target.componentKey,
                         tag: d.tag,
+                        branch: build.branch,
+                        commitSha: build.commitSha,
                       })
                   : null
               }
@@ -673,7 +675,12 @@ function DeploymentsTable({
 }: {
   deployments: Deployment[];
   // Null when the caller may not make releases of this target.
-  onMarkRelease: ((deployment: Deployment) => void) | null;
+  onMarkRelease:
+    | ((
+        deployment: Deployment,
+        build: NonNullable<Deployment["build"]>
+      ) => void)
+    | null;
   onViewRun: (deployment: Deployment, runId: string) => void;
 }) {
   const t = useTranslations("deploys");
@@ -706,11 +713,13 @@ function DeploymentsTable({
               <RelativeTime date={d.createdAt} />
             </TableCell>
             <TableCell className="text-end">
-              {onMarkRelease && d.status === "success" && (
+              {/* Without its build row the source commit is unknown, and
+                  the server refuses the release. */}
+              {onMarkRelease && d.status === "success" && d.build && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onMarkRelease(d)}
+                  onClick={() => d.build && onMarkRelease(d, d.build)}
                 >
                   <PackageCheck data-icon="inline-start" />
                   {t("markRelease")}

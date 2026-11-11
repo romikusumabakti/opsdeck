@@ -33,6 +33,10 @@ export type ReleaseSource = {
   deploymentId: string;
   componentKey: string;
   tag: string;
+  // Of the build the tag names: any branch may become a release, so the
+  // dialog says plainly which one this is.
+  branch: string;
+  commitSha: string;
 };
 
 /**
@@ -108,6 +112,17 @@ export function MarkReleaseDialog({
             })}
           </DialogDescription>
         </DialogHeader>
+        {source && (
+          <div className="rounded-lg border px-3 py-2">
+            <p className="text-xs text-muted-foreground">{t("colSource")}</p>
+            <p
+              className="font-mono text-sm font-medium break-all"
+              title={source.commitSha}
+            >
+              {source.branch} · {source.commitSha.slice(0, 7)}
+            </p>
+          </div>
+        )}
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
