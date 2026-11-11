@@ -1,8 +1,12 @@
-import { createHash } from "node:crypto";
-import { createWriteStream } from "node:fs";
-import { rm } from "node:fs/promises";
-import { join } from "node:path";
-import { pipeline as pipelineCb, Readable, Transform } from "node:stream";
+import { createHash, randomUUID } from "node:crypto";
+import { open, rename, rm } from "node:fs/promises";
+import { basename, join } from "node:path";
+import {
+  pipeline as pipelineCb,
+  Readable,
+  Transform,
+  type Writable,
+} from "node:stream";
 import { finished, pipeline } from "node:stream/promises";
 import { createGunzip } from "node:zlib";
 import { extract } from "tar-stream";
@@ -61,14 +65,36 @@ export async function packageArtifactLayer(
   outDir: string,
   fileName: string
 ): Promise<{ filePath: string; sizeBytes: number; sha256: string }> {
+  if (
+    basename(fileName) !== fileName ||
+    fileName === "." ||
+    fileName === ".."
+  ) {
+    throw new ReleasePackageError("invalid release file name");
+  }
   const filePath = join(outDir, fileName);
+  // Written under a unique temp name (O_EXCL, so a pre-existing file or symlink
+  // is never followed or truncated) and renamed onto the final name only once
+  // complete: a failed run never touches an existing release file.
+  const tempPath = join(outDir, `.${fileName}.${randomUUID()}.tmp`);
+  let handle: Awaited<ReturnType<typeof open>>;
   try {
-    const out = await (kind === "jar"
-      ? packageJar(layer, filePath)
-      : packageStatic(layer, filePath));
-    return { filePath, ...out };
+    handle = await open(tempPath, "wx");
   } catch (error) {
-    await rm(filePath, { force: true });
+    // Nothing will read the layer; release the registry connection.
+    await layer.cancel().catch(() => {});
+    throw error;
+  }
+  const out = handle.createWriteStream();
+  try {
+    const result = await (kind === "jar"
+      ? packageJar(layer, out)
+      : packageStatic(layer, out));
+    await rename(tempPath, filePath);
+    return { filePath, ...result };
+  } catch (error) {
+    out.destroy();
+    await rm(tempPath, { force: true });
     throw error;
   }
 }
@@ -106,57 +132,43 @@ async function* artifactFiles(
   }
 }
 
-async function packageJar(layer: ReadableStream<Uint8Array>, filePath: string) {
+async function packageJar(layer: ReadableStream<Uint8Array>, out: Writable) {
   const { tap, result } = hashing();
-  const file = createWriteStream(filePath);
   let found = false;
-  let written: Promise<void> | undefined;
-  try {
-    for await (const { path, stream } of artifactFiles(layer)) {
-      if (!path.endsWith(".jar")) {
-        stream.resume();
-        continue;
-      }
-      if (found) {
-        stream.resume();
-        throw new ReleasePackageError("artifact must contain exactly one jar");
-      }
-      found = true;
-      // Awaiting here keeps the entry consumed before the iterator moves on.
-      written = pipeline(stream, tap, file);
-      await written;
+  for await (const { path, stream } of artifactFiles(layer)) {
+    if (!path.endsWith(".jar")) {
+      stream.resume();
+      continue;
     }
-    if (!found)
+    if (found) {
+      stream.resume();
       throw new ReleasePackageError("artifact must contain exactly one jar");
-  } catch (error) {
-    file.destroy();
-    await written?.catch(() => {});
-    throw error;
+    }
+    found = true;
+    // Awaiting here keeps the entry consumed before the iterator moves on.
+    await pipeline(stream, tap, out);
   }
+  if (!found)
+    throw new ReleasePackageError("artifact must contain exactly one jar");
   return result();
 }
 
-async function packageStatic(
-  layer: ReadableStream<Uint8Array>,
-  filePath: string
-) {
+async function packageStatic(layer: ReadableStream<Uint8Array>, out: Writable) {
   const { tap, result } = hashing();
   const zip = new ZipFile();
-  const output = pipeline(
-    zip.outputStream as Readable,
-    tap,
-    createWriteStream(filePath)
-  );
-  // Surface a write failure instead of leaving an unhandled rejection.
+  const output = pipeline(zip.outputStream as Readable, tap, out);
+  // Handled below through the race; this only prevents an unhandled rejection
+  // while the loop is not currently awaiting it.
   output.catch(() => {});
   let hasIndex = false;
   try {
     for await (const { path, stream } of artifactFiles(layer)) {
       if (path === "index.html") hasIndex = true;
       // yazl pumps entries in order, so this entry is read while the tar
-      // iterator waits for it to end.
+      // iterator waits for it to end. If the output write fails, yazl's pipe
+      // stalls and the entry never ends, so race against the output.
       zip.addReadStream(stream, path);
-      await finished(stream);
+      await Promise.race([finished(stream), output]);
     }
     if (!hasIndex)
       throw new ReleasePackageError("static artifact has no index.html");
