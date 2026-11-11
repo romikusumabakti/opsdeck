@@ -86,7 +86,8 @@
     "jira": "Jira",
     "mail": "邮件",
     "repositories": "代码仓库",
-    "variables": "变量"
+    "variables": "变量",
+    "releases": "Releases"
   },
   "commandPalette": {
     "triggerLabel": "搜索或跳转…",
@@ -143,7 +144,8 @@
     "cloudflare": "Cloudflare",
     "repositories": "代码仓库",
     "variables": "变量",
-    "instance": "实例"
+    "instance": "实例",
+    "releases": "Releases"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -465,7 +467,9 @@
     "alreadyDeployed": "已部署",
     "waitingForFirstBuild": "正在等待 {branch} 的首次构建",
     "settingsLink": "部署设置",
-    "settingsHint": "分支、服务器和部署目标在“设置 → 源码与部署”中编辑。"
+    "settingsHint": "分支、服务器和部署目标在“设置 → 源码与部署”中编辑。",
+    "markRelease": "Mark as release",
+    "releasePreparing": "Preparing release…"
   },
   "provisioning": {
     "title": "环境配置",
@@ -2133,7 +2137,10 @@
     "serverKeyRotated": "{actor} 轮换了 {server} 上的 SSH 密钥（来源 {from}）",
     "serverKeyFromChanged": "{actor} 更新了 {server} 的 SSH 密钥地址（从 {before} 改为 {after}）",
     "environmentDeleted": "{actor} 删除了 {environment}",
-    "environmentDomainAdopted": "{actor} 为 {environment} 采用了主机名 {hostname}"
+    "environmentDomainAdopted": "{actor} 为 {environment} 采用了主机名 {hostname}",
+    "releaseCreated": "{actor} marked {component} {version} of {project} as a release",
+    "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",
+    "releaseDeleted": "{actor} deleted release {version} of {component} in {project}"
   },
   "jira": {
     "title": "Jira",
@@ -3412,5 +3419,37 @@
     "ok": "完成",
     "failed": "失败",
     "previousKey": "轮换未完成：部分服务器仍在使用 {fingerprint}。再次运行轮换以重试。"
+  },
+  "releases": {
+    "title": "Releases",
+    "subtitle": "Tested builds of jar and static components, kept for download.",
+    "totalSize": "Total size",
+    "empty": "No releases yet. Mark a successful deployment as a release from the Deploys page.",
+    "version": "Version",
+    "versionHint": "Up to 100 characters, for example 1.4.0.",
+    "versionRequired": "Enter a version.",
+    "versionTaken": "This version name is already used for this component.",
+    "notes": "Release notes",
+    "notesHint": "Optional, up to 2000 characters.",
+    "markTitle": "Mark as release",
+    "markDescription": "Keep {component} {tag} as a release you can download later.",
+    "submit": "Mark as release",
+    "colComponent": "Component",
+    "colSource": "Source",
+    "testedOn": "Tested on",
+    "colBy": "Created by",
+    "colStatus": "Status",
+    "colSize": "Size",
+    "download": "Download",
+    "delete": "Delete",
+    "deleteTitle": "Delete release {version}?",
+    "deleteDescription": "The stored file of {component} is deleted too. This cannot be undone.",
+    "deleted": "Release deleted",
+    "versionGroup": "Version {version}",
+    "status": {
+      "preparing": "Preparing",
+      "ready": "Ready",
+      "failed": "Failed"
+    }
   }
 }

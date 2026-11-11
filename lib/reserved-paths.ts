@@ -36,5 +36,6 @@ export const RESERVED_ENV_SLUGS = new Set([
   "members",
   "milestones",
   "new",
+  "releases",
   "settings",
 ]);

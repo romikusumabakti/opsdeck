@@ -22,6 +22,7 @@ export type ProjectPage =
   | "overview"
   | "settings"
   | "issue"
+  | "releases"
   | "new-environment"
   | "other";
 
@@ -43,6 +44,7 @@ export type NavProject = { id: string; key: string; name: string };
 const PROJECT_PAGES: Record<string, ProjectPage> = {
   settings: "settings",
   issues: "issue",
+  releases: "releases",
   environments: "new-environment",
 };
 
