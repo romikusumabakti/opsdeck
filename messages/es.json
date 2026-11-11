@@ -86,7 +86,8 @@
     "jira": "Jira",
     "mail": "Correo",
     "repositories": "Repositorios",
-    "variables": "Variables"
+    "variables": "Variables",
+    "releases": "Releases"
   },
   "commandPalette": {
     "triggerLabel": "Buscar o ir a…",
@@ -143,7 +144,8 @@
     "cloudflare": "Cloudflare",
     "repositories": "Repositorios",
     "variables": "Variables",
-    "instance": "Instancia"
+    "instance": "Instancia",
+    "releases": "Releases"
   },
   "header": {
     "searchEnvironment": "Buscar entorno…",
@@ -465,7 +467,9 @@
     "alreadyDeployed": "Ya desplegado",
     "waitingForFirstBuild": "Esperando la primera build de {branch}",
     "settingsLink": "Ajustes de despliegue",
-    "settingsHint": "Las ramas, los servidores y los destinos se editan en Ajustes → Origen y despliegue."
+    "settingsHint": "Las ramas, los servidores y los destinos se editan en Ajustes → Origen y despliegue.",
+    "markRelease": "Mark as release",
+    "releasePreparing": "Preparing release…"
   },
   "provisioning": {
     "title": "Aprovisionamiento",
@@ -2133,7 +2137,10 @@
     "serverKeyRotated": "{actor} rotó la clave SSH en {server} (desde {from})",
     "serverKeyFromChanged": "{actor} actualizó la dirección de la clave SSH de {server} (de {before} a {after})",
     "environmentDeleted": "{actor} eliminó {environment}",
-    "environmentDomainAdopted": "{actor} adoptó el hostname {hostname} para {environment}"
+    "environmentDomainAdopted": "{actor} adoptó el hostname {hostname} para {environment}",
+    "releaseCreated": "{actor} marked {component} {version} of {project} as a release",
+    "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",
+    "releaseDeleted": "{actor} deleted release {version} of {component} in {project}"
   },
   "jira": {
     "title": "Jira",
@@ -3412,5 +3419,37 @@
     "ok": "Hecho",
     "failed": "Falló",
     "previousKey": "La rotación no terminó: algunos servidores aún usan {fingerprint}. Vuelve a Rotar para reintentarlo."
+  },
+  "releases": {
+    "title": "Releases",
+    "subtitle": "Tested builds of jar and static components, kept for download.",
+    "totalSize": "Total size",
+    "empty": "No releases yet. Mark a successful deployment as a release from the Deploys page.",
+    "version": "Version",
+    "versionHint": "Up to 100 characters, for example 1.4.0.",
+    "versionRequired": "Enter a version.",
+    "versionTaken": "This version name is already used for this component.",
+    "notes": "Release notes",
+    "notesHint": "Optional, up to 2000 characters.",
+    "markTitle": "Mark as release",
+    "markDescription": "Keep {component} {tag} as a release you can download later.",
+    "submit": "Mark as release",
+    "colComponent": "Component",
+    "colSource": "Source",
+    "testedOn": "Tested on",
+    "colBy": "Created by",
+    "colStatus": "Status",
+    "colSize": "Size",
+    "download": "Download",
+    "delete": "Delete",
+    "deleteTitle": "Delete release {version}?",
+    "deleteDescription": "The stored file of {component} is deleted too. This cannot be undone.",
+    "deleted": "Release deleted",
+    "versionGroup": "Version {version}",
+    "status": {
+      "preparing": "Preparing",
+      "ready": "Ready",
+      "failed": "Failed"
+    }
   }
 }

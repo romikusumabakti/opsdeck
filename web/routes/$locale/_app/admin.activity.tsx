@@ -274,6 +274,27 @@ function message(
         component: String(d.component),
         environment: String(d.environment),
       });
+    case "release.created":
+      return t("releaseCreated", {
+        actor,
+        project: String(d.project),
+        component: String(d.component),
+        version: String(d.version),
+      });
+    case "release.downloaded":
+      return t("releaseDownloaded", {
+        actor,
+        project: String(d.project),
+        component: String(d.component),
+        version: String(d.version),
+      });
+    case "release.deleted":
+      return t("releaseDeleted", {
+        actor,
+        project: String(d.project),
+        component: String(d.component),
+        version: String(d.version),
+      });
     case "mailpit.removed":
       return t("mailpitRemoved", { actor, environment: String(d.environment) });
     case "mail.deleted":

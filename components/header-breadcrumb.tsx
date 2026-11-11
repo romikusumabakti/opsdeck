@@ -166,6 +166,8 @@ function getTrailingSegments(
         return [{ kind: "static", labelKey: "breadcrumbs.settings" }];
       case "issue":
         return [{ kind: "static", labelKey: "breadcrumbs.issues" }];
+      case "releases":
+        return [{ kind: "static", labelKey: "breadcrumbs.releases" }];
       case "new-environment":
         return [{ kind: "static", labelKey: "breadcrumbs.newEnvironment" }];
       default:

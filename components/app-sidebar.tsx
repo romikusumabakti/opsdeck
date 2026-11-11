@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   type LucideIcon,
   Mail,
+  PackageCheck,
   Rocket,
   Server,
   ServerCog,
@@ -77,12 +78,21 @@ type ProjectItem = {
   url: string;
   icon: LucideIcon;
   perm?: ProjectPermissions;
+  // A page of the project itself (/KEY/<url>) rather than of the environment.
+  projectLevel?: boolean;
 };
 
 const projectItems: ProjectItem[] = [
   { key: "dashboard", url: "", icon: LayoutDashboard },
   { key: "services", url: "/services", icon: ServerCog },
   { key: "deploys", url: "/deploys", icon: Rocket },
+  {
+    key: "releases",
+    url: "/releases",
+    icon: PackageCheck,
+    perm: { deploy: ["view"] },
+    projectLevel: true,
+  },
   {
     key: "variables",
     url: "/variables",
@@ -441,7 +451,9 @@ export function AppSidebar({
                       (item) => item.key !== "mail" || activeEnv.hasMailpit
                     )
                     .map((item) => {
-                      const itemPath = `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
+                      const itemPath = item.projectLevel
+                        ? `/${activeEnv.key}${item.url}`
+                        : `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
                       const isActive =
                         item.url === ""
                           ? pathname === itemPath

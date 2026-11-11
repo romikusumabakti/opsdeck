@@ -6,6 +6,7 @@ import {
   Hourglass,
   Loader2,
   Lock,
+  PackageCheck,
   Play,
   Plus,
   Rocket,
@@ -57,6 +58,7 @@ import {
 import type { EnvironmentWithServers } from "@/web/api/environments";
 import { ProvisioningPanel } from "../provisioning-panel";
 import { DeployLockPanel, useDeployLock } from "./deploy-lock";
+import { MarkReleaseDialog, type ReleaseSource } from "./mark-release-dialog";
 import { environmentServers } from "./target-form-dialog";
 
 type Deployment = DeployTargetState["recentDeployments"][number];
@@ -156,6 +158,7 @@ export function DeploysClient({
               target={target}
               serverName={serverNames.get(target.serverId) ?? ""}
               lockedReason={lockedReason}
+              environmentId={environment.id}
               onRun={setRun}
             />
           ))}
@@ -182,12 +185,14 @@ function TargetCard({
   target,
   serverName,
   lockedReason,
+  environmentId,
   onRun,
 }: {
   target: DeployTargetState;
   serverName: string;
   // Set while the environment is locked: manual deploys and rollbacks are off.
   lockedReason: string | null;
+  environmentId: string;
   onRun: (run: ActiveRun) => void;
 }) {
   const t = useTranslations("deploys");
@@ -195,6 +200,9 @@ function TargetCard({
   const dialog = useDialog();
   const canRun = useProjectCan({ deploy: ["run"] });
   const canRollback = useProjectCan({ deploy: ["rollback"] });
+  const canRelease = useProjectCan({ release: ["create"] });
+  const [releaseSource, setReleaseSource] =
+    React.useState<ReleaseSource | null>(null);
   // The tag being deployed or rolled back to, while its request is in flight.
   const [pending, setPending] = React.useState<string | null>(null);
 
@@ -384,6 +392,19 @@ function TargetCard({
           ) : (
             <DeploymentsTable
               deployments={target.recentDeployments}
+              // Only a jar or static build can be kept as a release.
+              onMarkRelease={
+                canRelease &&
+                (target.kind === "jar" || target.kind === "static")
+                  ? (d) =>
+                      setReleaseSource({
+                        environmentId,
+                        deploymentId: d.id,
+                        componentKey: target.componentKey,
+                        tag: d.tag,
+                      })
+                  : null
+              }
               onViewRun={(d, runId) =>
                 onRun({
                   runId,
@@ -395,6 +416,12 @@ function TargetCard({
           )}
         </section>
       </CardContent>
+      <MarkReleaseDialog
+        source={releaseSource}
+        onOpenChange={(open) => {
+          if (!open) setReleaseSource(null);
+        }}
+      />
     </Card>
   );
 }
@@ -641,9 +668,12 @@ function BuildCommitDetail({ build }: { build: Build }) {
 
 function DeploymentsTable({
   deployments,
+  onMarkRelease,
   onViewRun,
 }: {
   deployments: Deployment[];
+  // Null when the caller may not make releases of this target.
+  onMarkRelease: ((deployment: Deployment) => void) | null;
   onViewRun: (deployment: Deployment, runId: string) => void;
 }) {
   const t = useTranslations("deploys");
@@ -676,6 +706,16 @@ function DeploymentsTable({
               <RelativeTime date={d.createdAt} />
             </TableCell>
             <TableCell className="text-end">
+              {onMarkRelease && d.status === "success" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onMarkRelease(d)}
+                >
+                  <PackageCheck data-icon="inline-start" />
+                  {t("markRelease")}
+                </Button>
+              )}
               {/* A held deployment has no run until the lock is released. */}
               {d.runId !== null && (
                 <Button

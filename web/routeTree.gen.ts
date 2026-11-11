@@ -24,6 +24,7 @@ import { Route as LocaleAppKnowledgeRouteRouteImport } from './routes/$locale/_a
 import { Route as LocaleAcceptInviteTokenRouteImport } from './routes/$locale/accept-invite.$token'
 import { Route as LocaleAppProjectKeyIndexRouteImport } from './routes/$locale/_app/$projectKey.index'
 import { Route as LocaleAppProjectKeyEnvSlugRouteRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.route'
+import { Route as LocaleAppProjectKeyReleasesRouteImport } from './routes/$locale/_app/$projectKey.releases'
 import { Route as LocaleAppProjectKeySettingsRouteImport } from './routes/$locale/_app/$projectKey.settings'
 import { Route as LocaleAppAccountIndexRouteImport } from './routes/$locale/_app/account.index'
 import { Route as LocaleAppAccountChangePasswordRouteImport } from './routes/$locale/_app/account.change-password'
@@ -169,6 +170,12 @@ const LocaleAppProjectKeyEnvSlugRouteRoute =
   LocaleAppProjectKeyEnvSlugRouteRouteImport.update({
     id: '/$projectKey/$envSlug',
     path: '/$projectKey/$envSlug',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectKeyReleasesRoute =
+  LocaleAppProjectKeyReleasesRouteImport.update({
+    id: '/$projectKey/releases',
+    path: '/$projectKey/releases',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
 const LocaleAppProjectKeySettingsRoute =
@@ -580,6 +587,7 @@ export interface FileRoutesByFullPath {
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/': typeof LocaleAppIndexRoute
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  '/$locale/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
   '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
@@ -662,6 +670,7 @@ export interface FileRoutesByTo {
   '/$locale/$': typeof LocaleAppSplatRoute
   '/$locale/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
+  '/$locale/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
   '/$locale/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
@@ -750,6 +759,7 @@ export interface FileRoutesById {
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/_app/': typeof LocaleAppIndexRoute
   '/$locale/_app/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  '/$locale/_app/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
   '/$locale/_app/$projectKey/settings': typeof LocaleAppProjectKeySettingsRoute
   '/$locale/_app/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/_app/admin/access': typeof LocaleAppAdminAccessRoute
@@ -838,6 +848,7 @@ export interface FileRouteTypes {
     | '/$locale/accept-invite/$token'
     | '/$locale/'
     | '/$locale/$projectKey/$envSlug'
+    | '/$locale/$projectKey/releases'
     | '/$locale/$projectKey/settings'
     | '/$locale/account/change-password'
     | '/$locale/admin/access'
@@ -920,6 +931,7 @@ export interface FileRouteTypes {
     | '/$locale/$'
     | '/$locale/issues'
     | '/$locale/accept-invite/$token'
+    | '/$locale/$projectKey/releases'
     | '/$locale/$projectKey/settings'
     | '/$locale/account/change-password'
     | '/$locale/admin/access'
@@ -1007,6 +1019,7 @@ export interface FileRouteTypes {
     | '/$locale/accept-invite/$token'
     | '/$locale/_app/'
     | '/$locale/_app/$projectKey/$envSlug'
+    | '/$locale/_app/$projectKey/releases'
     | '/$locale/_app/$projectKey/settings'
     | '/$locale/_app/account/change-password'
     | '/$locale/_app/admin/access'
@@ -1190,6 +1203,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectKey/$envSlug'
       fullPath: '/$locale/$projectKey/$envSlug'
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$projectKey/releases': {
+      id: '/$locale/_app/$projectKey/releases'
+      path: '/$projectKey/releases'
+      fullPath: '/$locale/$projectKey/releases'
+      preLoaderRoute: typeof LocaleAppProjectKeyReleasesRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
     '/$locale/_app/$projectKey/settings': {
@@ -1832,6 +1852,7 @@ interface LocaleAppRouteRouteChildren {
   LocaleAppIssuesRoute: typeof LocaleAppIssuesRoute
   LocaleAppIndexRoute: typeof LocaleAppIndexRoute
   LocaleAppProjectKeyEnvSlugRouteRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  LocaleAppProjectKeyReleasesRoute: typeof LocaleAppProjectKeyReleasesRoute
   LocaleAppProjectKeySettingsRoute: typeof LocaleAppProjectKeySettingsRoute
   LocaleAppAccountChangePasswordRoute: typeof LocaleAppAccountChangePasswordRoute
   LocaleAppAppsNewRoute: typeof LocaleAppAppsNewRoute
@@ -1868,6 +1889,7 @@ const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
   LocaleAppIndexRoute: LocaleAppIndexRoute,
   LocaleAppProjectKeyEnvSlugRouteRoute:
     LocaleAppProjectKeyEnvSlugRouteRouteWithChildren,
+  LocaleAppProjectKeyReleasesRoute: LocaleAppProjectKeyReleasesRoute,
   LocaleAppProjectKeySettingsRoute: LocaleAppProjectKeySettingsRoute,
   LocaleAppAccountChangePasswordRoute: LocaleAppAccountChangePasswordRoute,
   LocaleAppAppsNewRoute: LocaleAppAppsNewRoute,

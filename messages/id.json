@@ -86,7 +86,8 @@
     "jira": "Jira",
     "mail": "Email",
     "repositories": "Repositori",
-    "variables": "Variabel"
+    "variables": "Variabel",
+    "releases": "Rilis"
   },
   "commandPalette": {
     "triggerLabel": "Cari atau buka…",
@@ -143,7 +144,8 @@
     "cloudflare": "Cloudflare",
     "repositories": "Repositori",
     "variables": "Variabel",
-    "instance": "Instans"
+    "instance": "Instans",
+    "releases": "Rilis"
   },
   "header": {
     "searchEnvironment": "Cari environment…",
@@ -465,7 +467,9 @@
     "alreadyDeployed": "Sudah di-deploy",
     "waitingForFirstBuild": "Menunggu build pertama dari {branch}",
     "settingsLink": "Pengaturan deploy",
-    "settingsHint": "Branch, server, dan target deploy diubah di Pengaturan → Sumber & Deploy."
+    "settingsHint": "Branch, server, dan target deploy diubah di Pengaturan → Sumber & Deploy.",
+    "markRelease": "Tandai sebagai rilis",
+    "releasePreparing": "Menyiapkan rilis…"
   },
   "provisioning": {
     "title": "Provisioning",
@@ -2133,7 +2137,10 @@
     "serverKeyRotated": "{actor} mengganti SSH key di {server} (dari {from})",
     "serverKeyFromChanged": "{actor} memperbarui alamat SSH key {server} (dari {before} menjadi {after})",
     "environmentDeleted": "{actor} menghapus {environment}",
-    "environmentDomainAdopted": "{actor} mengadopsi hostname {hostname} untuk {environment}"
+    "environmentDomainAdopted": "{actor} mengadopsi hostname {hostname} untuk {environment}",
+    "releaseCreated": "{actor} menandai {component} {version} di {project} sebagai rilis",
+    "releaseDownloaded": "{actor} mengunduh rilis {version} dari {component} di {project}",
+    "releaseDeleted": "{actor} menghapus rilis {version} dari {component} di {project}"
   },
   "jira": {
     "title": "Jira",
@@ -3412,5 +3419,37 @@
     "ok": "Berhasil",
     "failed": "Gagal",
     "previousKey": "Penggantian key belum selesai: beberapa server masih memakai {fingerprint}. Jalankan Ganti key lagi untuk mencobanya ulang."
+  },
+  "releases": {
+    "title": "Rilis",
+    "subtitle": "Build jar dan static yang sudah diuji, disimpan untuk diunduh.",
+    "totalSize": "Ukuran total",
+    "empty": "Belum ada rilis. Tandai deployment yang berhasil sebagai rilis dari halaman Deploys.",
+    "version": "Versi",
+    "versionHint": "Maksimal 100 karakter, misalnya 1.4.0.",
+    "versionRequired": "Isi versi.",
+    "versionTaken": "Nama versi ini sudah dipakai untuk component ini.",
+    "notes": "Catatan rilis",
+    "notesHint": "Opsional, maksimal 2000 karakter.",
+    "markTitle": "Tandai sebagai rilis",
+    "markDescription": "Simpan {component} {tag} sebagai rilis yang bisa diunduh nanti.",
+    "submit": "Tandai sebagai rilis",
+    "colComponent": "Component",
+    "colSource": "Sumber",
+    "testedOn": "Dites di",
+    "colBy": "Dibuat oleh",
+    "colStatus": "Status",
+    "colSize": "Ukuran",
+    "download": "Unduh",
+    "delete": "Hapus",
+    "deleteTitle": "Hapus rilis {version}?",
+    "deleteDescription": "File {component} yang tersimpan ikut dihapus. Tindakan ini tidak bisa dibatalkan.",
+    "deleted": "Rilis dihapus",
+    "versionGroup": "Versi {version}",
+    "status": {
+      "preparing": "Disiapkan",
+      "ready": "Siap",
+      "failed": "Gagal"
+    }
   }
 }
