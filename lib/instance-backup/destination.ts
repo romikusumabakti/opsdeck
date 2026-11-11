@@ -60,6 +60,11 @@ export function backupS3Client(
     },
     retryMode: "standard",
     maxAttempts: 5,
+    // Garage returns a multipart object's composite CRC32 without the "-N"
+    // suffix, which the SDK's default check compares with the whole body and
+    // rejects. Integrity rests on our own checks (release sha256, backup
+    // manifest), so the response check runs only where S3 requires it.
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 }
 
