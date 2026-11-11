@@ -1,3 +1,8 @@
+# opsdeck development stack: builds the image from this checkout. The installed
+# product (digest-pinned images, no container names, host updater) is
+# ops/install/compose.yaml, written by ops/install/install.sh. install.sh
+# --adopt takes over a stack started from this file, so keep its volume names.
+
 services:
   postgres:
     image: postgres:18
@@ -48,12 +53,10 @@ services:
       # with `openssl rand -base64 32`; keep stable (rotating orphans ciphertext).
       SECRETS_KEY: ${SECRETS_KEY:?SECRETS_KEY is required}
       # Whitelabel branding — read by the server at runtime and sent to the
-      # client, so a change takes a restart, not a rebuild. The pre-Vite
-      # NEXT_PUBLIC_* names still work as a fallback, so an existing .env
-      # keeps working.
-      APP_NAME: ${APP_NAME:-${NEXT_PUBLIC_APP_NAME-}}
-      COMPANY_NAME: ${COMPANY_NAME:-${NEXT_PUBLIC_COMPANY_NAME-}}
-      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-${NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN-}}
+      # client, so a change takes a restart, not a rebuild.
+      APP_NAME: ${APP_NAME-}
+      COMPANY_NAME: ${COMPANY_NAME-}
+      ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN-}
       # IANA zone for the app's own clock (daily motif, default display zone).
       # Empty means the app default, Asia/Jakarta.
       APP_TIMEZONE: ${APP_TIMEZONE-}
@@ -103,6 +106,8 @@ services:
         ]
       start_period: 100s
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       valkey:
@@ -143,6 +148,22 @@ services:
           "fetch('http://127.0.0.1:3001/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
         ]
       start_period: 20s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  # One-shot: applies pending migrations (Drizzle's migrator) before the app
+  # and the terminal start, as in the installed product.
+  migrate:
+    build:
+      context: .
+    image: opsdeck-app:local
+    restart: "no"
+    command: ["opsdeck", "migrate"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
     depends_on:
       postgres:
         condition: service_healthy

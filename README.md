@@ -35,14 +35,14 @@ Vite + React 19 (TanStack Router) · Hono on Bun · Drizzle ORM + PostgreSQL 18 
           └──── postgres     valkey      garage ─── imgproxy
 ```
 
-`compose.yaml` defines the services:
+`compose.yaml` is the development stack, built from this checkout (production installs use `ops/install/install.sh`, see below). It defines the services:
 
 | Service    | Purpose                                                                 |
 | ---------- | ----------------------------------------------------------------------- |
 | `app`      | Hono server on Bun (`dist/server/index.js`). It serves the API and the built SPA, and the BullMQ worker starts inside it. |
 | `terminal` | Same image, running `bun dist/terminal-server.js`. It holds the WebSocket terminal sessions; keeping the sockets in their own process means a redeploy of the app can't kill a live shell. |
 | `caddy`    | Public edge on `127.0.0.1:80`, plain HTTP. TLS is expected to end upstream (for example at cloudflared). |
-| `postgres` | Main database, published on `127.0.0.1:5432` for migrations.          |
+| `postgres` | Main database, published on `127.0.0.1:5432` for host `bun run dev` and psql. |
 | `valkey`   | Redis-compatible queue backend for BullMQ.                              |
 | `garage`   | Single-node S3 store for knowledge-base attachments.                    |
 | `imgproxy` | Resizes images and converts their format on read. Internal only.        |
@@ -64,7 +64,7 @@ openssl rand -hex 32      # GARAGE_RPC_SECRET, IMGPROXY_KEY, IMGPROXY_SALT
 > [!WARNING]
 > - `SECRETS_KEY` encrypts stored credentials (SSH and database passwords, S3 keys). If you rotate it, the existing secrets can no longer be decrypted and have to be re-entered.
 > - `BETTER_AUTH_URL` must be the exact origin users visit. Passkeys are bound to it, and the terminal rejects WebSocket upgrades from any other origin.
-> - The branding variables (`APP_NAME`, `COMPANY_NAME`, `ALLOWED_EMAIL_DOMAIN`) are read at runtime, so changing them takes a restart, not a rebuild. They used to be `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_COMPANY_NAME` and `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN`; `compose.yaml` still honours the old names as a fallback.
+> - The branding variables (`APP_NAME`, `COMPANY_NAME`, `ALLOWED_EMAIL_DOMAIN`) are read at runtime, so changing them takes a restart, not a rebuild.
 
 ### Brand and accent colour
 
@@ -105,6 +105,14 @@ To add or replace a motif:
 2. For a new motif, add it to `MOTIFS` in `lib/motifs.ts` at its place by longitude.
 3. Add its `items.<slug>` caption to `motifs` in all five `messages/*.json` files.
 
+## Installing a release
+
+Production instances run a published release, not this checkout. `ops/install/install.sh` (attached to every GitHub release) installs one instance per `/opt/<name>` with digest-pinned images, generated secrets and a host updater; its header documents every flag (`--channel`, `--adopt`, `--restore`, `--dry-run`).
+
+```sh
+curl -fsSL https://github.com/romikusumabakti/opsdeck/releases/latest/download/install.sh | sh -s -- --hostname panel.example.com
+```
+
 ## Running with Docker Compose
 
 ```sh
@@ -112,12 +120,7 @@ cp .env.example .env              # fill in; leave S3_ACCESS_KEY / S3_SECRET_KEY
 docker compose up -d --build
 ```
 
-Apply database migrations from the host. Postgres is published on localhost, and `drizzle.config.ts` reads `.env.local`, so point `DATABASE_URL` in that file at `localhost:5432`:
-
-```sh
-bun install
-bun run db:migrate
-```
+The one-shot `migrate` service applies pending migrations before `app` and `terminal` start.
 
 Open the site and go to `/en/setup` to create the first admin account. The setup page closes once any user exists.
 

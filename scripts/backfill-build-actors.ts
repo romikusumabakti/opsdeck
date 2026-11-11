@@ -1,7 +1,7 @@
 // Fills who pushed existing builds (or their commit author email when the forge
 // sends no login) and the auto runs behind them from their CI pipelines, then gives
 // pre-deploy backup runs the actor of their deploy run. Prints counts only.
-// Usage (production): docker exec opsdeck-app bun dist/backfill-build-actors.js [--dry-run]
+// Usage (production): docker compose exec app bun dist/backfill-build-actors.js [--dry-run]
 // Local dev: bun scripts/backfill-build-actors.ts [--dry-run]
 import "reflect-metadata";
 import { describeDbError } from "@/lib/secrets-migration";
