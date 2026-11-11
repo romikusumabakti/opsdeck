@@ -9,15 +9,19 @@ test("creating an issue assigned to me updates the sidebar badge without a reloa
   const key = `E${Date.now().toString(36).slice(-6).toUpperCase()}`;
 
   await page.goto("/en/projects");
-  await page.getByRole("button", { name: "New project" }).first().click();
+  // "Create project" is the empty state's button, when no other spec has
+  // created a project yet.
+  await page
+    .getByRole("button", { name: /^(New|Create) project$/ })
+    .first()
+    .click();
   const projectDialog = page.getByRole("dialog");
   await projectDialog.getByLabel("Project name").fill(`E2E ${key}`);
   await projectDialog.getByLabel("Key").fill(key);
   await projectDialog.getByRole("button", { name: "Create project" }).click();
   await expect(projectDialog).toBeHidden();
 
-  await page.goto(`/en/${key}`);
-  await page.getByRole("tab", { name: /^Issues/ }).click();
+  await page.goto(`/en/${key}/issues`);
   await expect(page.getByText(/assigned to you/)).toHaveCount(0);
 
   // Everything from here on must happen in the same document.
