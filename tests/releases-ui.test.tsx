@@ -343,6 +343,18 @@ describe("Releases page", () => {
   });
 });
 
+describe("Releases entry on the project overview", () => {
+  it("links the Releases page for anyone with deploy:view", () => {
+    const page = readFileSync(
+      "web/routes/$locale/_app/$projectKey.index.tsx",
+      "utf8"
+    );
+    expect(page).toMatch(/canProject\(role, \{ deploy: \["view"\] \}\)/);
+    expect(page).toContain("/releases`} />}");
+    expect(page).toContain(`tNav("releases")`);
+  });
+});
+
 describe("release activity messages", () => {
   const activity = (locale: string): Record<string, string> =>
     JSON.parse(readFileSync(`messages/${locale}.json`, "utf8")).activity;
