@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { and, eq, isNull } from "drizzle-orm";
-import type { NodeSSH } from "node-ssh";
 import { recordActivity } from "@/lib/activity";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -34,6 +33,7 @@ import {
   removeAuthorizedKey,
   serverKeyLock,
 } from "@/lib/ssh-keys";
+import type { SshSession } from "@/lib/ssh-session";
 import { CodedHTTPException } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
@@ -140,9 +140,9 @@ type ExecResult = { code: number | null; stdout: string };
  * sent in its identification string (ssh2 keeps it on the client); another
  * sshd, or none announced, is not judged here.
  */
-function lacksEd25519(ssh: NodeSSH): boolean {
-  const software = (ssh.connection as { _remoteVer?: unknown } | null)
-    ?._remoteVer;
+function lacksEd25519(ssh: SshSession): boolean {
+  const software = (ssh.client as unknown as { _remoteVer?: unknown })
+    ._remoteVer;
   const m =
     typeof software === "string"
       ? /^OpenSSH_(\d+)\.(\d+)/.exec(software)
@@ -153,7 +153,7 @@ function lacksEd25519(ssh: NodeSSH): boolean {
 }
 
 async function exec(
-  ssh: NodeSSH,
+  ssh: SshSession,
   script: string,
   stdin?: string
 ): Promise<ExecResult> {
@@ -205,7 +205,7 @@ function scriptFailure(code: number | null, step: string): StepFailed {
 // The file travels as base64 and is handled as latin1, which maps each byte
 // to one character and back: foreign lines (any encoding, even a broken
 // multibyte sequence) are written back byte for byte.
-async function readAuthorizedKeys(ssh: NodeSSH): Promise<string> {
+async function readAuthorizedKeys(ssh: SshSession): Promise<string> {
   const result = await exec(ssh, READ_SCRIPT);
   if (result.code !== 0) throw scriptFailure(result.code, "read");
   return Buffer.from(result.stdout.replace(/\s+/g, ""), "base64").toString(
@@ -213,7 +213,7 @@ async function readAuthorizedKeys(ssh: NodeSSH): Promise<string> {
   );
 }
 
-async function writeAuthorizedKeys(ssh: NodeSSH, content: string) {
+async function writeAuthorizedKeys(ssh: SshSession, content: string) {
   const encoded = Buffer.from(content, "latin1").toString("base64");
   const result = await exec(ssh, WRITE_SCRIPT, encoded);
   if (result.code !== 0) throw scriptFailure(result.code, "write");
@@ -234,7 +234,7 @@ type DroppedLine = { marker: string; line: string };
  * concurrent edit to other lines survives.
  */
 async function rollback(
-  ssh: NodeSSH,
+  ssh: SshSession,
   marker: string,
   previous: string | null,
   dropped: readonly DroppedLine[]
@@ -270,7 +270,7 @@ async function proveKeyLogin(
   keyId: string,
   as: ConnectAs
 ): Promise<KeyMoveCode | null> {
-  let ssh: NodeSSH | undefined;
+  let ssh: SshSession | undefined;
   try {
     ssh = await openSsh(target, SSH_TUNING, { keyOnly: true, keyId, ...as });
     const result = await exec(ssh, "true");
@@ -292,7 +292,7 @@ function activityActor(actorId: string): string | null {
  * not in `keep` (besides `marker`). Returns what an undo puts back.
  */
 async function installLine(
-  ssh: NodeSSH,
+  ssh: SshSession,
   existing: string,
   line: string,
   marker: string,
@@ -376,7 +376,7 @@ async function moveLocked(
   const target = sshTarget({ ...server, password, auth: "password" });
   const as = connectAs(actorId, opts.job);
 
-  let ssh: NodeSSH;
+  let ssh: SshSession;
   try {
     ssh = await openSsh(target, SSH_TUNING, { passwordOnce: password, ...as });
   } catch (error) {
@@ -582,7 +582,7 @@ export async function rotateServerKey(
  * same login uses); false if that failed.
  */
 async function keepOnly(
-  ssh: NodeSSH,
+  ssh: SshSession,
   server: Server,
   marker: string
 ): Promise<boolean> {
@@ -606,7 +606,7 @@ async function cleanLocked(
   key: InstanceKey,
   as: ConnectAs
 ): Promise<KeyMoveResult> {
-  let ssh: NodeSSH;
+  let ssh: SshSession;
   try {
     ssh = await openSsh(sshTarget({ ...server, password: null }), SSH_TUNING, {
       keyOnly: true,
@@ -656,7 +656,7 @@ async function rotateLocked(
   const marker = keyMarker(key.id);
   const target = sshTarget({ ...server, password: null });
 
-  let ssh: NodeSSH;
+  let ssh: SshSession;
   try {
     ssh = await openSsh(target, SSH_TUNING, {
       keyOnly: true,
@@ -1132,7 +1132,7 @@ export async function checkKeyLoginAction(
   try {
     const key = await keyToInstall(server);
     if (!key) return refuse("keyLoginFailed");
-    let ssh: NodeSSH | undefined;
+    let ssh: SshSession | undefined;
     try {
       ssh = await openSsh(
         sshTarget({ ...server, password: null }),

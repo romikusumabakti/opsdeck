@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The pool dials node-ssh directly, so the fake lives at the module boundary.
+// The pool dials through openSsh, so the fake lives at the module boundary.
 // Each FakeSSH instance records one dial; the tests assert on how many were made.
 const dials: FakeSSH[] = [];
 
@@ -18,7 +18,7 @@ function dial(index: number): FakeSSH {
 }
 
 class FakeSSH {
-  connection = new EventEmitter();
+  client = new EventEmitter();
   connected = true;
   disposed = false;
   sftp = { id: dials.length };
@@ -26,14 +26,6 @@ class FakeSSH {
 
   constructor() {
     dials.push(this);
-  }
-
-  async connect(options: Record<string, unknown>) {
-    this.connectOptions = options;
-    if (options.password === "wrong") {
-      this.connected = false;
-      throw new Error("All configured authentication methods failed");
-    }
   }
 
   async requestSFTP() {
@@ -52,11 +44,24 @@ class FakeSSH {
   // Simulate the remote end going away (server restart, network drop).
   kill() {
     this.connected = false;
-    this.connection.emit("close");
+    this.client.emit("close");
   }
 }
 
-vi.mock("node-ssh", () => ({ NodeSSH: FakeSSH }));
+vi.mock("@/lib/ssh-session", () => ({
+  openSsh: async (
+    target: { password?: string },
+    tuning: Record<string, unknown> = {}
+  ) => {
+    const ssh = new FakeSSH();
+    ssh.connectOptions = { ...target, ...tuning };
+    if (target.password === "wrong") {
+      ssh.connected = false;
+      throw new Error("All configured authentication methods failed");
+    }
+    return ssh;
+  },
+}));
 
 const creds = {
   serverId: null,

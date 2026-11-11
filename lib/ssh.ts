@@ -3,16 +3,13 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
-import { type Config, NodeSSH } from "node-ssh";
 import type { ClientChannel } from "ssh2";
 import {
   type ConnectOptions,
-  connectConfig,
-  connectError,
-  connectSucceeded,
   HostKeyMismatchError,
   type SshTarget,
 } from "@/lib/ssh-connect";
+import { openSsh, type SshSession } from "@/lib/ssh-session";
 
 export type { SshTarget };
 
@@ -32,33 +29,7 @@ export function redactSecrets(message: string, secrets: string[]): string {
   return out;
 }
 
-export type SshTuning = Pick<
-  Config,
-  "readyTimeout" | "keepaliveInterval" | "keepaliveCountMax"
->;
-
-/**
- * A NodeSSH client connected to `target` with the factory's config (host key
- * verified or pinned, key or password). The caller owns it and must dispose
- * it. The only place a NodeSSH client is connected.
- */
-export async function openSsh(
-  target: SshTarget,
-  tuning: SshTuning = {},
-  options: ConnectOptions = {}
-): Promise<NodeSSH> {
-  const config = await connectConfig(target, options);
-  const ssh = new NodeSSH();
-  try {
-    // connectConfig sets privateKey as a string, as node-ssh's Config wants.
-    await ssh.connect({ ...config, ...tuning } as Config);
-  } catch (error) {
-    ssh.dispose();
-    throw connectError(config, error);
-  }
-  connectSucceeded(config);
-  return ssh;
-}
+export { openSsh, type SshTuning } from "@/lib/ssh-session";
 
 export type RemoteCommandOptions = {
   timeoutMs?: number;
@@ -87,10 +58,10 @@ export async function executeRemoteCommand(
   // Fresh client per call: a shared singleton races when concurrent callers
   // (e.g. parallel worker jobs, overlapping backup/restore requests) all
   // connect/dispose the same instance and tear down each other's session.
-  let ssh: NodeSSH | undefined;
+  let ssh: SshSession | undefined;
   try {
     // Bound the SSH handshake so an unreachable/overloaded DB host fails fast
-    // (node-ssh defaults to ~20s) instead of hanging a page render on it.
+    // (ssh2's readyTimeout defaults to ~20s) instead of hanging a page render on it.
     ssh = await openSsh(target, { readyTimeout: 5000 });
 
     // ssh2's exec has no command timeout, so race the command against a wall
@@ -157,7 +128,7 @@ export async function runRemoteScript(
   options: { timeoutMs: number; stdin?: string }
 ): Promise<RemoteScriptResult> {
   const { timeoutMs, stdin } = options;
-  let ssh: NodeSSH | undefined;
+  let ssh: SshSession | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     ssh = await openSsh(target, { readyTimeout: 5000 });
@@ -197,7 +168,7 @@ const STREAM_STDERR_LIMIT = 4096;
  * Connects, execs `command` and hands the open channel to `wire`, which
  * returns the outcome. Owns the scaffold every streaming exec needs: fresh
  * client (5 s handshake bound), a mid-stream connection error failing the
- * call (node-ssh listens for errors only while connecting), the wall-clock
+ * call (ssh2 emits a late connection error as an event, not as a rejection), the wall-clock
  * timeout, and dispose. `wire` is not called if the call already settled
  * (timeout before the channel opened). `cleanup` runs in the end, whatever
  * the outcome, for resources the caller opened (a body stream).
@@ -209,13 +180,12 @@ async function withExecChannel<T>(
   wire: (channel: ClientChannel) => Promise<T>,
   cleanup: () => void = () => {}
 ): Promise<T> {
-  let ssh: NodeSSH | undefined;
+  let ssh: SshSession | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let settled = false;
   try {
     ssh = await openSsh(target, { readyTimeout: 5000 });
-    const client = ssh.connection;
-    if (!client) throw new Error("SSH connection is not open");
+    const { client } = ssh;
     const connectionLost = new Promise<never>((_, reject) => {
       client.on("error", reject);
     });
@@ -444,7 +414,7 @@ export async function uploadRemoteContent(
   // executeRemoteCommand's: a stuck SFTP server must not hang the deploy.
   timeoutMs = 30_000
 ): Promise<void> {
-  let ssh: NodeSSH | undefined;
+  let ssh: SshSession | undefined;
   let finished = false;
 
   const transfer = async () => {

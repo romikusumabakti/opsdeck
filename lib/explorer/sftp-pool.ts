@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import type { NodeSSH } from "node-ssh";
 import type { SFTPWrapper } from "ssh2";
 import { openSsh, type SshTarget } from "@/lib/ssh";
 import type { ConnectOptions } from "@/lib/ssh-connect";
+import type { SshSession } from "@/lib/ssh-session";
 
 export type SshCreds = SshTarget;
 
@@ -24,7 +24,7 @@ export type SshCreds = SshTarget;
 const IDLE_TTL_MS = 60_000;
 
 const CONNECT_OPTIONS = {
-  // Fail fast on an unreachable host instead of node-ssh's ~20s default.
+  // Fail fast on an unreachable host instead of ssh2's ~20s default.
   readyTimeout: 5000,
   // Detect a half-open socket (NAT or firewall dropped the flow) rather than
   // handing a caller a connection the kernel still believes is alive.
@@ -33,7 +33,7 @@ const CONNECT_OPTIONS = {
 } as const;
 
 type PooledConnection = {
-  ssh: NodeSSH;
+  ssh: SshSession;
   sftp: SFTPWrapper;
   // Operations currently using the channel. Never closed while this is > 0.
   leases: number;
@@ -115,7 +115,7 @@ function acquire(
     const conn: PooledConnection = { ssh, sftp, leases: 0 };
     // A connection that dies (server restart, network drop) must not linger in
     // the pool; the next caller should dial a fresh one.
-    ssh.connection?.once("close", () => {
+    ssh.client.once("close", () => {
       clearTimeout(conn.idleTimer);
       evict(key, pending);
     });

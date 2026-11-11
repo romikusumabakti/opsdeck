@@ -27,7 +27,7 @@ const ssh = vi.hoisted(() => ({
   onExec: null as null | ((call: ExecCall) => void),
 }));
 
-// node-ssh is faked, so no host key is ever offered: skip the factory's
+// The SSH session is faked, so no host key is ever offered: skip the factory's
 // server-row lookup (covered in ssh-connect.test).
 vi.mock("@/lib/ssh-connect", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ssh-connect")>()),
@@ -37,17 +37,16 @@ vi.mock("@/lib/ssh-connect", async (importOriginal) => ({
   }),
 }));
 
-vi.mock("node-ssh", () => ({
-  NodeSSH: class {
-    async connect() {}
+vi.mock("@/lib/ssh-session", () => ({
+  openSsh: async () => ({
     async execCommand(command: string, options?: { stdin?: string }) {
       const call = { command, stdin: options?.stdin };
       ssh.calls.push(call);
       ssh.onExec?.(call);
       return ssh.result;
-    }
-    dispose() {}
-  },
+    },
+    dispose() {},
+  }),
 }));
 
 const {

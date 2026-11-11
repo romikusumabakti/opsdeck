@@ -10,9 +10,6 @@ const state = vi.hoisted(() => ({
 }));
 
 class FakeSSH {
-  async connect(options: Record<string, unknown>) {
-    calls.push(["connect", options.host]);
-  }
   async execCommand(command: string, options?: { stdin?: string }) {
     calls.push(["exec", command, options?.stdin]);
     if (state.hang) return new Promise(() => {});
@@ -23,7 +20,12 @@ class FakeSSH {
   }
 }
 
-vi.mock("node-ssh", () => ({ NodeSSH: FakeSSH }));
+vi.mock("@/lib/ssh-session", () => ({
+  openSsh: async (target: { host: string }) => {
+    calls.push(["connect", target.host]);
+    return new FakeSSH();
+  },
+}));
 
 const { runRemoteScript } = await import("@/lib/ssh");
 

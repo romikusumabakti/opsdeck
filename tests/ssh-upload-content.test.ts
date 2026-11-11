@@ -42,9 +42,6 @@ const fakeSftp = {
 };
 
 class FakeSSH {
-  async connect(options: Record<string, unknown>) {
-    calls.push(["connect", options.host]);
-  }
   async requestSFTP() {
     return fakeSftp;
   }
@@ -57,7 +54,12 @@ class FakeSSH {
   }
 }
 
-vi.mock("node-ssh", () => ({ NodeSSH: FakeSSH }));
+vi.mock("@/lib/ssh-session", () => ({
+  openSsh: async (target: { host: string }) => {
+    calls.push(["connect", target.host]);
+    return new FakeSSH();
+  },
+}));
 
 const { uploadRemoteContent } = await import("@/lib/ssh");
 
