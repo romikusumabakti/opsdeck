@@ -5,11 +5,14 @@ import {
   environmentSwitchHref,
   environmentsOf,
   groupEnvironmentsByProject,
+  isProjectReleasable,
   parseNavPath,
+  projectNavItems,
   projectSwitchHref,
   qualifiedEnvName,
   stripProjectPrefix,
 } from "@/lib/nav-path";
+import { canProject } from "@/lib/permissions";
 
 // next-intl's usePathname returns the path without the locale prefix, which is
 // what every caller passes in.
@@ -62,16 +65,19 @@ describe("parseNavPath", () => {
   it.each([
     ["/CMEM", "overview"],
     ["/CMEM/settings", "settings"],
+    ["/CMEM/issues", "issues"],
     ["/CMEM/issues/42", "issue"],
     ["/CMEM/environments/new", "new-environment"],
-    ["/CMEM/members", "other"],
-    ["/CMEM/milestones", "other"],
+    ["/CMEM/members", "members"],
+    ["/CMEM/milestones", "milestones"],
+    ["/CMEM/releases", "releases"],
     ["/CMEM/new", "other"],
   ])("reads project-level path %s as %s", (path, page) => {
     expect(parseNavPath(path)).toEqual({
       scope: "project",
       projectKey: "CMEM",
       page,
+      issueNumber: path === "/CMEM/issues/42" ? "42" : null,
     } as never);
   });
 
@@ -89,6 +95,83 @@ describe("parseNavPath", () => {
     "/CMEM/Prod",
   ])("treats %s as outside any project", (path) => {
     expect(parseNavPath(path)).toEqual({ scope: null });
+  });
+});
+
+describe("parseNavPath project pages", () => {
+  it.each([
+    ["/CRMB/issues", "issues"],
+    ["/CRMB/milestones", "milestones"],
+    ["/CRMB/members", "members"],
+    ["/CRMB/releases", "releases"],
+    ["/CRMB/settings", "settings"],
+  ])("%s is the %s page", (path, page) => {
+    expect(parseNavPath(path)).toEqual({
+      scope: "project",
+      projectKey: "CRMB",
+      page,
+      issueNumber: null,
+    });
+  });
+  it("reads an issue detail with its number", () => {
+    expect(parseNavPath("/CRMB/issues/42")).toEqual({
+      scope: "project",
+      projectKey: "CRMB",
+      page: "issue",
+      issueNumber: "42",
+    });
+  });
+});
+
+describe("projectNavItems", () => {
+  it("gives an engineer every page of a releasable project, in order", () => {
+    expect(projectNavItems("CRMB", "engineer", true)).toEqual([
+      { key: "overview", href: "/CRMB" },
+      { key: "issues", href: "/CRMB/issues" },
+      { key: "milestones", href: "/CRMB/milestones" },
+      { key: "releases", href: "/CRMB/releases" },
+      { key: "members", href: "/CRMB/members" },
+      { key: "settings", href: "/CRMB/settings" },
+    ]);
+  });
+  it("drops Releases for a container-only project", () => {
+    expect(
+      projectNavItems("SCMB", "engineer", false).map((i) => i.key)
+    ).not.toContain("releases");
+  });
+  it("gives QA only what its role allows", () => {
+    // Derived from canProject so the test follows the role matrix.
+    const keys = projectNavItems("CRMB", "qa", true).map((i) => i.key);
+    expect(keys.slice(0, 3)).toEqual(["overview", "issues", "milestones"]);
+    expect(keys.includes("members")).toBe(
+      canProject("qa", { member: ["manage"] })
+    );
+    expect(keys.includes("settings")).toBe(
+      canProject("qa", { environment: ["update"] })
+    );
+    expect(keys.includes("releases")).toBe(
+      canProject("qa", { deploy: ["view"] })
+    );
+  });
+  it("is empty without a role", () => {
+    expect(projectNavItems("CRMB", null, true)).toEqual([]);
+  });
+});
+
+describe("isProjectReleasable", () => {
+  const envs = [
+    { projectId: "p1", projectReleasable: false },
+    { projectId: "p1", projectReleasable: true },
+    { projectId: "p2", projectReleasable: false },
+  ];
+  it("is true when any environment of the project says so", () => {
+    expect(isProjectReleasable(envs, "p1")).toBe(true);
+  });
+  it("is false when none of the project's environments says so", () => {
+    expect(isProjectReleasable(envs, "p2")).toBe(false);
+  });
+  it("is false for a project without environments", () => {
+    expect(isProjectReleasable([], "p1")).toBe(false);
   });
 });
 
@@ -251,6 +334,11 @@ describe("environmentSwitchHref", () => {
       environmentSwitchHref(dest, parseNavPath("/CMEM/prod/settings"), "viewer")
     ).toBe("/CMEM/qa");
   });
+  it("no longer treats issues as a parallel section", () => {
+    expect(
+      environmentSwitchHref(dest, parseNavPath("/CMEM/prod/issues"), "engineer")
+    ).toBe("/CMEM/qa");
+  });
   it("lands on the dashboard from a project-level page", () => {
     expect(
       environmentSwitchHref(dest, parseNavPath("/CMEM/settings"), "engineer")
@@ -325,7 +413,35 @@ describe("projectSwitchHref", () => {
       })
     ).toBe("/SUCOR");
   });
-  it.each(["/CMEM", "/CMEM/issues/42", "/CMEM/environments/new"])(
+  it.each([
+    ["/CMEM/issues", true, "/SUCOR/issues"],
+    ["/CMEM/issues/42", true, "/SUCOR/issues"],
+    ["/CMEM/milestones", true, "/SUCOR/milestones"],
+    ["/CMEM/members", true, "/SUCOR/members"],
+    ["/CMEM/releases", true, "/SUCOR/releases"],
+    ["/CMEM/releases", false, "/SUCOR"],
+  ])("from %s (target releasable %s) goes to %s", (path, releasable, href) => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments,
+        role: "engineer",
+        from: parseNavPath(path),
+        releasable,
+      })
+    ).toBe(href);
+  });
+  it("drops a members page the target role may not open", () => {
+    expect(
+      projectSwitchHref({
+        projectKey: "SUCOR",
+        environments,
+        role: "viewer",
+        from: parseNavPath("/CMEM/members"),
+      })
+    ).toBe("/SUCOR");
+  });
+  it.each(["/CMEM", "/CMEM/environments/new"])(
     "goes from %s to the overview",
     (path) => {
       expect(
