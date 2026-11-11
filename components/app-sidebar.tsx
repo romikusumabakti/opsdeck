@@ -8,6 +8,7 @@ import {
   CloudCog,
   Cog,
   DatabaseZap,
+  Flag,
   FolderKanban,
   HardDrive,
   History,
@@ -52,7 +53,11 @@ import { Link, usePathname } from "@/i18n/navigation";
 import type { BrandName } from "@/lib/brands";
 import { type EnvSection, visibleEnvSections } from "@/lib/env-sections";
 import {
+  isProjectReleasable,
+  type NavProject,
+  type ProjectNavKey,
   parseNavPath,
+  projectNavItems,
   SECTION_PERMS,
   stripProjectPrefix,
 } from "@/lib/nav-path";
@@ -73,26 +78,26 @@ const SERVICE_SECTION: Partial<Record<string, EnvSection>> = {
   mockTime: "mockTime",
 };
 
-type ProjectItem = {
+type EnvironmentItem = {
   key: string;
   url: string;
   icon: LucideIcon;
   perm?: ProjectPermissions;
-  // A page of the project itself (/KEY/<url>) rather than of the environment.
-  projectLevel?: boolean;
 };
 
-const projectItems: ProjectItem[] = [
+const PROJECT_ICONS: Record<ProjectNavKey, LucideIcon> = {
+  overview: LayoutDashboard,
+  issues: CircleDot,
+  milestones: Flag,
+  releases: PackageCheck,
+  members: Users,
+  settings: Settings,
+};
+
+const environmentItems: EnvironmentItem[] = [
   { key: "dashboard", url: "", icon: LayoutDashboard },
   { key: "services", url: "/services", icon: ServerCog },
   { key: "deploys", url: "/deploys", icon: Rocket },
-  {
-    key: "releases",
-    url: "/releases",
-    icon: PackageCheck,
-    perm: { deploy: ["view"] },
-    projectLevel: true,
-  },
   {
     key: "variables",
     url: "/variables",
@@ -107,7 +112,6 @@ const projectItems: ProjectItem[] = [
     perm: SECTION_PERMS["mock-time"],
   },
   { key: "mail", url: "/mail", icon: Mail, perm: SECTION_PERMS.mail },
-  { key: "issues", url: "/issues", icon: CircleDot },
   { key: "history", url: "/history", icon: History },
   {
     key: "settings",
@@ -220,7 +224,7 @@ export function AppSidebar({
   side = "left",
 }: {
   environments: EnvironmentListItem[];
-  projects: { id: string; name: string }[];
+  projects: NavProject[];
   orgRole: OrgRole;
   projectRoles: Record<string, ProjectRole>;
   issueCounts: AssignedIssueCounts;
@@ -247,8 +251,22 @@ export function AppSidebar({
         ) ?? null)
       : null;
 
-  const activeProjectName =
-    projects.find((p) => p.id === activeEnv?.projectId)?.name ?? "";
+  // The project group belongs to the active environment's project, or to the
+  // project named in the URL on a project-level page.
+  const activeProject =
+    (nav.scope === "env"
+      ? projects.find((p) => p.id === activeEnv?.projectId)
+      : nav.scope === "project"
+        ? projects.find((p) => p.key === nav.projectKey)
+        : undefined) ?? null;
+  const activeProjectName = activeProject?.name ?? "";
+  const projectItems = activeProject
+    ? projectNavItems(
+        activeProject.key,
+        projectRoles[activeProject.id] ?? null,
+        isProjectReleasable(environments, activeProject.id)
+      )
+    : [];
 
   const envSections = activeEnv
     ? visibleEnvSections({
@@ -260,10 +278,11 @@ export function AppSidebar({
     ? (projectRoles[activeEnv.projectId] ?? null)
     : null;
 
-  // Issues live on the environment's parent project, so the group badge counts
-  // every open issue in that project — the set the env's Issues page lists,
-  // not just the caller's.
-  const envIssueCount = activeEnv ? (openCounts[activeEnv.projectId] ?? 0) : 0;
+  // The project's Issues badge counts every open issue in that project, not
+  // just the caller's.
+  const projectIssueCount = activeProject
+    ? (openCounts[activeProject.id] ?? 0)
+    : 0;
   // Live from the shared run stream: the History badge is "something is
   // happening right now", not a stored count.
   const envRunCount = useActiveRunCount(activeEnv?.id ?? null);
@@ -430,6 +449,57 @@ export function AppSidebar({
               );
             })}
 
+          {activeProject && projectItems.length > 0 && (
+            <SidebarGroup>
+              <SidebarGroupLabel
+                className="truncate"
+                title={activeProject.name}
+              >
+                {activeProject.name}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {projectItems.map((item) => {
+                    const Icon = PROJECT_ICONS[item.key];
+                    const isActive =
+                      item.key === "overview"
+                        ? pathname === item.href
+                        : pathname.startsWith(item.href);
+                    const badge =
+                      item.key === "issues"
+                        ? {
+                            count: projectIssueCount,
+                            label: tNav("badgeProjectOpen", {
+                              count: projectIssueCount,
+                            }),
+                          }
+                        : null;
+                    const name = tNav(item.key);
+                    return (
+                      <SidebarMenuItem key={item.key}>
+                        <SidebarMenuButton
+                          render={<Link href={item.href} />}
+                          isActive={isActive}
+                          tooltip={
+                            badge
+                              ? rowTooltip(name, badge.count, badge.label)
+                              : item.key === "settings"
+                                ? tNav("projectSettings")
+                                : name
+                          }
+                        >
+                          <Icon />
+                          <span>{name}</span>
+                        </SidebarMenuButton>
+                        {badge && <SidebarCountBadge {...badge} />}
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+
           {activeEnv && (
             <SidebarGroup>
               <SidebarGroupLabel className="truncate" title={activeEnv.name}>
@@ -437,7 +507,7 @@ export function AppSidebar({
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {projectItems
+                  {environmentItems
                     .filter(
                       (item) => !item.perm || canProject(envRole, item.perm)
                     )
@@ -446,39 +516,25 @@ export function AppSidebar({
                       const section = SERVICE_SECTION[item.key];
                       return !section || envSections.has(section);
                     })
-                    // Releases exist only for legacy jar/static components.
-                    .filter(
-                      (item) =>
-                        item.key !== "releases" || activeEnv.projectReleasable
-                    )
                     // Mail only exists once a Mailpit is connected.
                     .filter(
                       (item) => item.key !== "mail" || activeEnv.hasMailpit
                     )
                     .map((item) => {
-                      const itemPath = item.projectLevel
-                        ? `/${activeEnv.key}${item.url}`
-                        : `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
+                      const itemPath = `/${activeEnv.key}/${activeEnv.slug}${item.url}`;
                       const isActive =
                         item.url === ""
                           ? pathname === itemPath
                           : pathname.startsWith(itemPath);
                       const badge =
-                        item.key === "issues"
+                        item.key === "history"
                           ? {
-                              count: envIssueCount,
-                              label: tNav("badgeProjectOpen", {
-                                count: envIssueCount,
+                              count: envRunCount,
+                              label: tNav("badgeActiveRuns", {
+                                count: envRunCount,
                               }),
                             }
-                          : item.key === "history"
-                            ? {
-                                count: envRunCount,
-                                label: tNav("badgeActiveRuns", {
-                                  count: envRunCount,
-                                }),
-                              }
-                            : null;
+                          : null;
                       return (
                         <SidebarMenuItem key={item.key}>
                           <SidebarMenuButton
@@ -491,7 +547,9 @@ export function AppSidebar({
                                     badge.count,
                                     badge.label
                                   )
-                                : tNav(item.key)
+                                : item.key === "settings"
+                                  ? tNav("environmentSettings")
+                                  : tNav(item.key)
                             }
                           >
                             <item.icon />

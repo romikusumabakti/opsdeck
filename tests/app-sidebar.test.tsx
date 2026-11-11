@@ -19,8 +19,17 @@ const nav = vi.hoisted(() => ({ pathname: "/" }));
 
 vi.mock("@/i18n/navigation", () => ({
   usePathname: () => nav.pathname,
-  Link: ({ href, children }: { href: string; children?: React.ReactNode }) => (
-    <a href={href}>{children}</a>
+  Link: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children?: React.ReactNode;
+  }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
   ),
 }));
 vi.mock("@/components/active-runs-provider", () => ({
@@ -55,10 +64,17 @@ vi.mock("@/components/ui/sidebar", () => {
     SidebarMenuButton: ({
       render,
       children,
+      isActive,
     }: {
       render: React.ReactElement;
       children?: React.ReactNode;
-    }) => React.cloneElement(render, {}, children),
+      isActive?: boolean;
+    }) =>
+      React.cloneElement(
+        render,
+        { "data-active": isActive ? "true" : undefined } as object,
+        children
+      ),
   };
 });
 
@@ -184,7 +200,7 @@ describe("app sidebar", () => {
   });
 });
 
-describe("Releases in the environment group", () => {
+describe("project group", () => {
   // Releases exist only for legacy jar/static components (spec 2026-11-11
   // decision 7): a container-only project gets no Releases entry.
   const env = (projectReleasable: boolean) => ({
@@ -199,23 +215,76 @@ describe("Releases in the environment group", () => {
     projectReleasable,
   });
   const projects = [{ id: "p1", key: "CRMB", name: "CAR Membership" }];
+  const scope = (releasable: boolean) => ({
+    environments: [env(releasable)],
+    projects,
+    projectRoles: { p1: "engineer" },
+  });
+  const linkByHref = (href: string) =>
+    [...container.querySelectorAll("a")].find(
+      (a) => a.getAttribute("href") === href
+    );
 
-  it("links Releases when the project has legacy components", async () => {
-    await renderSidebar("admin", "/CRMB/dev/deploys", {
-      environments: [env(true)],
-      projects,
-      projectRoles: { p1: "engineer" },
-    });
-    expect(hrefs()).toContain("/CRMB/releases");
+  it("shows on a project page with every project item", async () => {
+    await renderSidebar("member", "/CRMB/issues", scope(true));
+    expect(groupRows("CAR Membership")).toEqual([
+      "Overview",
+      "Issues",
+      "Milestones",
+      "Releases",
+      "Members",
+      "Settings",
+    ]);
+  });
+
+  it("shows above the environment group inside an environment", async () => {
+    await renderSidebar("member", "/CRMB/dev/deploys", scope(true));
+    const headings = [...container.querySelectorAll("h2")].map(
+      (h) => h.textContent
+    );
+    expect(headings.indexOf("CAR Membership")).toBeGreaterThanOrEqual(0);
+    expect(headings.indexOf("CAR Membership")).toBeLessThan(
+      headings.indexOf("Dev")
+    );
+  });
+
+  it("keeps Releases and Issues out of the environment group", async () => {
+    await renderSidebar("member", "/CRMB/dev/deploys", scope(true));
+    expect(groupRows("Dev")).not.toContain("Releases");
+    expect(groupRows("Dev")).not.toContain("Issues");
   });
 
   it("has no Releases entry for a container-only project", async () => {
-    await renderSidebar("admin", "/CRMB/dev/deploys", {
-      environments: [env(false)],
+    await renderSidebar("member", "/CRMB/dev/deploys", scope(false));
+    expect(groupRows("CAR Membership")).not.toContain("Releases");
+    expect(hrefs()).not.toContain("/CRMB/releases");
+  });
+
+  it("renders for a project without environments", async () => {
+    await renderSidebar("member", "/CRMB", {
+      environments: [],
       projects,
       projectRoles: { p1: "engineer" },
     });
-    expect(hrefs()).toContain("/CRMB/dev/deploys");
-    expect(hrefs()).not.toContain("/CRMB/releases");
+    expect(groupRows("CAR Membership")).toContain("Overview");
+    expect(groupRows("CAR Membership")).not.toContain("Releases");
+  });
+
+  it("renders no group for an unknown project key", async () => {
+    await renderSidebar("member", "/NOPE/issues", scope(true));
+    expect(groupRows("CAR Membership")).toEqual([]);
+  });
+
+  it("marks Issues active on an issue page, not Overview", async () => {
+    await renderSidebar("member", "/CRMB/issues/42", scope(true));
+    expect(linkByHref("/CRMB/issues")?.getAttribute("data-active")).toBe(
+      "true"
+    );
+    expect(linkByHref("/CRMB")?.getAttribute("data-active")).toBeNull();
+  });
+
+  it("marks Overview active on the project page", async () => {
+    await renderSidebar("member", "/CRMB", scope(true));
+    expect(linkByHref("/CRMB")?.getAttribute("data-active")).toBe("true");
   });
 });
