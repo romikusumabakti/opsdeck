@@ -471,6 +471,8 @@ export const runKindEnum = pgEnum("run_kind", [
   "provision",
   // Added by the environment teardown migration.
   "teardown",
+  // Added by the releases migration.
+  "release",
 ]);
 
 export const runs = pgTable(
@@ -2443,6 +2445,67 @@ export const sshKeyJobs = pgTable(
   ]
 );
 
+export const releaseStatusEnum = pgEnum("release_status", [
+  "preparing",
+  "ready",
+  "failed",
+]);
+
+// A client release: the artifact of one successful jar/static deployment,
+// copied into the Panel's Garage and kept until an admin deletes it.
+export const releases = pgTable(
+  "releases",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, {
+        name: "releases_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
+    componentKey: text("component_key")
+      .notNull()
+      .references(() => appComponents.componentKey, {
+        name: "releases_component_key_app_components_component_key_fk",
+        onDelete: "restrict",
+      }),
+    environmentId: uuid("environment_id").references(() => environments.id, {
+      name: "releases_environment_id_environments_id_fk",
+      onDelete: "set null",
+    }),
+    // Snapshot: the environment may be torn down later.
+    environmentName: text("environment_name").notNull(),
+    deploymentId: uuid("deployment_id").references(() => deployments.id, {
+      name: "releases_deployment_id_deployments_id_fk",
+      onDelete: "set null",
+    }),
+    branch: text("branch").notNull(),
+    tag: text("tag").notNull(),
+    commitSha: text("commit_sha").notNull(),
+    version: text("version").notNull(),
+    notes: text("notes"),
+    status: releaseStatusEnum("status").notNull().default("preparing"),
+    error: text("error"),
+    objectKey: text("object_key"),
+    fileName: text("file_name"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    sha256: text("sha256"),
+    createdBy: uuid("created_by").references(() => users.id, {
+      name: "releases_created_by_users_id_fk",
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    readyAt: timestamp("ready_at"),
+  },
+  (t) => [
+    uniqueIndex("releases_version_idx")
+      .on(t.projectId, t.componentKey, t.version)
+      .where(sql`status <> 'failed'`),
+    index("releases_project_idx").on(t.projectId, t.createdAt),
+  ]
+);
+
+export type Release = InferSelectModel<typeof releases>;
 export type InstanceSettings = InferSelectModel<typeof instanceSettings>;
 export type SshKeyJob = InferSelectModel<typeof sshKeyJobs>;
 export type TeardownStep = InferSelectModel<typeof teardownSteps>;

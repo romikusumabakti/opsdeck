@@ -85,6 +85,9 @@ const projectStatements = {
   deploy: ["view", "run", "rollback", "configure"],
   // Environment variables (the managed .env): reading includes secret values.
   variable: ["read", "write"],
+  // Client releases of legacy artifacts: engineers only; listing needs
+  // `deploy: view`, deleting is the org-level `server:manage`.
+  release: ["create", "download"],
 } as const;
 
 export const projectAc = createAccessControl(projectStatements);
@@ -121,6 +124,7 @@ export const projectRoles = {
     run: ["acknowledge"],
     deploy: ["view", "run", "rollback", "configure"],
     variable: ["read", "write"],
+    release: ["create", "download"],
   }),
 } satisfies Record<ProjectRole, unknown>;
 
