@@ -344,22 +344,13 @@ describe("Releases page", () => {
 });
 
 describe("Releases entry on the project overview", () => {
-  it("links the Releases page for anyone with deploy:view", () => {
+  it("no longer has a Releases button (the sidebar carries it)", () => {
     const page = readFileSync(
       "web/routes/$locale/_app/$projectKey.index.tsx",
       "utf8"
     );
-    expect(page).toMatch(/canProject\(role, \{ deploy: \["view"\] \}\)/);
-    expect(page).toContain("/releases`} />}");
-    expect(page).toContain(`tNav("releases")`);
-  });
-
-  it("offers Releases only on a project with legacy components", () => {
-    const page = readFileSync(
-      "web/routes/$locale/_app/$projectKey.index.tsx",
-      "utf8"
-    );
-    expect(page).toMatch(/canViewReleases\s*=\s*\n?\s*project\.releasable &&/);
+    expect(page).not.toContain("/releases");
+    expect(page).not.toContain("canViewReleases");
   });
 
   it("the Releases route 404s on a container-only project", () => {

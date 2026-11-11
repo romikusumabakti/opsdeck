@@ -87,7 +87,9 @@
     "mail": "Mail",
     "repositories": "Repositories",
     "variables": "Variables",
-    "releases": "Releases"
+    "releases": "Releases",
+    "milestones": "Milestones",
+    "members": "Members"
   },
   "commandPalette": {
     "triggerLabel": "Search or jump to…",

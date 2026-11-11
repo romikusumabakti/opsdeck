@@ -87,7 +87,9 @@
     "mail": "邮件",
     "repositories": "代码仓库",
     "variables": "变量",
-    "releases": "Releases"
+    "releases": "Releases",
+    "milestones": "里程碑",
+    "members": "成员"
   },
   "commandPalette": {
     "triggerLabel": "搜索或跳转…",

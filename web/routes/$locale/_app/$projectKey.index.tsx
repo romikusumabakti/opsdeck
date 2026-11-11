@@ -1,6 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { ChevronRight, PackageCheck, Plus, Settings } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { EnvironmentHost } from "@/components/nav/environment-host";
 import { EnvironmentOwner } from "@/components/nav/environment-owner";
@@ -12,85 +12,57 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link } from "@/i18n/navigation";
-import { resolveStatusFilter } from "@/lib/issue-query";
+import { Link, redirect } from "@/i18n/navigation";
 import { stripProjectPrefix } from "@/lib/nav-path";
 import { canProject, SETUP_PERMISSIONS } from "@/lib/permissions";
-import { listIssuesQuery } from "@/web/api/issues";
-import { listMilestonesQuery } from "@/web/api/milestones";
 import {
   getMyProjectAccessQuery,
   getProjectByKeyWithEnvironmentsQuery,
 } from "@/web/api/project-catalog";
-import {
-  listMemberCandidatesQuery,
-  listOrgWideAccessQuery,
-  listProjectMembersQuery,
-} from "@/web/api/project-members";
 import { getEnvironmentsLastActivityQuery } from "@/web/api/runs";
-import { listAssignableUsersQuery } from "@/web/api/users";
 import { requireProjectRole } from "@/web/project-guard";
-import { loaderQuery } from "@/web/query-client";
-import { IssuesClient } from "./-components/issues-client";
-import { MilestonesClient } from "./-components/project/milestones-client";
-import { ProjectMembersClient } from "./-components/project/project-members-client";
 
-/** The list's statuses for the `status` URL param (open + in progress by default). */
-const statusesFor = (status: string | undefined) =>
-  resolveStatusFilter(status, "table") ?? undefined;
-
-const TABS = ["environments", "issues", "milestones", "members"] as const;
-type Tab = (typeof TABS)[number];
-const isTab = (value: unknown): value is Tab => TABS.includes(value as Tab);
+// Old `?tab=` links (issues, milestones, members lived here as tabs).
+const REDIRECT_TABS = ["issues", "milestones", "members"] as const;
+type RedirectTab = (typeof REDIRECT_TABS)[number];
+const isRedirectTab = (value: unknown): value is RedirectTab =>
+  REDIRECT_TABS.includes(value as RedirectTab);
 
 export const Route = createFileRoute("/$locale/_app/$projectKey/")({
-  // The tab lives in the URL, so a status change (a navigation) keeps it.
+  // `tab` and `status` are only read to redirect old links; `tab=environments`
+  // or an unknown tab just stays here.
   validateSearch: (
     search: Record<string, unknown>
-  ): { status?: string; tab?: Tab } => ({
+  ): { status?: string; tab?: RedirectTab } => ({
     status: typeof search.status === "string" ? search.status : undefined,
-    tab:
-      isTab(search.tab) && search.tab !== "environments"
-        ? search.tab
-        : undefined,
+    tab: isRedirectTab(search.tab) ? search.tab : undefined,
   }),
-  loaderDeps: ({ search: { status } }) => ({ status }),
   // 404 when the project is unknown or invisible to the caller.
-  beforeLoad: async ({ params: { projectKey }, context: { queryClient } }) => {
+  beforeLoad: async ({
+    params: { locale, projectKey },
+    search: { status, tab },
+    context: { queryClient },
+  }) => {
+    if (tab) {
+      const qs =
+        tab === "issues" && status
+          ? `?status=${encodeURIComponent(status)}`
+          : "";
+      redirect(`/${projectKey}/${tab}${qs}`, locale);
+    }
     const project = await queryClient.query(
       getProjectByKeyWithEnvironmentsQuery(projectKey)
     );
     if (!project) throw notFound();
     await requireProjectRole(queryClient, project.id);
   },
-  loader: async ({
-    deps: { status },
-    params: { projectKey },
-    context: { queryClient },
-  }) => {
+  loader: async ({ params: { projectKey }, context: { queryClient } }) => {
     const [project] = await Promise.all([
       queryClient.query(getProjectByKeyWithEnvironmentsQuery(projectKey)),
       queryClient.query(getEnvironmentsLastActivityQuery()),
     ]);
     if (!project) throw notFound();
-    const role = await requireProjectRole(queryClient, project.id);
-    await Promise.all([
-      loaderQuery(
-        queryClient,
-        listIssuesQuery(project.id, statusesFor(status))
-      ),
-      loaderQuery(queryClient, listAssignableUsersQuery(project.id)),
-      loaderQuery(queryClient, listMilestonesQuery(project.id)),
-      // Membership management follows the project role.
-      ...(canProject(role, { member: ["manage"] })
-        ? [
-            loaderQuery(queryClient, listProjectMembersQuery(project.id)),
-            loaderQuery(queryClient, listMemberCandidatesQuery(project.id)),
-            loaderQuery(queryClient, listOrgWideAccessQuery(project.id)),
-          ]
-        : []),
-    ]);
+    await requireProjectRole(queryClient, project.id);
   },
   pendingComponent: ProjectPending,
   component: ProjectOverviewPage,
@@ -98,13 +70,10 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
 
 function ProjectOverviewPage() {
   const { projectKey } = Route.useParams();
-  const { status, tab } = Route.useSearch();
-  const navigate = Route.useNavigate();
   const t = useTranslations("home");
   const tOv = useTranslations("projectOverview");
   const tDash = useTranslations("dashboard");
   const tKinds = useTranslations("environmentKinds");
-  const tNav = useTranslations("nav");
   const project = useSuspenseQuery(
     getProjectByKeyWithEnvironmentsQuery(projectKey)
   ).data;
@@ -114,21 +83,9 @@ function ProjectOverviewPage() {
   const roles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
   if (!project) throw notFound();
   const role = roles[project.id] ?? null;
-  const canUpdateEnvironment = canProject(role, { environment: ["update"] });
   // Engineers set environments up on the project's servers (the page
   // offers only the ones they may place on).
   const canCreateEnvironment = canProject(role, SETUP_PERMISSIONS);
-  const canManageMembers = canProject(role, { member: ["manage"] });
-  // The project's releases (legacy jar/static components only): the sidebar
-  // offers them only inside an environment.
-  const canViewReleases =
-    project.releasable && canProject(role, { deploy: ["view"] });
-
-  const issues = useSuspenseQuery(
-    listIssuesQuery(project.id, statusesFor(status))
-  ).data;
-  const users = useSuspenseQuery(listAssignableUsersQuery(project.id)).data;
-  const milestones = useSuspenseQuery(listMilestonesQuery(project.id)).data;
 
   const environments = [...project.environments].sort((a, b) =>
     a.name.localeCompare(b.name)
@@ -140,39 +97,14 @@ function ProjectOverviewPage() {
         title={project.name}
         subtitle={project.client ?? undefined}
         action={
-          canViewReleases || canUpdateEnvironment || canCreateEnvironment ? (
-            <div className="flex items-center gap-2">
-              {canViewReleases && (
-                <Button
-                  variant="outline"
-                  nativeButton={false}
-                  render={<Link href={`/${project.key}/releases`} />}
-                  aria-label={tNav("releases")}
-                >
-                  <PackageCheck className="size-4" />
-                  <span className="hidden sm:inline">{tNav("releases")}</span>
-                </Button>
-              )}
-              {canUpdateEnvironment && (
-                <Button
-                  variant="outline"
-                  nativeButton={false}
-                  render={<Link href={`/${project.key}/settings`} />}
-                >
-                  <Settings className="size-4" />
-                  <span className="hidden sm:inline">{tOv("editProject")}</span>
-                </Button>
-              )}
-              {canCreateEnvironment && (
-                <Button
-                  nativeButton={false}
-                  render={<Link href={`/${project.key}/environments/new`} />}
-                >
-                  <Plus className="size-4" />
-                  {tOv("newEnvironment")}
-                </Button>
-              )}
-            </div>
+          canCreateEnvironment ? (
+            <Button
+              nativeButton={false}
+              render={<Link href={`/${project.key}/environments/new`} />}
+            >
+              <Plus className="size-4" />
+              {tOv("newEnvironment")}
+            </Button>
           ) : undefined
         }
       />
@@ -183,216 +115,97 @@ function ProjectOverviewPage() {
         </Badge>
       </div>
 
-      {/* The tab strip stays put and each panel scrolls inside the page shell,
-          so switching tabs never moves the strip out from under the cursor and
-          a long list can't push the pager off-screen. */}
-      <Tabs
-        value={
-          tab === "members" && !canManageMembers
-            ? "environments"
-            : (tab ?? "environments")
-        }
-        onValueChange={(next) =>
-          navigate({
-            search: (prev) => ({
-              ...prev,
-              tab: isTab(next) && next !== "environments" ? next : undefined,
-            }),
-            replace: true,
-          })
-        }
-        // `gap-4`, matching the other full-height tab layouts (users,
-        // databases) — the primitive's `gap-2` default sits a panel too close
-        // under its own tab strip.
-        className="flex w-full flex-1 min-h-0 flex-col gap-4"
-      >
-        <TabsList className="shrink-0">
-          <TabsTrigger value="environments">
-            {tOv("environments")}
-            <span className="ms-1.5 text-muted-foreground">
-              {environments.length}
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="issues">
-            {tOv("issues")}
-            <span className="ms-1.5 text-muted-foreground">
-              {issues.length}
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="milestones">
-            {tOv("milestones")}
-            <span className="ms-1.5 text-muted-foreground">
-              {milestones.length}
-            </span>
-          </TabsTrigger>
-          {canManageMembers ? <MembersTab projectId={project.id} /> : null}
-        </TabsList>
-
-        <TabsContent
-          value="environments"
-          className="flex flex-1 min-h-0 flex-col gap-4"
-        >
-          {environments.length === 0 ? (
-            <div className="shrink-0 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-12 text-center">
-              <p className="font-medium">{tOv("noEnvironments")}</p>
-              <p className="text-sm text-muted-foreground">
-                {tOv("noEnvironmentsDescription")}
-              </p>
-            </div>
-          ) : (
-            // The card grid is the scroll box — there is nothing above it in
-            // this panel to keep pinned. `content-start` because a grid that is
-            // taller than its rows stretches them by default, which would blow
-            // up the cards to fill the panel when there are only a few.
-            <div className="grid content-start flex-1 min-h-0 grid-cols-1 gap-4 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-              {environments.map((env) => {
-                const activity = lastActivity[env.id] ?? null;
-                // The name link stretches over the whole card (after:inset-0),
-                // so the card is one click target; the URL button sits above
-                // it (z-10) and opens the app instead.
-                return (
-                  <div key={env.id} className="group relative">
-                    <Card className="h-full py-0 group-hover:border-primary/50 group-hover:shadow-sm transition-all">
-                      <CardContent className="p-4 flex flex-col gap-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Link
-                              href={`/${project.key}/${env.slug}`}
-                              className="font-medium truncate after:absolute after:inset-0 after:rounded-xl focus:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
-                            >
-                              {stripProjectPrefix(env.name, project.name)}
-                            </Link>
-                            <EnvironmentUrlButton
-                              url={env.url}
-                              className="relative z-10"
-                            />
-                            <EnvironmentHost
-                              url={env.url}
-                              className="max-w-[40%]"
-                            />
-                            {env.kind ? (
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] uppercase shrink-0"
-                              >
-                                {tKinds(env.kind)}
-                              </Badge>
-                            ) : null}
-                          </div>
-                          <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
-                        </div>
-                        {env.dbType ? (
-                          <div className="flex items-center gap-2 text-sm min-w-0">
+      <div className="flex flex-1 min-h-0 flex-col gap-4">
+        {environments.length === 0 ? (
+          <div className="shrink-0 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-12 text-center">
+            <p className="font-medium">{tOv("noEnvironments")}</p>
+            <p className="text-sm text-muted-foreground">
+              {tOv("noEnvironmentsDescription")}
+            </p>
+          </div>
+        ) : (
+          // The card grid is the scroll box — there is nothing above it in
+          // this panel to keep pinned. `content-start` because a grid that is
+          // taller than its rows stretches them by default, which would blow
+          // up the cards to fill the panel when there are only a few.
+          <div className="grid content-start flex-1 min-h-0 grid-cols-1 gap-4 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+            {environments.map((env) => {
+              const activity = lastActivity[env.id] ?? null;
+              // The name link stretches over the whole card (after:inset-0),
+              // so the card is one click target; the URL button sits above
+              // it (z-10) and opens the app instead.
+              return (
+                <div key={env.id} className="group relative">
+                  <Card className="h-full py-0 group-hover:border-primary/50 group-hover:shadow-sm transition-all">
+                    <CardContent className="p-4 flex flex-col gap-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Link
+                            href={`/${project.key}/${env.slug}`}
+                            className="font-medium truncate after:absolute after:inset-0 after:rounded-xl focus:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+                          >
+                            {stripProjectPrefix(env.name, project.name)}
+                          </Link>
+                          <EnvironmentUrlButton
+                            url={env.url}
+                            className="relative z-10"
+                          />
+                          <EnvironmentHost
+                            url={env.url}
+                            className="max-w-[40%]"
+                          />
+                          {env.kind ? (
                             <Badge
-                              variant="secondary"
-                              className="text-xs shrink-0"
+                              variant="outline"
+                              className="text-[10px] uppercase shrink-0"
                             >
-                              {tDash(`dbTypes.${env.dbType}`)}
+                              {tKinds(env.kind)}
                             </Badge>
-                            <code className="font-mono text-xs text-muted-foreground truncate">
-                              {env.dbName}
-                            </code>
-                          </div>
-                        ) : null}
-                        <EnvironmentOwner owner={env.owner} />
-                        <span className="text-xs text-muted-foreground">
-                          {activity ? (
-                            <RelativeTime date={activity.runAt} />
-                          ) : (
-                            t("neverActive")
-                          )}
-                        </span>
-                      </CardContent>
-                    </Card>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* The issues list bounds and scrolls itself (sticky header, pager
-            pinned below), so this panel only has to hand it the height. */}
-        <TabsContent value="issues" className="flex flex-1 min-h-0 flex-col">
-          <IssuesClient
-            projectId={project.id}
-            projectKey={project.key}
-            currentEnvironmentId=""
-            environments={environments.map((e) => ({ id: e.id, name: e.name }))}
-            users={users}
-            milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
-            initialIssues={issues}
-            status={status}
-          />
-        </TabsContent>
-
-        <TabsContent
-          value="milestones"
-          className="flex flex-1 min-h-0 flex-col"
-        >
-          <MilestonesClient
-            projectId={project.id}
-            initialMilestones={milestones}
-          />
-        </TabsContent>
-
-        {canManageMembers ? (
-          <TabsContent value="members" className="flex flex-1 min-h-0 flex-col">
-            <MembersPanel projectId={project.id} projectName={project.name} />
-          </TabsContent>
-        ) : null}
-      </Tabs>
+                          ) : null}
+                        </div>
+                        <ChevronRight className="size-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
+                      </div>
+                      {env.dbType ? (
+                        <div className="flex items-center gap-2 text-sm min-w-0">
+                          <Badge
+                            variant="secondary"
+                            className="text-xs shrink-0"
+                          >
+                            {tDash(`dbTypes.${env.dbType}`)}
+                          </Badge>
+                          <code className="font-mono text-xs text-muted-foreground truncate">
+                            {env.dbName}
+                          </code>
+                        </div>
+                      ) : null}
+                      <EnvironmentOwner owner={env.owner} />
+                      <span className="text-xs text-muted-foreground">
+                        {activity ? (
+                          <RelativeTime date={activity.runAt} />
+                        ) : (
+                          t("neverActive")
+                        )}
+                      </span>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </>
   );
 }
 
-// The members tab and panel read their own queries: the lists are only loaded
-// (and only exist) for an engineer, so they cannot be hooks of the page.
-function MembersTab({ projectId }: { projectId: string }) {
-  const tOv = useTranslations("projectOverview");
-  const members = useSuspenseQuery(listProjectMembersQuery(projectId)).data;
-  return (
-    <TabsTrigger value="members">
-      {tOv("members")}
-      <span className="ms-1.5 text-muted-foreground">{members.length}</span>
-    </TabsTrigger>
-  );
-}
-
-function MembersPanel({
-  projectId,
-  projectName,
-}: {
-  projectId: string;
-  projectName: string;
-}) {
-  const members = useSuspenseQuery(listProjectMembersQuery(projectId)).data;
-  const memberCandidates = useSuspenseQuery(
-    listMemberCandidatesQuery(projectId)
-  ).data;
-  const orgWideAccess = useSuspenseQuery(
-    listOrgWideAccessQuery(projectId)
-  ).data;
-  return (
-    <ProjectMembersClient
-      projectId={projectId}
-      projectName={projectName}
-      initialMembers={members}
-      memberCandidates={memberCandidates}
-      orgWideAccess={orgWideAccess}
-    />
-  );
-}
-
-// No ancestor boundary covers this route. Shapes the default tab
-// (Environments): key badge, tab strip, card grid.
+// No ancestor boundary covers this route. Shapes the page: header, key
+// badge, card grid.
 function ProjectPending() {
   return (
     <>
       <PageHeaderSkeleton />
       <Skeleton className="h-6 w-16 -mt-2" />
       <div className="flex flex-1 min-h-0 flex-col gap-4">
-        <Skeleton className="h-9 w-80 shrink-0 rounded-lg" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }, (_, i) => (
             <div

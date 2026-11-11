@@ -87,7 +87,9 @@
     "mail": "البريد",
     "repositories": "المستودعات",
     "variables": "المتغيرات",
-    "releases": "Releases"
+    "releases": "Releases",
+    "milestones": "المعالم",
+    "members": "الأعضاء"
   },
   "commandPalette": {
     "triggerLabel": "بحث أو انتقل إلى…",

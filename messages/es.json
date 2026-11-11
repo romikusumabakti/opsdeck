@@ -87,7 +87,9 @@
     "mail": "Correo",
     "repositories": "Repositorios",
     "variables": "Variables",
-    "releases": "Releases"
+    "releases": "Releases",
+    "milestones": "Hitos",
+    "members": "Miembros"
   },
   "commandPalette": {
     "triggerLabel": "Buscar o ir a…",
