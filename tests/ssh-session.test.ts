@@ -239,4 +239,21 @@ describe("dispose", () => {
     expect(() => session.dispose()).not.toThrow();
     expect(client.end).toHaveBeenCalledTimes(1);
   });
+
+  it("isConnected is false right after dispose", async () => {
+    const { session, client } = await connected();
+    // Hold back the close event the fake emits from end().
+    client.end.mockImplementationOnce(() => {});
+    expect(session.isConnected()).toBe(true);
+    session.dispose();
+    expect(session.isConnected()).toBe(false);
+  });
+
+  it("dispose after the remote end closed does not throw", async () => {
+    const { session, client } = await connected();
+    client.emit("close");
+    expect(session.isConnected()).toBe(false);
+    expect(() => session.dispose()).not.toThrow();
+    expect(session.isConnected()).toBe(false);
+  });
 });

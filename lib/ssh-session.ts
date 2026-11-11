@@ -135,7 +135,7 @@ export class SshSession {
   }
 
   isConnected(): boolean {
-    return this.connected;
+    return this.connected && !this.disposed;
   }
 
   dispose(): void {
