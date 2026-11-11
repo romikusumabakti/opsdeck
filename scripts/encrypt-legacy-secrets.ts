@@ -2,7 +2,7 @@
 // enc:v1 scheme. Dry run by default; pass --apply to write. Prints counts only,
 // never values.
 // Usage (production): docker exec opsdeck-app bun dist/encrypt-legacy-secrets.js [--apply]
-// Local dev: bun --conditions react-server scripts/encrypt-legacy-secrets.ts [--apply]
+// Local dev: bun scripts/encrypt-legacy-secrets.ts [--apply]
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {

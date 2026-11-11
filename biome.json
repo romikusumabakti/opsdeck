@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -16,6 +16,7 @@
       "!drizzle-legacy",
       "!public",
       "!web/routeTree.gen.ts",
+      "!tests/fixtures",
       "!dist"
     ]
   },
@@ -50,6 +51,11 @@
       "enabled": true
     }
   },
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -72,7 +78,8 @@
       "correctness": {
         "useExhaustiveDependencies": "warn",
         "noUnusedVariables": "warn",
-        "noUnusedImports": "warn"
+        "noUnusedImports": "warn",
+        "usePlaywrightValidDescribeCallback": "off"
       }
     }
   },
@@ -85,6 +92,16 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["e2e/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "usePlaywrightValidDescribeCallback": "error"
+          }
+        }
+      }
+    },
     {
       "includes": ["web/**", "components/**", "hooks/**"],
       "linter": {

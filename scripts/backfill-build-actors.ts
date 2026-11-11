@@ -2,7 +2,7 @@
 // sends no login) and the auto runs behind them from their CI pipelines, then gives
 // pre-deploy backup runs the actor of their deploy run. Prints counts only.
 // Usage (production): docker exec opsdeck-app bun dist/backfill-build-actors.js [--dry-run]
-// Local dev: bun --conditions react-server scripts/backfill-build-actors.ts [--dry-run]
+// Local dev: bun scripts/backfill-build-actors.ts [--dry-run]
 import "reflect-metadata";
 import { describeDbError } from "@/lib/secrets-migration";
 import { backfillBuildActors } from "@/server/services/backfill-build-actors";

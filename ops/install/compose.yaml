@@ -12,8 +12,7 @@
 #   of it (Cloudflare Tunnel or the operator's own proxy).
 
 x-app-env: &app-env
-  # Set in .env by install.sh, with the password URL-safe.
-  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required} # install.sh writes it, password URL-safe
   # Must be the browser-visible origin: it also fixes the passkey Relying Party
   # and the origin the terminal accepts.
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL is required}
@@ -40,7 +39,7 @@ services:
     healthcheck:
       # Over TCP: during the first start the image's init server listens on
       # the socket only, and must not count as ready for migrate.
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\""]
+      test: ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}"']
       interval: 5s
       start_period: 30s
 

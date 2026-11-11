@@ -4,8 +4,8 @@ import { requireEnv } from "@/lib/env";
 // Build signed imgproxy URLs. imgproxy (a dedicated, internal-only container)
 // pulls the original object straight from Garage (s3://…), re-renders it on the
 // fly, and returns a resized, modern-format image. Keeping it out of the app
-// means no native module (sharp/libvips) ships in the Next bundle — the whole
-// class of "libvips .so missing in the standalone Docker image" problem is gone.
+// means no native module (sharp/libvips) ships in the server bundle — the whole
+// class of "libvips .so missing in the Docker image" problem is gone.
 //
 // The signature (HMAC-SHA256 over salt+path, base64url) lets imgproxy reject any
 // URL the app didn't mint. Auth itself stays at the app: the /api/knowledge/
