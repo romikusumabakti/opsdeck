@@ -4,7 +4,6 @@
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { v7 as uuidv7 } from "uuid";
 import {
   accounts,
   environments,
@@ -179,7 +178,7 @@ export async function seedDemo(
         .where(eq(users.email, email));
       let userId = existing?.id;
       if (!userId) {
-        userId = uuidv7();
+        userId = Bun.randomUUIDv7();
         const password = newPassword();
         // Written directly, not through auth.api: the user.create hook rejects
         // any email outside ALLOWED_EMAIL_DOMAIN, and public sign-up is off.
@@ -192,7 +191,7 @@ export async function seedDemo(
           role: account.orgRole,
         });
         await tx.insert(accounts).values({
-          id: uuidv7(),
+          id: Bun.randomUUIDv7(),
           userId,
           accountId: userId,
           providerId: "credential",

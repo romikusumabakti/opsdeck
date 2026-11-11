@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, rename, rm, rmdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { v7 as uuidv7 } from "uuid";
 import type { EnvironmentArchive } from "@/lib/db/schema";
 import { loadServerCredentials } from "@/lib/environments";
 import { instanceName, LOCAL_BACKUP_ROOT } from "@/lib/instance-backup/archive";
@@ -170,7 +169,7 @@ async function openArchive(ctx: ArchiveContext): Promise<EnvironmentArchive> {
   if (!snapshot) {
     throw new StepFailed("archiveFailed", "the environment is gone");
   }
-  const id = uuidv7();
+  const id = Bun.randomUUIDv7();
   const instance = instanceName();
   return createArchive({
     id,

@@ -4,7 +4,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
 import { eq } from "drizzle-orm";
-import { v7 as uuidv7 } from "uuid";
 import { APP_NAME, isAllowedEmail } from "./branding";
 import { db } from "./db";
 import {
@@ -253,7 +252,7 @@ export const auth = betterAuth({
   // time-ordered and friendly to B-tree indexes (matches our own tables).
   advanced: {
     database: {
-      generateId: () => uuidv7(),
+      generateId: () => Bun.randomUUIDv7(),
     },
   },
   plugins: [

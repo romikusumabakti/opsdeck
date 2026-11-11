@@ -212,7 +212,7 @@ services:
         condition: service_started
 
   valkey:
-    image: valkey/valkey:8-alpine
+    image: valkey/valkey:9-alpine
     container_name: opsdeck-valkey
     restart: always
     volumes:
