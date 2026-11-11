@@ -36,6 +36,7 @@ export const RELEASE_ERRORS = {
     "This version is already used by a release of this component",
   ],
   releaseNotReady: [409, "The release is not ready to download"],
+  releaseFileMissing: [404, "The release file is missing from storage"],
   releaseStorageMissing: [503, "Release storage is not configured"],
 } as const satisfies Record<string, readonly [400 | 404 | 409 | 503, string]>;
 
@@ -263,6 +264,15 @@ export async function deleteRelease(id: string): Promise<void> {
   });
 }
 
+/** An S3 GetObject refusal for a key that does not exist. */
+function isObjectMissing(error: unknown): boolean {
+  const e = error as
+    | { name?: unknown; $metadata?: { httpStatusCode?: number } }
+    | null
+    | undefined;
+  return e?.name === "NoSuchKey" || e?.$metadata?.httpStatusCode === 404;
+}
+
 /** The stored file of a `ready` release, as a stream (engineers only). */
 export async function openReleaseDownload(
   id: string
@@ -282,7 +292,13 @@ export async function openReleaseDownload(
     failRelease("releaseNotReady");
   }
   const store = garageSource() ?? failRelease("releaseStorageMissing");
-  const stream = await store.read(objectKey);
+  let stream: Readable;
+  try {
+    stream = await store.read(objectKey);
+  } catch (error) {
+    if (isObjectMissing(error)) failRelease("releaseFileMissing");
+    throw error;
+  }
   await recordActivity({
     actorId: session.user.id,
     action: "release.downloaded",
