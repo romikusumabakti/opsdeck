@@ -23,6 +23,12 @@ describe("releases migration", () => {
     expect(sql).toContain(`CREATE TABLE "releases"`);
   });
 
+  it("never cascades a project delete to its releases (their files live in Garage)", () => {
+    expect(sql).toMatch(
+      /"releases_project_id_projects_id_fk" FOREIGN KEY \("project_id"\) REFERENCES "projects"\("id"\) ON DELETE RESTRICT;/
+    );
+  });
+
   it("keeps the version unique among non-failed releases", () => {
     expect(sql).toMatch(
       /CREATE UNIQUE INDEX "releases_version_idx"[^;]*WHERE[^;]*'failed'/

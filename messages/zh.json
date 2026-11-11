@@ -1491,6 +1491,7 @@
     "placementServiceName": "在开放的服务器上，只能绑定以 {prefix}（本项目的键）开头的服务名称；其他名称请联系管理员。",
     "environmentHasEscrowedVariables": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此环境。",
     "projectHasEscrowedVariables": "此项目的环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此项目。",
+    "projectHasReleases": "This project has releases. Delete them on the project's Releases page first (their files are kept in storage), then delete the project.",
     "deployLocked": "此环境的部署已被 {name} 锁定，直到 {expiresAt, date, medium} {expiresAt, time, short}：{reason}",
     "deployLockHolderUnknown": "一位前用户",
     "deployLockReasonInvalid": "请填写 1 到 200 个字符的原因。",

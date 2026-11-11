@@ -1491,6 +1491,7 @@
     "placementServiceName": "Di server terbuka, hubungkan hanya nama layanan yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain.",
     "environmentHasEscrowedVariables": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus environment ini.",
     "projectHasEscrowedVariables": "Project ini punya environment dengan variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus project ini.",
+    "projectHasReleases": "Project ini punya release. Hapus dulu release-nya di halaman Releases project ini (file-nya tersimpan di storage), lalu hapus project-nya.",
     "deployLocked": "Deploy ke environment ini dikunci oleh {name} sampai {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "mantan pengguna",
     "deployLockReasonInvalid": "Isi alasan 1 sampai 200 karakter.",

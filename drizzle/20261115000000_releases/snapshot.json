@@ -10536,7 +10536,7 @@
         "id"
       ],
       "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "releases_project_id_projects_id_fk",
       "entityType": "fks",
       "schema": "public",

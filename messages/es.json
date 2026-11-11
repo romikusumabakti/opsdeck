@@ -1491,6 +1491,7 @@
     "placementServiceName": "En un servidor abierto, vincula solo nombres de servicio que empiecen por {prefix} (la clave de este proyecto); pide ayuda a un administrador para otros nombres.",
     "environmentHasEscrowedVariables": "Este entorno tiene variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el entorno.",
     "projectHasEscrowedVariables": "Este proyecto tiene entornos con variables en custodia (como una clave de cifrado de datos) que solo existen en el Panel. Guárdalas antes en otro lugar; después solo un administrador puede eliminar el proyecto.",
+    "projectHasReleases": "This project has releases. Delete them on the project's Releases page first (their files are kept in storage), then delete the project.",
     "deployLocked": "Los despliegues a este entorno están bloqueados por {name} hasta el {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "un antiguo usuario",
     "deployLockReasonInvalid": "Indica un motivo de 1 a 200 caracteres.",

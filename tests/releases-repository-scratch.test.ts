@@ -341,6 +341,17 @@ describe.skipIf(!scratchDb)("release repository on scratch", async () => {
     ).toEqual(rows.filter((r) => r.status !== "ready").map(() => null));
   });
 
+  it("refuses a project delete while the project has a release (RESTRICT)", async () => {
+    const { pgErrorCode } = await import("@/lib/domains/errors");
+    await newRelease("restrict check", null);
+    const error = await db
+      .delete(s.projects)
+      .where(eq(s.projects.id, ids.project))
+      .catch((e: unknown) => e);
+    // restrict_violation, which removeProject turns into projectHasReleases.
+    expect(pgErrorCode(error)).toBe("23001");
+  });
+
   it("returns the stored key from the row delete", async () => {
     const { releaseId } = await newRelease("delete me", null);
     await repo.markReleaseReady(releaseId, {
