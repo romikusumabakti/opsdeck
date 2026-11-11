@@ -297,7 +297,9 @@ describe("provisioning API", () => {
       { id: "s2", status: "failed" },
     ] as never);
     expect((await get()).showPanel).toBe(true);
-    repo.listSteps.mockResolvedValue([{ id: "s1", status: "pending" }] as never);
+    repo.listSteps.mockResolvedValue([
+      { id: "s1", status: "pending" },
+    ] as never);
     expect((await get()).showPanel).toBe(true);
     // Done steps but never deployed successfully: still shown.
     repo.listSteps.mockResolvedValue(done as never);
