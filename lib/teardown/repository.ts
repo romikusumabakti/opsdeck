@@ -427,8 +427,11 @@ export async function addArchiveFile(
   archiveId: string,
   file: EnvironmentArchiveFile
 ): Promise<void> {
-  const entry = JSON.stringify([file]);
-  const named = JSON.stringify([{ name: file.name }]);
+  // Raw values, not JSON.stringify: postgres.js serializes a ::jsonb param
+  // itself, so a pre-stringified one would land as a JSON string. sql.param
+  // keeps an array a single parameter instead of a value list.
+  const entry = sql.param([file]);
+  const named = sql.param([{ name: file.name }]);
   await db
     .update(environmentArchives)
     .set({

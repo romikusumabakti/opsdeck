@@ -89,7 +89,7 @@ export async function getActiveRuns(): Promise<ActiveRun[]> {
     const rows = await db.query.runs.findMany({
       where: {
         status: "started",
-        ...(projectIds && { environment: { projectId: projectIds } }),
+        environment: { projectId: projectIds },
       },
       columns: {
         id: true,

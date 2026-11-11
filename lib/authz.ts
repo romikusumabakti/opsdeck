@@ -1,4 +1,5 @@
 import { type AnyColumn, eq, inArray, type SQL, sql } from "drizzle-orm";
+import { EmptyFilter } from "drizzle-orm/relations";
 import { HTTPException } from "hono/http-exception";
 import { getServerSession, requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
@@ -129,10 +130,14 @@ export async function projectScope(
 }
 
 // The same filter for drizzle's relational query API (RQB v2):
-// `where: { projectId: await projectIdsWhere() }`. `{ in: [] }` matches nothing.
-export async function projectIdsWhere(): Promise<{ in: string[] } | undefined> {
+// `where: { projectId: await projectIdsWhere() }`. EmptyFilter = no filter (RQB
+// throws on `undefined`, and skips a relation filter holding only EmptyFilter);
+// `{ in: [] }` matches nothing.
+export async function projectIdsWhere(): Promise<
+  { in: string[] } | typeof EmptyFilter
+> {
   const ids = await accessibleProjectIds();
-  return ids === "all" ? undefined : { in: ids };
+  return ids === "all" ? EmptyFilter : { in: ids };
 }
 
 const projectIdOfEnvironment = requestCache(async (environmentId: string) => {

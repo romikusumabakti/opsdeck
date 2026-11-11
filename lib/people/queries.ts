@@ -206,7 +206,7 @@ export async function listPersonRecentRuns(
   const rows = await db.query.runs.findMany({
     where: {
       userId,
-      ...(projectIds && { environment: { projectId: projectIds } }),
+      environment: { projectId: projectIds },
     },
     columns: {
       id: true,
