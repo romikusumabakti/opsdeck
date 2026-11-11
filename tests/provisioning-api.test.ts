@@ -269,6 +269,42 @@ describe("provisioning API", () => {
     expect((await get()).showPanel).toBe(false);
   });
 
+  it("GET hides the panel once every step is done and the environment deployed", async () => {
+    const get = async () =>
+      (await app.request(`/api/environments/${ENV_ID}/provisioning`)).json();
+    repo.hasSuccessfulDeployment.mockResolvedValue(true);
+    const done = [
+      { id: "s1", status: "done" },
+      { id: "s2", status: "done" },
+    ];
+    repo.listSteps.mockResolvedValue(done as never);
+    expect((await get()).showPanel).toBe(false);
+    // Also with a shared database that the finished run provisioned.
+    repo.loadProvisioningConfig.mockResolvedValue({
+      ...goodConfig,
+      db: {
+        dbKind: "shared",
+        databaseHostId: "h1",
+        dbName: "app",
+        dbRole: "app",
+        dbPasswordVariable: "DB_PASSWORD",
+      },
+    });
+    expect((await get()).showPanel).toBe(false);
+    // A failed or unfinished step keeps it.
+    repo.listSteps.mockResolvedValue([
+      { id: "s1", status: "done" },
+      { id: "s2", status: "failed" },
+    ] as never);
+    expect((await get()).showPanel).toBe(true);
+    repo.listSteps.mockResolvedValue([{ id: "s1", status: "pending" }] as never);
+    expect((await get()).showPanel).toBe(true);
+    // Done steps but never deployed successfully: still shown.
+    repo.listSteps.mockResolvedValue(done as never);
+    repo.hasSuccessfulDeployment.mockResolvedValue(false);
+    expect((await get()).showPanel).toBe(true);
+  });
+
   describe("with a tunnel domain", () => {
     const get = async () =>
       (await app.request(`/api/environments/${ENV_ID}/provisioning`)).json();

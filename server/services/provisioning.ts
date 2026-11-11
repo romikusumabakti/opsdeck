@@ -65,15 +65,19 @@ function domainPending(
 }
 
 /**
- * Whether the deploys page offers provisioning: once it has steps, while the
- * environment has never deployed successfully (a new one), for a shared
- * database binding, or for a tunnel domain not yet provisioned. A running
+ * Whether the deploys page offers provisioning: while a step is not done
+ * (pending, running or failed), while the environment has never deployed
+ * successfully (a new one), for a shared database binding no run has
+ * provisioned yet, or for a tunnel domain not yet provisioned. A finished run
+ * of a deployed environment hides it. A running
  * legacy environment gets no panel, so one click can't redeploy every
  * target's newest build. An environment whose targets are all jar or static
  * gets none either: nothing there is provisioned.
  */
 export function showProvisioningPanel(input: {
   hasSteps: boolean;
+  /** A recorded step is not done (pending, running or failed). */
+  hasUnfinishedSteps: boolean;
   hasSuccessfulDeployment: boolean;
   dbKind: string | null | undefined;
   domain?: Parameters<typeof domainPending>[0];
@@ -81,10 +85,13 @@ export function showProvisioningPanel(input: {
   onlyLegacyKinds?: boolean;
 }): boolean {
   if (input.onlyLegacyKinds) return false;
+  // A finished run (every step done) of an environment that has deployed
+  // needs nothing more: the panel hides. A shared database binding counts
+  // only until a run has provisioned it.
   return (
-    input.hasSteps ||
+    input.hasUnfinishedSteps ||
     !input.hasSuccessfulDeployment ||
-    input.dbKind === "shared" ||
+    (input.dbKind === "shared" && !input.hasSteps) ||
     domainPending(input.domain ?? null)
   );
 }
@@ -138,6 +145,7 @@ export async function getProvisioning(environmentId: string) {
   ]);
   const showPanel = showProvisioningPanel({
     hasSteps: steps.length > 0,
+    hasUnfinishedSteps: steps.some((step) => step.status !== "done"),
     hasSuccessfulDeployment: deployed,
     dbKind: config.db?.dbKind,
     domain: config.domain,
