@@ -27,6 +27,12 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug")({
       throw error;
     }
   },
+  // Another environment (picked in the breadcrumb) is another page: remount,
+  // so forms and local state never carry the previous environment's values.
+  remountDeps: ({ params }) => ({
+    projectKey: params.projectKey,
+    envSlug: params.envSlug,
+  }),
   errorComponent: EnvError,
   component: EnvironmentLayout,
 });
