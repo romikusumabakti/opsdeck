@@ -96,7 +96,14 @@ afterEach(() => {
   api.orgRole = "admin";
 });
 
-function deployment(id: string, status: string) {
+function deployment(
+  id: string,
+  status: string,
+  build: { branch: string; commitSha: string } | null = {
+    branch: "feature/risk-profile",
+    commitSha: "0123456789abcdef",
+  }
+) {
   return {
     id,
     tag: `v-${id}`,
@@ -107,6 +114,7 @@ function deployment(id: string, status: string) {
     autoUser: null,
     triggeredBy: null,
     createdAt: new Date().toISOString(),
+    build,
   };
 }
 
@@ -177,6 +185,19 @@ describe("Mark as release on the Deploys page", () => {
     container.remove();
     await mountDeploys(target("jar", [deployment("1", "success")]), "viewer");
     expect(markButtons()).toHaveLength(0);
+  });
+
+  it("does not offer it on a success row whose build is unknown", async () => {
+    await mountDeploys(target("jar", [deployment("1", "success", null)]));
+    expect(markButtons()).toHaveLength(0);
+  });
+
+  it("shows the source branch and short commit in the dialog", async () => {
+    await mountDeploys(target("jar", [deployment("1", "success")]));
+    await act(async () => markButtons()[0]?.click());
+    const dialog = document.querySelector("[role=dialog]");
+    expect(dialog?.textContent).toContain("feature/risk-profile · 0123456");
+    expect(dialog?.textContent).not.toContain("0123456789abcdef");
   });
 
   async function openDialogAndSubmit(version: string) {
@@ -277,6 +298,13 @@ describe("Releases page", () => {
     expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
     expect(container.textContent).toContain("Total size");
     expect(container.textContent).toContain("5 KB");
+  });
+
+  it("shows each release's source branch, commit and tag", async () => {
+    await mountList([release({ tag: "hris-be-main-42" })], "engineer");
+    const row = container.querySelector("tbody tr");
+    expect(row?.textContent).toContain("main · abcdef1");
+    expect(row?.textContent).toContain("hris-be-main-42");
   });
 
   it("links Download to the release only when it is ready", async () => {

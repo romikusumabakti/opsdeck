@@ -116,6 +116,11 @@ export type TargetState = DeployTarget &
       triggeredBy: string | null;
       /** The Panel user `triggeredBy` resolves to; see {@link autoUsers}. */
       autoUser: UserRef | null;
+      /**
+       * The build the tag names, by (component, tag) as a release source reads
+       * it (getReleaseSource); null when no build row exists.
+       */
+      build: Pick<Build, "branch" | "commitSha"> | null;
     })[];
   };
 
@@ -354,12 +359,22 @@ export async function listTargetsForEnvironment(
             userName: users.name,
             triggeredBy: runs.triggeredBy,
             ...autoUserColumns,
+            build: { branch: builds.branch, commitSha: builds.commitSha },
           })
           .from(deployments)
           // Left join: a held deployment has no run yet.
           .leftJoin(runs, eq(runs.id, deployments.runId))
           .leftJoin(users, eq(users.id, runs.userId))
           .leftJoinLateral(autoUsers, autoUserOn)
+          // By (component, tag), not build_id: a rollback may carry no build
+          // id, and the tag names exactly one build of the component.
+          .leftJoin(
+            builds,
+            and(
+              eq(builds.componentKey, target.componentKey),
+              eq(builds.tag, deployments.tag)
+            )
+          )
           .where(eq(deployments.targetId, target.id))
           .orderBy(desc(deployments.createdAt), desc(deployments.id))
           .limit(RECENT_LIMIT),
@@ -375,6 +390,7 @@ export async function listTargetsForEnvironment(
           userName: r.userName,
           triggeredBy: r.triggeredBy,
           autoUser: autoUserRef(r),
+          build: r.build,
         })),
       };
     })

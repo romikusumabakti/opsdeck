@@ -258,6 +258,23 @@ describe.skipIf(!scratchDb)("release repository on scratch", async () => {
     });
   });
 
+  it("lists a target's deployments with their build's branch and commit", async () => {
+    const { listTargetsForEnvironment } = await import(
+      "@/lib/deploy/repository"
+    );
+    const known = await deployment(ids.target, ids.env, "rel-it-tag-1");
+    const unknown = await deployment(ids.target, ids.env, "rel-it-no-build");
+    const [target] = (await listTargetsForEnvironment(ids.env)).filter(
+      (t) => t.id === ids.target
+    );
+    const byId = new Map(target?.recentDeployments.map((d) => [d.id, d]));
+    expect(byId.get(known)?.build).toEqual({
+      branch: "release/tmli",
+      commitSha: "abc1234",
+    });
+    expect(byId.get(unknown)?.build).toBeNull();
+  });
+
   it("reports the environment of a deployment elsewhere, and null for none", async () => {
     const id = await deployment(ids.otherTarget, ids.other, "rel-it-tag-1");
     const source = await repo.getReleaseSource(id);

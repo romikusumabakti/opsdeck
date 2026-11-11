@@ -181,6 +181,7 @@ function ReleaseRow({
         title={release.commitSha}
       >
         {release.branch} · {release.commitSha.slice(0, 7)}
+        <span className="block">{release.tag}</span>
       </TableCell>
       <TableCell className="text-muted-foreground">
         {release.environmentName}
