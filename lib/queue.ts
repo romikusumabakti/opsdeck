@@ -93,6 +93,12 @@ export type JobMap = {
     deploymentId: string;
     runId: string;
   };
+  // Copy a release's artifact into Garage (lib/jobs/release). Carries only
+  // ids; the release row says what to fetch.
+  "release/prepare.requested": {
+    releaseId: string;
+    runId: string;
+  };
   // Bring an environment up: deploy directories, shared database, first
   // deploys. Carries only ids; the steps live in provisioning_steps.
   "provision/run.requested": {
