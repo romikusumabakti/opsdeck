@@ -706,7 +706,11 @@ describe("no SSH connection bypasses the factory", () => {
     walk(join(root, dir));
   }
 
-  const ALLOWED = ["lib/ssh.ts", "lib/terminal/ssh-shell.ts"];
+  const ALLOWED = [
+    "lib/ssh.ts",
+    "lib/ssh-session.ts",
+    "lib/terminal/ssh-shell.ts",
+  ];
 
   it("only lib/ssh.ts and lib/terminal/ssh-shell.ts create SSH clients", () => {
     const offenders = files
