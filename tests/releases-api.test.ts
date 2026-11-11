@@ -230,13 +230,54 @@ describe("GET /api/releases/:id/download", () => {
     expect(res.headers.get("Content-Type")).toBe("application/java-archive");
     expect(res.headers.get("Content-Length")).toBe(String(bytes.length));
     expect(res.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="legacy-core-backend_v1.jar"'
+      `attachment; filename="legacy-core-backend_v1.jar"; filename*=UTF-8''legacy-core-backend_v1.jar`
     );
-    expect(res.body).toBeInstanceOf(ReadableStream);
 
     const received = Buffer.from(await res.arrayBuffer());
     expect(received.equals(bytes)).toBe(true);
     expect(store.read).toHaveBeenCalledWith(OBJECT_KEY);
+  });
+
+  it("passes a bounded source through without draining it, and releases it on abort", async () => {
+    const TOTAL = 64;
+    let yielded = 0;
+    const source = new Readable({
+      highWaterMark: 65536,
+      read() {
+        yielded += 1;
+        this.push(yielded <= TOTAL ? Buffer.alloc(65536, 1) : null);
+      },
+    });
+    store.read.mockResolvedValue(source);
+    repo.getRelease.mockResolvedValue({ ...release, sizeBytes: TOTAL * 65536 });
+
+    const res = await send("GET", downloadPath);
+    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+    const first = await reader.read();
+    expect(first.done).toBe(false);
+    expect(yielded).toBeLessThan(TOTAL);
+
+    await reader.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(source.destroyed).toBe(true);
+  });
+
+  it("cannot be header-injected through the file name", async () => {
+    repo.getRelease.mockResolvedValue({
+      ...release,
+      fileName: 'a"b\\c\r\nX-Evil: 1.jar',
+    });
+    store.read.mockResolvedValue(Readable.from([Buffer.from("x")]));
+    const res = await send("GET", downloadPath);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Evil")).toBeNull();
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    expect(disposition).not.toMatch(/[\r\n]/);
+    expect(disposition).toContain('filename="a_b_c__X-Evil: 1.jar"');
+    expect(disposition).toContain(
+      "filename*=UTF-8''a%22b%5Cc%0D%0AX-Evil%3A%201.jar"
+    );
+    await res.arrayBuffer();
   });
 
   it("serves a static release as application/zip", async () => {

@@ -13,6 +13,12 @@ import {
 } from "@/server/services/releases";
 import { json, param } from "@/server/validation";
 
+/** A download Content-Disposition that a hostile file name cannot break out of. */
+function attachmentHeader(fileName: string): string {
+  const quoted = fileName.replace(/["\\\r\n]/g, "_");
+  return `attachment; filename="${quoted}"; filename*=UTF-8''${encodeURIComponent(fileName).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
+}
+
 const idParam = param(z.object({ id: uuidSchema }));
 
 /**
@@ -76,7 +82,7 @@ export const releasesRouter = sessionRouter()
           ? "application/java-archive"
           : "application/zip",
         "Content-Length": String(sizeBytes),
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": attachmentHeader(fileName),
         "Cache-Control": "private, no-store",
       },
     });
