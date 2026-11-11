@@ -24,7 +24,7 @@ const digest = (c: string) => `sha256:${c.repeat(64)}`;
 const IMAGES = {
   app: `ghcr.io/romikusumabakti/opsdeck:1.2.0@${digest("a")}`,
   postgres: `docker.io/library/postgres:18@${digest("b")}`,
-  valkey: `docker.io/valkey/valkey:9-alpine@${digest("c")}`,
+  valkey: `docker.io/valkey/valkey:8-alpine@${digest("c")}`,
   garage: `docker.io/dxflrs/garage:v2.3.0@${digest("d")}`,
   imgproxy: `ghcr.io/imgproxy/imgproxy:v4.0.6@${digest("e")}`,
   caddy: `docker.io/library/caddy:2-alpine@${digest("f")}`,

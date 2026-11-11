@@ -3,7 +3,7 @@
 # with the tag afterwards. Raise a tag here (never `latest`) to ship a newer
 # image line.
 postgres=docker.io/library/postgres:18
-valkey=docker.io/valkey/valkey:9-alpine
+valkey=docker.io/valkey/valkey:8-alpine
 garage=docker.io/dxflrs/garage:v2.3.0
 imgproxy=ghcr.io/imgproxy/imgproxy:v4.0.6
 caddy=docker.io/library/caddy:2-alpine
