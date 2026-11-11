@@ -59,6 +59,7 @@ export const Route = createFileRoute(
 function IssueDetailPage() {
   const { projectKey, number } = Route.useParams();
   const t = useTranslations("issueDetail");
+  const tIssues = useTranslations("issues");
   const issue = useSuspenseQuery(
     getIssueDetailQuery(projectKey, issueNumber(number) ?? 0)
   ).data;
@@ -117,10 +118,10 @@ function IssueDetailPage() {
             <Button
               variant="outline"
               nativeButton={false}
-              render={<Link href={`/${issue.project.key}`} />}
+              render={<Link href={`/${issue.project.key}/issues`} />}
             >
               <ArrowLeft className="size-4" />
-              {issue.project.name}
+              {tIssues("title")}
             </Button>
           </div>
         }

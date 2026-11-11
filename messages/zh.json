@@ -1888,8 +1888,6 @@
     "prod": "生产"
   },
   "projectOverview": {
-    "environments": "环境",
-    "issues": "问题",
     "newEnvironment": "新建环境",
     "editProject": "编辑项目",
     "noEnvironments": "暂无环境",

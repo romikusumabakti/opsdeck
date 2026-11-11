@@ -97,4 +97,38 @@ describe("HeaderBreadcrumb", () => {
     expect(text).toContain("CRM Banking");
     expect(text).toContain("Releases");
   });
+
+  it("shows the environment switcher inside an environment", async () => {
+    nav.pathname = "/CRMB/dev/deploys";
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <IntlProvider locale="en" messages={messages}>
+          <HeaderBreadcrumb
+            environments={[
+              {
+                id: "e1",
+                projectId: "p1",
+                key: "CRMB",
+                slug: "dev",
+                name: "Dev",
+                kind: "dev",
+                hasMailpit: false,
+                serviceRoles: [],
+                projectReleasable: true,
+              } as never,
+            ]}
+            projects={[{ id: "p1", key: "CRMB", name: "CRM Banking" }]}
+            orgRole={"admin" as never}
+            projectRoles={{ p1: "engineer" }}
+          />
+        </IntlProvider>
+      );
+    });
+    const text = container.textContent ?? "";
+    expect(text).toContain("Dev");
+    expect(text).toContain("Deploys");
+  });
 });

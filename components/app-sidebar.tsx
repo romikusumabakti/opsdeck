@@ -464,7 +464,8 @@ export function AppSidebar({
                     const isActive =
                       item.key === "overview"
                         ? pathname === item.href
-                        : pathname.startsWith(item.href);
+                        : pathname === item.href ||
+                          pathname.startsWith(`${item.href}/`);
                     const badge =
                       item.key === "issues"
                         ? {

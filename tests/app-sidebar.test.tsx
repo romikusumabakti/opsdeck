@@ -283,6 +283,14 @@ describe("project group", () => {
     expect(linkByHref("/CRMB")?.getAttribute("data-active")).toBeNull();
   });
 
+  it("does not mark Issues active on an environment slugged issues-old", async () => {
+    await renderSidebar("member", "/CRMB/issues-old/deploys", {
+      ...scope(true),
+      environments: [{ ...env(true), slug: "issues-old" }],
+    });
+    expect(linkByHref("/CRMB/issues")?.getAttribute("data-active")).toBeNull();
+  });
+
   it("marks Overview active on the project page", async () => {
     await renderSidebar("member", "/CRMB", scope(true));
     expect(linkByHref("/CRMB")?.getAttribute("data-active")).toBe("true");

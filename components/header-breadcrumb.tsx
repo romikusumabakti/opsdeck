@@ -133,8 +133,6 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.history";
     case "settings":
       return "breadcrumbs.settings";
-    case "issues":
-      return "breadcrumbs.issues";
     default:
       return null;
   }
