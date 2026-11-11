@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -208,5 +208,78 @@ describe("packageArtifactLayer", () => {
       )
     ).rejects.toThrow();
     expect(await readdir(dir)).toEqual([]);
+  });
+
+  it("leaves outDir empty after unsafe-path and no-jar failures", async () => {
+    await expect(
+      packageArtifactLayer(
+        await layerOf([{ name: "bundle/artifact/../x", body: "x" }]),
+        "jar",
+        dir,
+        "x.jar"
+      )
+    ).rejects.toThrow("unsafe path in artifact");
+    await expect(
+      packageArtifactLayer(
+        await layerOf([{ name: "bundle/artifact/a.txt", body: "x" }]),
+        "jar",
+        dir,
+        "x.jar"
+      )
+    ).rejects.toThrow("exactly one jar");
+    expect(await readdir(dir)).toEqual([]);
+  });
+
+  for (const kind of ["jar", "static"] as const) {
+    it(`rejects (does not crash or hang) when outDir is missing: ${kind}`, async () => {
+      await expect(
+        packageArtifactLayer(
+          await layerOf([
+            { name: "bundle/artifact/index.html", body: "x" },
+            { name: "bundle/artifact/a.jar", body: jar },
+          ]),
+          kind,
+          join(dir, "missing"),
+          "out.bin"
+        )
+      ).rejects.toThrow(/ENOENT/);
+    }, 5000);
+
+    it(`keeps an existing file when packaging fails: ${kind}`, async () => {
+      await writeFile(join(dir, "out.bin"), "good");
+      await expect(
+        packageArtifactLayer(
+          await layerOf([{ name: "bundle/artifact/readme.txt", body: "x" }]),
+          kind,
+          dir,
+          "out.bin"
+        )
+      ).rejects.toBeInstanceOf(ReleasePackageError);
+      expect(await readFile(join(dir, "out.bin"), "utf8")).toBe("good");
+      expect(await readdir(dir)).toEqual(["out.bin"]);
+    });
+  }
+
+  it("replaces an existing file on success", async () => {
+    await writeFile(join(dir, "x.jar"), "old");
+    await packageArtifactLayer(
+      await layerOf([{ name: "bundle/artifact/a.jar", body: jar }]),
+      "jar",
+      dir,
+      "x.jar"
+    );
+    expect(await readFile(join(dir, "x.jar"))).toEqual(jar);
+    expect(await readdir(dir)).toEqual(["x.jar"]);
+  });
+
+  it("refuses a file name with a path", async () => {
+    await expect(
+      packageArtifactLayer(
+        await layerOf([{ name: "bundle/artifact/a.jar", body: jar }]),
+        "jar",
+        dir,
+        "../x.jar"
+      )
+    ).rejects.toBeInstanceOf(ReleasePackageError);
   });
 });
