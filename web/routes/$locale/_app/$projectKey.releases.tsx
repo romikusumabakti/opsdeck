@@ -15,7 +15,8 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/releases")({
     const project = await queryClient.query(
       getProjectByKeyWithEnvironmentsQuery(projectKey)
     );
-    if (!project) throw notFound();
+    // Releases exist only for legacy jar/static components.
+    if (!project?.releasable) throw notFound();
     const role = await requireProjectRole(queryClient, project.id, {
       deploy: ["view"],
     });

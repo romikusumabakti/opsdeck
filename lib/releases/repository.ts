@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { type AnyColumn, and, desc, eq, type SQL, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -15,6 +15,24 @@ import {
   users,
 } from "@/lib/db/schema";
 import { type CreateRunInput, insertRun } from "@/lib/run-progress";
+
+/**
+ * Whether a project has releases at all: a jar/static deploy target in one of
+ * its environments (legacy components, spec 2026-11-11 decision 7), or
+ * releases made before such a target was removed. Container-only projects
+ * have neither, so their navigation offers no Releases page.
+ */
+export function projectReleasableSql(projectId: AnyColumn | SQL): SQL<boolean> {
+  return sql<boolean>`(exists (select 1 from ${deployTargets} inner join ${environments} on ${environments.id} = ${deployTargets.environmentId} where ${environments.projectId} = ${projectId} and ${deployTargets.kind} in ('jar', 'static')) or exists (select 1 from ${releases} where ${releases.projectId} = ${projectId}))`;
+}
+
+/** {@link projectReleasableSql} for one project. */
+export async function isProjectReleasable(projectId: string): Promise<boolean> {
+  const [row] = await db.execute<{ releasable: boolean }>(
+    sql`select ${projectReleasableSql(sql`${projectId}::uuid`)} as releasable`
+  );
+  return Boolean(row?.releasable);
+}
 
 /** What a release is made from: one deployment, its target and its build. */
 export type ReleaseSource = {

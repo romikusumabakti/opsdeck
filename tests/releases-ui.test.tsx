@@ -353,6 +353,22 @@ describe("Releases entry on the project overview", () => {
     expect(page).toContain("/releases`} />}");
     expect(page).toContain(`tNav("releases")`);
   });
+
+  it("offers Releases only on a project with legacy components", () => {
+    const page = readFileSync(
+      "web/routes/$locale/_app/$projectKey.index.tsx",
+      "utf8"
+    );
+    expect(page).toMatch(/canViewReleases\s*=\s*\n?\s*project\.releasable &&/);
+  });
+
+  it("the Releases route 404s on a container-only project", () => {
+    const route = readFileSync(
+      "web/routes/$locale/_app/$projectKey.releases.tsx",
+      "utf8"
+    );
+    expect(route).toMatch(/if \(!project\?\.releasable\) throw notFound\(\)/);
+  });
 });
 
 describe("release activity messages", () => {

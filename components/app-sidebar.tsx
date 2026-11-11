@@ -446,6 +446,11 @@ export function AppSidebar({
                       const section = SERVICE_SECTION[item.key];
                       return !section || envSections.has(section);
                     })
+                    // Releases exist only for legacy jar/static components.
+                    .filter(
+                      (item) =>
+                        item.key !== "releases" || activeEnv.projectReleasable
+                    )
                     // Mail only exists once a Mailpit is connected.
                     .filter(
                       (item) => item.key !== "mail" || activeEnv.hasMailpit
