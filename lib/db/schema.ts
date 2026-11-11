@@ -2187,6 +2187,9 @@ export type EnvironmentListItem = EnvironmentSummary & {
   // Roles of the services the environment has (backend always; db and
   // frontend optional). Drives which sidebar sections are shown.
   serviceRoles: ("db" | "backend" | "frontend")[];
+  // The project has legacy jar/static components or releases (drives the
+  // sidebar's Releases entry).
+  projectReleasable: boolean;
   lastAccessedAt: Date | null;
 };
 

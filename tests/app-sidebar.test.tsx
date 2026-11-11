@@ -72,7 +72,15 @@ import type { OrgRole } from "@/lib/permissions";
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 
-async function renderSidebar(orgRole: OrgRole, pathname: string) {
+async function renderSidebar(
+  orgRole: OrgRole,
+  pathname: string,
+  scope: {
+    environments?: unknown[];
+    projects?: unknown[];
+    projectRoles?: Record<string, string>;
+  } = {}
+) {
   nav.pathname = pathname;
   container = document.createElement("div");
   document.body.append(container);
@@ -81,10 +89,10 @@ async function renderSidebar(orgRole: OrgRole, pathname: string) {
     root.render(
       <IntlProvider locale="en" messages={messages}>
         <AppSidebar
-          environments={[]}
-          projects={[]}
+          environments={(scope.environments ?? []) as never}
+          projects={(scope.projects ?? []) as never}
           orgRole={orgRole}
-          projectRoles={{}}
+          projectRoles={(scope.projectRoles ?? {}) as never}
           issueCounts={{ total: 0 } as never}
           openCounts={{}}
           user={
@@ -173,5 +181,41 @@ describe("app sidebar", () => {
         (h) => h.textContent === messages.nav.integrations
       )
     ).toBe(false);
+  });
+});
+
+describe("Releases in the environment group", () => {
+  // Releases exist only for legacy jar/static components (spec 2026-11-11
+  // decision 7): a container-only project gets no Releases entry.
+  const env = (projectReleasable: boolean) => ({
+    id: "e1",
+    projectId: "p1",
+    key: "CRMB",
+    slug: "dev",
+    name: "Dev",
+    kind: "dev",
+    hasMailpit: false,
+    serviceRoles: [],
+    projectReleasable,
+  });
+  const projects = [{ id: "p1", key: "CRMB", name: "CAR Membership" }];
+
+  it("links Releases when the project has legacy components", async () => {
+    await renderSidebar("admin", "/CRMB/dev/deploys", {
+      environments: [env(true)],
+      projects,
+      projectRoles: { p1: "engineer" },
+    });
+    expect(hrefs()).toContain("/CRMB/releases");
+  });
+
+  it("has no Releases entry for a container-only project", async () => {
+    await renderSidebar("admin", "/CRMB/dev/deploys", {
+      environments: [env(false)],
+      projects,
+      projectRoles: { p1: "engineer" },
+    });
+    expect(hrefs()).toContain("/CRMB/dev/deploys");
+    expect(hrefs()).not.toContain("/CRMB/releases");
   });
 });

@@ -54,6 +54,7 @@ import {
   canPlaceEnvironment,
   type ProjectRole,
 } from "@/lib/permissions";
+import { projectReleasableSql } from "@/lib/releases/repository";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
 import { findService, hasService, type ServiceRole } from "@/lib/services";
@@ -211,6 +212,8 @@ export async function listEnvironments(): Promise<EnvironmentListItem[]> {
         // Sidebar's Mail entry. EXISTS, not a join, so the secret columns
         // never enter this client-bound projection.
         hasMailpit: sql<boolean>`exists (select 1 from ${environmentMailpit} where ${environmentMailpit.environmentId} = ${environments.id})`,
+        // Sidebar's Releases entry: legacy jar/static components only.
+        projectReleasable: projectReleasableSql(environments.projectId),
         // Roles present, so the sidebar can hide sections the environment has
         // no service for. json_agg, not an array type, to keep driver parsing
         // out of the picture.

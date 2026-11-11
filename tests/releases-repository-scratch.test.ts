@@ -56,7 +56,7 @@ describe.skipIf(!scratchDb)("release repository on scratch", async () => {
     const projectRows = await db
       .select({ id: s.projects.id })
       .from(s.projects)
-      .where(eq(s.projects.key, "RELIT"));
+      .where(inArray(s.projects.key, ["RELIT", "RELIT2"]));
     const projectIds = projectRows.map((p) => p.id);
     if (projectIds.length > 0) {
       await db
@@ -367,6 +367,64 @@ describe.skipIf(!scratchDb)("release repository on scratch", async () => {
       .catch((e: unknown) => e);
     // restrict_violation, which removeProject turns into projectHasReleases.
     expect(pgErrorCode(error)).toBe("23001");
+  });
+
+  it("calls a project releasable for a jar/static target or a release, not for containers only", async () => {
+    expect(await repo.isProjectReleasable(ids.project)).toBe(true);
+    const containerOnly = (
+      await one(
+        db
+          .insert(s.projects)
+          .values({ key: "RELIT2", name: "Releases IT containers" })
+          .returning({ id: s.projects.id })
+      )
+    ).id;
+    const env = (
+      await one(
+        db
+          .insert(s.environments)
+          .values({
+            projectId: containerOnly,
+            name: "REL2 Main",
+            slug: "rel2-main",
+            appId: ids.app,
+          })
+          .returning({ id: s.environments.id })
+      )
+    ).id;
+    await db.insert(s.deployTargets).values({
+      environmentId: env,
+      componentKey: COMPONENT,
+      serverId: ids.server,
+      sourceBranch: "main",
+      kind: "compose",
+      deployDir: "/opt/rel-it-compose",
+      services: [],
+    });
+    expect(await repo.isProjectReleasable(containerOnly)).toBe(false);
+    // A release made before its target went away keeps the page reachable.
+    await repo.insertReleaseWithRun(
+      {
+        projectId: containerOnly,
+        componentKey: COMPONENT,
+        environmentId: env,
+        environmentName: "REL2 Main",
+        deploymentId: null,
+        branch: "main",
+        tag: "rel-it-tag-1",
+        commitSha: "abc1234",
+        version: "kept",
+        notes: null,
+        createdBy: ids.user,
+      },
+      {
+        environmentId: env,
+        userId: ids.user,
+        description: "Release kept",
+        kind: "release",
+      }
+    );
+    expect(await repo.isProjectReleasable(containerOnly)).toBe(true);
   });
 
   it("returns the stored key from the row delete", async () => {

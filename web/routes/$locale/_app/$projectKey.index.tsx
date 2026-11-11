@@ -119,9 +119,10 @@ function ProjectOverviewPage() {
   // offers only the ones they may place on).
   const canCreateEnvironment = canProject(role, SETUP_PERMISSIONS);
   const canManageMembers = canProject(role, { member: ["manage"] });
-  // The project's releases: the sidebar offers them only inside an
-  // environment.
-  const canViewReleases = canProject(role, { deploy: ["view"] });
+  // The project's releases (legacy jar/static components only): the sidebar
+  // offers them only inside an environment.
+  const canViewReleases =
+    project.releasable && canProject(role, { deploy: ["view"] });
 
   const issues = useSuspenseQuery(
     listIssuesQuery(project.id, statusesFor(status))

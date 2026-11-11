@@ -32,6 +32,7 @@ import {
   implicitProjectRole,
   normalizeOrgRole,
 } from "@/lib/permissions";
+import { isProjectReleasable } from "@/lib/releases/repository";
 import type { ActionResponse } from "@/lib/types";
 import {
   projectMetaInputSchema,
@@ -150,7 +151,7 @@ export async function getProjectWithEnvironments(
  */
 export async function getProjectByKeyWithEnvironments(
   key: string
-): Promise<ProjectWithEnvironments | undefined> {
+): Promise<(ProjectWithEnvironments & { releasable: boolean }) | undefined> {
   await requireSession();
   const row = await db.query.projects.findFirst({
     where: { key: key.toUpperCase() },
@@ -158,9 +159,10 @@ export async function getProjectByKeyWithEnvironments(
   });
   if (!row || !(await getProjectRole({ projectId: row.id }))) return undefined;
   return {
-    ...row,
+    ...(row as unknown as ProjectWithEnvironments),
     ...flattenDbSummary(row as never),
-  } as ProjectWithEnvironments;
+    releasable: await isProjectReleasable(row.id),
+  };
 }
 
 export async function addProject(
