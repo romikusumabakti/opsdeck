@@ -402,6 +402,25 @@ describe.skipIf(!scratchDb)("release repository on scratch", async () => {
       services: [],
     });
     expect(await repo.isProjectReleasable(containerOnly)).toBe(false);
+    // Correlated inside a select from environments, as the environment list
+    // uses it: the subquery's own join must not capture the outer row.
+    const listed = await db
+      .select({
+        releasable: repo.projectReleasableSql(s.environments.projectId),
+      })
+      .from(s.environments)
+      .where(eq(s.environments.projectId, containerOnly));
+    expect(listed).toEqual([{ releasable: false }]);
+    // The same with a join (qualified columns), the environment list's shape;
+    // other projects' jar targets in this database must not leak in.
+    const joined = await db
+      .select({
+        releasable: repo.projectReleasableSql(s.environments.projectId),
+      })
+      .from(s.environments)
+      .innerJoin(s.projects, eq(s.projects.id, s.environments.projectId))
+      .where(eq(s.environments.projectId, containerOnly));
+    expect(joined).toEqual([{ releasable: false }]);
     // A release made before its target went away keeps the page reachable.
     await repo.insertReleaseWithRun(
       {

@@ -1,4 +1,13 @@
-import { type AnyColumn, and, desc, eq, type SQL, sql } from "drizzle-orm";
+import {
+  type AnyColumn,
+  and,
+  desc,
+  eq,
+  inArray,
+  type SQL,
+  sql,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
@@ -23,7 +32,20 @@ import { type CreateRunInput, insertRun } from "@/lib/run-progress";
  * have neither, so their navigation offers no Releases page.
  */
 export function projectReleasableSql(projectId: AnyColumn | SQL): SQL<boolean> {
-  return sql<boolean>`(exists (select 1 from ${deployTargets} inner join ${environments} on ${environments.id} = ${deployTargets.environmentId} where ${environments.projectId} = ${projectId} and ${deployTargets.kind} in ('jar', 'static')) or exists (select 1 from ${releases} where ${releases.projectId} = ${projectId}))`;
+  // Uncorrelated on purpose, with aliased tables: a correlated subquery
+  // reading `environments` inside a select from `environments` resolves the
+  // caller's column to its own row (always true), and Drizzle leaves column
+  // names unqualified in single-table selects.
+  const target = alias(deployTargets, "releasable_target");
+  const env = alias(environments, "releasable_env");
+  const release = alias(releases, "releasable_release");
+  const releasableProjects = db
+    .select({ projectId: env.projectId })
+    .from(target)
+    .innerJoin(env, eq(env.id, target.environmentId))
+    .where(inArray(target.kind, ["jar", "static"]))
+    .union(db.select({ projectId: release.projectId }).from(release));
+  return sql<boolean>`(${projectId} in (${releasableProjects}))`;
 }
 
 /** {@link projectReleasableSql} for one project. */
