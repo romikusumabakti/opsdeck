@@ -49,6 +49,37 @@ const imageReference = z
     "Image must be a Docker image reference"
   );
 
+// A build-time environment variable of a check step (e.g. VUE_APP_API_URL).
+const environmentName = z
+  .string()
+  .regex(
+    /^[A-Z_][A-Z0-9_]{0,99}$/,
+    "Environment variable names use upper-case letters, digits and '_'"
+  );
+
+// A Woodpecker repo secret a check step reads. The notify secrets are the
+// Panel's own and never handed to a check.
+export const checkSecretNameSchema = z
+  .string()
+  .regex(
+    /^[a-z][a-z0-9_]{0,62}$/,
+    "Secret names use lower-case letters, digits and '_'"
+  )
+  .refine(
+    (name) => name !== "opsdeck_notify" && !name.startsWith("opsdeck_notify_"),
+    "The Panel's notify secret cannot be passed to a check"
+  );
+
+// A plain value (one line, escaped for Woodpecker by the generator) or a
+// reference to a repo secret.
+const environmentValue = z.union([
+  z
+    .string()
+    .max(1000)
+    .refine((value) => !/[\r\n]/.test(value), "Value must be one line"),
+  z.object({ fromSecret: checkSecretNameSchema }).strict(),
+]);
+
 const unique =
   <T>(key: (item: T) => string, message: string) =>
   (items: T[], ctx: z.RefinementCtx) => {
@@ -104,6 +135,9 @@ export const buildSpecSchema = z
           image: imageReference,
           dir: directory,
           commands: z.array(z.string().trim().min(1)).min(1),
+          // Build-time variables (e.g. a frontend's VUE_APP_*), plain or from
+          // a Woodpecker repo secret.
+          environment: z.record(environmentName, environmentValue).optional(),
         })
       )
       .superRefine(unique((check) => check.name, "Duplicate check name"))

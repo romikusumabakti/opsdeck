@@ -1,7 +1,7 @@
 // Creates an app component (and its app when missing), registers a generated
 // artifact component, or rotates a component's CI notify secret.
-// Usage (production): docker exec opsdeck-app bun dist/deploy-app.js <create|create-artifact|rotate> <componentKey> ...
-// Local dev: bun --conditions react-server scripts/deploy-app.ts <create|create-artifact|rotate> <componentKey> ...
+// Usage (production): docker exec opsdeck-app bun dist/deploy-app.js <create|create-artifact|set-secret|rotate> <componentKey> ...
+// Local dev: bun --conditions react-server scripts/deploy-app.ts <create|create-artifact|set-secret|rotate> <componentKey> ...
 // First: create-artifact loads lib/authz, whose auth module (better-auth's
 // passkey plugin) pulls in tsyringe, which needs the polyfill before anything.
 import "reflect-metadata";
@@ -24,6 +24,7 @@ import { describeDbError } from "@/lib/secrets-migration";
 const USAGE = `Usage:
   bun dist/deploy-app.js create <componentKey> <bundleImage> --app <appKey> --repo <owner/name> [--ci <connection name>]
   bun dist/deploy-app.js create-artifact <componentKey> --app <appKey> --repo <owner/name> --spec <path.json> [--ci <connection name>]
+  bun dist/deploy-app.js set-secret <componentKey> <secretName>   (value on stdin)
   bun dist/deploy-app.js rotate <componentKey>`;
 
 const rawArgs = process.argv.slice(2);
@@ -62,6 +63,7 @@ if (
   !(
     command === "create" ||
     command === "create-artifact" ||
+    command === "set-secret" ||
     command === "rotate"
   ) ||
   !componentKey
@@ -127,6 +129,30 @@ async function resolveCiConnectionId(name: string | undefined) {
     process.exit(2);
   }
   return match.id;
+}
+
+if (command === "set-secret") {
+  // The second positional is the secret name for this command.
+  const secretName = bundleImage;
+  if (!secretName) usage();
+  // The value comes on stdin so it never sits in argv, the shell history or
+  // the output; one trailing newline (from echo or a file) is dropped.
+  const value = (await Bun.stdin.text()).replace(/\r?\n$/, "");
+  const { ArtifactRegistrationError, setComponentSecret } = await import(
+    "@/lib/ci/register-artifact-component"
+  );
+  try {
+    await setComponentSecret(componentKey, secretName as string, value);
+    console.log(`Stored Woodpecker secret ${secretName} for ${componentKey}`);
+    process.exit(0);
+  } catch (error) {
+    if (error instanceof ArtifactRegistrationError) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    console.error(`Storing the secret failed (${describeDbError(error)})`);
+    process.exit(1);
+  }
 }
 
 if (command === "create-artifact") {

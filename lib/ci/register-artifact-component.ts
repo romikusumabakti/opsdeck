@@ -1,10 +1,15 @@
 import { randomBytes } from "node:crypto";
 import {
+  getComponent,
   insertComponentCreatingApp,
   linkedCiRepos,
   takenComponentKeys,
 } from "@/lib/apps";
-import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
+import {
+  type BuildSpec,
+  buildSpecSchema,
+  checkSecretNameSchema,
+} from "@/lib/ci/build-spec";
 import { bundleImageFor } from "@/lib/ci/registration";
 import { CiProviderError, type SecretEvent } from "@/lib/ci/types";
 import { appKeySchema, componentKeySchema } from "@/lib/deploy/validation";
@@ -196,4 +201,45 @@ export async function registerArtifactComponent(
     );
   }
   return { componentKey, ciRepoId: repo.ciRepoId, notifySecretName };
+}
+
+/**
+ * Stores a Woodpecker repo secret a check step of the component reads
+ * (`environment: { NAME: { fromSecret } }` in its build spec), for push and
+ * manual events. The value comes from the operator (stdin of
+ * `deploy-app.js set-secret`) and never appears in an error. The Panel's
+ * notify secrets cannot be written this way.
+ */
+export async function setComponentSecret(
+  componentKey: string,
+  secretName: string,
+  value: string
+): Promise<void> {
+  const name = checkSecretNameSchema.safeParse(secretName);
+  if (!name.success) {
+    refuse(name.error.issues[0]?.message ?? "Invalid secret name");
+  }
+  if (value.length === 0) refuse("The secret value is empty");
+  const component = await getComponent(componentKey);
+  if (!component) refuse(`Unknown component ${componentKey}`);
+  const { ciConnectionId, ciRepoId } = component as NonNullable<
+    typeof component
+  >;
+  if (!ciRepoId) refuse(`Component ${componentKey} has no CI repository`);
+  const provider = await getProviderForConnection(ciConnectionId);
+  try {
+    await provider.upsertRepoSecret(
+      ciRepoId as string,
+      secretName,
+      value,
+      NOTIFY_SECRET_EVENTS
+    );
+  } catch (error) {
+    // Provider errors may echo the request body: report the step only.
+    refuse(
+      `Storing the Woodpecker secret ${secretName} failed${
+        error instanceof CiProviderError ? ` (HTTP ${error.status})` : ""
+      }`
+    );
+  }
 }

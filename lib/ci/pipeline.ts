@@ -117,6 +117,16 @@ function checkStep(doc: Document, check: BuildSpec["checks"][number]) {
   return step(doc, {
     name: check.name,
     image: check.image,
+    environment: check.environment
+      ? Object.fromEntries(
+          Object.entries(check.environment).map(([name, value]) => [
+            name,
+            typeof value === "string"
+              ? escapeForWoodpecker(value)
+              : { from_secret: value.fromSecret },
+          ])
+        )
+      : undefined,
     commands: [
       {
         comment: lines(
