@@ -5,11 +5,11 @@ import { Route } from "@/web/routes/$locale/_app/$projectKey.$envSlug.route";
 // new params; without a remount, pages keep the previous environment's form
 // state (useForm captures its defaults once).
 describe("environment layout remount", () => {
-  const deps = (projectKey: string, envSlug: string) =>
+  const deps = (projectKey: string, envSlug: string, search = {}) =>
     JSON.stringify(
       (Route.options.remountDeps as (opts: unknown) => unknown)({
         params: { locale: "en", projectKey, envSlug },
-        search: {},
+        search,
         loaderDeps: {},
         routeId: Route.id,
       })
@@ -24,6 +24,8 @@ describe("environment layout remount", () => {
   });
 
   it("keeps the page mounted when only the search changes", () => {
-    expect(deps("CRMB", "p2sk")).toBe(deps("CRMB", "p2sk"));
+    expect(deps("CRMB", "p2sk")).toBe(
+      deps("CRMB", "p2sk", { tab: "source-deploy" })
+    );
   });
 });
