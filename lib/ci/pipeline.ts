@@ -63,6 +63,13 @@ function escapeForWoodpecker(command: string): string {
   return command.replaceAll("$", "$$$$");
 }
 
+/** A string scalar always written double-quoted, so YAML never retypes it. */
+function doubleQuoted(doc: Document, value: string): Scalar {
+  const node = doc.createNode(value) as Scalar;
+  node.type = Scalar.QUOTE_DOUBLE;
+  return node;
+}
+
 type Command = { text: string; comment?: string };
 
 /** A sequence item: a block scalar (`- |`) when multi-line, plain otherwise. */
@@ -90,7 +97,7 @@ function step(
     name: string;
     image: string;
     dependsOn?: string[];
-    environment?: Record<string, string | { from_secret: string }>;
+    environment?: Record<string, string | Scalar | { from_secret: string }>;
     commands: Command[];
   }
 ): YAMLMap {
@@ -122,7 +129,7 @@ function checkStep(doc: Document, check: BuildSpec["checks"][number]) {
           Object.entries(check.environment).map(([name, value]) => [
             name,
             typeof value === "string"
-              ? escapeForWoodpecker(value)
+              ? doubleQuoted(doc, escapeForWoodpecker(value))
               : { from_secret: value.fromSecret },
           ])
         )

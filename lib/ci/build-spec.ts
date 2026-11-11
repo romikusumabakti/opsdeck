@@ -57,17 +57,15 @@ const environmentName = z
     "Environment variable names use upper-case letters, digits and '_'"
   );
 
-// A Woodpecker repo secret a check step reads. The notify secrets are the
-// Panel's own and never handed to a check.
+// A Woodpecker repo secret a check step reads. Only names with the `build_`
+// prefix: the Panel's notify secrets and the registry credentials (org
+// secrets the build step alone uses) can never be handed to a check, and
+// `deploy-app.js set-secret` can never overwrite them.
 export const checkSecretNameSchema = z
   .string()
   .regex(
-    /^[a-z][a-z0-9_]{0,62}$/,
-    "Secret names use lower-case letters, digits and '_'"
-  )
-  .refine(
-    (name) => name !== "opsdeck_notify" && !name.startsWith("opsdeck_notify_"),
-    "The Panel's notify secret cannot be passed to a check"
+    /^build_[a-z0-9_]{1,57}$/,
+    "Secret names start with 'build_' and use lower-case letters, digits and '_'"
   );
 
 // A plain value (one line, escaped for Woodpecker by the generator) or a

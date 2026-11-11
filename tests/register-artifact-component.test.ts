@@ -397,12 +397,12 @@ describe("setComponentSecret", () => {
     mocks.getComponent.mockResolvedValue(component);
     await setComponentSecret(
       "legacy-portal-frontend",
-      "legacy_portal_static_token",
+      "build_portal_static_token",
       "s3cret"
     );
     expect(mocks.upsertRepoSecret).toHaveBeenCalledWith(
       "4",
-      "legacy_portal_static_token",
+      "build_portal_static_token",
       "s3cret",
       ["push", "manual"]
     );
@@ -412,7 +412,8 @@ describe("setComponentSecret", () => {
     ["the notify secret", "opsdeck_notify", "x"],
     ["a suffixed notify secret", "opsdeck_notify_core", "x"],
     ["an invalid name", "Bad-Name", "x"],
-    ["an empty value", "legacy_token", ""],
+    ["the registry password", "registry_password", "x"],
+    ["an empty value", "build_token", ""],
   ])("refuses %s", async (_label, name, value) => {
     mocks.getComponent.mockResolvedValue(component);
     await expect(
@@ -424,11 +425,11 @@ describe("setComponentSecret", () => {
   it("refuses an unknown component or one without a CI repository", async () => {
     mocks.getComponent.mockResolvedValue(undefined);
     await expect(
-      setComponentSecret("nope", "legacy_token", "x")
+      setComponentSecret("nope", "build_token", "x")
     ).rejects.toThrow(ArtifactRegistrationError);
     mocks.getComponent.mockResolvedValue({ ...component, ciRepoId: null });
     await expect(
-      setComponentSecret("legacy-portal-frontend", "legacy_token", "x")
+      setComponentSecret("legacy-portal-frontend", "build_token", "x")
     ).rejects.toThrow(ArtifactRegistrationError);
     expect(mocks.upsertRepoSecret).not.toHaveBeenCalled();
   });
@@ -438,7 +439,7 @@ describe("setComponentSecret", () => {
     mocks.upsertRepoSecret.mockRejectedValue(new Error("boom s3cret"));
     const error = await setComponentSecret(
       "legacy-portal-frontend",
-      "legacy_token",
+      "build_token",
       "s3cret"
     ).catch((e: Error) => e);
     expect(String((error as Error).message)).not.toContain("s3cret");

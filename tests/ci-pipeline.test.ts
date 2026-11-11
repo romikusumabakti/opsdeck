@@ -268,18 +268,24 @@ describe("generateWoodpeckerPipeline", () => {
           environment: {
             VUE_APP_API_URL: "/api",
             VUE_APP_TITLE: "DPLK $TMLI",
-            VUE_APP_STATIC_TOKEN: { fromSecret: "legacy_portal_static_token" },
+            VUE_APP_FLAGS: "0b101",
+            VUE_APP_STATIC_TOKEN: { fromSecret: "build_portal_static_token" },
           },
         })),
       } as BuildSpec;
-      const doc = parseDocument(render(spec, "backoffice"));
+      const yaml = render(spec, "backoffice");
+      // Plain values are written double-quoted, so Go YAML never retypes them.
+      expect(yaml).toContain('VUE_APP_FLAGS: "0b101"');
+      expect(yaml).toContain('VUE_APP_API_URL: "/api"');
+      const doc = parseDocument(yaml);
       const step = (
         doc.toJS().steps as { name: string; environment?: unknown }[]
       )[0];
       expect(step?.environment).toEqual({
         VUE_APP_API_URL: "/api",
         VUE_APP_TITLE: "DPLK $$TMLI",
-        VUE_APP_STATIC_TOKEN: { from_secret: "legacy_portal_static_token" },
+        VUE_APP_FLAGS: "0b101",
+        VUE_APP_STATIC_TOKEN: { from_secret: "build_portal_static_token" },
       });
     });
 
@@ -335,7 +341,7 @@ describe("buildSpecSchema environment", () => {
   it("accepts plain values and secret references", () => {
     expect(
       buildSpecSchema.safeParse(
-        spec({ VUE_APP_API_URL: "/api", TOKEN: { fromSecret: "legacy_token" } })
+        spec({ VUE_APP_API_URL: "/api", TOKEN: { fromSecret: "build_token" } })
       ).success
     ).toBe(true);
   });
@@ -349,6 +355,12 @@ describe("buildSpecSchema environment", () => {
     [
       "a suffixed notify secret",
       { TOKEN: { fromSecret: "opsdeck_notify_core" } },
+    ],
+    ["the registry password", { TOKEN: { fromSecret: "registry_password" } }],
+    ["the registry username", { TOKEN: { fromSecret: "registry_username" } }],
+    [
+      "a name without the build_ prefix",
+      { TOKEN: { fromSecret: "portal_token" } },
     ],
   ])("rejects %s", (_label, environment) => {
     expect(buildSpecSchema.safeParse(spec(environment)).success).toBe(false);
