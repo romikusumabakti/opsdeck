@@ -42,6 +42,11 @@ import { avatarsRouter, profileRouter } from "@/server/routes/profile";
 import { projectCatalogRouter } from "@/server/routes/project-catalog";
 import { projectMembersRouter } from "@/server/routes/project-members";
 import { provisioningRouter } from "@/server/routes/provisioning";
+import {
+  environmentReleasesRouter,
+  projectReleasesRouter,
+  releasesRouter,
+} from "@/server/routes/releases";
 import { remoteTunnelsRouter } from "@/server/routes/remote-tunnels";
 import { runsRouter } from "@/server/routes/runs";
 import { s3ConnectionsRouter } from "@/server/routes/s3-connections";
@@ -135,6 +140,9 @@ export const app = createBaseApp()
   // this prefix.
   .route("/api/deploy-hooks", deployHooksRouter)
   .route("/api/deploys", deploysRouter)
+  .route("/api/environments", environmentReleasesRouter)
+  .route("/api/projects", projectReleasesRouter)
+  .route("/api/releases", releasesRouter)
   .route("/api/apps", appsRouter)
   .route("/api/setup", setupRouter)
   .route("/api/apps", variableTemplatesRouter)

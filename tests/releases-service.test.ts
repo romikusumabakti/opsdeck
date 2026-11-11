@@ -520,6 +520,27 @@ describe("openReleaseDownload", () => {
     expect(store.read).not.toHaveBeenCalled();
   });
 
+  it("is 404 releaseFileMissing when the object is gone from storage", async () => {
+    store.read.mockRejectedValue(
+      Object.assign(new Error("key does not exist"), {
+        name: "NoSuchKey",
+        $metadata: { httpStatusCode: 404 },
+      })
+    );
+    expect(await rejection(openReleaseDownload(RELEASE_ID))).toMatchObject({
+      status: 404,
+      code: "releaseFileMissing",
+    });
+    expect(activity.recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("lets other storage errors through", async () => {
+    store.read.mockRejectedValue(new Error("connection reset"));
+    await expect(openReleaseDownload(RELEASE_ID)).rejects.toThrow(
+      "connection reset"
+    );
+  });
+
   it("is forbidden for QA", async () => {
     state.role = "qa";
     expect(await rejection(openReleaseDownload(RELEASE_ID))).toMatchObject({
