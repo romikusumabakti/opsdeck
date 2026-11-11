@@ -101,7 +101,7 @@ Faint Nusantara ornaments sit in the corners of the pages outside the app (sign-
 The images are masks: `components/motif-watermark.tsx` paints `--ring` (the accent's saturated step) through them, so they follow the theme and accent. The source art in `design/motifs/` was generated with `gpt-image-2.5-sunburst` (templates and per-motif subjects in `design/motifs/prompts.json`).
 
 To add or replace a motif:
-1. Put a black-on-transparent PNG at `design/motifs/<slug>.png` and run `node scripts/build-motifs.mjs`. Generate a new motif with the `v2` template in `prompts.json`: its uniform line weight keeps every ornament at a similar density.
+1. Put a black-on-transparent PNG at `design/motifs/<slug>.png` and run `uv run scripts/build-motifs.py`. Generate a new motif with the `v2` template in `prompts.json`: its uniform line weight keeps every ornament at a similar density.
 2. For a new motif, add it to `MOTIFS` in `lib/motifs.ts` at its place by longitude.
 3. Add its `items.<slug>` caption to `motifs` in all five `messages/*.json` files.
 
@@ -151,7 +151,7 @@ User avatars share the same bucket under the `avatars/` prefix and are served th
 
 ## Local development
 
-Requirements: Bun ≥ 1.3, Node 24 (only for `scripts/build-motifs.mjs`), and a PostgreSQL instance.
+Requirements: Bun ≥ 1.4.4, uv (only for `scripts/build-motifs.py`), and a PostgreSQL instance.
 
 ```sh
 bun install
@@ -192,7 +192,7 @@ CI (`.github/workflows/ci.yml`) runs `biome ci`, the typecheck, the tests and a 
 Migrations live in `drizzle/<timestamp>_<name>/migration.sql` and run only through Drizzle's migrator: `opsdeck migrate` in the image (`bun dist/cli.js migrate`), `bun run db:migrate` locally. It applies every folder not yet recorded in `drizzle.__drizzle_migrations`, in folder-name order, all in one transaction.
 
 - `drizzle/00000000000000_baseline` equals the production schema as of 2026-11-09, plus the default labels. A fresh database starts from it. `tests/fixtures/prod-schema-20261109.sql` is that production schema, and the scratch test `tests/baseline-schema-scratch.test.ts` checks the baseline against it.
-- `drizzle-legacy/` holds the 53 migrations the baseline replaced. It is history only: nothing runs it, and the image does not include it. Production evolved partly outside these files, so replaying them does not give the production schema.
+- The 53 migrations the baseline replaced (formerly `drizzle-legacy/`) are only in git history: `git log --diff-filter=D -- drizzle-legacy` finds the commit that removed them. Production evolved partly outside these files, so replaying them does not give the production schema.
 - A database that was built by the legacy migrations is taken over with `opsdeck migrate --adopt`. It builds the baseline in a throwaway database, compares both `pg_dump --schema-only` outputs, and then records the baseline as applied without running it. If the schemas differ, it exits with code 2 and prints the first 20 differing statements. It needs `pg_dump` and permission to create databases.
 
 Rules for every new migration:
@@ -213,7 +213,6 @@ server/           The Hono API: routes, services, middleware, static serving
 components/       UI components (shadcn/ui in components/ui)
 lib/              Domain logic: db schema, auth, jobs, jira, terminal, tunnels, mailpit, explorer
 drizzle/          SQL migrations (baseline + newer), run by `opsdeck migrate`
-drizzle-legacy/   The migrations squashed into the baseline (history only)
 scripts/          The opsdeck CLI (scripts/cli.ts) and one-off ops scripts
 messages/         i18n message catalogs
 tests/            Vitest suites + fixtures

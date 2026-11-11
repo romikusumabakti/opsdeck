@@ -35,7 +35,7 @@ import {
 //                          production to adopt.
 //   B (<prefix>_baseline): `opsdeck migrate` (scripts/cli.ts).
 //
-// The legacy migrations (drizzle-legacy/) are not replayed: production evolved
+// The legacy migrations (squashed, now only in git history) are not replayed: production evolved
 // partly outside them, so their replay is known to drift from production
 // (constraint names, index NULLS order, column order, a stray foreign key).
 //

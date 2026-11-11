@@ -13,7 +13,6 @@
       "!tsconfig.tsbuildinfo",
       "!components/ui",
       "!drizzle",
-      "!drizzle-legacy",
       "!public",
       "!web/routeTree.gen.ts",
       "!tests/fixtures",

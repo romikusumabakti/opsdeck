@@ -1,6 +1,6 @@
 // `opsdeck migrate`: applies pending migrations in drizzle/ with Drizzle's
 // migrator. `opsdeck migrate --adopt` takes over a database built by the
-// legacy migrations (drizzle-legacy/): it checks that the live schema equals
+// legacy migrations (squashed into the baseline): it checks that the live schema equals
 // the baseline's, then records the baseline as applied without running it.
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";

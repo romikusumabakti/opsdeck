@@ -17,9 +17,7 @@ dist
 # NOTE: do not ignore `docs` — the build stage inlines docs/time-mocking-api.md
 # into the mock-time page (Vite `?raw`). The runtime image does not need it.
 tests
-# Source PNGs for scripts/build-motifs.mjs only; never needed by the image.
+# Source PNGs for scripts/build-motifs.py only; never needed by the image.
 design
-# Legacy migrations: history only, never run (the baseline replaces them).
-drizzle-legacy
 *.tsbuildinfo
 README.md

@@ -29,7 +29,7 @@ import type { ServerPreflight } from "@/lib/provisioning/preflight";
 import type { WorkingHours } from "@/lib/user-display";
 
 // Constraint names are spelled out wherever they differ from drizzle-kit's
-// defaults: they are the names the legacy migrations (drizzle-legacy/) gave
+// defaults: they are the names the legacy migrations (squashed into the baseline) gave
 // the live databases, which drizzle/00000000000000_baseline reproduces.
 
 export const serviceTypeEnum = pgEnum("service_type", [
