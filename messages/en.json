@@ -1491,6 +1491,7 @@
     "placementServiceName": "On an open server, bind only service names that start with {prefix} (this project's key); ask an admin for other names.",
     "environmentHasEscrowedVariables": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the environment.",
     "projectHasEscrowedVariables": "This project has environments with escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the project.",
+    "projectHasReleases": "This project has releases. Delete them on the project's Releases page first (their files are kept in storage), then delete the project.",
     "deployLocked": "Deploys to this environment are locked by {name} until {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "a former user",
     "deployLockReasonInvalid": "Give a reason of 1 to 200 characters.",

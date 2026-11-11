@@ -1,5 +1,4 @@
 import { and, asc, eq, notExists } from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import {
@@ -22,8 +21,10 @@ import {
   type Project,
   projectMembers,
   projects,
+  releases,
   servers,
 } from "@/lib/db/schema";
+import { pgErrorCode } from "@/lib/domains/errors";
 import { OWNER_COLUMNS } from "@/lib/environments";
 import {
   canCreateProject,
@@ -36,6 +37,7 @@ import {
   projectMetaInputSchema,
   projectMetaUpdateSchema,
 } from "@/lib/validation";
+import { CodedHTTPException } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
 /** All logical projects, name-ordered. Used by the environment-form picker. */
@@ -310,6 +312,10 @@ async function recordDefaultServerChange(
  * re-checks escrow, so a variable escrowed after the check still blocks it.
  * Each environment that loses variables is recorded in the activity feed with
  * their names and count, never their values.
+ * Releases are never cascaded (their files live in Garage, and the foreign
+ * key is RESTRICT): while the project has any, the delete is refused (409
+ * `projectHasReleases`) for everyone until they are deleted on its Releases
+ * page.
  */
 export async function removeProject(
   id: string,
@@ -318,6 +324,19 @@ export async function removeProject(
   }: { confirmEscrowedDeletion?: boolean } = {}
 ): Promise<ActionResponse> {
   const session = await requireOrgPermission({ project: ["delete"] });
+  const refuse = async (
+    code: "projectHasReleases" | "projectHasEscrowedVariables"
+  ): Promise<never> => {
+    const t = await getServerTranslator("actionErrors");
+    throw new CodedHTTPException(409, code, t(code));
+  };
+  const [release] = await db
+    .select({ id: releases.id })
+    .from(releases)
+    .where(eq(releases.projectId, id))
+    .limit(1);
+  if (release) await refuse("projectHasReleases");
+
   const variables = await db
     .select({
       environmentId: environments.id,
@@ -335,11 +354,9 @@ export async function removeProject(
   const confirmed =
     confirmEscrowedDeletion &&
     canOrg(session.user.role, { integration: ["manage"] });
-  const refuseEscrowed = async (): Promise<never> => {
-    const t = await getServerTranslator("actionErrors");
-    throw new HTTPException(409, { message: t("projectHasEscrowedVariables") });
-  };
-  if (!confirmed && variables.some((v) => v.escrow)) await refuseEscrowed();
+  if (!confirmed && variables.some((v) => v.escrow)) {
+    await refuse("projectHasEscrowedVariables");
+  }
 
   let deleted: { id: string } | undefined;
   try {
@@ -369,13 +386,18 @@ export async function removeProject(
       )
       .returning({ id: projects.id });
   } catch (error) {
+    // restrict_violation: a release was made since the check. Releases hold
+    // the only ON DELETE RESTRICT foreign key a project delete can reach.
+    if (pgErrorCode(error) === "23001") await refuse("projectHasReleases");
     console.error(`Failed to delete project ${id}:`, error);
     return { success: false, message: "Failed to delete project" };
   }
   // Nothing deleted: either a variable was escrowed since the check, or the
   // project is gone.
   if (!deleted) {
-    if (!confirmed && variables.length > 0) await refuseEscrowed();
+    if (!confirmed && variables.length > 0) {
+      await refuse("projectHasEscrowedVariables");
+    }
     return { success: false, message: "Project not found" };
   }
   const byEnvironment = new Map<

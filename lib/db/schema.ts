@@ -2459,9 +2459,11 @@ export const releases = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     projectId: uuid("project_id")
       .notNull()
+      // Restrict: a project delete must not orphan the release files in
+      // Garage, so its releases are deleted first (removeProject refuses).
       .references(() => projects.id, {
         name: "releases_project_id_projects_id_fk",
-        onDelete: "cascade",
+        onDelete: "restrict",
       }),
     componentKey: text("component_key")
       .notNull()

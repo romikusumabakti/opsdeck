@@ -84,8 +84,9 @@ export async function editProject(
 
 /**
  * `escrowed` is true when the delete was refused because an environment has
- * escrowed variables (409); an admin may then repeat it with
- * `confirmEscrowedDeletion`.
+ * escrowed variables (409 `projectHasEscrowedVariables`); an admin may then
+ * repeat it with `confirmEscrowedDeletion`. A project with releases is
+ * refused too (409 `projectHasReleases`), which no confirmation overrides.
  */
 export async function removeProject(
   id: Body<"remove-project">["id"],
@@ -102,7 +103,7 @@ export async function removeProject(
       return {
         success: false,
         message: error.message,
-        escrowed: error.status === 409,
+        escrowed: error.code === "projectHasEscrowedVariables",
       };
     }
     throw error;
