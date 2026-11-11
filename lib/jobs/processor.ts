@@ -46,6 +46,7 @@ import {
 import { handleDeploy } from "@/lib/jobs/deploy";
 import { parseJobPayload } from "@/lib/jobs/payloads";
 import { runProvisioning } from "@/lib/jobs/provision";
+import { handlePrepareRelease } from "@/lib/jobs/release";
 import { runTeardown } from "@/lib/jobs/teardown";
 import { privileged } from "@/lib/privileged";
 import type { JobMap, JobName } from "@/lib/queue";
@@ -1199,7 +1200,7 @@ function normalizeJobName(name: string): JobName {
  *
  * Jira jobs legitimately carry a `projectId` that means the LOGICAL project, so
  * they skip the shim — otherwise the sweep would lose its only argument. Deploy
- * jobs postdate the rename and carry no environment id at all. Provision jobs
+ * and release jobs postdate the rename and carry no environment id at all. Provision jobs
  * postdate it too and carry `environmentId` from the start, so the shim has
  * nothing to migrate in them. Instance and server-key jobs belong to no
  * environment.
@@ -1208,6 +1209,7 @@ function migrateLegacyPayload(name: JobName, data: unknown): unknown {
   if (
     name.startsWith("jira/") ||
     name.startsWith("deploy/") ||
+    name.startsWith("release/") ||
     name.startsWith("provision/") ||
     name.startsWith("instance/") ||
     name.startsWith("server-key-")
@@ -1289,6 +1291,8 @@ export async function processJob(job: Job): Promise<unknown> {
       return pushComment(parseJobPayload(name, raw).commentId);
     case "deploy/run.requested":
       return handleDeploy(parseJobPayload(name, raw));
+    case "release/prepare.requested":
+      return handlePrepareRelease(parseJobPayload(name, raw));
     case "provision/run.requested":
       return runProvisioning(parseJobPayload(name, raw));
     case "environment/teardown.requested":
