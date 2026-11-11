@@ -712,7 +712,7 @@ describe("no SSH connection bypasses the factory", () => {
     "lib/terminal/ssh-shell.ts",
   ];
 
-  it("only lib/ssh.ts and lib/terminal/ssh-shell.ts create SSH clients", () => {
+  it("only the allowed SSH modules create SSH clients", () => {
     const offenders = files
       .map((path) => ({
         file: relative(root, path),

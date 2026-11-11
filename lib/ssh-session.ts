@@ -58,33 +58,6 @@ export class SshSession {
     client.on("close", gone);
   }
 
-  /** Resolves on ready; rejects on an error or a close before it. */
-  connect(config: ConnectConfig): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const cleanup = () => {
-        this.client.off("error", onError);
-        this.client.off("ready", onReady);
-        this.client.off("close", onClose);
-      };
-      const onError = (error: Error) => {
-        cleanup();
-        reject(error);
-      };
-      const onReady = () => {
-        cleanup();
-        resolve();
-      };
-      const onClose = () => {
-        cleanup();
-        reject(new Error("No response from server"));
-      };
-      this.client.on("error", onError);
-      this.client.on("ready", onReady);
-      this.client.on("close", onClose);
-      this.client.connect(config);
-    });
-  }
-
   execCommand(command: string, options: ExecOptions = {}): Promise<ExecResult> {
     return new Promise<ExecResult>((resolve, reject) => {
       this.client.exec(command, (err, channel) => {
@@ -173,6 +146,36 @@ export class SshSession {
 }
 
 /**
+ * Resolves on ready; rejects on an error or a close before it. Not exported:
+ * a session is only ever connected by openSsh, with connectConfig's config.
+ */
+function connectClient(client: Client, config: ConnectConfig): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      client.off("error", onError);
+      client.off("ready", onReady);
+      client.off("close", onClose);
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onClose = () => {
+      cleanup();
+      reject(new Error("No response from server"));
+    };
+    client.on("error", onError);
+    client.on("ready", onReady);
+    client.on("close", onClose);
+    client.connect(config);
+  });
+}
+
+/**
  * An SshSession connected to `target` with the factory's config (host key
  * verified or pinned, key or password). The caller owns it and must dispose
  * it. The only place an ssh2 session is connected.
@@ -185,7 +188,7 @@ export async function openSsh(
   const config = await connectConfig(target, options);
   const session = new SshSession(new Client());
   try {
-    await session.connect({ ...config, ...tuning });
+    await connectClient(session.client, { ...config, ...tuning });
   } catch (error) {
     session.dispose();
     throw connectError(config, error);
