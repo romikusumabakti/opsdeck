@@ -144,8 +144,15 @@ export async function setReleaseNotes(
   return row ?? null;
 }
 
-export async function deleteReleaseRow(id: string): Promise<void> {
-  await db.delete(releases).where(eq(releases.id, id));
+/** Deletes the row; returns the file key it held at that moment (or null). */
+export async function deleteReleaseRow(
+  id: string
+): Promise<{ objectKey: string | null }> {
+  const [row] = await db
+    .delete(releases)
+    .where(eq(releases.id, id))
+    .returning({ objectKey: releases.objectKey });
+  return { objectKey: row?.objectKey ?? null };
 }
 
 /** What the preparation job needs: the release, its image and target kind. */

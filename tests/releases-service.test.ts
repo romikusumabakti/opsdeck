@@ -84,6 +84,8 @@ const {
   updateReleaseNotes,
   updateReleaseNotesSchema,
 } = await import("@/server/services/releases");
+const { requireProjectPermission } = await import("@/lib/authz");
+const OTHER_PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f2";
 
 const source = {
   deploymentId: DEPLOYMENT_ID,
@@ -150,6 +152,7 @@ beforeEach(() => {
   });
   repo.getRelease.mockResolvedValue(readyRelease);
   queue.enqueue.mockResolvedValue(undefined);
+  repo.deleteReleaseRow.mockResolvedValue({ objectKey: null });
 });
 
 describe("release input schemas", () => {
@@ -432,6 +435,7 @@ describe("deleteRelease", () => {
     });
     repo.deleteReleaseRow.mockImplementation(async () => {
       order.push("row");
+      return { objectKey: OBJECT_KEY };
     });
     await deleteRelease(RELEASE_ID);
     expect(store.delete).toHaveBeenCalledWith([OBJECT_KEY]);
@@ -531,5 +535,95 @@ describe("openReleaseDownload", () => {
       status: 503,
       code: "releaseStorageMissing",
     });
+  });
+});
+
+describe("service-side input validation", () => {
+  it("refuses an invalid version or notes with 400 before touching anything", async () => {
+    for (const bad of [
+      { deploymentId: DEPLOYMENT_ID, version: "x".repeat(101) },
+      { deploymentId: DEPLOYMENT_ID, version: "a\nb" },
+      { deploymentId: DEPLOYMENT_ID, version: "v1", notes: "n".repeat(2001) },
+      { deploymentId: "nope", version: "v1" },
+    ]) {
+      expect(await rejection(createRelease(ENV_ID, bad))).toMatchObject({
+        status: 400,
+        code: "releaseInputInvalid",
+      });
+    }
+    expect(repo.getReleaseSource).not.toHaveBeenCalled();
+    expect(
+      await rejection(updateReleaseNotes(RELEASE_ID, "n".repeat(2001)))
+    ).toMatchObject({ status: 400, code: "releaseInputInvalid" });
+    expect(repo.setReleaseNotes).not.toHaveBeenCalled();
+  });
+
+  it("stores the parsed (trimmed) values", async () => {
+    await createRelease(ENV_ID, {
+      deploymentId: DEPLOYMENT_ID,
+      version: "  v1  ",
+      notes: "   ",
+    });
+    expect(repo.insertReleaseWithRun).toHaveBeenCalledWith(
+      expect.objectContaining({ version: "v1", notes: null }),
+      expect.anything()
+    );
+    repo.setReleaseNotes.mockResolvedValue(readyRelease);
+    await updateReleaseNotes(RELEASE_ID, "  hi  ");
+    expect(repo.setReleaseNotes).toHaveBeenCalledWith(RELEASE_ID, "hi");
+  });
+});
+
+describe("permission scope", () => {
+  const scopeOf = () =>
+    vi.mocked(requireProjectPermission).mock.calls.map((c) => c[0]);
+
+  it("create is checked against the environment", async () => {
+    await createRelease(ENV_ID, { deploymentId: DEPLOYMENT_ID, version: "v1" });
+    expect(requireProjectPermission).toHaveBeenCalledWith(
+      { environmentId: ENV_ID },
+      { release: ["create"] }
+    );
+  });
+
+  it("download and notes are checked against the release's own project", async () => {
+    repo.getRelease.mockResolvedValue({
+      ...readyRelease,
+      projectId: OTHER_PROJECT_ID,
+    });
+    store.read.mockResolvedValue(Readable.from([]));
+    repo.setReleaseNotes.mockResolvedValue(readyRelease);
+    await openReleaseDownload(RELEASE_ID);
+    await updateReleaseNotes(RELEASE_ID, "x");
+    expect(scopeOf()).toEqual([
+      { projectId: OTHER_PROJECT_ID },
+      { projectId: OTHER_PROJECT_ID },
+    ]);
+    expect(vi.mocked(requireProjectPermission).mock.calls[0]?.[1]).toEqual({
+      release: ["download"],
+    });
+    expect(vi.mocked(requireProjectPermission).mock.calls[1]?.[1]).toEqual({
+      release: ["create"],
+    });
+  });
+});
+
+describe("deleteRelease racing the preparation job", () => {
+  it("deletes the file of a release that became ready after it was read", async () => {
+    repo.getRelease.mockResolvedValue({
+      ...readyRelease,
+      status: "preparing",
+      objectKey: null,
+    });
+    repo.deleteReleaseRow.mockResolvedValue({ objectKey: OBJECT_KEY });
+    await deleteRelease(RELEASE_ID);
+    expect(store.delete).toHaveBeenCalledTimes(1);
+    expect(store.delete).toHaveBeenCalledWith([OBJECT_KEY]);
+  });
+
+  it("does not delete the same key twice", async () => {
+    repo.deleteReleaseRow.mockResolvedValue({ objectKey: OBJECT_KEY });
+    await deleteRelease(RELEASE_ID);
+    expect(store.delete).toHaveBeenCalledTimes(1);
   });
 });

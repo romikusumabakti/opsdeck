@@ -8,7 +8,8 @@ export const BACKUP_USAGE = `Usage: opsdeck backup run [--trigger schedule|manua
 
 Dumps DATABASE_URL, mirrors the Garage bucket and uploads both with a
 manifest to the backup destination chosen in Admin → Backups, or keeps them in
-/var/lib/opsdeck/backups when none is chosen. The trigger defaults to manual.
+/var/lib/opsdeck/backups when none is chosen. Release files (Garage keys under
+releases/) are not copied: they stay in Garage only. The trigger defaults to manual.
 Prints one JSON line {id,status,location,objectKey,localObjectKey,errorCode};
 exit 1 on failure. A restore-trigger backup always keeps a local copy too
 (localObjectKey, restorable as local:<localObjectKey>): the host updater undoes a

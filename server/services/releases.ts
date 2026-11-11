@@ -24,6 +24,8 @@ import { CodedHTTPException } from "@/server/errors";
 // The refusals of the release API, by stable code (server/errors).
 export const RELEASE_ERRORS = {
   releaseNotFound: [404, "Release not found"],
+  // The message is the schema's (see invalidInput).
+  releaseInputInvalid: [400, "Invalid release input"],
   // 400 for a compose target (never a release), else 409.
   releaseSourceInvalid: [
     409,
@@ -35,13 +37,32 @@ export const RELEASE_ERRORS = {
   ],
   releaseNotReady: [409, "The release is not ready to download"],
   releaseStorageMissing: [503, "Release storage is not configured"],
-} as const satisfies Record<string, readonly [404 | 409 | 503, string]>;
+} as const satisfies Record<string, readonly [400 | 404 | 409 | 503, string]>;
 
 function failRelease(
   code: keyof typeof RELEASE_ERRORS,
   status: 400 | 404 | 409 | 503 = RELEASE_ERRORS[code][0]
 ): never {
   throw new CodedHTTPException(status, code, RELEASE_ERRORS[code][1]);
+}
+
+/**
+ * Parses service input against its schema even when the route already did:
+ * a 400 `releaseInputInvalid` naming the first problem.
+ */
+function parseInput<T extends z.ZodType>(
+  schema: T,
+  input: unknown
+): z.output<T> {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) {
+    throw new CodedHTTPException(
+      400,
+      "releaseInputInvalid",
+      parsed.error.issues[0]?.message ?? RELEASE_ERRORS.releaseInputInvalid[1]
+    );
+  }
+  return parsed.data;
 }
 
 const QUEUE_FAILED_MESSAGE = "Preparing the release could not be queued";
@@ -112,8 +133,9 @@ async function requireRelease(id: string): Promise<ReleaseWithProject> {
  */
 export async function createRelease(
   environmentId: string,
-  input: { deploymentId: string; version: string; notes?: string | null }
+  rawInput: { deploymentId: string; version: string; notes?: string | null }
 ): Promise<{ releaseId: string; runId: string }> {
+  const input = parseInput(createReleaseSchema, rawInput);
   const { session, projectId } = await requireProjectPermission(
     { environmentId },
     { release: ["create"] }
@@ -199,8 +221,9 @@ export async function listReleases(
 /** Notes are the only field of a release that may change. */
 export async function updateReleaseNotes(
   id: string,
-  notes: string | null
+  rawNotes: string | null
 ): Promise<Release> {
+  const { notes } = parseInput(updateReleaseNotesSchema, { notes: rawNotes });
   const release = await requireRelease(id);
   await requireProjectPermission(
     { projectId: release.projectId },
@@ -210,8 +233,10 @@ export async function updateReleaseNotes(
 }
 
 /**
- * Deletes a release and its stored file (admins only). The file goes first:
- * if it cannot be deleted the row stays, so no file is left without a row.
+ * Deletes a release and its stored file (admins only). The file read with the
+ * row goes first: if it cannot be deleted the row stays. A release that became
+ * ready after the read returns its key from the row delete, and that file is
+ * deleted too, so the job's upload is never left without a row.
  */
 export async function deleteRelease(id: string): Promise<void> {
   const session = await requireOrgPermission({ server: ["manage"] });
@@ -220,7 +245,15 @@ export async function deleteRelease(id: string): Promise<void> {
     const store = garageSource() ?? failRelease("releaseStorageMissing");
     await store.delete([release.objectKey]);
   }
-  await deleteReleaseRow(id);
+  const deleted = await deleteReleaseRow(id);
+  if (deleted.objectKey && deleted.objectKey !== release.objectKey) {
+    const key = deleted.objectKey;
+    await bestEffort("delete the release file", async () => {
+      const store = garageSource();
+      if (!store) throw new Error("release storage is not configured");
+      await store.delete([key]);
+    });
+  }
   await recordActivity({
     actorId: session.user.id,
     action: "release.deleted",
