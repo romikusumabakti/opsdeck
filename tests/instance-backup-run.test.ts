@@ -618,6 +618,15 @@ describe("s3ObjectStore uploads", () => {
             '<CompleteMultipartUploadResult><Bucket>b</Bucket><Key>k</Key><ETag>"e"</ETag></CompleteMultipartUploadResult>'
           );
         }
+        if (request.method === "GET") {
+          // Garage returns a multipart object's composite CRC32 without the
+          // "-N" suffix, so it never equals the whole body's CRC32.
+          return reply(200, "multipart body", {
+            "content-type": "application/octet-stream",
+            "content-length": "14",
+            "x-amz-checksum-crc32": "o6Tozg==",
+          });
+        }
         return reply(200, "", { etag: '"e"' });
       },
       updateHttpClientConfig() {},
@@ -655,6 +664,13 @@ describe("s3ObjectStore uploads", () => {
     expect(parts).toHaveLength(2);
     expect(s3.seen[0]?.query).toHaveProperty("uploads");
     expect(s3.seen.at(-1)?.query).toHaveProperty("uploadId");
+  });
+
+  it("reads a multipart object whose stored checksum is composite (Garage)", async () => {
+    const s3 = fakeS3();
+    const chunks: Buffer[] = [];
+    for await (const chunk of await s3.store.read("k")) chunks.push(chunk);
+    expect(Buffer.concat(chunks).toString()).toBe("multipart body");
   });
 });
 
