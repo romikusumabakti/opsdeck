@@ -70,7 +70,6 @@
     "restoreDatabase": "Restaurar base de datos",
     "backupRestore": "Copia de seguridad y restauración",
     "mockTime": "Tiempo simulado",
-    "services": "Servicios",
     "deploys": "Despliegues",
     "databases": "Bases de datos",
     "logs": "Registros",
@@ -114,7 +113,6 @@
   },
   "nav": {
     "dashboard": "Panel",
-    "services": "Servicios",
     "deploys": "Despliegues",
     "databases": "Bases de datos",
     "backupDatabase": "Copia de seguridad de la base de datos",
@@ -268,11 +266,8 @@
     }
   },
   "services": {
-    "title": "Servicios",
-    "subtitle": "Consulta el estado e inicia, detén o reinicia los servicios de {name}.",
     "infoNote": "El estado se comprueba por SSH. Iniciar, detener y reiniciar se ejecutan en segundo plano: el progreso se transmite en la tarjeta.",
     "unknownState": "Estado desconocido: actualiza para reintentar",
-    "typeLabel": "Tipo",
     "refresh": "Actualizar",
     "states": {
       "running": "En ejecución",
@@ -326,7 +321,7 @@
       "levelLabel": "Nivel",
       "levelAll": "Todos los niveles",
       "pageSubtitle": "{serviceName} · {serverName}",
-      "backToServices": "Volver a servicios"
+      "backToDashboard": "Volver al panel"
     }
   },
   "deploys": {

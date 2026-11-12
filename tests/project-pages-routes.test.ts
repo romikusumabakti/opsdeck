@@ -94,3 +94,40 @@ describe("breadcrumb messages", () => {
     expect(m.breadcrumbs.milestones).toBeUndefined();
   });
 });
+
+describe("environment services route", () => {
+  it("only redirects to the Dashboard", () => {
+    const src = route("$projectKey.$envSlug.services.index.tsx");
+    expect(src).toContain("redirect(");
+    expect(src).toMatch(/`\/\$\{projectKey\}\/\$\{envSlug\}`/);
+    expect(src).not.toContain("ServicesClient");
+  });
+  it("the legacy splat still forwards into the environment", () => {
+    const src = route("projects.$key.$.tsx");
+    expect(src).toMatch(/\$\{environment\.slug\}\/\$\{_splat/);
+  });
+  it("the logs page goes back to the Dashboard", () => {
+    const src = route("$projectKey.$envSlug.services.$role.logs.tsx");
+    expect(src).toContain("logs.backToDashboard");
+    expect(src).not.toMatch(
+      /href=\{`\/\$\{projectKey\}\/\$\{envSlug\}\/services`\}/
+    );
+  });
+  it.each(locales)("%s has no Services nav or crumb", async (locale) => {
+    const m = JSON.parse(readFileSync(`messages/${locale}.json`, "utf8")) as {
+      nav?: Record<string, unknown>;
+      breadcrumbs?: Record<string, unknown>;
+      services?: {
+        title?: unknown;
+        subtitle?: unknown;
+        logs: Record<string, unknown>;
+      };
+    };
+    expect(m.nav?.services).toBeUndefined();
+    expect(m.breadcrumbs?.services).toBeUndefined();
+    expect(m.services?.title).toBeUndefined();
+    expect(m.services?.subtitle).toBeUndefined();
+    expect(m.services?.logs.backToServices).toBeUndefined();
+    expect(typeof m.services?.logs.backToDashboard).toBe("string");
+  });
+});

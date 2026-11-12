@@ -33,7 +33,7 @@ export type NavPath =
       projectKey: string;
       envSlug: string;
       section: string | null;
-      // /KEY/env/services/<role>/logs — a page below Services.
+      // /KEY/env/services/<role>/logs — a log viewer, reached from the Dashboard.
       logs: boolean;
     }
   | {
@@ -172,7 +172,6 @@ export function groupEnvironmentsByProject<
 // for another environment"). backup-restore is deliberately excluded: it's a
 // source-specific flow, often mid-operation, so switching drops to the dashboard.
 export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
-  "services",
   "deploys",
   "databases",
   "mock-time",

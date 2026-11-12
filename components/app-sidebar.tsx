@@ -18,7 +18,6 @@ import {
   PackageCheck,
   Rocket,
   Server,
-  ServerCog,
   Settings,
   ShieldUser,
   Users,
@@ -93,7 +92,6 @@ const PROJECT_ICONS: Record<ProjectNavKey, LucideIcon> = {
 
 const environmentItems: EnvironmentItem[] = [
   { key: "dashboard", url: "", icon: LayoutDashboard },
-  { key: "services", url: "/services", icon: ServerCog },
   { key: "deploys", url: "/deploys", icon: Rocket },
   { key: "databases", url: "/databases", icon: DatabaseZap },
   {

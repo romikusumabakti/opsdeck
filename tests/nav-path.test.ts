@@ -283,7 +283,7 @@ describe("canOpenSection", () => {
     );
   });
   it("allows ungated sections for any member", () => {
-    expect(canOpenSection("services", { hasMailpit: false }, "viewer")).toBe(
+    expect(canOpenSection("deploys", { hasMailpit: false }, "viewer")).toBe(
       true
     );
   });
@@ -292,22 +292,28 @@ describe("canOpenSection", () => {
   });
 });
 
+describe("PARALLEL_SECTIONS", () => {
+  it("keeps Services out of the parallel sections", () => {
+    expect(PARALLEL_SECTIONS.has("services")).toBe(false);
+  });
+});
+
 describe("environmentSwitchHref", () => {
   const dest = { key: "CMEM", slug: "qa", hasMailpit: false };
 
   it("keeps a parallel section", () => {
     expect(
-      environmentSwitchHref(dest, parseNavPath("/CMEM/prod/services"), "viewer")
-    ).toBe("/CMEM/qa/services");
+      environmentSwitchHref(dest, parseNavPath("/CMEM/prod/deploys"), "viewer")
+    ).toBe("/CMEM/qa/deploys");
   });
-  it("goes from a log viewer to the target's Services", () => {
+  it("goes from a log viewer to the target's Dashboard", () => {
     expect(
       environmentSwitchHref(
         dest,
         parseNavPath("/CMEM/prod/services/db/logs"),
         "viewer"
       )
-    ).toBe("/CMEM/qa/services");
+    ).toBe("/CMEM/qa");
   });
   it("carries the settings tab to the target's Settings", () => {
     expect(
@@ -323,11 +329,11 @@ describe("environmentSwitchHref", () => {
     expect(
       environmentSwitchHref(
         dest,
-        parseNavPath("/CMEM/prod/services"),
+        parseNavPath("/CMEM/prod/deploys"),
         "viewer",
         "variables"
       )
-    ).toBe("/CMEM/qa/services");
+    ).toBe("/CMEM/qa/deploys");
   });
   it("drops non-parallel sections to the dashboard", () => {
     expect(
@@ -376,9 +382,9 @@ describe("projectSwitchHref", () => {
         projectKey: "KESTREL",
         environments,
         role: "viewer",
-        from: parseNavPath("/CMEM/prod/services"),
+        from: parseNavPath("/CMEM/prod/deploys"),
       })
-    ).toBe("/KESTREL/latest/services");
+    ).toBe("/KESTREL/latest/deploys");
   });
   it("uses the landing environment's dashboard for a non-parallel section", () => {
     expect(
@@ -396,7 +402,7 @@ describe("projectSwitchHref", () => {
         projectKey: "KESTREL",
         environments: [target("never", null)],
         role: "viewer",
-        from: parseNavPath("/CMEM/prod/services"),
+        from: parseNavPath("/CMEM/prod/deploys"),
       })
     ).toBe("/KESTREL");
   });
@@ -477,10 +483,10 @@ describe("projectSwitchHref within a session", () => {
         projectKey: "KESTREL",
         environments,
         role: "viewer",
-        from: parseNavPath("/CMEM/prod/services"),
+        from: parseNavPath("/CMEM/prod/deploys"),
         visitedAt: { old: Date.parse("2026-10-09T10:00:00Z") },
       })
-    ).toBe("/KESTREL/old/services");
+    ).toBe("/KESTREL/old/deploys");
   });
 
   // Server timestamps and the browser clock aren't comparable (a
@@ -495,10 +501,10 @@ describe("projectSwitchHref within a session", () => {
           target("skewed", "2099-01-01T00:00:00Z"),
         ],
         role: "viewer",
-        from: parseNavPath("/CMEM/prod/services"),
+        from: parseNavPath("/CMEM/prod/deploys"),
         visitedAt: { old: Date.parse("2026-10-09T10:00:00Z") },
       })
-    ).toBe("/KESTREL/old/services");
+    ).toBe("/KESTREL/old/deploys");
   });
 
   it("treats a session visit as opened for a never-opened environment", () => {

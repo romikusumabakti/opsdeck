@@ -254,6 +254,12 @@ describe("project group", () => {
     );
   });
 
+  it("the environment group has no Services entry", async () => {
+    await renderSidebar("engineer", "/CRMB/dev/deploys", scope(true));
+    expect(groupRows("Dev")).not.toContain("Services");
+    expect(hrefs().filter((h) => h?.endsWith("/services"))).toEqual([]);
+  });
+
   it("keeps Releases and Issues out of the environment group", async () => {
     await renderSidebar("engineer", "/CRMB/dev/deploys", scope(true));
     expect(groupRows("Dev")).not.toContain("Releases");

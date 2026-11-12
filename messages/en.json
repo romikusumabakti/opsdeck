@@ -70,7 +70,6 @@
     "restoreDatabase": "Restore database",
     "backupRestore": "Backup & restore",
     "mockTime": "Mock time",
-    "services": "Services",
     "deploys": "Deploys",
     "databases": "Databases",
     "logs": "Logs",
@@ -114,7 +113,6 @@
   },
   "nav": {
     "dashboard": "Dashboard",
-    "services": "Services",
     "deploys": "Deploys",
     "databases": "Databases",
     "backupDatabase": "Backup database",
@@ -268,11 +266,8 @@
     }
   },
   "services": {
-    "title": "Services",
-    "subtitle": "View status and start, stop, or restart services for {name}.",
     "infoNote": "Status is checked over SSH. Start, stop, and restart run in the background — progress streams in the card.",
     "unknownState": "Status unknown — refresh to retry",
-    "typeLabel": "Type",
     "refresh": "Refresh",
     "states": {
       "running": "Running",
@@ -326,7 +321,7 @@
       "levelLabel": "Level",
       "levelAll": "All levels",
       "pageSubtitle": "{serviceName} · {serverName}",
-      "backToServices": "Back to services"
+      "backToDashboard": "Back to dashboard"
     }
   },
   "deploys": {

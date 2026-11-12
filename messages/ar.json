@@ -70,7 +70,6 @@
     "restoreDatabase": "استعادة قاعدة البيانات",
     "backupRestore": "النسخ الاحتياطي والاستعادة",
     "mockTime": "محاكاة الوقت",
-    "services": "الخدمات",
     "deploys": "عمليات النشر",
     "databases": "قواعد البيانات",
     "logs": "السجلات",
@@ -114,7 +113,6 @@
   },
   "nav": {
     "dashboard": "لوحة التحكم",
-    "services": "الخدمات",
     "deploys": "عمليات النشر",
     "databases": "قواعد البيانات",
     "backupDatabase": "نسخ احتياطي لقاعدة البيانات",
@@ -268,11 +266,8 @@
     }
   },
   "services": {
-    "title": "الخدمات",
-    "subtitle": "عرض الحالة وتشغيل أو إيقاف أو إعادة تشغيل الخدمات لـ {name}.",
     "infoNote": "يتم فحص الحالة عبر SSH. التشغيل والإيقاف وإعادة التشغيل تعمل في الخلفية — يظهر التقدم في البطاقة.",
     "unknownState": "الحالة غير معروفة — حدّث للمحاولة مرة أخرى",
-    "typeLabel": "النوع",
     "refresh": "تحديث",
     "states": {
       "running": "قيد التشغيل",
@@ -326,7 +321,7 @@
       "levelLabel": "المستوى",
       "levelAll": "كل المستويات",
       "pageSubtitle": "{serviceName} · {serverName}",
-      "backToServices": "العودة إلى الخدمات"
+      "backToDashboard": "العودة إلى لوحة التحكم"
     }
   },
   "deploys": {

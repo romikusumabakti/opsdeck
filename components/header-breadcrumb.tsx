@@ -123,8 +123,6 @@ function getStaticSegments(pathname: string): StaticSegment[] {
 // name already anchors the location).
 function getEnvironmentSubKey(slug: string | undefined): string | null {
   switch (slug) {
-    case "services":
-      return "breadcrumbs.services";
     case "deploys":
       return "breadcrumbs.deploys";
     case "databases":
@@ -144,7 +142,7 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
   }
 }
 
-// Crumbs after the switchers: the environment section (or Services / Logs), or
+// Crumbs after the switchers: the environment section (or Logs), or
 // the project-level page's own name.
 export function getTrailingSegments(
   nav: NavPath,
@@ -152,15 +150,9 @@ export function getTrailingSegments(
 ): StaticSegment[] {
   if (nav.scope === "env" && activeEnv) {
     if (nav.logs) {
-      // Services is a real landing page, so make it a link; Logs is current.
-      return [
-        {
-          kind: "static",
-          href: `/${activeEnv.key}/${activeEnv.slug}/services`,
-          labelKey: "breadcrumbs.services",
-        },
-        { kind: "static", labelKey: "breadcrumbs.logs" },
-      ];
+      // The log viewer hangs off the Dashboard, which the environment crumb
+      // already links to, so Logs stands alone as the current page.
+      return [{ kind: "static", labelKey: "breadcrumbs.logs" }];
     }
     const subKey = getEnvironmentSubKey(nav.section ?? undefined);
     return subKey ? [{ kind: "static", labelKey: subKey }] : [];

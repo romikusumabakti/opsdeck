@@ -116,12 +116,12 @@ function LogsPage() {
         subtitle={t("logs.pageSubtitle", { serviceName, serverName })}
         action={
           <Button
-            render={<Link href={`/${projectKey}/${envSlug}/services`} />}
+            render={<Link href={`/${projectKey}/${envSlug}`} />}
             nativeButton={false}
             variant="outline"
           >
             <ArrowLeft className="size-4" />
-            {t("logs.backToServices")}
+            {t("logs.backToDashboard")}
           </Button>
         }
       />

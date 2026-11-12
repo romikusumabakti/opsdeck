@@ -66,6 +66,17 @@ describe("getTrailingSegments on project pages", () => {
   });
 });
 
+describe("getTrailingSegments on a logs page", () => {
+  it("a logs page trails with Logs alone", () => {
+    expect(
+      getTrailingSegments(parseNavPath("/CRMB/dev/services/db/logs"), {
+        key: "CRMB",
+        slug: "dev",
+      } as never)
+    ).toEqual([{ kind: "static", labelKey: "breadcrumbs.logs" }]);
+  });
+});
+
 describe("HeaderBreadcrumb", () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;

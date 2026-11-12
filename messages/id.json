@@ -70,7 +70,6 @@
     "restoreDatabase": "Restore database",
     "backupRestore": "Backup & restore",
     "mockTime": "Mock waktu",
-    "services": "Service",
     "deploys": "Deploy",
     "databases": "Database",
     "logs": "Log",
@@ -114,7 +113,6 @@
   },
   "nav": {
     "dashboard": "Dasbor",
-    "services": "Service",
     "deploys": "Deploy",
     "databases": "Database",
     "backupDatabase": "Backup database",
@@ -268,11 +266,8 @@
     }
   },
   "services": {
-    "title": "Service",
-    "subtitle": "Lihat status serta start, stop, atau restart service untuk {name}.",
     "infoNote": "Status diperiksa melalui SSH. Start, stop, dan restart berjalan di background — progres tampil di kartu.",
     "unknownState": "Status tidak diketahui — segarkan untuk mencoba lagi",
-    "typeLabel": "Tipe",
     "refresh": "Muat ulang",
     "states": {
       "running": "Berjalan",
@@ -326,7 +321,7 @@
       "levelLabel": "Level",
       "levelAll": "Semua level",
       "pageSubtitle": "{serviceName} · {serverName}",
-      "backToServices": "Kembali ke layanan"
+      "backToDashboard": "Kembali ke dasbor"
     }
   },
   "deploys": {

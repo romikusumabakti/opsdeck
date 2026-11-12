@@ -1,37 +1,12 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useTranslations } from "use-intl";
-import { getEnvironmentByIdQuery } from "@/web/api/environments";
-import { loaderQuery } from "@/web/query-client";
-import { ServicesClient } from "./-components/env/services-client";
-import { ServicesPending } from "./-components/env/skeletons";
+import { redirect } from "@/i18n/navigation";
 
+// The Services page was folded into the Dashboard's Stack card. Keep this
+// route as a redirect so bookmarks and the legacy /projects/<id>/services
+// splat still resolve.
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/services/"
 )({
-  loader: async ({ context: { queryClient, environmentId } }) => {
-    await loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId));
-  },
-  pendingComponent: ServicesPending,
-  component: ServicesPage,
+  beforeLoad: ({ params: { locale, projectKey, envSlug } }) =>
+    redirect(`/${projectKey}/${envSlug}`, locale),
 });
-
-function ServicesPage() {
-  const { projectKey, envSlug } = Route.useParams();
-  const { environmentId } = Route.useRouteContext();
-  const tCommon = useTranslations("common");
-  const environment = useSuspenseQuery(
-    getEnvironmentByIdQuery(environmentId)
-  ).data;
-
-  if (!environment) {
-    return <p>{tCommon("environmentNotFound")}</p>;
-  }
-
-  return (
-    <ServicesClient
-      environment={environment}
-      envPath={`/${projectKey}/${envSlug}`}
-    />
-  );
-}
