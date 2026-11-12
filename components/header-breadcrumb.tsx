@@ -347,7 +347,9 @@ export function HeaderBreadcrumb({
                 ? `/${activeProject.key}/environments/new`
                 : null
             }
-            onSelect={(env) => go(environmentSwitchHref(env, nav, role, settingsTab))}
+            onSelect={(env) =>
+              go(environmentSwitchHref(env, nav, role, settingsTab))
+            }
           />
         </>
       )}
