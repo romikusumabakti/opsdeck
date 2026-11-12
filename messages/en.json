@@ -1532,7 +1532,9 @@
     "keyNotVerified": "The SSH key has not signed in yet. Run the install command on the server, then Check key login.",
     "notKeyServer": "This server does not sign in with the SSH key.",
     "keyServerNoPassword": "This server signs in with the SSH key, so it stores no password.",
-    "keyLineNotFound": "The key signs in, but the Panel's line is not in the server's ~/.ssh/authorized_keys. Run the install command shown here."
+    "keyLineNotFound": "The key signs in, but the Panel's line is not in the server's ~/.ssh/authorized_keys. Run the install command shown here.",
+    "sourceInUse": "An environment of this project still uses this app, so it can't be removed.",
+    "componentNotInSources": "This component's app isn't a source of this project. Add the app first."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -2033,6 +2035,11 @@
     "removeConfirmTitle": "Remove {name} from {project}?",
     "removeConfirmDescription": "An engineer or QA loses access to this project. Admins, infra and observers still see it.",
     "removeMember": "Remove {name}"
+  },
+  "projectSources": {
+    "addedSuccess": "App added to the project's sources",
+    "removedSuccess": "App removed from the project's sources",
+    "branchSaved": "Default branch saved"
   },
   "activity": {
     "title": "Activity",

@@ -1532,7 +1532,9 @@
     "keyNotVerified": "SSH 密钥尚未成功登录。请在服务器上运行安装命令，然后点击检查密钥登录。",
     "notKeyServer": "此服务器不使用 SSH 密钥登录。",
     "keyServerNoPassword": "此服务器使用 SSH 密钥登录，因此不保存密码。",
-    "keyLineNotFound": "密钥可以登录，但服务器的 ~/.ssh/authorized_keys 中没有面板的那一行。请运行此处显示的安装命令。"
+    "keyLineNotFound": "密钥可以登录，但服务器的 ~/.ssh/authorized_keys 中没有面板的那一行。请运行此处显示的安装命令。",
+    "sourceInUse": "此项目的某个环境仍在使用该应用，因此无法移除。",
+    "componentNotInSources": "该组件所属的应用不是此项目的来源。请先添加该应用。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -2033,6 +2035,11 @@
     "removeConfirmTitle": "将 {name} 从 {project} 中移除？",
     "removeConfirmDescription": "Engineer 或 QA 将失去此项目的访问权限。管理员、基础设施和观察者仍可查看。",
     "removeMember": "移除 {name}"
+  },
+  "projectSources": {
+    "addedSuccess": "应用已添加到项目来源",
+    "removedSuccess": "应用已从项目来源中移除",
+    "branchSaved": "默认分支已保存"
   },
   "activity": {
     "title": "动态",

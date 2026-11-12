@@ -41,6 +41,7 @@ import { notificationsRouter } from "@/server/routes/notifications";
 import { avatarsRouter, profileRouter } from "@/server/routes/profile";
 import { projectCatalogRouter } from "@/server/routes/project-catalog";
 import { projectMembersRouter } from "@/server/routes/project-members";
+import { projectSourcesRouter } from "@/server/routes/project-sources";
 import { provisioningRouter } from "@/server/routes/provisioning";
 import {
   environmentReleasesRouter,
@@ -110,6 +111,7 @@ export const app = createBaseApp()
   .route("/api/avatars", avatarsRouter)
   .route("/api/access", accessRouter)
   .route("/api/project-members", projectMembersRouter)
+  .route("/api/project-sources", projectSourcesRouter)
   .route("/api/project-catalog", projectCatalogRouter)
   .route("/api/environments", environmentsRouter)
   .route("/api/environments", mailFilesRouter)

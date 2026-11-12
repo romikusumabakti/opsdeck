@@ -43,6 +43,8 @@ const GATED: [method: "GET" | "POST" | "PATCH" | "DELETE", path: string][] = [
   ["POST", "/api/access/offboard-user"],
   ["GET", `/api/project-members/list-project-members?projectId=${ID}`],
   ["POST", "/api/project-members/add-project-member"],
+  ["GET", `/api/project-sources/list-project-sources?projectId=${ID}`],
+  ["POST", "/api/project-sources/add-project-source"],
   ["GET", "/api/project-catalog/list-projects"],
   ["POST", "/api/project-catalog/add-project"],
   ["GET", `/api/deploys/targets?environmentId=${ID}`],

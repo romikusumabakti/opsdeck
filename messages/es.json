@@ -1532,7 +1532,9 @@
     "keyNotVerified": "La clave SSH aún no ha iniciado sesión. Ejecuta el comando de instalación en el servidor y luego Comprobar inicio con clave.",
     "notKeyServer": "Este servidor no inicia sesión con la clave SSH.",
     "keyServerNoPassword": "Este servidor inicia sesión con la clave SSH, así que no guarda contraseña.",
-    "keyLineNotFound": "La clave inicia sesión, pero la línea del Panel no está en ~/.ssh/authorized_keys del servidor. Ejecuta el comando de instalación que se muestra aquí."
+    "keyLineNotFound": "La clave inicia sesión, pero la línea del Panel no está en ~/.ssh/authorized_keys del servidor. Ejecuta el comando de instalación que se muestra aquí.",
+    "sourceInUse": "Un entorno de este proyecto todavía usa esta aplicación, por lo que no se puede quitar.",
+    "componentNotInSources": "La aplicación de este componente no es una fuente de este proyecto. Añade primero la aplicación."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -2033,6 +2035,11 @@
     "removeConfirmTitle": "¿Quitar a {name} de {project}?",
     "removeConfirmDescription": "Un engineer o QA pierde el acceso a este proyecto. Los administradores, infraestructura y observadores lo siguen viendo.",
     "removeMember": "Quitar a {name}"
+  },
+  "projectSources": {
+    "addedSuccess": "Aplicación añadida a las fuentes del proyecto",
+    "removedSuccess": "Aplicación quitada de las fuentes del proyecto",
+    "branchSaved": "Rama predeterminada guardada"
   },
   "activity": {
     "title": "Actividad",

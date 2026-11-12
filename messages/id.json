@@ -1532,7 +1532,9 @@
     "keyNotVerified": "SSH key belum pernah berhasil masuk. Jalankan perintah pemasangan di server, lalu Cek login key.",
     "notKeyServer": "Server ini tidak masuk dengan SSH key.",
     "keyServerNoPassword": "Server ini masuk dengan SSH key, jadi tidak menyimpan password.",
-    "keyLineNotFound": "Key bisa masuk, tetapi baris Panel tidak ada di ~/.ssh/authorized_keys server. Jalankan perintah pemasangan yang tampil di sini."
+    "keyLineNotFound": "Key bisa masuk, tetapi baris Panel tidak ada di ~/.ssh/authorized_keys server. Jalankan perintah pemasangan yang tampil di sini.",
+    "sourceInUse": "Sebuah environment proyek ini masih memakai aplikasi ini, sehingga tidak dapat dihapus.",
+    "componentNotInSources": "Aplikasi komponen ini bukan sumber proyek ini. Tambahkan aplikasinya terlebih dahulu."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -2033,6 +2035,11 @@
     "removeConfirmTitle": "Hapus {name} dari {project}?",
     "removeConfirmDescription": "Engineer atau QA akan kehilangan akses ke project ini. Admin, infra, dan pemantau tetap bisa melihatnya.",
     "removeMember": "Hapus {name}"
+  },
+  "projectSources": {
+    "addedSuccess": "Aplikasi ditambahkan ke sumber proyek",
+    "removedSuccess": "Aplikasi dihapus dari sumber proyek",
+    "branchSaved": "Branch default disimpan"
   },
   "activity": {
     "title": "Aktivitas",

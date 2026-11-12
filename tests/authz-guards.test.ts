@@ -151,6 +151,12 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     addProjectMember: /member: \["manage"\]/,
     removeProjectMember: /member: \["manage"\]/,
   },
+  "server/services/project-sources.ts": {
+    listProjectSources: /environment: \["update"\]/,
+    addProjectSource: /environment: \["create"\]/,
+    removeProjectSource: /environment: \["create"\]/,
+    setComponentBranch: /environment: \["update"\]/,
+  },
   "server/services/environment-setup.ts": {
     // authorize() asks SETUP_PERMISSIONS (below) of the target project.
     previewEnvironmentSetup: /checkSetup\(input, "collect"\)/,
