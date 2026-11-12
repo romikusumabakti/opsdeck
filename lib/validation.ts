@@ -102,6 +102,10 @@ const serverFields = {
   // #canPlaceEnvironment). Optional on input: the column defaults to
   // "restricted".
   placement: z.enum(["restricted", "open"]).optional(),
+  // Keeps the terminal and file explorer with org admin/infra
+  // (lib/permissions#canOrgAccessTarget). Optional on input: the column
+  // defaults to false.
+  infraOnly: z.boolean().optional(),
 };
 
 // A new server signs in with the instance key installed by hand (`auth: key`

@@ -18,8 +18,13 @@ import {
   type S3ConnectionRow as SafeS3Connection,
 } from "@/web/api/s3-connections";
 
-// What the caller may do beyond listing (storage:read), from the page.
-export type StorageCapabilities = { manage: boolean; files: boolean };
+// What the caller may do beyond listing (storage:read). Browsing depends on the
+// connection: the instance backup bucket takes the org role alone
+// (lib/permissions#canOrgAccessTarget).
+export type StorageCapabilities = {
+  manage: boolean;
+  files: (isBackupDestination: boolean) => boolean;
+};
 
 export function StorageClient({
   connections,
@@ -196,7 +201,7 @@ function ConnectionActions({
       label={menuLabel}
       disabled={disabled}
       primary={
-        can.files
+        can.files(connection.isBackupDestination)
           ? {
               label: browseLabel,
               icon: FolderOpen,

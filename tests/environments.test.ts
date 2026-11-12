@@ -32,6 +32,7 @@ function makeServer(name: string): Server {
     keyError: null,
     sftpRoot: "/",
     placement: "restricted",
+    infraOnly: false,
     preflight: null,
     preflightAt: null,
     createdAt: new Date("2024-01-01T00:00:00Z"),

@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "1e204d06-fdd8-45cb-99af-508c3e9511a6",
+  "prevIds": [
+    "6e19751a-4a3d-4a0d-af71-f867b03392ca"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "servers",
+        "infra_only"
+      ],
+      "writes": [
+        "s|col|public.servers.infra_only",
+        "n|col|public.servers.infra_only",
+        "e|col|public.servers.infra_only"
+      ],
+      "reads": [
+        "n|tbl|public.servers",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "servers",
+        "name": "infra_only",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

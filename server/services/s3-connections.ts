@@ -9,6 +9,7 @@ import {
   s3Connections,
 } from "@/lib/db/schema";
 import { testS3Connection } from "@/lib/explorer/s3";
+import { backupDestinationId } from "@/lib/restricted-targets";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import type { ActionResponse } from "@/lib/types";
 import {
@@ -20,30 +21,33 @@ import { getServerTranslator } from "@/server/i18n";
 // Admin-managed S3-compatible targets for the storage explorer. Mirrors
 // actions/servers.ts. `secretKey` is stripped before any row reaches the client.
 
-function toSafe(row: S3Connection): SafeS3Connection {
+function toSafe(row: S3Connection, backupId: string | null): SafeS3Connection {
   const { secretKey, ...rest } = row;
-  return { ...rest, hasSecret: secretKey.length > 0 };
+  return {
+    ...rest,
+    hasSecret: secretKey.length > 0,
+    isBackupDestination: row.id === backupId,
+  };
 }
 
 export async function getS3Connections(): Promise<SafeS3Connection[]> {
   await requireOrgPermission({ storage: ["read"] });
-  const rows = await db
-    .select()
-    .from(s3Connections)
-    .orderBy(s3Connections.name);
-  return rows.map(toSafe);
+  const [rows, backupId] = await Promise.all([
+    db.select().from(s3Connections).orderBy(s3Connections.name),
+    backupDestinationId(),
+  ]);
+  return rows.map((row) => toSafe(row, backupId));
 }
 
 export async function getS3Connection(
   id: string
 ): Promise<SafeS3Connection | undefined> {
   await requireOrgPermission({ storage: ["read"] });
-  const [row] = await db
-    .select()
-    .from(s3Connections)
-    .where(eq(s3Connections.id, id))
-    .limit(1);
-  return row ? toSafe(row) : undefined;
+  const [[row], backupId] = await Promise.all([
+    db.select().from(s3Connections).where(eq(s3Connections.id, id)).limit(1),
+    backupDestinationId(),
+  ]);
+  return row ? toSafe(row, backupId) : undefined;
 }
 
 export async function createS3Connection(
@@ -66,7 +70,12 @@ export async function createS3Connection(
         .returning(),
       "S3 connection"
     );
-    return { success: true, data: toSafe(created), message: t("s3Created") };
+    // A new connection is not the backup destination: that is chosen later.
+    return {
+      success: true,
+      data: toSafe(created, null),
+      message: t("s3Created"),
+    };
   } catch (error) {
     console.error("Failed to create S3 connection:", error);
     return { success: false, message: t("s3CreateFailed") };

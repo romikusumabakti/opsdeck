@@ -32,7 +32,8 @@ function StoragePage() {
   // their files need their own statements, so those controls are hidden too.
   const can = {
     manage: canOrg(me?.orgRole, { storage: ["manage"] }),
-    files: canAccess({ storage: ["files"] }),
+    files: (isBackupDestination: boolean) =>
+      canAccess({ storage: ["files"] }, isBackupDestination),
   };
 
   return (

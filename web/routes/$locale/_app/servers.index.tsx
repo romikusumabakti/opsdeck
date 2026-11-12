@@ -32,8 +32,9 @@ function ServersPage() {
   // browser each need their own statement, so their controls are hidden too.
   const can = {
     manage: canOrg(me?.orgRole, { server: ["manage"] }),
-    terminal: canAccess({ server: ["terminal"] }),
-    files: canAccess({ server: ["files"] }),
+    terminal: (infraOnly: boolean) =>
+      canAccess({ server: ["terminal"] }, infraOnly),
+    files: (infraOnly: boolean) => canAccess({ server: ["files"] }, infraOnly),
   };
 
   return (

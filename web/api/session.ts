@@ -4,7 +4,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import { canOrgAccess, type OrgPermissions } from "@/lib/permissions";
+import { canOrgAccessTarget, type OrgPermissions } from "@/lib/permissions";
 import { api } from "@/web/api/client";
 import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { ME_QUERY_KEY, queryClient } from "@/web/query-client";
@@ -55,13 +55,19 @@ export function useMe() {
 /**
  * The caller's org permission check, engineer grant included: an engineer on
  * any project also passes the server and storage read, terminal and files
- * checks (lib/permissions `canOrgAccess`).
+ * checks (lib/permissions `canOrgAccess`). For a restricted target (an
+ * infra-only server, the instance backup bucket) pass `restricted`: the org
+ * role alone decides (`canOrgAccessTarget`).
  */
-export function useCanOrg(): (perms: OrgPermissions) => boolean {
+export function useCanOrg(): (
+  perms: OrgPermissions,
+  restricted?: boolean
+) => boolean {
   const me = useMe();
   const access = useSuspenseQuery(getMyProjectAccessQuery()).data;
   const roles = Object.values(access.roles);
-  return (perms) => canOrgAccess(me?.orgRole, roles, perms);
+  return (perms, restricted = false) =>
+    canOrgAccessTarget(me?.orgRole, roles, perms, restricted);
 }
 
 /**

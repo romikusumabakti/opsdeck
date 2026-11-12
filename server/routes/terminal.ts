@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
-import { routeOrgGuard } from "@/lib/authz";
+import { callerCanOrgTarget, routeOrgGuard } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { servers } from "@/lib/db/schema";
 import { resolveTerminalCwd } from "@/lib/terminal/authorize";
@@ -37,6 +37,22 @@ export const terminalRouter = sessionRouter().post("/ticket", async (c) => {
     .where(eq(servers.id, parsed.data.serverId))
     .limit(1);
   if (!server) return new Response("Not found", { status: 404 });
+
+  // An infra-only server's terminal takes the org role alone: the engineer
+  // grant that passed the guard above does not reach it.
+  if (
+    server.infraOnly &&
+    !(await callerCanOrgTarget(session, { server: ["terminal"] }, true))
+  ) {
+    await recordActivity({
+      actorId: session.user.id,
+      action: "terminal.denied",
+      entityType: "server",
+      entityId: server.id,
+      data: { server: server.name, reason: "infraOnly" },
+    });
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const cwd = resolveTerminalCwd(server.sftpRoot, parsed.data.cwd);
   if (!cwd.ok) {

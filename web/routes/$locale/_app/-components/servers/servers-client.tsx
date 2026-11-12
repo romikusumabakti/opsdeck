@@ -32,11 +32,13 @@ import {
 } from "@/web/api/servers";
 import { accessState } from "./access-state";
 
-// What the caller may do beyond listing (server:read), from the page.
+// What the caller may do beyond listing (server:read), from the page. The
+// terminal and files answers depend on the server: an infra-only one takes the
+// org role alone (lib/permissions#canOrgAccessTarget).
 export type ServerCapabilities = {
   manage: boolean;
-  terminal: boolean;
-  files: boolean;
+  terminal: (infraOnly: boolean) => boolean;
+  files: (infraOnly: boolean) => boolean;
 };
 
 export function ServersClient({
@@ -152,7 +154,10 @@ export function ServersClient({
           <DataTableColumnHeader column={column} title={t("colName")} />
         ),
         cell: ({ row }) => (
-          <span className="font-medium">{row.getValue("name")}</span>
+          <span className="flex items-center gap-2">
+            <span className="font-medium">{row.getValue("name")}</span>
+            {row.original.infraOnly ? <InfraOnlyBadge /> : null}
+          </span>
         ),
       },
       {
@@ -210,7 +215,10 @@ export function ServersClient({
     (server: Server) => (
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="font-medium truncate">{server.name}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="font-medium truncate">{server.name}</span>
+            {server.infraOnly ? <InfraOnlyBadge /> : null}
+          </span>
           <span className="font-mono text-xs text-muted-foreground truncate">
             {server.host}
           </span>
@@ -287,6 +295,13 @@ export function ServersClient({
   );
 }
 
+// The terminal and the file explorer of this server stay with org
+// admin/infra.
+function InfraOnlyBadge() {
+  const t = useTranslations("servers");
+  return <Badge variant="outline">{t("infraOnly")}</Badge>;
+}
+
 /**
  * How the Panel signs in (accessState): Key (the host key fingerprint on
  * hover), Key not verified yet, Password, Needs setup, or a warning when the
@@ -357,7 +372,7 @@ function ServerActions({
   onDelete: () => void;
 }) {
   const items: RowAction[] = [];
-  if (can.terminal) {
+  if (can.terminal(server.infraOnly)) {
     items.push({
       label: terminalLabel,
       icon: SquareTerminal,
@@ -383,7 +398,7 @@ function ServerActions({
       label={menuLabel}
       disabled={disabled}
       primary={
-        can.files
+        can.files(server.infraOnly)
           ? {
               label: browseLabel,
               icon: FolderOpen,

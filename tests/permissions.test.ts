@@ -4,6 +4,7 @@ import {
   canCreateProject,
   canOrg,
   canOrgAccess,
+  canOrgAccessTarget,
   canProject,
   canRegisterApp,
   effectiveProjectRole,
@@ -308,4 +309,35 @@ describe("canOrgAccess", () => {
       false
     );
   });
+});
+
+describe("canOrgAccessTarget", () => {
+  const engineer: ProjectRole[] = ["engineer"];
+  // [org role, project roles, perms, restricted, expected]
+  const table: [string, ProjectRole[], OrgPermissions, boolean, boolean][] = [
+    // A normal target: the engineer grant applies.
+    ["member", engineer, { server: ["terminal"] }, false, true],
+    ["member", engineer, { server: ["files"] }, false, true],
+    ["member", engineer, { storage: ["files"] }, false, true],
+    // A restricted target: the org role alone decides.
+    ["member", engineer, { server: ["terminal"] }, true, false],
+    ["member", engineer, { server: ["files"] }, true, false],
+    ["member", engineer, { storage: ["files"] }, true, false],
+    ["observer", engineer, { server: ["terminal"] }, true, false],
+    ["observer", engineer, { server: ["read"] }, true, true],
+    ["member", engineer, { server: ["read"] }, true, false],
+    ["infra", [], { server: ["terminal"] }, true, true],
+    ["infra", [], { storage: ["files"] }, true, true],
+    ["admin", [], { server: ["files"] }, true, true],
+    ["member", [], { server: ["terminal"] }, false, false],
+  ];
+
+  it.each(table)(
+    "%s with %j asking %j (restricted %s) is %s",
+    (orgRole, roles, perms, restricted, expected) => {
+      expect(canOrgAccessTarget(orgRole, roles, perms, restricted)).toBe(
+        expected
+      );
+    }
+  );
 });

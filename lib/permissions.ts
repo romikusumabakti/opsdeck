@@ -214,6 +214,19 @@ export function canOrgAccess(
   );
 }
 
+// Restricted targets (infra-only servers, the instance backup bucket) are
+// decided by the org role alone: the engineer grant does not reach them.
+export function canOrgAccessTarget(
+  orgRole: string | null | undefined,
+  projectRoles: readonly ProjectRole[],
+  perms: OrgPermissions,
+  restricted: boolean
+): boolean {
+  return restricted
+    ? canOrg(orgRole, perms)
+    : canOrgAccess(orgRole, projectRoles, perms);
+}
+
 export function canProject(
   role: ProjectRole | null,
   perms: ProjectPermissions

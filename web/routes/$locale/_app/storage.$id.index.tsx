@@ -35,12 +35,16 @@ function EditStoragePage() {
   const t = useTranslations("editStorage");
   const me = useMe();
   const canAccess = useCanOrg();
-  // Observers (storage:read) see the connection read-only, and the file
-  // browser only with storage:files.
-  const canManage = canOrg(me?.orgRole, { storage: ["manage"] });
-  const canBrowse = canAccess({ storage: ["files"] });
   const connection = useSuspenseQuery(getS3ConnectionQuery(id)).data;
   if (!connection) return null;
+  // Observers (storage:read) see the connection read-only, and the file
+  // browser only with storage:files; on the instance backup bucket, from the
+  // org role alone.
+  const canManage = canOrg(me?.orgRole, { storage: ["manage"] });
+  const canBrowse = canAccess(
+    { storage: ["files"] },
+    connection.isBackupDestination
+  );
 
   return (
     <>

@@ -16,6 +16,11 @@ export const Route = createFileRoute("/$locale/_app/storage/$id/files")({
       queryClient.query(getS3ConnectionQuery(id))
     );
     if (!connection) throw notFound();
+    // The instance backup bucket takes the org role alone (the API refuses
+    // the engineer grant there too).
+    if (connection.isBackupDestination) {
+      await requireOrgRole(queryClient, { storage: ["files"] }, true);
+    }
   },
   pendingComponent: FileExplorerSkeleton,
   component: StorageFilesPage,

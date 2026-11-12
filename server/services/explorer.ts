@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { requireOrgPermission } from "@/lib/authz";
 import {
   type ExplorerEntry,
   type ExplorerSource,
@@ -21,6 +20,7 @@ import {
   PathError,
 } from "@/lib/explorer/path";
 import { type Eol, readTextFile, writeTextFile } from "@/lib/explorer/text";
+import { authorizeExplorerSource } from "@/lib/restricted-targets";
 import { HostKeyMismatchError } from "@/lib/ssh-connect";
 import type { ActionResponse } from "@/lib/types";
 import {
@@ -33,8 +33,10 @@ import {
 import { getServerTranslator } from "@/server/i18n";
 
 // Storage explorer actions. Filesystem/bucket access is powerful (SFTP runs as
-// the SSH user, often root), so every entry point is gated on the files permission of its target kind — a stricter
-// bar than the requireSession used for read-only project data. Credentials are
+// the SSH user, often root), so every entry point is gated on the files
+// permission of its target kind, and restricted targets (infra-only servers,
+// the instance backup bucket) take the org role alone
+// (lib/restricted-targets#authorizeExplorerSource). Credentials are
 // never in a payload: the client sends a source descriptor of ids, and
 // resolveBackend loads creds server-side.
 
@@ -54,10 +56,9 @@ async function open(
   if (!parsed.success) {
     return { ok: false as const, message: t("invalidInput") };
   }
-  // Authorize by the resolved target kind, before any credential load or I/O.
-  const session = await requireOrgPermission(
-    parsed.data.kind === "s3" ? { storage: ["files"] } : { server: ["files"] }
-  );
+  // Authorize by the target kind and its restriction, before any credential
+  // load or I/O.
+  const session = await authorizeExplorerSource(parsed.data as ExplorerSource);
   const backend = await resolveBackend(
     parsed.data as ExplorerSource,
     session.user.id

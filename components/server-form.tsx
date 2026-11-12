@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
@@ -108,6 +109,7 @@ export function ServerForm({
         .min(1, tCommon("required"))
         .regex(/^\//, t("sftpRootInvalid")),
       placement: z.enum(PLACEMENTS),
+      infraOnly: z.boolean(),
     })
     .superRefine((values, ctx) => {
       if (!creating) return;
@@ -138,6 +140,7 @@ export function ServerForm({
       password: "",
       sftpRoot: initial?.sftpRoot ?? "/",
       placement: initial?.placement ?? "restricted",
+      infraOnly: initial?.infraOnly ?? false,
     },
   });
 
@@ -181,6 +184,7 @@ export function ServerForm({
         username: values.username.trim(),
         sftpRoot: values.sftpRoot.trim(),
         placement: values.placement,
+        infraOnly: values.infraOnly,
       };
       // The password of the passwordOnce method never goes into the row: the
       // server is created without one, then the key is installed with it.
@@ -231,12 +235,14 @@ export function ServerForm({
       password?: string;
       sftpRoot: string;
       placement: (typeof PLACEMENTS)[number];
+      infraOnly: boolean;
     } = {
       name: values.name.trim(),
       host: values.host.trim(),
       username: values.username.trim(),
       sftpRoot: values.sftpRoot.trim(),
       placement: values.placement,
+      infraOnly: values.infraOnly,
     };
     if (values.password.length > 0) data.password = values.password;
 
@@ -476,6 +482,25 @@ export function ServerForm({
                 </Select>
                 <FormDescription>{t("placementDescription")}</FormDescription>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="infraOnly"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <FormLabel>{t("infraOnly")}</FormLabel>
+                  <FormDescription>{t("infraOnlyDescription")}</FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={readOnly}
+                  />
+                </FormControl>
               </FormItem>
             )}
           />

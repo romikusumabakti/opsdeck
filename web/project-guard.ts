@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
 import {
   canOrgAccess,
+  canOrgAccessTarget,
   canProject,
   type OrgPermissions,
   type ProjectPermissions,
@@ -63,17 +64,31 @@ export function requireRole(
 /**
  * The page guard for an org-level page (the port of `requireOrgPage`): a 404
  * when the caller's org role lacks `perms`. Returns the caller, so a loader
- * can use their role or id without a second lookup.
+ * can use their role or id without a second lookup. A page for one restricted
+ * target (an infra-only server, the instance backup bucket) passes
+ * `restricted` from the record it loads: the org role alone decides
+ * (lib/permissions `canOrgAccessTarget`).
  */
 export async function requireOrgRole(
   queryClient: QueryClient,
-  perms: OrgPermissions
+  perms: OrgPermissions,
+  restricted = false
 ) {
   const [me, access] = await Promise.all([
     queryClient.query(meQuery()),
     queryClient.query(getMyProjectAccessQuery()),
   ]);
-  if (!(me && canOrgAccess(me.orgRole, Object.values(access.roles), perms)))
+  if (
+    !(
+      me &&
+      canOrgAccessTarget(
+        me.orgRole,
+        Object.values(access.roles),
+        perms,
+        restricted
+      )
+    )
+  )
     throw notFound();
   return me;
 }

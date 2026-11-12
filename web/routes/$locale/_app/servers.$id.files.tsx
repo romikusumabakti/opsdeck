@@ -14,6 +14,11 @@ export const Route = createFileRoute("/$locale/_app/servers/$id/files")({
   loader: async ({ params: { id }, context: { queryClient } }) => {
     const server = await orNotFound(queryClient.query(getServerByIdQuery(id)));
     if (!server) throw notFound();
+    // An infra-only server takes the org role alone (the API refuses the
+    // engineer grant there too).
+    if (server.infraOnly) {
+      await requireOrgRole(queryClient, { server: ["files"] }, true);
+    }
   },
   pendingComponent: FileExplorerSkeleton,
   component: ServerFilesPage,

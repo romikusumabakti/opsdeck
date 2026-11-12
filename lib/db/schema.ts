@@ -209,6 +209,10 @@ export const servers = pgTable("servers", {
   // "/home/deploy" or "/var/www" — to limit the blast radius of the explorer.
   sftpRoot: text("sftp_root").notNull().default("/"),
   placement: serverPlacementEnum("placement").notNull().default("restricted"),
+  // Infra only: the terminal and the file explorer stay with org admin/infra;
+  // the engineer grant (lib/permissions#canOrgAccessTarget) does not reach it.
+  // Set on hosts whose shell reaches the Panel's own secrets (its own host).
+  infraOnly: boolean("infra_only").notNull().default(false),
   // Last preflight scan (non-secret facts) and when it ran; null until the
   // server has been scanned.
   preflight: jsonb("preflight").$type<ServerPreflight>(),
@@ -2269,9 +2273,11 @@ export type NewS3Connection = InferInsertModel<typeof s3Connections>;
 // the server/client boundary (RSC payloads are visible in the browser). Server
 // code loads the full row; anything passed to a client component is sanitized
 // to this shape first. `hasSecret` lets edit forms show a "leave blank to keep"
-// affordance without ever receiving the secret.
+// affordance without ever receiving the secret. `isBackupDestination` marks the
+// instance backup bucket, a restricted target (lib/restricted-targets).
 export type SafeS3Connection = Omit<S3Connection, "secretKey"> & {
   hasSecret: boolean;
+  isBackupDestination: boolean;
 };
 
 export type IssueStatus = (typeof issueStatusEnum.enumValues)[number];

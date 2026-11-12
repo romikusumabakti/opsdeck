@@ -104,6 +104,7 @@ function server(extra: Record<string, unknown> = {}) {
     keyError: null as string | null,
     sftpRoot: "/",
     placement: "restricted" as const,
+    infraOnly: false,
     preflight: null,
     preflightAt: null,
     createdAt: "2026-11-01T00:00:00.000Z",
@@ -189,8 +190,8 @@ async function click(el: Element | null | undefined) {
   });
 }
 
-const ALL = { manage: true, terminal: true, files: true };
-const NONE = { manage: false, terminal: false, files: false };
+const ALL = { manage: true, terminal: () => true, files: () => true };
+const NONE = { manage: false, terminal: () => false, files: () => false };
 
 describe("servers list", () => {
   it("has an Access column with Key, Password, or a host-key warning", async () => {
@@ -246,6 +247,44 @@ describe("servers list", () => {
     expect(shown.textContent).toContain(`opsdeck:opsdeck:${KEY_ID}`);
     expect(shown.textContent).toContain("authorized_keys");
     act(() => shownRoot.unmount());
+  });
+
+  it("hides Terminal and Files on an infra-only server the grant cannot reach", async () => {
+    const normal = `${ID.slice(0, -1)}1`;
+    const infra = `${ID.slice(0, -1)}2`;
+    // An engineer member: the grant applies to normal servers only.
+    const engineer = {
+      manage: false,
+      terminal: (infraOnly: boolean) => !infraOnly,
+      files: (infraOnly: boolean) => !infraOnly,
+    };
+    await render(
+      <ServersClient
+        can={engineer}
+        servers={[
+          server({ id: normal, name: "a-normal" }),
+          server({ id: infra, name: "b-panel", infraOnly: true }),
+        ]}
+      />
+    );
+    const rows = [...document.querySelectorAll("tbody tr")];
+    expect(rows[1]?.textContent).toContain(tServers.infraOnly);
+    expect(rows[0]?.textContent).not.toContain(tServers.infraOnly);
+    expect(
+      document.querySelector(`a[href='/servers/${normal}/files']`)
+    ).not.toBeNull();
+    expect(
+      document.querySelector(`a[href='/servers/${infra}/files']`)
+    ).toBeNull();
+
+    const menus = document.querySelectorAll<HTMLElement>(
+      `button[aria-label='${messages.common.openMenu}']`
+    );
+    // The infra-only row's menu (the table renders each row's menu first).
+    await click(menus[1]);
+    const menu = document.querySelector("[role='menu']")?.textContent ?? "";
+    expect(menu).toContain(messages.common.view);
+    expect(menu).not.toContain(tServers.openTerminal);
   });
 
   it("observers see no delete", async () => {

@@ -19,6 +19,11 @@ export const Route = createFileRoute("/$locale/_app/servers/$id/terminal")({
   loader: async ({ params: { id }, context: { queryClient } }) => {
     const server = await orNotFound(queryClient.query(getServerByIdQuery(id)));
     if (!server) throw notFound();
+    // An infra-only server takes the org role alone (the API refuses the
+    // engineer grant there too).
+    if (server.infraOnly) {
+      await requireOrgRole(queryClient, { server: ["terminal"] }, true);
+    }
   },
   pendingComponent: TerminalPending,
   component: ServerTerminalPage,

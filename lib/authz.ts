@@ -13,6 +13,7 @@ import {
   canAnyProject,
   canOrg,
   canOrgAccess,
+  canOrgAccessTarget,
   canProject,
   effectiveProjectRole,
   normalizeOrgRole,
@@ -196,6 +197,26 @@ async function callerCanOrg(
   if (canOrg(session.user.role, perms)) return true;
   const access = await getProjectAccess();
   return canOrgAccess(session.user.role, Object.values(access.roles), perms);
+}
+
+// callerCanOrg for one target: a restricted one (an infra-only server, the
+// instance backup bucket) takes the org role alone
+// (lib/permissions#canOrgAccessTarget). An extra check after the central
+// guard, for the routes that act on a single server or bucket.
+export async function callerCanOrgTarget(
+  session: Session,
+  perms: OrgPermissions,
+  restricted: boolean
+): Promise<boolean> {
+  if (canOrg(session.user.role, perms)) return true;
+  // Request-cached: the central guard has usually loaded it already.
+  const access = await getProjectAccess();
+  return canOrgAccessTarget(
+    session.user.role,
+    Object.values(access.roles),
+    perms,
+    restricted
+  );
 }
 
 export async function requireOrgPermission(
