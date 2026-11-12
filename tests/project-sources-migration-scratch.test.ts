@@ -59,7 +59,9 @@ const E3 = id(23);
 const E4 = id(24);
 const E5 = id(25);
 const E6 = id(26);
+const E7 = id(29);
 const E8 = id(28);
+const USER = id(41);
 const CI = id(31);
 const SERVER = id(32);
 
@@ -248,6 +250,169 @@ describe.skipIf(!enabled)(
       await target(e7, "cms-web", "release");
       expect(await projectApps()).toEqual(appsBefore);
       expect(await projectBranches()).toEqual(branchesBefore);
+    });
+
+    // The data layer, on the rows above. The cases run in order: each one
+    // leaves P3 / P4 as the next expects.
+    describe("lib/project-sources", () => {
+      type Sources = typeof import("@/lib/project-sources");
+      let sources: Sources;
+      let appDb: typeof import("@/lib/db").db;
+
+      beforeAll(async () => {
+        // DATABASE_URL is set at module load, so these hit the scratch database.
+        sources = await import("@/lib/project-sources");
+        appDb = (await import("@/lib/db")).db;
+        await sql`insert into users (id, name, email) values
+        (${USER}, 'Engineer', 'engineer@example.invalid')`;
+      });
+
+      it("lists an app only the environments name (no project_apps row)", async () => {
+        // As the previous release would: an environment, no helper.
+        await sql`insert into environments (id, project_id, name, slug, app_id)
+        values (${E7}, ${P3}, 'Legacy env', 'legacy-env', ${APP_A})`;
+        expect(await hasApp(P3, APP_A)).toBe(false);
+
+        expect(await sources.projectSourceAppIds(P3)).toContain(APP_A);
+        const listed = await sources.loadProjectSources(P3);
+        const app = listed.find((source) => source.appId === APP_A);
+        expect(app?.inUse).toBe(true);
+        expect(app?.components.map((c) => c.componentKey)).toEqual([
+          "core-backend",
+          "core-frontend",
+        ]);
+        for (const component of app?.components ?? []) {
+          expect(component.environments).toEqual([
+            {
+              id: E7,
+              name: "Legacy env",
+              slug: "legacy-env",
+              sourceBranch: null,
+            },
+          ]);
+        }
+      });
+
+      it("lists an app used only through a target, with its default", async () => {
+        expect(await sources.loadProjectSources(P2)).toEqual([
+          {
+            appId: APP_C,
+            appKey: "portal",
+            name: "Portal",
+            inUse: true,
+            components: [
+              {
+                componentKey: "portal-api",
+                repoFullName: "team/portal-api",
+                defaultBranch: "main",
+                fallbackBranch: "main",
+                environments: [
+                  {
+                    id: E4,
+                    name: `env ${E4}`,
+                    slug: `env-${E4}`,
+                    sourceBranch: "main",
+                  },
+                ],
+              },
+            ],
+          },
+        ]);
+      });
+
+      it("a source no environment uses is not in use", async () => {
+        expect(await sources.insertProjectApp(P3, APP_B)).toBe(true);
+        expect(await sources.insertProjectApp(P3, APP_B)).toBe(false);
+        const listed = await sources.loadProjectSources(P3);
+        expect(listed.find((source) => source.appId === APP_B)).toEqual({
+          appId: APP_B,
+          appKey: "cms",
+          name: "CMS",
+          inUse: false,
+          components: [
+            {
+              componentKey: "cms-web",
+              repoFullName: "team/cms-web",
+              defaultBranch: null,
+              fallbackBranch: "main",
+              environments: [],
+            },
+          ],
+        });
+      });
+
+      it("deleteProjectApp refuses an app used only through a target", async () => {
+        expect(await sources.deleteProjectApp(P2, APP_C)).toBe("inUse");
+        expect(await hasApp(P2, APP_C)).toBe(true);
+        expect(await branchOf(P2, "portal-api")).toBe("main");
+      });
+
+      it("deleteProjectApp removes the app and its components' defaults", async () => {
+        await sources.upsertComponentBranch({
+          projectId: P3,
+          componentKey: "cms-web",
+          branch: "dev",
+          userId: USER,
+        });
+        expect(await sources.deleteProjectApp(P3, APP_B)).toBe("deleted");
+        expect(await hasApp(P3, APP_B)).toBe(false);
+        expect(await branchOf(P3, "cms-web")).toBeUndefined();
+        expect(await sources.deleteProjectApp(P3, APP_B)).toBe("absent");
+      });
+
+      it("upsertComponentBranch replaces the value and stamps the editor", async () => {
+        await sources.upsertComponentBranch({
+          projectId: P4,
+          componentKey: "cms-web",
+          branch: "first",
+          userId: USER,
+        });
+        await sources.upsertComponentBranch({
+          projectId: P4,
+          componentKey: "cms-web",
+          branch: "second",
+          userId: USER,
+        });
+        const [row] =
+          await sql`select branch, updated_by from project_component_branches
+        where project_id = ${P4} and component_key = 'cms-web'`;
+        expect(row).toEqual({ branch: "second", updated_by: USER });
+        expect(await sources.getComponentBranch(P4, "cms-web")).toBe("second");
+        expect(await sources.getComponentBranch(P4, "nope")).toBeNull();
+      });
+
+      it("seeding keeps the first branch", async () => {
+        await sources.recordTargetSourceIn(appDb, {
+          environmentId: E5,
+          componentKey: "core-backend",
+          sourceBranch: "x",
+        });
+        await sources.recordTargetSourceIn(appDb, {
+          environmentId: E5,
+          componentKey: "core-backend",
+          sourceBranch: "y",
+        });
+        expect(await branchOf(P3, "core-backend")).toBe("x");
+        expect(await hasApp(P3, APP_A)).toBe(true);
+      });
+
+      it("ensureProjectSourceIn is idempotent", async () => {
+        await sources.ensureProjectSourceIn(appDb, E6, APP_B);
+        await sources.ensureProjectSourceIn(appDb, E6, APP_B);
+        const rows = await sql`select 1 from project_apps
+        where project_id = ${P4} and app_id = ${APP_B}`;
+        expect(rows).toHaveLength(1);
+      });
+
+      it("the *In helpers run inside the caller's transaction", async () => {
+        await expect(
+          appDb.transaction(async (tx) => {
+            await sources.ensureProjectSourceIn(tx, E8, APP_C);
+            throw new Error("rollback");
+          })
+        ).rejects.toThrow("rollback");
+        expect(await hasApp(P5, APP_C)).toBe(false);
+      });
     });
   }
 );
