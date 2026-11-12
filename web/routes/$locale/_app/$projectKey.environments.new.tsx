@@ -56,7 +56,11 @@ export const Route = createFileRoute(
       loaderQuery(queryClient, meQuery()),
       loaderQuery(queryClient, setupOptionsQuery(projectId)),
       canProject(role, SOURCES_READ)
-        ? loaderQuery(queryClient, listProjectSourcesQuery(projectId))
+        ? // A failed sources fetch must not fail the page: it falls back to
+          // the no-sources mode, like a role without access.
+          loaderQuery(queryClient, listProjectSourcesQuery(projectId)).catch(
+            () => undefined
+          )
         : null,
     ]);
   },

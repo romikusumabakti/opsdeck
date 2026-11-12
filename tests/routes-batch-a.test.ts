@@ -45,6 +45,8 @@ const GATED: [method: "GET" | "POST" | "PATCH" | "DELETE", path: string][] = [
   ["POST", "/api/project-members/add-project-member"],
   ["GET", `/api/project-sources/list-project-sources?projectId=${ID}`],
   ["POST", "/api/project-sources/add-project-source"],
+  ["POST", "/api/project-sources/remove-project-source"],
+  ["POST", "/api/project-sources/set-component-branch"],
   ["GET", "/api/project-catalog/list-projects"],
   ["POST", "/api/project-catalog/add-project"],
   ["GET", `/api/deploys/targets?environmentId=${ID}`],

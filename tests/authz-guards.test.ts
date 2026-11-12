@@ -430,6 +430,15 @@ describe("environment infrastructure bindings need server:manage", () => {
     );
     expect(page).not.toMatch(/@\/components\/environment-form/);
   });
+  it("the new-environment page survives a failing sources fetch", () => {
+    const page = readFileSync(
+      `${APP}/$projectKey.environments.new.tsx`,
+      "utf8"
+    );
+    expect(page).toMatch(
+      /loaderQuery\(queryClient, listProjectSourcesQuery\(projectId\)\)\.catch\(/
+    );
+  });
   it("the settings page only fetches servers for server:manage", () => {
     const page = readFileSync(
       `${APP}/$projectKey.$envSlug.settings.tsx`,
