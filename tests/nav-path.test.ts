@@ -64,7 +64,7 @@ describe("parseNavPath", () => {
   });
 
   it.each([
-    ["/CMEM", "overview"],
+    ["/CMEM", "environments"],
     ["/CMEM/settings", "settings"],
     ["/CMEM/issues", "issues"],
     ["/CMEM/issues/42", "issue"],
@@ -125,7 +125,7 @@ describe("parseNavPath project pages", () => {
 describe("projectNavItems", () => {
   it("gives an engineer every page of a releasable project, in order", () => {
     expect(projectNavItems("CRMB", "engineer", true)).toEqual([
-      { key: "overview", href: "/CRMB" },
+      { key: "environments", href: "/CRMB" },
       { key: "issues", href: "/CRMB/issues" },
       { key: "releases", href: "/CRMB/releases" },
       { key: "settings", href: "/CRMB/settings" },
@@ -139,7 +139,7 @@ describe("projectNavItems", () => {
   it("gives QA only what its role allows", () => {
     // Derived from canProject so the test follows the role matrix.
     const keys = projectNavItems("CRMB", "qa", true).map((i) => i.key);
-    expect(keys.slice(0, 2)).toEqual(["overview", "issues"]);
+    expect(keys.slice(0, 2)).toEqual(["environments", "issues"]);
     expect(keys.includes("settings")).toBe(
       canProject("qa", { environment: ["update"] })
     );

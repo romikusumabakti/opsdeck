@@ -84,7 +84,7 @@ type EnvironmentItem = {
 };
 
 const PROJECT_ICONS: Record<ProjectNavKey, LucideIcon> = {
-  overview: LayoutDashboard,
+  environments: LayoutDashboard,
   issues: CircleDot,
   releases: PackageCheck,
   settings: Settings,
@@ -451,7 +451,7 @@ export function AppSidebar({
                   {projectItems.map((item) => {
                     const Icon = PROJECT_ICONS[item.key];
                     const isActive =
-                      item.key === "overview"
+                      item.key === "environments"
                         ? pathname === item.href
                         : pathname === item.href ||
                           pathname.startsWith(`${item.href}/`);

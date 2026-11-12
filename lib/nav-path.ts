@@ -19,7 +19,7 @@ const PROJECT_KEY = /^[A-Z][A-Z0-9]{1,9}$/;
 const ENV_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
 export type ProjectPage =
-  | "overview"
+  | "environments"
   | "issues"
   | "issue"
   | "releases"
@@ -64,7 +64,7 @@ export function parseNavPath(pathname: string): NavPath {
     return {
       scope: "project",
       projectKey: key,
-      page: "overview",
+      page: "environments",
       issueNumber: null,
     };
   }
@@ -190,7 +190,7 @@ export const SECTION_PERMS = {
   variables: { variable: ["read"] },
 } satisfies Record<string, ProjectPermissions>;
 
-export type ProjectNavKey = "overview" | "issues" | "releases" | "settings";
+export type ProjectNavKey = "environments" | "issues" | "releases" | "settings";
 
 /**
  * The project-level pages a role may open, in sidebar order. `releasable` is
@@ -204,17 +204,22 @@ export function projectNavItems(
   if (!role) return [];
   const base = `/${projectKey}`;
   const allowed: Record<ProjectNavKey, boolean> = {
-    overview: true,
+    environments: true,
     issues: true,
     releases: releasable && canProject(role, { deploy: ["view"] }),
     settings: canProject(role, SECTION_PERMS.settings),
   };
-  const keys: ProjectNavKey[] = ["overview", "issues", "releases", "settings"];
+  const keys: ProjectNavKey[] = [
+    "environments",
+    "issues",
+    "releases",
+    "settings",
+  ];
   return keys
     .filter((key) => allowed[key])
     .map((key) => ({
       key,
-      href: key === "overview" ? base : `${base}/${key}`,
+      href: key === "environments" ? base : `${base}/${key}`,
     }));
 }
 

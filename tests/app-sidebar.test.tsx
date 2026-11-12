@@ -236,7 +236,7 @@ describe("project group", () => {
   it("shows on a project page with every project item", async () => {
     await renderSidebar("engineer", "/CRMB/issues", scope(true));
     expect(groupRows("CAR Membership")).toEqual([
-      "Overview",
+      "Environments",
       "Issues",
       "Releases",
       "Settings",
@@ -284,8 +284,13 @@ describe("project group", () => {
       projects,
       projectRoles: { p1: "engineer" },
     });
-    expect(groupRows("CAR Membership")).toContain("Overview");
+    expect(groupRows("CAR Membership")).toContain("Environments");
     expect(groupRows("CAR Membership")).not.toContain("Releases");
+  });
+
+  it("has no Overview entry", async () => {
+    await renderSidebar("engineer", "/CRMB/issues", scope(true));
+    expect(groupRows("CAR Membership")).not.toContain("Overview");
   });
 
   it("renders no group for an unknown project key", async () => {
@@ -293,7 +298,7 @@ describe("project group", () => {
     expect(groupRows("CAR Membership")).toEqual([]);
   });
 
-  it("marks Issues active on an issue page, not Overview", async () => {
+  it("marks Issues active on an issue page, not Environments", async () => {
     await renderSidebar("engineer", "/CRMB/issues/42", scope(true));
     expect(linkByHref("/CRMB/issues")?.getAttribute("data-active")).toBe(
       "true"
@@ -309,7 +314,7 @@ describe("project group", () => {
     expect(linkByHref("/CRMB/issues")?.getAttribute("data-active")).toBeNull();
   });
 
-  it("marks Overview active on the project page", async () => {
+  it("marks Environments active on the project page", async () => {
     await renderSidebar("engineer", "/CRMB", scope(true));
     expect(linkByHref("/CRMB")?.getAttribute("data-active")).toBe("true");
   });
