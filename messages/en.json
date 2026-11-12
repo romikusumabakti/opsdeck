@@ -2154,7 +2154,20 @@
     "environmentDomainAdopted": "{actor} adopted the hostname {hostname} for {environment}",
     "releaseCreated": "{actor} marked {component} {version} of {project} as a release",
     "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",
-    "releaseDeleted": "{actor} deleted release {version} of {component} in {project}"
+    "releaseDeleted": "{actor} deleted release {version} of {component} in {project}",
+    "files": {
+      "save": "{actor} saved {path} on {target}",
+      "createFolder": "{actor} created folder {path} on {target}",
+      "delete": "{actor} deleted {path} on {target}",
+      "upload": "{actor} uploaded {path} to {target}",
+      "rename": "{actor} renamed {path} to {to} on {target}",
+      "move": "{actor} moved {path} to {to} on {target}",
+      "copy": "{actor} copied {path} to {to} on {target}",
+      "compress": "{actor} compressed {path} into {archive} on {target}",
+      "compressMany": "{actor} compressed {path} and {count} items in total into {archive} on {target}",
+      "download": "{actor} downloaded {path} from {target}",
+      "downloadMany": "{actor} downloaded {count} items starting with {path} from {target}"
+    }
   },
   "jira": {
     "title": "Jira",

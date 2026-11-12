@@ -30,6 +30,7 @@ import {
   listEntries,
   moveEntry,
   readFileText,
+  recordFileAction,
   renameEntry,
   saveFileText,
 } from "@/server/services/explorer";
@@ -181,6 +182,11 @@ export const explorerRouter = sessionRouter()
 
     // One target names itself; a selection is named after the folder it came
     // from.
+    await recordFileAction(session.user.id, src, "files.download", {
+      ...(targets.length > 1
+        ? { path: first, count: targets.length }
+        : { path: first }),
+    });
     const archiveName = `${
       (targets.length === 1 ? basename(first) : basename(dirname(first))) ||
       "archive"
@@ -221,6 +227,9 @@ export const explorerRouter = sessionRouter()
     try {
       const stream = await backend.readStream(parsedPath.data);
       const filename = basename(parsedPath.data);
+      await recordFileAction(session.user.id, src, "files.download", {
+        path: parsedPath.data,
+      });
       // node:stream/web's ReadableStream and the global one are the same
       // object at runtime but structurally distinct types, so the cast goes
       // via unknown.
@@ -307,5 +316,8 @@ export const explorerRouter = sessionRouter()
         return new Response("Upload failed", { status: 500 });
       }
     }
+    await recordFileAction(session.user.id, src, "files.upload", {
+      path: dest,
+    });
     return c.json({ ok: true });
   });

@@ -1,0 +1,70 @@
+// @vitest-environment happy-dom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { IntlProvider } from "use-intl";
+import { describe, expect, it, vi } from "vitest";
+import messages from "../messages/en.json";
+
+vi.mock("@/web/api/activity", () => ({
+  listActivityQuery: () => ({
+    queryKey: ["activity", "listActivity"],
+    queryFn: async () => [],
+  }),
+}));
+
+import { Route } from "../web/routes/$locale/_app/admin.activity";
+
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
+const row = (id: string, action: string, data: Record<string, unknown>) => ({
+  id,
+  action,
+  data,
+  actorId: null,
+  actorName: "Rina",
+  actorImage: null,
+  createdAt: new Date().toISOString(),
+});
+
+describe("activity page file explorer events", () => {
+  it("renders each file action as a sentence", async () => {
+    const events = [
+      row("1", "files.save", { target: "web-1", path: "etc/a.conf" }),
+      row("2", "files.rename", { target: "web-1", path: "a", to: "b" }),
+      row("3", "files.compress", {
+        target: "web-1",
+        path: "a",
+        count: 3,
+        archive: "x.zip",
+      }),
+      row("4", "files.download", { target: "bucket", path: "" }),
+    ];
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["activity", "listActivity"], events);
+    const Page = Route.options.component as React.ComponentType;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <IntlProvider locale="en" messages={messages}>
+            <Page />
+          </IntlProvider>
+        </QueryClientProvider>
+      );
+    });
+    const text = container.textContent ?? "";
+    expect(text).toContain("Rina saved etc/a.conf on web-1");
+    expect(text).toContain("Rina renamed a to b on web-1");
+    expect(text).toContain(
+      "Rina compressed a and 3 items in total into x.zip on web-1"
+    );
+    expect(text).toContain("Rina downloaded / from bucket");
+    expect(text).not.toContain("did something");
+    await act(async () => root.unmount());
+  });
+});

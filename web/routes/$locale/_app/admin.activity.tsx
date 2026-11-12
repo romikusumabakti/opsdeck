@@ -406,6 +406,28 @@ function message(
             actor,
             reason: String(d.reason),
           });
+    // File explorer events. `path` is "" for the root; a selection carries its
+    // first path and a `count`.
+    case "files.save":
+    case "files.createFolder":
+    case "files.delete":
+    case "files.upload":
+    case "files.rename":
+    case "files.move":
+    case "files.copy":
+    case "files.compress":
+    case "files.download": {
+      const verb = row.action.slice("files.".length);
+      const params = {
+        actor,
+        target: String(d.target),
+        path: String(d.path || "/"),
+        to: String(d.to ?? ""),
+        archive: String(d.archive ?? ""),
+        count: Number(d.count ?? 1),
+      };
+      return t(`files.${verb}${params.count > 1 ? "Many" : ""}`, params);
+    }
     // Jira sync events have no actor — they are written by the worker, so the
     // sentence is about the issue rather than a person.
     case "issue.jira_conflict":

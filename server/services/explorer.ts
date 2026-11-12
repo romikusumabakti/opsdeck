@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { recordActivity } from "@/lib/activity";
 import {
   type ExplorerEntry,
   type ExplorerSource,
   resolveBackend,
+  targetName,
 } from "@/lib/explorer";
 import { zipStream } from "@/lib/explorer/archive";
 import {
@@ -66,7 +68,44 @@ async function open(
   if (!backend) {
     return { ok: false as const, message: t("sourceNotFound") };
   }
-  return { ok: true as const, backend };
+  return {
+    ok: true as const,
+    backend,
+    source: parsed.data as ExplorerSource,
+    actorId: session.user.id,
+  };
+}
+
+// Mutations and downloads are audited (reads are not), only after they
+// succeeded. `data` is display params for the activity page: the target's
+// name plus the path, or the first path and a count for a selection.
+// Best-effort like recordActivity: a failed name lookup never fails the action.
+export async function recordFileAction(
+  actorId: string,
+  source: ExplorerSource,
+  action: string,
+  data: Record<string, string | number>
+): Promise<void> {
+  let target = "";
+  try {
+    target = await targetName(source);
+  } catch (error) {
+    console.error("Explorer audit name lookup failed:", error);
+  }
+  await recordActivity({
+    actorId,
+    action,
+    entityType: source.kind === "s3" ? "s3Connection" : "server",
+    entityId: source.kind === "s3" ? source.connectionId : source.serverId,
+    data: { target, ...data },
+  });
+}
+
+// A selection is logged as its first path plus a count when it holds more.
+function selectionData(paths: string[]): Record<string, string | number> {
+  return paths.length > 1
+    ? { path: paths[0] ?? "", count: paths.length }
+    : { path: paths[0] ?? "" };
 }
 
 // Map a thrown backend error to a user-facing message. PathError (a confinement
@@ -132,6 +171,12 @@ export async function getDownloadTarget(
   }
   try {
     const target = await opened.backend.downloadTarget(parsedPath.data);
+    // A presigned URL is the download itself; the proxy route logs its own.
+    if (target.kind === "presigned") {
+      await recordFileAction(opened.actorId, opened.source, "files.download", {
+        path: parsedPath.data,
+      });
+    }
     return { success: true, target };
   } catch (error) {
     return { success: false, message: explain(error, t) };
@@ -196,6 +241,9 @@ export async function saveFileText(
       parsedContent.data,
       parsedEol.data
     );
+    await recordFileAction(opened.actorId, opened.source, "files.save", {
+      path: parsedPath.data,
+    });
     return { success: true, message: t("fileSaved") };
   } catch (error) {
     return { success: false, message: explain(error, t) };
@@ -219,6 +267,14 @@ export async function createFolder(
   const target = base ? `${base}/${parsedName.data}/` : `${parsedName.data}/`;
   try {
     await opened.backend.mkdir(target);
+    await recordFileAction(
+      opened.actorId,
+      opened.source,
+      "files.createFolder",
+      {
+        path: target,
+      }
+    );
     return { success: true, message: t("folderCreated") };
   } catch (error) {
     return { success: false, message: explain(error, t) };
@@ -238,6 +294,9 @@ export async function deleteEntry(
   }
   try {
     await opened.backend.remove(parsedPath.data);
+    await recordFileAction(opened.actorId, opened.source, "files.delete", {
+      path: parsedPath.data,
+    });
     return { success: true, message: t("entryDeleted") };
   } catch (error) {
     return { success: false, message: explain(error, t) };
@@ -266,6 +325,10 @@ export async function renameEntry(
   const dest = `${parent ? `${parent}/` : ""}${parsedName.data}${isDir ? "/" : ""}`;
   try {
     await opened.backend.rename(parsedPath.data, dest);
+    await recordFileAction(opened.actorId, opened.source, "files.rename", {
+      path: parsedPath.data,
+      to: dest,
+    });
     return { success: true, message: t("entryRenamed") };
   } catch (error) {
     return { success: false, message: explain(error, t) };
@@ -300,6 +363,10 @@ export async function moveEntry(
   if (target === from) return { success: true };
   try {
     await opened.backend.rename(from, target);
+    await recordFileAction(opened.actorId, opened.source, "files.move", {
+      path: from,
+      to: target,
+    });
     return { success: true, message: t("entryMoved") };
   } catch (error) {
     return { success: false, message: explain(error, t) };
@@ -333,10 +400,12 @@ export async function copyEntry(
   }
   try {
     const name = await uniqueName(opened.backend, dest, basename(from), isDir);
-    await opened.backend.copy(
-      from,
-      `${joinPath(dest, name)}${isDir ? "/" : ""}`
-    );
+    const to = `${joinPath(dest, name)}${isDir ? "/" : ""}`;
+    await opened.backend.copy(from, to);
+    await recordFileAction(opened.actorId, opened.source, "files.copy", {
+      path: from,
+      to,
+    });
     return { success: true, message: t("entryCopied") };
   } catch (error) {
     return { success: false, message: explain(error, t) };
@@ -375,10 +444,12 @@ export async function compressEntries(
       false
     );
     const target = await uniqueName(opened.backend, dest, file, false);
-    await opened.backend.writeStream(
-      joinPath(dest, target),
-      zipStream(opened.backend, tree)
-    );
+    const archive = joinPath(dest, target);
+    await opened.backend.writeStream(archive, zipStream(opened.backend, tree));
+    await recordFileAction(opened.actorId, opened.source, "files.compress", {
+      ...selectionData(parsedPaths.data),
+      archive,
+    });
     return { success: true, message: t("entriesCompressed") };
   } catch (error) {
     return { success: false, message: explain(error, t) };

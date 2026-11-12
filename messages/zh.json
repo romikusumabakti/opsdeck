@@ -2154,7 +2154,20 @@
     "environmentDomainAdopted": "{actor} 为 {environment} 采用了主机名 {hostname}",
     "releaseCreated": "{actor} marked {component} {version} of {project} as a release",
     "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",
-    "releaseDeleted": "{actor} deleted release {version} of {component} in {project}"
+    "releaseDeleted": "{actor} deleted release {version} of {component} in {project}",
+    "files": {
+      "save": "{actor} 在 {target} 上保存了 {path}",
+      "createFolder": "{actor} 在 {target} 上创建了文件夹 {path}",
+      "delete": "{actor} 在 {target} 上删除了 {path}",
+      "upload": "{actor} 将 {path} 上传到了 {target}",
+      "rename": "{actor} 在 {target} 上将 {path} 重命名为 {to}",
+      "move": "{actor} 在 {target} 上将 {path} 移动到了 {to}",
+      "copy": "{actor} 在 {target} 上将 {path} 复制到了 {to}",
+      "compress": "{actor} 在 {target} 上将 {path} 压缩为 {archive}",
+      "compressMany": "{actor} 在 {target} 上将 {count} 个项目（从 {path} 开始）压缩为 {archive}",
+      "download": "{actor} 从 {target} 下载了 {path}",
+      "downloadMany": "{actor} 从 {target} 下载了 {count} 个项目（从 {path} 开始）"
+    }
   },
   "jira": {
     "title": "Jira",

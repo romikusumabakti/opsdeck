@@ -49,3 +49,22 @@ export async function resolveBackend(
     { actor: actorId }
   );
 }
+
+// The display name of a source's server or connection, for the activity log.
+// A separate cheap lookup (no credential load) run after an action succeeded.
+export async function targetName(source: ExplorerSource): Promise<string> {
+  if (source.kind === "s3") {
+    const [conn] = await db
+      .select({ name: s3Connections.name })
+      .from(s3Connections)
+      .where(eq(s3Connections.id, source.connectionId))
+      .limit(1);
+    return conn?.name ?? "";
+  }
+  const [server] = await db
+    .select({ name: servers.name })
+    .from(servers)
+    .where(eq(servers.id, source.serverId))
+    .limit(1);
+  return server?.name ?? "";
+}

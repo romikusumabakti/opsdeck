@@ -2154,7 +2154,20 @@
     "environmentDomainAdopted": "{actor} mengadopsi hostname {hostname} untuk {environment}",
     "releaseCreated": "{actor} menandai {component} {version} di {project} sebagai rilis",
     "releaseDownloaded": "{actor} mengunduh rilis {version} dari {component} di {project}",
-    "releaseDeleted": "{actor} menghapus rilis {version} dari {component} di {project}"
+    "releaseDeleted": "{actor} menghapus rilis {version} dari {component} di {project}",
+    "files": {
+      "save": "{actor} menyimpan {path} di {target}",
+      "createFolder": "{actor} membuat folder {path} di {target}",
+      "delete": "{actor} menghapus {path} di {target}",
+      "upload": "{actor} mengunggah {path} ke {target}",
+      "rename": "{actor} mengganti nama {path} menjadi {to} di {target}",
+      "move": "{actor} memindahkan {path} ke {to} di {target}",
+      "copy": "{actor} menyalin {path} ke {to} di {target}",
+      "compress": "{actor} mengompres {path} menjadi {archive} di {target}",
+      "compressMany": "{actor} mengompres {count} item (dimulai dari {path}) menjadi {archive} di {target}",
+      "download": "{actor} mengunduh {path} dari {target}",
+      "downloadMany": "{actor} mengunduh {count} item (dimulai dari {path}) dari {target}"
+    }
   },
   "jira": {
     "title": "Jira",

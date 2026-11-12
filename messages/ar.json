@@ -2154,7 +2154,20 @@
     "environmentDomainAdopted": "اعتمد {actor} اسم المضيف {hostname} للبيئة {environment}",
     "releaseCreated": "{actor} marked {component} {version} of {project} as a release",
     "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",
-    "releaseDeleted": "{actor} deleted release {version} of {component} in {project}"
+    "releaseDeleted": "{actor} deleted release {version} of {component} in {project}",
+    "files": {
+      "save": "{actor} حفظ {path} على {target}",
+      "createFolder": "{actor} أنشأ المجلد {path} على {target}",
+      "delete": "{actor} حذف {path} على {target}",
+      "upload": "{actor} رفع {path} إلى {target}",
+      "rename": "{actor} غيّر اسم {path} إلى {to} على {target}",
+      "move": "{actor} نقل {path} إلى {to} على {target}",
+      "copy": "{actor} نسخ {path} إلى {to} على {target}",
+      "compress": "{actor} ضغط {path} في {archive} على {target}",
+      "compressMany": "{actor} ضغط {count} عناصر (بدءًا من {path}) في {archive} على {target}",
+      "download": "{actor} نزّل {path} من {target}",
+      "downloadMany": "{actor} نزّل {count} عناصر (بدءًا من {path}) من {target}"
+    }
   },
   "jira": {
     "title": "Jira",
