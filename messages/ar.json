@@ -89,8 +89,7 @@
     "mail": "البريد",
     "repositories": "المستودعات",
     "variables": "المتغيرات",
-    "releases": "Releases",
-    "members": "الأعضاء"
+    "releases": "Releases"
   },
   "commandPalette": {
     "triggerLabel": "بحث أو انتقل إلى…",
@@ -125,7 +124,6 @@
     "history": "السجل",
     "settings": "الإعدادات",
     "overview": "نظرة عامة",
-    "members": "الأعضاء",
     "projectSettings": "إعدادات المشروع",
     "environmentSettings": "إعدادات البيئة",
     "menu": "القائمة",
@@ -1896,8 +1894,7 @@
     "editProject": "تعديل المشروع",
     "noEnvironments": "لا توجد بيئات بعد",
     "noEnvironmentsDescription": "أضف أول بيئة (اختبار جودة أو تطوير أو إصدار) لهذا المشروع.",
-    "client": "العميل",
-    "members": "الأعضاء"
+    "client": "العميل"
   },
   "projectSettings": {
     "title": "إعدادات المشروع",
@@ -1916,7 +1913,10 @@
     "deletedSuccess": "تم حذف المشروع {name}",
     "tabJira": "Jira",
     "jiraTitle": "مزامنة Jira",
-    "jiraDescription": "انسخ مشروع Jira إلى متتبّع المهام في هذا المشروع."
+    "jiraDescription": "انسخ مشروع Jira إلى متتبّع المهام في هذا المشروع.",
+    "tabMembers": "الأعضاء",
+    "membersTitle": "الأعضاء",
+    "membersDescription": "الأشخاص في هذا المشروع. يُحدَّد دور كل شخص مرة واحدة في المشرف ← المستخدمون."
   },
   "homePage": {
     "title": "الرئيسية",

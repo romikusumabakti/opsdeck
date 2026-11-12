@@ -44,6 +44,9 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
     search: { status, tab },
     context: { queryClient },
   }) => {
+    if (tab === "members") {
+      redirect(`/${projectKey}/settings?tab=members`, locale);
+    }
     if (tab) {
       const qs =
         tab === "issues" && status

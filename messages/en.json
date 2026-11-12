@@ -89,8 +89,7 @@
     "mail": "Mail",
     "repositories": "Repositories",
     "variables": "Variables",
-    "releases": "Releases",
-    "members": "Members"
+    "releases": "Releases"
   },
   "commandPalette": {
     "triggerLabel": "Search or jump to…",
@@ -125,7 +124,6 @@
     "history": "History",
     "settings": "Settings",
     "overview": "Overview",
-    "members": "Members",
     "projectSettings": "Project settings",
     "environmentSettings": "Environment settings",
     "menu": "Menu",
@@ -1896,8 +1894,7 @@
     "editProject": "Edit project",
     "noEnvironments": "No environments yet",
     "noEnvironmentsDescription": "Add the first environment (a QA, dev, or release deployment) for this project.",
-    "client": "Client",
-    "members": "Members"
+    "client": "Client"
   },
   "projectSettings": {
     "title": "Project settings",
@@ -1916,7 +1913,10 @@
     "deletedSuccess": "Project {name} deleted",
     "tabJira": "Jira",
     "jiraTitle": "Jira sync",
-    "jiraDescription": "Mirror a Jira project into this project's issue tracker."
+    "jiraDescription": "Mirror a Jira project into this project's issue tracker.",
+    "tabMembers": "Members",
+    "membersTitle": "Members",
+    "membersDescription": "People on this project. Each person's role is set once, in Admin → Users."
   },
   "homePage": {
     "title": "Home",

@@ -89,8 +89,7 @@
     "mail": "Correo",
     "repositories": "Repositorios",
     "variables": "Variables",
-    "releases": "Releases",
-    "members": "Miembros"
+    "releases": "Releases"
   },
   "commandPalette": {
     "triggerLabel": "Buscar o ir a…",
@@ -125,7 +124,6 @@
     "history": "Historial",
     "settings": "Ajustes",
     "overview": "Resumen",
-    "members": "Miembros",
     "projectSettings": "Ajustes del proyecto",
     "environmentSettings": "Ajustes del entorno",
     "menu": "Menú",
@@ -1896,8 +1894,7 @@
     "editProject": "Editar proyecto",
     "noEnvironments": "Aún no hay entornos",
     "noEnvironmentsDescription": "Añade el primer entorno (un despliegue de QA, dev o release) para este proyecto.",
-    "client": "Cliente",
-    "members": "Miembros"
+    "client": "Cliente"
   },
   "projectSettings": {
     "title": "Ajustes del proyecto",
@@ -1916,7 +1913,10 @@
     "deletedSuccess": "Proyecto {name} eliminado",
     "tabJira": "Jira",
     "jiraTitle": "Sincronización con Jira",
-    "jiraDescription": "Replica un proyecto de Jira en el gestor de incidencias de este proyecto."
+    "jiraDescription": "Replica un proyecto de Jira en el gestor de incidencias de este proyecto.",
+    "tabMembers": "Miembros",
+    "membersTitle": "Miembros",
+    "membersDescription": "Personas de este proyecto. El rol de cada una se define una sola vez, en Administración → Usuarios."
   },
   "homePage": {
     "title": "Inicio",

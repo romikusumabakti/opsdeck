@@ -46,7 +46,6 @@ describe("getTrailingSegments on project pages", () => {
   it.each([
     ["/CRMB/issues", [{ labelKey: "breadcrumbs.issues" }]],
     ["/CRMB/milestones", []],
-    ["/CRMB/members", [{ labelKey: "breadcrumbs.members" }]],
     ["/CRMB/releases", [{ labelKey: "breadcrumbs.releases" }]],
     ["/CRMB/settings", [{ labelKey: "breadcrumbs.settings" }]],
     ["/CRMB/environments/new", [{ labelKey: "breadcrumbs.newEnvironment" }]],

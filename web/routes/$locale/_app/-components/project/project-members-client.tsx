@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Trash2, UserPlus } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -25,10 +26,34 @@ import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
 import {
   addProjectMember,
+  listMemberCandidatesQuery,
+  listProjectMembersQuery,
   type ProjectMemberRow,
   removeProjectMember,
 } from "@/web/api/project-members";
 import { RoleBadge } from "../admin/users/user-badges";
+
+/** The Members tab of Project settings: reads both lists, then the roster. */
+export function ProjectMembersTab({
+  projectId,
+  projectName,
+}: {
+  projectId: string;
+  projectName: string;
+}) {
+  const members = useSuspenseQuery(listProjectMembersQuery(projectId)).data;
+  const memberCandidates = useSuspenseQuery(
+    listMemberCandidatesQuery(projectId)
+  ).data;
+  return (
+    <ProjectMembersClient
+      projectId={projectId}
+      projectName={projectName}
+      initialMembers={members}
+      memberCandidates={memberCandidates}
+    />
+  );
+}
 
 export function ProjectMembersClient({
   projectId,
@@ -83,10 +108,9 @@ export function ProjectMembersClient({
   }
 
   return (
-    // The add-member row stays put; only the roster scrolls.
-    <div className="flex flex-1 min-h-0 flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {/* Add member */}
-      <div className="shrink-0 flex flex-wrap items-center gap-2 rounded-lg border p-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
         <Select
           value={addUserId}
           onValueChange={(v) => setAddUserId(v ?? "")}
@@ -116,15 +140,12 @@ export function ProjectMembersClient({
         </Button>
       </div>
 
-      {/* One scroll box below the add row: the roster. The table container
-          must not scroll itself (overflow-visible), so the sticky header pins
-          to this box. */}
-      <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto">
+      <div>
         {initialMembers.length === 0 ? (
           <EmptyState title={t("empty")} description={t("emptyDescription")} />
         ) : (
-          <Table containerClassName="overflow-visible">
-            <TableHeader className="sticky top-0 z-10 [&_th]:bg-background [&_th]:border-b">
+          <Table>
+            <TableHeader>
               <TableRow>
                 <TableHead>{t("colName")}</TableHead>
                 <TableHead>{t("colRole")}</TableHead>

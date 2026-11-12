@@ -14,16 +14,29 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { canOrg, canOrgAccess } from "@/lib/permissions";
+import { canOrg, canOrgAccess, canProject } from "@/lib/permissions";
 import { getJiraConnectionsQuery, getJiraLinkQuery } from "@/web/api/jira";
-import { getProjectByKeyWithEnvironmentsQuery } from "@/web/api/project-catalog";
+import {
+  getMyProjectAccessQuery,
+  getProjectByKeyWithEnvironmentsQuery,
+} from "@/web/api/project-catalog";
+import {
+  listMemberCandidatesQuery,
+  listProjectMembersQuery,
+} from "@/web/api/project-members";
 import { getServersQuery } from "@/web/api/servers";
 import { meQuery, useCanOrg, useMe } from "@/web/api/session";
-import { requireProjectRole } from "@/web/project-guard";
+import { projectRoleOf, requireProjectRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import { DeleteProjectCard } from "./-components/project/delete-project-card";
+import { ProjectMembersTab } from "./-components/project/project-members-client";
+import {
+  projectSettingsSearch,
+  visibleSettingsTab,
+} from "./-components/project/project-settings-search";
 
 export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
+  validateSearch: projectSettingsSearch,
   // Editing project metadata needs environment:update on this project (same as
   // `editProject`). The key is resolved through the scoped lookup first, so an
   // invisible project 404s before any permission is consulted.
@@ -42,7 +55,15 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
       queryClient.query(meQuery()),
     ]);
     if (!project) throw notFound();
+    const role = await projectRoleOf(queryClient, project.id);
     await Promise.all([
+      // The Members tab is only offered to callers who can manage members.
+      canProject(role, { member: ["manage"] })
+        ? Promise.all([
+            loaderQuery(queryClient, listProjectMembersQuery(project.id)),
+            loaderQuery(queryClient, listMemberCandidatesQuery(project.id)),
+          ])
+        : null,
       // Connections are an org-level integration: an engineer without that
       // permission just gets no connection to pick from.
       canOrg(me?.orgRole, { integration: ["manage"] })
@@ -62,6 +83,8 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
 
 function ProjectSettingsPage() {
   const { projectKey } = Route.useParams();
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const t = useTranslations("projectSettings");
   const me = useMe();
   const canAccess = useCanOrg();
@@ -71,6 +94,10 @@ function ProjectSettingsPage() {
   if (!project) throw notFound();
   // Deleting a project is an org-level permission, not a project role one.
   const canDelete = canOrg(me?.orgRole, { project: ["delete"] });
+  const roles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
+  const canManageMembers = canProject(roles[project.id] ?? null, {
+    member: ["manage"],
+  });
   const jiraLink = useSuspenseQuery(getJiraLinkQuery(project.id)).data;
   const jiraConnections =
     useQuery({
@@ -92,10 +119,25 @@ function ProjectSettingsPage() {
         subtitle={t("subtitle", { name: project.name })}
       />
 
-      <Tabs defaultValue="details" className="max-w-2xl w-full">
+      <Tabs
+        value={visibleSettingsTab(tab, {
+          members: canManageMembers,
+          danger: canDelete,
+        })}
+        onValueChange={(next) =>
+          navigate({
+            search: next === "details" ? {} : { tab: next },
+            replace: true,
+          })
+        }
+        className="max-w-2xl w-full"
+      >
         <TabsList>
           <TabsTrigger value="details">{t("tabDetails")}</TabsTrigger>
           <TabsTrigger value="jira">{t("tabJira")}</TabsTrigger>
+          {canManageMembers && (
+            <TabsTrigger value="members">{t("tabMembers")}</TabsTrigger>
+          )}
           {canDelete && (
             <TabsTrigger value="danger">{t("tabDanger")}</TabsTrigger>
           )}
@@ -131,6 +173,23 @@ function ProjectSettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {canManageMembers && (
+          <TabsContent value="members">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("membersTitle")}</CardTitle>
+                <CardDescription>{t("membersDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ProjectMembersTab
+                  projectId={project.id}
+                  projectName={project.name}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
         {canDelete && (
           <TabsContent value="danger">

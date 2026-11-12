@@ -89,8 +89,7 @@
     "mail": "邮件",
     "repositories": "代码仓库",
     "variables": "变量",
-    "releases": "Releases",
-    "members": "成员"
+    "releases": "Releases"
   },
   "commandPalette": {
     "triggerLabel": "搜索或跳转…",
@@ -125,7 +124,6 @@
     "history": "历史记录",
     "settings": "设置",
     "overview": "概览",
-    "members": "成员",
     "projectSettings": "项目设置",
     "environmentSettings": "环境设置",
     "menu": "菜单",
@@ -1896,8 +1894,7 @@
     "editProject": "编辑项目",
     "noEnvironments": "暂无环境",
     "noEnvironmentsDescription": "为该项目添加第一个环境（QA、开发或发布部署）。",
-    "client": "客户",
-    "members": "成员"
+    "client": "客户"
   },
   "projectSettings": {
     "title": "项目设置",
@@ -1916,7 +1913,10 @@
     "deletedSuccess": "项目 {name} 已删除",
     "tabJira": "Jira",
     "jiraTitle": "Jira 同步",
-    "jiraDescription": "把一个 Jira 项目镜像到本项目的问题跟踪中。"
+    "jiraDescription": "把一个 Jira 项目镜像到本项目的问题跟踪中。",
+    "tabMembers": "成员",
+    "membersTitle": "成员",
+    "membersDescription": "本项目的成员。每个人的角色只在“管理员 → 用户”中设置一次。"
   },
   "homePage": {
     "title": "主页",

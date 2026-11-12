@@ -239,7 +239,6 @@ describe("project group", () => {
       "Overview",
       "Issues",
       "Releases",
-      "Members",
       "Settings",
     ]);
   });

@@ -69,7 +69,7 @@ describe("parseNavPath", () => {
     ["/CMEM/issues", "issues"],
     ["/CMEM/issues/42", "issue"],
     ["/CMEM/environments/new", "new-environment"],
-    ["/CMEM/members", "members"],
+    ["/CMEM/members", "other"],
     ["/CMEM/milestones", "other"],
     ["/CMEM/releases", "releases"],
     ["/CMEM/new", "other"],
@@ -102,7 +102,6 @@ describe("parseNavPath", () => {
 describe("parseNavPath project pages", () => {
   it.each([
     ["/CRMB/issues", "issues"],
-    ["/CRMB/members", "members"],
     ["/CRMB/releases", "releases"],
     ["/CRMB/settings", "settings"],
   ])("%s is the %s page", (path, page) => {
@@ -129,7 +128,6 @@ describe("projectNavItems", () => {
       { key: "overview", href: "/CRMB" },
       { key: "issues", href: "/CRMB/issues" },
       { key: "releases", href: "/CRMB/releases" },
-      { key: "members", href: "/CRMB/members" },
       { key: "settings", href: "/CRMB/settings" },
     ]);
   });
@@ -142,9 +140,6 @@ describe("projectNavItems", () => {
     // Derived from canProject so the test follows the role matrix.
     const keys = projectNavItems("CRMB", "qa", true).map((i) => i.key);
     expect(keys.slice(0, 2)).toEqual(["overview", "issues"]);
-    expect(keys.includes("members")).toBe(
-      canProject("qa", { member: ["manage"] })
-    );
     expect(keys.includes("settings")).toBe(
       canProject("qa", { environment: ["update"] })
     );
@@ -439,7 +434,7 @@ describe("projectSwitchHref", () => {
     ["/CMEM/issues", true, "/KESTREL/issues"],
     ["/CMEM/issues/42", true, "/KESTREL/issues"],
     ["/CMEM/milestones", true, "/KESTREL"],
-    ["/CMEM/members", true, "/KESTREL/members"],
+    ["/CMEM/members", true, "/KESTREL"],
     ["/CMEM/releases", true, "/KESTREL/releases"],
     ["/CMEM/releases", false, "/KESTREL"],
   ])("from %s (target releasable %s) goes to %s", (path, releasable, href) => {
@@ -452,16 +447,6 @@ describe("projectSwitchHref", () => {
         releasable,
       })
     ).toBe(href);
-  });
-  it("drops a members page the target role may not open", () => {
-    expect(
-      projectSwitchHref({
-        projectKey: "KESTREL",
-        environments,
-        role: "viewer",
-        from: parseNavPath("/CMEM/members"),
-      })
-    ).toBe("/KESTREL");
   });
   it.each(["/CMEM", "/CMEM/environments/new"])(
     "goes from %s to the overview",

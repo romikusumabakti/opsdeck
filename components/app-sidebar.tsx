@@ -88,7 +88,6 @@ const PROJECT_ICONS: Record<ProjectNavKey, LucideIcon> = {
   overview: LayoutDashboard,
   issues: CircleDot,
   releases: PackageCheck,
-  members: Users,
   settings: Settings,
 };
 

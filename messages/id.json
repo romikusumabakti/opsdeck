@@ -89,8 +89,7 @@
     "mail": "Email",
     "repositories": "Repositori",
     "variables": "Variabel",
-    "releases": "Rilis",
-    "members": "Anggota"
+    "releases": "Rilis"
   },
   "commandPalette": {
     "triggerLabel": "Cari atau buka…",
@@ -125,7 +124,6 @@
     "history": "Riwayat",
     "settings": "Pengaturan",
     "overview": "Ringkasan",
-    "members": "Anggota",
     "projectSettings": "Pengaturan proyek",
     "environmentSettings": "Pengaturan lingkungan",
     "menu": "Menu",
@@ -1896,8 +1894,7 @@
     "editProject": "Edit proyek",
     "noEnvironments": "Belum ada environment",
     "noEnvironmentsDescription": "Tambahkan environment pertama (QA, dev, atau rilis) untuk proyek ini.",
-    "client": "Klien",
-    "members": "Anggota"
+    "client": "Klien"
   },
   "projectSettings": {
     "title": "Pengaturan proyek",
@@ -1916,7 +1913,10 @@
     "deletedSuccess": "Proyek {name} dihapus",
     "tabJira": "Jira",
     "jiraTitle": "Sinkronisasi Jira",
-    "jiraDescription": "Mirror sebuah proyek Jira ke pelacak isu proyek ini."
+    "jiraDescription": "Mirror sebuah proyek Jira ke pelacak isu proyek ini.",
+    "tabMembers": "Anggota",
+    "membersTitle": "Anggota",
+    "membersDescription": "Orang-orang di project ini. Peran setiap orang diatur sekali di Admin → Pengguna."
   },
   "homePage": {
     "title": "Beranda",

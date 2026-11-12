@@ -23,7 +23,6 @@ export type ProjectPage =
   | "issues"
   | "issue"
   | "releases"
-  | "members"
   | "settings"
   | "new-environment"
   | "other";
@@ -53,7 +52,6 @@ const PROJECT_PAGES: Record<string, ProjectPage> = {
   settings: "settings",
   issues: "issues",
   releases: "releases",
-  members: "members",
   environments: "new-environment",
 };
 
@@ -193,12 +191,7 @@ export const SECTION_PERMS = {
   variables: { variable: ["read"] },
 } satisfies Record<string, ProjectPermissions>;
 
-export type ProjectNavKey =
-  | "overview"
-  | "issues"
-  | "releases"
-  | "members"
-  | "settings";
+export type ProjectNavKey = "overview" | "issues" | "releases" | "settings";
 
 /**
  * The project-level pages a role may open, in sidebar order. `releasable` is
@@ -215,16 +208,9 @@ export function projectNavItems(
     overview: true,
     issues: true,
     releases: releasable && canProject(role, { deploy: ["view"] }),
-    members: canProject(role, { member: ["manage"] }),
     settings: canProject(role, SECTION_PERMS.settings),
   };
-  const keys: ProjectNavKey[] = [
-    "overview",
-    "issues",
-    "releases",
-    "members",
-    "settings",
-  ];
+  const keys: ProjectNavKey[] = ["overview", "issues", "releases", "settings"];
   return keys
     .filter((key) => allowed[key])
     .map((key) => ({

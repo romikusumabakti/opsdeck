@@ -22,12 +22,27 @@ describe("project issues page", () => {
   });
 });
 
-describe("project members page", () => {
+describe("project members route", () => {
   const src = route("$projectKey.members.tsx");
-  it("requires member:manage and renders the members client", () => {
-    expect(src).toContain("requireProjectRole(");
+  it("redirects to the Members tab of Project settings", () => {
+    expect(src).toContain("redirect(");
+    expect(src).toMatch(/`\/\$\{projectKey\}\/settings\?tab=members`/);
+    expect(src).not.toContain("ProjectMembersClient");
+  });
+});
+
+describe("project overview ?tab=members", () => {
+  it("goes straight to the Members tab of Project settings", () => {
+    expect(route("$projectKey.index.tsx")).toMatch(/settings\?tab=members/);
+  });
+});
+
+describe("project settings page", () => {
+  const src = route("$projectKey.settings.tsx");
+  it("opens the tab from the search and gates Members on member:manage", () => {
+    expect(src).toContain("validateSearch: projectSettingsSearch");
     expect(src).toContain('member: ["manage"]');
-    expect(src).toContain("ProjectMembersClient");
+    expect(src).toContain("ProjectMembersTab");
   });
 });
 
@@ -68,9 +83,9 @@ describe("project overview", () => {
 });
 
 describe("breadcrumb messages", () => {
-  it.each(locales)("%s has breadcrumbs.members and no milestones", (l) => {
+  it.each(locales)("%s has no members or milestones crumb", (l) => {
     const m = JSON.parse(readFileSync(`messages/${l}.json`, "utf8"));
-    expect(typeof m.breadcrumbs.members).toBe("string");
+    expect(m.breadcrumbs.members).toBeUndefined();
     expect(m.breadcrumbs.milestones).toBeUndefined();
   });
 });
