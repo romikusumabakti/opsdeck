@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { LocalTime } from "@/components/user/local-time";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import { ORG_ROLES } from "@/lib/permissions";
+import { normalizeOrgRole, ORG_ROLES } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { PersonSummary } from "@/web/api/users";
 
@@ -58,7 +58,7 @@ export function PeopleClient({
                 s.toLocaleLowerCase().includes(needle)
               )) &&
             (showDeactivated || !p.deactivated) &&
-            (role === ALL || p.role === role) &&
+            (role === ALL || normalizeOrgRole(p.role) === role) &&
             (project === ALL || p.projectIds.includes(project))
         )
         // Deactivated people (admins only see them) go last; the sort is

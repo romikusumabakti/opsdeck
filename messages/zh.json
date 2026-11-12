@@ -2420,6 +2420,8 @@
   },
   "access": {
     "colOrgRole": "组织角色",
+    "isMember": "成员",
+    "notMember": "非成员",
     "inactive": "不活跃",
     "banned": "已封禁",
     "filterInactive": "超过 60 天未活动",

@@ -2420,6 +2420,8 @@
   },
   "access": {
     "colOrgRole": "دور المؤسسة",
+    "isMember": "عضو",
+    "notMember": "ليس عضوًا",
     "inactive": "غير نشط",
     "banned": "محظور",
     "filterInactive": "غير نشط > 60 يومًا",

@@ -1,7 +1,7 @@
+import { Check } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
-import { Badge } from "@/components/ui/badge";
 import {
   DataTable,
   type DataTableColumnDef,
@@ -13,9 +13,9 @@ import type { UserRow } from "./types";
 import { RoleBadge } from "./user-badges";
 import { UserIdentityCell } from "./user-identity-cell";
 
-// Read-only overview of who can reach which project. Org roles are changed on
-// the Users tab and project roles in each project's members settings, so this
-// view has no write path of its own.
+// Read-only overview of who can reach which project. Roles are changed on the
+// Users tab and memberships in each project's settings, so this view has no
+// write path of its own.
 export function AccessMatrix({
   users,
   matrix,
@@ -32,7 +32,6 @@ export function AccessMatrix({
 }) {
   const t = useTranslations("users");
   const tAccess = useTranslations("access");
-  const tRole = useTranslations("projectMembers.role");
 
   const columns = React.useMemo<DataTableColumnDef<UserRow>[]>(() => {
     const projectColumns: DataTableColumnDef<UserRow>[] = matrix.projects.map(
@@ -45,13 +44,22 @@ export function AccessMatrix({
           </span>
         ),
         cell: ({ row }) => {
-          const role = matrix.memberships[row.original.id]?.[p.id];
-          return role ? (
-            <Badge variant="secondary" className="text-xs">
-              {tRole(role)}
-            </Badge>
+          const isMember =
+            matrix.memberships[row.original.id]?.includes(p.id) ?? false;
+          return isMember ? (
+            <Check
+              className="size-4"
+              role="img"
+              aria-label={tAccess("isMember")}
+            />
           ) : (
-            <span className="text-muted-foreground">–</span>
+            <span
+              role="img"
+              className="text-muted-foreground"
+              aria-label={tAccess("notMember")}
+            >
+              –
+            </span>
           );
         },
       })
@@ -102,7 +110,7 @@ export function AccessMatrix({
       },
       ...projectColumns,
     ];
-  }, [matrix, t, tAccess, tRole, currentUserId, now]);
+  }, [matrix, t, tAccess, currentUserId, now]);
 
   return (
     <DataTable

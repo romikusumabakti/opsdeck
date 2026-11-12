@@ -11,17 +11,16 @@ import {
   sessions,
   users,
 } from "@/lib/db/schema";
-import { normalizeProjectRole, type ProjectRole } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
 
 // The Project access tab of /admin/users: every project plus each user's
-// explicit memberships. User rows (name, role, last active, banned) come from
+// project memberships (which projects each user is a member of). User rows (name, role, last active, banned) come from
 // listUsers, which the page already fetches, so they aren't read twice.
 export type AccessMatrix = {
   projects: { id: string; key: string; name: string }[];
-  memberships: Record<string, Record<string, ProjectRole>>;
+  memberships: Record<string, string[]>;
 };
 
 export async function getAccessMatrix(): Promise<AccessMatrix> {
@@ -35,16 +34,13 @@ export async function getAccessMatrix(): Promise<AccessMatrix> {
       .select({
         userId: projectMembers.userId,
         projectId: projectMembers.projectId,
-        role: projectMembers.role,
       })
       .from(projectMembers),
   ]);
   const memberships: AccessMatrix["memberships"] = {};
   for (const m of memberRows) {
-    const role = normalizeProjectRole(m.role);
-    if (!role) continue;
-    const byUser = memberships[m.userId] ?? {};
-    byUser[m.projectId] = role;
+    const byUser = memberships[m.userId] ?? [];
+    byUser.push(m.projectId);
     memberships[m.userId] = byUser;
   }
   return { projects: projectRows, memberships };

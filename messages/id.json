@@ -2420,6 +2420,8 @@
   },
   "access": {
     "colOrgRole": "Role org",
+    "isMember": "Anggota",
+    "notMember": "Bukan anggota",
     "inactive": "Tidak aktif",
     "banned": "Diblokir",
     "filterInactive": "Tidak aktif > 60 hari",

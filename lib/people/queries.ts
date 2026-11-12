@@ -11,7 +11,7 @@ import {
 import {
   canOrg,
   effectiveProjectRole,
-  type ProjectRole,
+  seesAllProjects,
 } from "@/lib/permissions";
 import { effectiveTimeZone } from "@/lib/timezone";
 import { activeStatus, type WorkingHours } from "@/lib/user-display";
@@ -116,7 +116,7 @@ export async function listPeople(
 
 export async function getPersonProjects(
   userId: string
-): Promise<{ id: string; key: string; name: string; role: ProjectRole }[]> {
+): Promise<{ id: string; key: string; name: string }[]> {
   const access = await getProjectAccess();
   const [target, memberships, visibleProjects] = await Promise.all([
     db.query.users.findFirst({
@@ -137,8 +137,7 @@ export async function getPersonProjects(
   const membership = new Set(memberships.map((m) => m.projectId));
   return visibleProjects.flatMap((p) => {
     if (!access.roles[p.id]) return [];
-    const role = effectiveProjectRole(target.role, membership.has(p.id));
-    return role ? [{ ...p, role }] : [];
+    return seesAllProjects(target.role) || membership.has(p.id) ? [p] : [];
   });
 }
 

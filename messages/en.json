@@ -2420,6 +2420,8 @@
   },
   "access": {
     "colOrgRole": "Org role",
+    "isMember": "Member",
+    "notMember": "Not a member",
     "inactive": "Inactive",
     "banned": "Banned",
     "filterInactive": "Inactive > 60 days",

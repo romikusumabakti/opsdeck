@@ -21,7 +21,7 @@ import { Link } from "@/i18n/navigation";
 import { DATE_ONLY, DATE_TIME } from "@/lib/format-date";
 import { qualifiedEnvName } from "@/lib/nav-path";
 import { teamsChatUrl } from "@/lib/people/links";
-import { canOrg, projectRoleForOrgRole } from "@/lib/permissions";
+import { canOrg, normalizeOrgRole } from "@/lib/permissions";
 import { uuidSchema } from "@/lib/validation";
 import { useMe } from "@/web/api/session";
 import { getPersonQuery } from "@/web/api/users";
@@ -80,7 +80,6 @@ function PersonPage() {
   const me = useMe();
   const t = useTranslations("people");
   const tRole = useTranslations("users.role");
-  const tProject = useTranslations("projectMembers.role");
   const tIssues = useTranslations("issues");
   const tHistory = useTranslations("history");
   const format = useFormatter();
@@ -88,9 +87,6 @@ function PersonPage() {
   const isMe = me?.user.id === id;
   const canManage = canOrg(me?.orgRole, { user: ["update"] });
 
-  // A role badge on every project says nothing when the job role already
-  // decides it, so show only exceptions (none, since roles became global).
-  const impliedRole = projectRoleForOrgRole(card.role);
   const shownProjects = projects.slice(0, LIST_ROWS);
   const moreProjects = projects.slice(LIST_ROWS);
   const projectItem = (p: (typeof projects)[number]) => (
@@ -98,9 +94,6 @@ function PersonPage() {
       <Link href={`/${p.key}`} className="truncate hover:underline">
         {p.name}
       </Link>
-      {p.role !== impliedRole && (
-        <Badge variant="outline">{tProject(p.role)}</Badge>
-      )}
     </li>
   );
 
@@ -115,7 +108,9 @@ function PersonPage() {
                 <h1 className="text-2xl font-semibold tracking-tight">
                   {card.name}
                 </h1>
-                <Badge variant="outline">{tRole(card.role)}</Badge>
+                <Badge variant="outline">
+                  {tRole(normalizeOrgRole(card.role))}
+                </Badge>
                 {card.deactivated && (
                   <Badge variant="secondary">{t("deactivated")}</Badge>
                 )}
