@@ -106,7 +106,7 @@ describe("issue selects compact variant", () => {
   // a long assignee name truncate instead of widening an auto-layout column.
   it("pins the assignee truncation classes (class pin, not a layout test)", () => {
     const picker = readFileSync("components/person-picker.tsx", "utf8");
-    expect(picker).toContain('<span className="truncate">{person.name}</span>');
+    expect(picker).toMatch(/<span className="truncate">\s*\{person\.name\}/);
     expect(picker).toContain(
       '<span className="flex min-w-0 items-center gap-1.5">'
     );

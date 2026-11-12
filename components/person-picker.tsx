@@ -81,8 +81,15 @@ export function PersonPicker({
     return (
       <span className="flex min-w-0 items-center gap-1.5">
         <UserAvatar user={avatarUser(person)} size="xs" />
-        <span className="truncate">{person.name}</span>
-        {person.status?.emoji ? <span>{person.status.emoji}</span> : null}
+        <span className="truncate">
+          {person.name}
+          {person.banned ? ` (${tp("deactivated")})` : ""}
+        </span>
+        {person.status?.emoji ? (
+          <span title={person.status.text ?? undefined}>
+            {person.status.emoji}
+          </span>
+        ) : null}
       </span>
     );
   }

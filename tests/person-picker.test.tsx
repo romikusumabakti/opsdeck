@@ -94,6 +94,25 @@ afterEach(() => {
 });
 
 describe("PersonPicker", () => {
+  it("marks a deactivated current person in the trigger and keeps the status tooltip", async () => {
+    await render({
+      people: [
+        {
+          id: "u3",
+          name: "Dede",
+          image: null,
+          banned: true,
+          status: { emoji: "🌴", text: "On leave" },
+        },
+      ],
+      value: "u3",
+    });
+    expect(trigger()?.textContent).toContain("Dede (Deactivated)");
+    expect(trigger()?.querySelector('[title="On leave"]')?.textContent).toBe(
+      "🌴"
+    );
+  });
+
   it("finds a person by email, case-insensitively", async () => {
     await render();
     await open();
