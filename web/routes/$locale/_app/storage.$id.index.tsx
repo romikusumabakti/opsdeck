@@ -15,7 +15,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import { canOrg } from "@/lib/permissions";
 import { getS3ConnectionQuery } from "@/web/api/s3-connections";
-import { useMe } from "@/web/api/session";
+import { useCanOrg, useMe } from "@/web/api/session";
 import { orNotFound, requireOrgRole } from "@/web/project-guard";
 
 export const Route = createFileRoute("/$locale/_app/storage/$id/")({
@@ -34,10 +34,11 @@ function EditStoragePage() {
   const { id } = Route.useParams();
   const t = useTranslations("editStorage");
   const me = useMe();
+  const canAccess = useCanOrg();
   // Observers (storage:read) see the connection read-only, and the file
   // browser only with storage:files.
   const canManage = canOrg(me?.orgRole, { storage: ["manage"] });
-  const canBrowse = canOrg(me?.orgRole, { storage: ["files"] });
+  const canBrowse = canAccess({ storage: ["files"] });
   const connection = useSuspenseQuery(getS3ConnectionQuery(id)).data;
   if (!connection) return null;
 

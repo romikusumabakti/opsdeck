@@ -59,6 +59,7 @@ import {
 } from "@/lib/nav-path";
 import {
   canOrg,
+  canOrgAccess,
   canProject,
   type OrgRole,
   type ProjectRole,
@@ -204,7 +205,9 @@ export function CommandPalette({
               <UsersRound />
               {tNav("people")}
             </CommandItem>
-            {canOrg(orgRole, { server: ["read"] }) && (
+            {canOrgAccess(orgRole, Object.values(projectRoles), {
+              server: ["read"],
+            }) && (
               <CommandItem
                 value="servers"
                 onSelect={() => run(() => router.push("/servers"))}
@@ -213,7 +216,9 @@ export function CommandPalette({
                 {tUserMenu("servers")}
               </CommandItem>
             )}
-            {canOrg(orgRole, { storage: ["read"] }) && (
+            {canOrgAccess(orgRole, Object.values(projectRoles), {
+              storage: ["read"],
+            }) && (
               <CommandItem
                 value="storage buckets s3"
                 onSelect={() => run(() => router.push("/storage"))}

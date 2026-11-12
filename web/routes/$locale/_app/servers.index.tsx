@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { canOrg } from "@/lib/permissions";
 import { getServersQuery } from "@/web/api/servers";
-import { useMe } from "@/web/api/session";
+import { useCanOrg, useMe } from "@/web/api/session";
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import { ListPending } from "./-components/list-pending";
@@ -26,13 +26,14 @@ export const Route = createFileRoute("/$locale/_app/servers/")({
 function ServersPage() {
   const t = useTranslations("servers");
   const me = useMe();
+  const canAccess = useCanOrg();
   const servers = useSuspenseQuery(getServersQuery()).data;
   // server:read (observers) lists servers; managing, the terminal and the file
   // browser each need their own statement, so their controls are hidden too.
   const can = {
     manage: canOrg(me?.orgRole, { server: ["manage"] }),
-    terminal: canOrg(me?.orgRole, { server: ["terminal"] }),
-    files: canOrg(me?.orgRole, { server: ["files"] }),
+    terminal: canAccess({ server: ["terminal"] }),
+    files: canAccess({ server: ["files"] }),
   };
 
   return (

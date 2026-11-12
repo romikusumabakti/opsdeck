@@ -14,11 +14,14 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { canOrg } from "@/lib/permissions";
+import { canOrg, canOrgAccess } from "@/lib/permissions";
 import { getJiraConnectionsQuery, getJiraLinkQuery } from "@/web/api/jira";
-import { getProjectByKeyWithEnvironmentsQuery } from "@/web/api/project-catalog";
+import {
+  getMyProjectAccessQuery,
+  getProjectByKeyWithEnvironmentsQuery,
+} from "@/web/api/project-catalog";
 import { getServersQuery } from "@/web/api/servers";
-import { meQuery, useMe } from "@/web/api/session";
+import { meQuery, useCanOrg, useMe } from "@/web/api/session";
 import { requireProjectRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import { DeleteProjectCard } from "./-components/project/delete-project-card";
@@ -37,9 +40,10 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
     });
   },
   loader: async ({ params: { projectKey }, context: { queryClient } }) => {
-    const [project, me] = await Promise.all([
+    const [project, me, access] = await Promise.all([
       queryClient.query(getProjectByKeyWithEnvironmentsQuery(projectKey)),
       queryClient.query(meQuery()),
+      queryClient.query(getMyProjectAccessQuery()),
     ]);
     if (!project) throw notFound();
     await Promise.all([
@@ -50,7 +54,9 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
         : null,
       // The Default server field names the servers; listing them needs
       // server:read, changing the default server:manage.
-      canOrg(me?.orgRole, { server: ["read"] })
+      canOrgAccess(me?.orgRole, Object.values(access.roles), {
+        server: ["read"],
+      })
         ? loaderQuery(queryClient, getServersQuery())
         : null,
       loaderQuery(queryClient, getJiraLinkQuery(project.id)),
@@ -64,6 +70,7 @@ function ProjectSettingsPage() {
   const { projectKey } = Route.useParams();
   const t = useTranslations("projectSettings");
   const me = useMe();
+  const canAccess = useCanOrg();
   const project = useSuspenseQuery(
     getProjectByKeyWithEnvironmentsQuery(projectKey)
   ).data;
@@ -79,7 +86,7 @@ function ProjectSettingsPage() {
   const servers =
     useQuery({
       ...getServersQuery(),
-      enabled: canOrg(me?.orgRole, { server: ["read"] }),
+      enabled: canAccess({ server: ["read"] }),
       select: (rows) => rows.map(({ id, name }) => ({ id, name })),
     }).data ?? [];
   const canChangeDefaultServer = canOrg(me?.orgRole, { server: ["manage"] });

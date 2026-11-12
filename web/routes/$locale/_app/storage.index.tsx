@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { canOrg } from "@/lib/permissions";
 import { getS3ConnectionsQuery } from "@/web/api/s3-connections";
-import { useMe } from "@/web/api/session";
+import { useCanOrg, useMe } from "@/web/api/session";
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import { ListPending } from "./-components/list-pending";
@@ -26,12 +26,13 @@ export const Route = createFileRoute("/$locale/_app/storage/")({
 function StoragePage() {
   const t = useTranslations("storage");
   const me = useMe();
+  const canAccess = useCanOrg();
   const connections = useSuspenseQuery(getS3ConnectionsQuery()).data;
   // storage:read (observers) lists connections; managing them and browsing
   // their files need their own statements, so those controls are hidden too.
   const can = {
     manage: canOrg(me?.orgRole, { storage: ["manage"] }),
-    files: canOrg(me?.orgRole, { storage: ["files"] }),
+    files: canAccess({ storage: ["files"] }),
   };
 
   return (

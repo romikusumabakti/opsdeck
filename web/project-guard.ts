@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
 import {
-  canOrg,
+  canOrgAccess,
   canProject,
   type OrgPermissions,
   type ProjectPermissions,
@@ -39,8 +39,12 @@ export async function requireProjectRole(
   const role = await projectRoleOf(queryClient, projectId);
   if (!(role && canProject(role, perms))) throw notFound();
   if (orgPerms) {
-    const me = await queryClient.query(meQuery());
-    if (!canOrg(me?.orgRole, orgPerms)) throw notFound();
+    const [me, access] = await Promise.all([
+      queryClient.query(meQuery()),
+      queryClient.query(getMyProjectAccessQuery()),
+    ]);
+    if (!canOrgAccess(me?.orgRole, Object.values(access.roles), orgPerms))
+      throw notFound();
   }
   return role;
 }
@@ -65,8 +69,12 @@ export async function requireOrgRole(
   queryClient: QueryClient,
   perms: OrgPermissions
 ) {
-  const me = await queryClient.query(meQuery());
-  if (!(me && canOrg(me.orgRole, perms))) throw notFound();
+  const [me, access] = await Promise.all([
+    queryClient.query(meQuery()),
+    queryClient.query(getMyProjectAccessQuery()),
+  ]);
+  if (!(me && canOrgAccess(me.orgRole, Object.values(access.roles), perms)))
+    throw notFound();
   return me;
 }
 

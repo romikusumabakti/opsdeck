@@ -185,6 +185,17 @@ describe("app sidebar", () => {
     expect(hrefs()).toEqual(expect.arrayContaining(["/servers", "/storage"]));
   });
 
+  it("shows Servers and Storage to a member who is an engineer somewhere", async () => {
+    await renderSidebar("member", "/", { projectRoles: { p1: "engineer" } });
+    expect(hrefs()).toEqual(expect.arrayContaining(["/servers", "/storage"]));
+  });
+
+  it("hides Servers and Storage from a member who is only QA", async () => {
+    await renderSidebar("member", "/", { projectRoles: { p1: "qa" } });
+    expect(hrefs()).not.toContain("/servers");
+    expect(hrefs()).not.toContain("/storage");
+  });
+
   it("shows an observer only the admin rows its role allows", async () => {
     await renderSidebar("observer", "/admin/activity");
     expect(groupRows(messages.nav.admin)).toEqual([

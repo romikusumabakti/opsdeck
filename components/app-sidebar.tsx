@@ -63,6 +63,7 @@ import {
 } from "@/lib/nav-path";
 import {
   canOrg,
+  canOrgAccess,
   canProject,
   type OrgPermissions,
   type OrgRole,
@@ -237,8 +238,13 @@ export function AppSidebar({
   const tNav = useTranslations("nav");
   const pathname = usePathname();
 
-  const canSeeServers = canOrg(orgRole, { server: ["read"] });
-  const canSeeStorage = canOrg(orgRole, { storage: ["read"] });
+  const projectRoleList = Object.values(projectRoles);
+  const canSeeServers = canOrgAccess(orgRole, projectRoleList, {
+    server: ["read"],
+  });
+  const canSeeStorage = canOrgAccess(orgRole, projectRoleList, {
+    storage: ["read"],
+  });
   const canSeeAdmin = canOrg(orgRole, { audit: ["read"] });
   const inAdmin =
     canSeeAdmin && (pathname === "/admin" || pathname.startsWith("/admin/"));

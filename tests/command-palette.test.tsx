@@ -111,6 +111,19 @@ describe("command palette pages", () => {
     ]);
   });
 
+  it("lists Servers and Storage to a member who is an engineer", async () => {
+    await openPalette("member", "engineer");
+    expect(labels()).toEqual(
+      expect.arrayContaining([messages.userMenu.servers, messages.nav.storage])
+    );
+  });
+
+  it("hides Servers and Storage from a QA member", async () => {
+    await openPalette("member", "qa");
+    expect(labels()).not.toContain(messages.userMenu.servers);
+    expect(labels()).not.toContain(messages.nav.storage);
+  });
+
   it("hides Repositories, CI and Cloudflare from a QA member", async () => {
     await openPalette("member", "qa");
     const shown = labels();
