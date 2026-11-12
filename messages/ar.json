@@ -232,8 +232,7 @@
     "dbName": "اسم قاعدة البيانات",
     "server": "الخادم",
     "stack": {
-      "title": "المكدس",
-      "manage": "إدارة"
+      "title": "المكدس"
     },
     "serviceTypes": {
       "docker": "Docker",
@@ -286,7 +285,8 @@
       "start": "تشغيل",
       "stop": "إيقاف",
       "restart": "إعادة التشغيل",
-      "viewLogs": "عرض السجلات"
+      "viewLogs": "عرض السجلات",
+      "logs": "السجلات"
     },
     "confirmTitle": {
       "start": "تشغيل الخدمة",

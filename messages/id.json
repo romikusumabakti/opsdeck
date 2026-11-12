@@ -232,8 +232,7 @@
     "dbName": "Nama DB",
     "server": "Server",
     "stack": {
-      "title": "Stack",
-      "manage": "Kelola"
+      "title": "Stack"
     },
     "serviceTypes": {
       "docker": "Docker",
@@ -286,7 +285,8 @@
       "start": "Start",
       "stop": "Stop",
       "restart": "Restart",
-      "viewLogs": "Lihat log"
+      "viewLogs": "Lihat log",
+      "logs": "Log"
     },
     "confirmTitle": {
       "start": "Start service",

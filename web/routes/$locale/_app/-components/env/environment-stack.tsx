@@ -1,22 +1,37 @@
-import { ArrowRight, Atom, Boxes, Database, Plug, Tag } from "lucide-react";
+import {
+  Atom,
+  Boxes,
+  CircleAlert,
+  Database,
+  Plug,
+  RefreshCw,
+  Tag,
+} from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { ServiceStatusBadge } from "@/components/service-status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "@/i18n/navigation";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   findService,
   type ServiceRole,
   type ServiceType,
 } from "@/lib/services";
+import { cn } from "@/lib/utils";
 import type { EnvironmentWithServers } from "@/web/api/environments";
 import {
   getAllServiceStatuses,
   type ServiceStatusResult,
 } from "@/web/api/services";
+import { type PendingServiceAction, ServiceActions } from "./service-actions";
 
 type RoleMeta = {
   role: ServiceRole;
@@ -41,32 +56,31 @@ export function EnvironmentStack({
   const t = useTranslations("dashboard.stack");
   const tDash = useTranslations("dashboard");
   const tCommon = useTranslations("common");
+  const tServices = useTranslations("services");
   const [statuses, setStatuses] = React.useState<StatusMap>({});
   const [loading, setLoading] = React.useState(true);
+  // One action at a time across the whole card.
+  const [pending, setPending] = React.useState<PendingServiceAction>(null);
+
+  // Updates the rows in place: nothing unmounts while it runs, so an open run
+  // dialog survives a refresh.
+  const refresh = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const results = await getAllServiceStatuses(environment.id);
+      const next: StatusMap = {};
+      for (const r of results) next[r.role] = r;
+      setStatuses(next);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : tCommon("errorGeneric"));
+    } finally {
+      setLoading(false);
+    }
+  }, [environment, tCommon]);
 
   React.useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getAllServiceStatuses(environment.id)
-      .then((results) => {
-        if (cancelled) return;
-        const next: StatusMap = {};
-        for (const r of results) next[r.role] = r;
-        setStatuses(next);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        toast.error(
-          err instanceof Error ? err.message : tCommon("errorGeneric")
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [environment, tCommon]);
+    refresh();
+  }, [refresh]);
 
   // Only the services the environment has, in db, backend, frontend order.
   const dbSvc = findService(environment, "db");
@@ -120,13 +134,22 @@ export function EnvironmentStack({
           <Boxes className="size-4 text-muted-foreground" />
           <CardTitle className="text-base">{t("title")}</CardTitle>
         </div>
-        <Link
-          href={`${envPath}/services`}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-        >
-          {t("manage")}
-          <ArrowRight className="size-3" />
-        </Link>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refresh}
+                disabled={loading}
+              />
+            }
+          >
+            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            {tServices("refresh")}
+          </TooltipTrigger>
+          <TooltipContent>{tServices("infoNote")}</TooltipContent>
+        </Tooltip>
       </CardHeader>
       <CardContent>
         <ul className="flex flex-col">
@@ -140,6 +163,21 @@ export function EnvironmentStack({
                 status={statuses[meta.role] ?? null}
                 loading={loading}
                 tDash={tDash}
+                actions={
+                  <ServiceActions
+                    environmentId={environment.id}
+                    role={meta.role}
+                    title={tDash(meta.titleKey)}
+                    serviceName={meta.serviceName}
+                    serverName={meta.serverName}
+                    status={statuses[meta.role] ?? null}
+                    loading={loading}
+                    logsHref={`${envPath}/services/${meta.role}/logs`}
+                    pending={pending}
+                    onPendingChange={setPending}
+                    onRefresh={refresh}
+                  />
+                }
               />
             </li>
           ))}
@@ -154,38 +192,51 @@ function StackRow({
   status,
   loading,
   tDash,
+  actions,
 }: {
   meta: RoleMeta;
   status: ServiceStatusResult | null;
   loading: boolean;
   tDash: (key: string) => string;
+  actions: React.ReactNode;
 }) {
   const Icon = meta.icon;
   const state = status?.state ?? "unknown";
   return (
-    <div className="flex items-center gap-3 min-w-0">
-      <span className="size-9 rounded-md bg-muted/60 flex items-center justify-center shrink-0">
-        <Icon className="size-4 text-muted-foreground" />
-      </span>
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-medium truncate">
-            {tDash(meta.titleKey)}
-          </span>
-          <Badge
-            variant="secondary"
-            className="text-[10px] uppercase tracking-wide shrink-0"
-          >
-            {tDash(`serviceTypes.${meta.serviceType}`)}
-          </Badge>
-        </div>
-        <span className="text-xs text-muted-foreground truncate">
-          <code className="font-mono">{meta.serviceName}</code>
-          <span> · {meta.serverName}</span>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0">
+      <div className="flex flex-1 basis-64 items-center gap-3 min-w-0">
+        <span className="size-9 rounded-md bg-muted/60 flex items-center justify-center shrink-0">
+          <Icon className="size-4 text-muted-foreground" />
         </span>
-        {meta.extra}
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-medium truncate">
+              {tDash(meta.titleKey)}
+            </span>
+            <Badge
+              variant="secondary"
+              className="text-[10px] uppercase tracking-wide shrink-0"
+            >
+              {tDash(`serviceTypes.${meta.serviceType}`)}
+            </Badge>
+          </div>
+          <span className="text-xs text-muted-foreground truncate">
+            <code className="font-mono">{meta.serviceName}</code>
+            <span> · {meta.serverName}</span>
+          </span>
+          {meta.extra}
+          {status?.error && (
+            <div className="text-xs text-destructive flex items-start gap-1.5">
+              <CircleAlert className="size-3.5 shrink-0 mt-0.5" />
+              <code className="font-mono break-all">{status.error}</code>
+            </div>
+          )}
+        </div>
+        <ServiceStatusBadge state={state} loading={loading} />
       </div>
-      <ServiceStatusBadge state={state} loading={loading} />
+      <div className="flex flex-wrap items-center gap-1.5 ps-12 sm:ps-0">
+        {actions}
+      </div>
     </div>
   );
 }

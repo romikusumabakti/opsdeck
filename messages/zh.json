@@ -232,8 +232,7 @@
     "dbName": "数据库名称",
     "server": "服务器",
     "stack": {
-      "title": "技术栈",
-      "manage": "管理"
+      "title": "技术栈"
     },
     "serviceTypes": {
       "docker": "Docker",
@@ -286,7 +285,8 @@
       "start": "启动",
       "stop": "停止",
       "restart": "重启",
-      "viewLogs": "查看日志"
+      "viewLogs": "查看日志",
+      "logs": "日志"
     },
     "confirmTitle": {
       "start": "启动服务",

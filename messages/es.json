@@ -232,8 +232,7 @@
     "dbName": "Nombre de la BD",
     "server": "Servidor",
     "stack": {
-      "title": "Stack",
-      "manage": "Gestionar"
+      "title": "Stack"
     },
     "serviceTypes": {
       "docker": "Docker",
@@ -286,7 +285,8 @@
       "start": "Iniciar",
       "stop": "Detener",
       "restart": "Reiniciar",
-      "viewLogs": "Ver registros"
+      "viewLogs": "Ver registros",
+      "logs": "Registros"
     },
     "confirmTitle": {
       "start": "Iniciar servicio",
