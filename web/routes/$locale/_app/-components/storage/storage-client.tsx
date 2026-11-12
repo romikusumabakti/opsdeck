@@ -87,7 +87,7 @@ export function StorageClient({
           <DataTableColumnHeader column={column} title={t("colEndpoint")} />
         ),
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.getValue("endpoint")}</span>
+          <span className="font-mono text-sm">{row.getValue("endpoint")}</span>
         ),
       },
       {
@@ -95,7 +95,7 @@ export function StorageClient({
         meta: { label: t("colBucket") },
         header: t("colBucket"),
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-sm text-muted-foreground">
             {row.getValue("bucket")}
           </span>
         ),

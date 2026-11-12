@@ -169,7 +169,7 @@ function ReleaseRow({
   return (
     <TableRow>
       <TableCell>
-        <span className="font-mono text-xs">{release.componentKey}</span>
+        <span className="font-mono text-sm">{release.componentKey}</span>
         {release.notes && (
           <span className="block max-w-[28rem] whitespace-pre-line text-xs text-muted-foreground">
             {release.notes}
@@ -177,7 +177,7 @@ function ReleaseRow({
         )}
       </TableCell>
       <TableCell
-        className="font-mono text-xs text-muted-foreground"
+        className="font-mono text-sm text-muted-foreground"
         title={release.commitSha}
       >
         {release.branch} · {release.commitSha.slice(0, 7)}

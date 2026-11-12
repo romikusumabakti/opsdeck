@@ -70,7 +70,7 @@ function EditJiraConnectionPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
-                <code className="flex-1 break-all font-mono text-xs">
+                <code className="flex-1 break-all font-mono text-sm">
                   {webhookUrl}
                 </code>
                 <CopyButton value={webhookUrl} />

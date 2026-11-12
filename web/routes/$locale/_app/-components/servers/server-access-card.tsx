@@ -139,11 +139,11 @@ export function ServerAccessCard({
               <p>{t("mismatchDescription")}</p>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
                 <dt>{t("pinnedFingerprint")}</dt>
-                <dd className="font-mono text-xs break-all">
+                <dd className="font-mono text-sm break-all">
                   {server.hostKeyFingerprint ?? "—"}
                 </dd>
                 <dt>{t("offeredFingerprint")}</dt>
-                <dd className="font-mono text-xs break-all">
+                <dd className="font-mono text-sm break-all">
                   {server.offeredFingerprint}
                 </dd>
               </dl>
@@ -183,7 +183,7 @@ export function ServerAccessCard({
           <dd className="flex flex-col gap-0.5">
             {server.hostKeyFingerprint ? (
               <>
-                <span className="font-mono text-xs break-all">
+                <span className="font-mono text-sm break-all">
                   {server.hostKeyFingerprint}
                 </span>
                 {pinnedAt ? (
@@ -199,7 +199,7 @@ export function ServerAccessCard({
           {server.auth === "key" && server.sshFrom ? (
             <>
               <dt className="text-muted-foreground">{t("from")}</dt>
-              <dd className="font-mono text-xs">{server.sshFrom}</dd>
+              <dd className="font-mono text-sm">{server.sshFrom}</dd>
             </>
           ) : null}
           {server.keyError && state !== "keyNotVerified" ? (
@@ -407,7 +407,7 @@ function KeyInstallCheck({ server }: { server: ServerRow }) {
           </p>
         ) : current && line.data ? (
           <div className="flex items-start gap-2">
-            <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2 font-mono text-xs">
+            <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2 font-mono text-sm">
               {line.data.command}
             </code>
             <CopyButton value={line.data.command} />

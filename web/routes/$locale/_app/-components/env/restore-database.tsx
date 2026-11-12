@@ -322,7 +322,7 @@ export function RestoreDatabase({
                 {t("loadingBackups")}
               </span>
             ) : backup ? (
-              <span className="truncate font-mono text-xs">{backup.name}</span>
+              <span className="truncate font-mono text-sm">{backup.name}</span>
             ) : (
               <span className="text-muted-foreground">{t("selectBackup")}</span>
             )}
@@ -346,7 +346,7 @@ export function RestoreDatabase({
                         requestAnimationFrame(() => setOpen(false));
                       }}
                     >
-                      <span className="truncate font-mono text-xs">
+                      <span className="truncate font-mono text-sm">
                         {b.name}
                       </span>
                       <Check
@@ -413,11 +413,11 @@ export function RestoreDatabase({
         onRetry={runRestore}
         description={
           <>
-            <code className="font-mono text-xs">{database}</code>
+            <code className="font-mono text-sm">{database}</code>
             {backup && (
               <>
                 <span>·</span>
-                <code className="font-mono text-xs">{backup.name}</code>
+                <code className="font-mono text-sm">{backup.name}</code>
               </>
             )}
           </>

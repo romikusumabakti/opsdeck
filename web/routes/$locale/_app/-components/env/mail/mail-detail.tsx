@@ -254,7 +254,7 @@ export function MailDetailPane({
                   {t("sourceTruncated")}
                 </p>
               )}
-              <pre className="whitespace-pre-wrap break-all font-mono text-xs">
+              <pre className="whitespace-pre-wrap break-all font-mono text-sm">
                 {source.result.data.source}
               </pre>
             </>

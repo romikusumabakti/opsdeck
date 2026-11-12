@@ -59,7 +59,7 @@ export function DatabasePicker({
         }
       >
         {selected ? (
-          <span className="truncate font-mono text-xs">
+          <span className="truncate font-mono text-sm">
             {selected.name}
             {selected.isDefault ? ` ${defaultSuffix}` : ""}
           </span>
@@ -85,7 +85,7 @@ export function DatabasePicker({
                     requestAnimationFrame(() => setOpen(false));
                   }}
                 >
-                  <span className="truncate font-mono text-xs">
+                  <span className="truncate font-mono text-sm">
                     {d.name}
                     {d.isDefault ? (
                       <span className="text-muted-foreground">

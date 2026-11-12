@@ -56,7 +56,7 @@ export function BackupList({
           <DataTableColumnHeader column={column} title={t("colBackupName")} />
         ),
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.original.name}</span>
+          <span className="font-mono text-sm">{row.original.name}</span>
         ),
       },
       {

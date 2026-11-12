@@ -283,7 +283,7 @@ function VariableTableRow({
     <TableRow>
       <TableCell>
         <div className="flex items-center gap-2">
-          <code className="font-mono text-xs">{variable.name}</code>
+          <code className="font-mono text-sm">{variable.name}</code>
           {variable.escrow && (
             <Badge variant="outline">
               <Lock data-icon="inline-start" />
@@ -300,7 +300,7 @@ function VariableTableRow({
       <TableCell className="max-w-md">
         {shown !== null ? (
           <div className="flex items-center gap-1">
-            <code className="font-mono text-xs truncate" title={shown}>
+            <code className="font-mono text-sm truncate" title={shown}>
               {shown === "" ? (
                 <span className="italic text-muted-foreground">
                   {t("emptyValue")}
@@ -314,7 +314,7 @@ function VariableTableRow({
             )}
           </div>
         ) : (
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-sm text-muted-foreground">
             {MASK}
           </span>
         )}

@@ -38,7 +38,7 @@ export function ServerTime({ timeZone }: { timeZone: string }) {
 
   if (!now) {
     return (
-      <span className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground/60 bg-muted/40 border border-border/50 rounded px-2 py-0.5">
+      <span className="inline-flex items-center gap-1 font-mono text-sm tabular-nums text-muted-foreground/60 bg-muted/40 border border-border/50 rounded px-2 py-0.5">
         <Clock className="size-3 shrink-0" aria-hidden="true" />
         --:--:--
       </span>
@@ -50,7 +50,7 @@ export function ServerTime({ timeZone }: { timeZone: string }) {
 
   return (
     <span
-      className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground bg-muted/40 border border-border/50 rounded px-2 py-0.5"
+      className="inline-flex items-center gap-1 font-mono text-sm tabular-nums text-muted-foreground bg-muted/40 border border-border/50 rounded px-2 py-0.5"
       role="timer"
       aria-label={label}
       title={`${label}: ${dateFormatter.format(now)}T${timeFormatter.format(now)}${offset} (${timeZone})`}

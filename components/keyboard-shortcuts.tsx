@@ -13,7 +13,7 @@ type Shortcut = { keys: string[]; label: string };
 
 function Kbd({ value }: { value: string }) {
   return (
-    <kbd className="pointer-events-none inline-flex h-6 min-w-6 select-none items-center justify-center gap-1 rounded border bg-muted px-1.5 font-mono text-[11px] font-medium text-muted-foreground">
+    <kbd className="pointer-events-none inline-flex h-6 min-w-6 select-none items-center justify-center gap-1 rounded border bg-muted px-1.5 font-mono text-sm font-medium text-muted-foreground">
       {value}
     </kbd>
   );

@@ -238,7 +238,7 @@ function TunnelsCard() {
                   <TableRow key={tunnel.id}>
                     <TableCell>
                       <div className="font-medium">{tunnel.name}</div>
-                      <div className="font-mono text-xs text-muted-foreground">
+                      <div className="font-mono text-sm text-muted-foreground">
                         {tunnel.id}
                       </div>
                     </TableCell>
@@ -255,7 +255,7 @@ function TunnelsCard() {
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <div>{row.serverName}</div>
-                            <div className="font-mono text-xs text-muted-foreground">
+                            <div className="font-mono text-sm text-muted-foreground">
                               {row.originHost}
                             </div>
                           </div>

@@ -362,7 +362,7 @@ export function SpecEditor({
               <Textarea
                 aria-label={t("checkCommands")}
                 placeholder={t("checkCommands")}
-                className="font-mono text-xs"
+                className="font-mono text-sm"
                 rows={3}
                 value={check.commands}
                 onChange={(e) =>
@@ -483,7 +483,7 @@ function PipelinePreview({
       ) : (
         <pre
           className={cn(
-            "max-h-96 overflow-auto rounded-lg border bg-muted p-3 font-mono text-xs",
+            "max-h-96 overflow-auto rounded-lg border bg-muted p-3 font-mono text-sm",
             (!ready || preview.isFetching) && "opacity-60"
           )}
         >

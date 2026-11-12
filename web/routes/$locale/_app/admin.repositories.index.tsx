@@ -88,10 +88,10 @@ function RepositoriesPage() {
                 return app.components.map((component, index) => (
                   <TableRow key={component.componentKey}>
                     <TableCell>{index === 0 ? appCell : null}</TableCell>
-                    <TableCell className="font-mono text-xs">
+                    <TableCell className="font-mono text-sm">
                       {component.componentKey}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
+                    <TableCell className="font-mono text-sm">
                       {component.repoFullName}
                     </TableCell>
                     <TableCell>

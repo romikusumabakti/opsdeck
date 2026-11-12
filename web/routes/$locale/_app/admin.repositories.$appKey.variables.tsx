@@ -117,7 +117,7 @@ function VariableTemplatesPage() {
                 <TableRow key={template.id}>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
-                      <code className="font-mono text-xs">{template.name}</code>
+                      <code className="font-mono text-sm">{template.name}</code>
                       {template.required && (
                         <Badge variant="secondary">{t("required")}</Badge>
                       )}
@@ -138,7 +138,7 @@ function VariableTemplatesPage() {
                       {tVariables(`kind.${template.kind}`)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
+                  <TableCell className="font-mono text-sm text-muted-foreground">
                     {template.kind === "plain"
                       ? (template.defaultValue ?? "—")
                       : template.kind === "generated"

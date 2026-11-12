@@ -545,7 +545,7 @@ export function IssuesClient({
                         aria-label={t("selectRow")}
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
+                    <TableCell className="font-mono text-sm text-muted-foreground">
                       <Link
                         href={`/${projectKey}/issues/${issue.number}`}
                         className="hover:text-foreground hover:underline"

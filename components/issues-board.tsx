@@ -316,7 +316,7 @@ function IssueCard({
         ) : null}
         <Link
           href={`/${issue.keyPrefix}/issues/${issue.number}`}
-          className="font-mono text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+          className="font-mono text-sm text-muted-foreground hover:text-foreground hover:underline"
         >
           {issue.keyPrefix}-{issue.number}
         </Link>

@@ -313,7 +313,7 @@ export function IssueDetailClient({
                   className="flex items-center gap-2 rounded-md border p-2 hover:bg-muted/50"
                 >
                   <TypeIcon type={c.type as IssueType} />
-                  <span className="font-mono text-xs text-muted-foreground">
+                  <span className="font-mono text-sm text-muted-foreground">
                     {projectKey}-{c.number}
                   </span>
                   <span className="flex-1 truncate text-sm">{c.title}</span>

@@ -14,7 +14,7 @@ export type ProvisioningLookups = {
 };
 
 const code = (chunks: React.ReactNode) => (
-  <code className="font-mono text-xs">{chunks}</code>
+  <code className="font-mono text-sm">{chunks}</code>
 );
 
 /** The human sentence of a step. Names fall back to ids when a lookup misses. */

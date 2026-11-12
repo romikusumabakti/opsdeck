@@ -222,10 +222,7 @@ function ProjectCard({
               >
                 {project.name}
               </Link>
-              <Badge
-                variant="secondary"
-                className="font-mono text-[10px] shrink-0"
-              >
+              <Badge variant="secondary" className="font-mono text-sm shrink-0">
                 {project.key}
               </Badge>
             </div>

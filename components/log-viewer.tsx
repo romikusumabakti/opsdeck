@@ -483,14 +483,14 @@ export function LogViewer({
         {streamError && (
           <div className="px-4 py-3 text-sm text-destructive flex items-start gap-2 border-b">
             <CircleAlert className="size-4 shrink-0 mt-0.5" />
-            <code className="font-mono text-xs break-all">{streamError}</code>
+            <code className="font-mono text-sm break-all">{streamError}</code>
           </div>
         )}
 
         <div
           ref={logRef}
           onScroll={onScroll}
-          className="font-mono text-xs leading-relaxed bg-background flex-1 min-h-0 overflow-auto"
+          className="font-mono text-sm leading-relaxed bg-background flex-1 min-h-0 overflow-auto"
         >
           {filtered.length === 0 ? (
             <div className="px-4 py-3">

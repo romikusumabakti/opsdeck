@@ -203,7 +203,7 @@ export function ManageDatabases({
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <Database className="size-4 shrink-0 text-muted-foreground" />
-                <code className="min-w-0 truncate font-mono text-xs">
+                <code className="min-w-0 truncate font-mono text-sm">
                   {d.name}
                 </code>
                 {d.isDefault && (
@@ -261,7 +261,7 @@ export function ManageDatabases({
           }
         }}
         title={taskTitle}
-        description={<code className="font-mono text-xs">{taskTarget}</code>}
+        description={<code className="font-mono text-sm">{taskTarget}</code>}
       />
     </div>
   );

@@ -185,7 +185,7 @@ export function TunnelForm({
                   {servers.map((server) => (
                     <SelectItem key={server.id} value={server.id}>
                       {server.name}
-                      <span className="ml-2 text-xs text-muted-foreground font-mono">
+                      <span className="ml-2 text-sm text-muted-foreground font-mono">
                         {server.host}
                       </span>
                     </SelectItem>

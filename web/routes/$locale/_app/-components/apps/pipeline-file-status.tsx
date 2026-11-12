@@ -49,7 +49,7 @@ export function PipelineFileStatus({
         return (
           <li key={branch} className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-mono text-xs">{branch}</span>
+              <span className="font-mono text-sm">{branch}</span>
               {sha && (
                 <Badge variant="secondary" className="font-mono">
                   {t("committed", { sha: sha.slice(0, 7) })}

@@ -605,7 +605,7 @@ function KeyInstall({
         <span className="text-sm font-medium">{t("publicKey")}</span>
         {key.data ? (
           <div className="flex items-start gap-2">
-            <code className="min-w-0 flex-1 break-all font-mono text-xs">
+            <code className="min-w-0 flex-1 break-all font-mono text-sm">
               {key.data.publicKey}
             </code>
             <CopyButton value={key.data.publicKey} />
@@ -629,7 +629,7 @@ function KeyInstall({
           </p>
         ) : current && line.data ? (
           <div className="flex items-start gap-2">
-            <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2 font-mono text-xs">
+            <code className="min-w-0 flex-1 break-all rounded-md bg-background p-2 font-mono text-sm">
               {line.data.command}
             </code>
             <CopyButton value={line.data.command} />

@@ -167,7 +167,7 @@ export function BackupDatabase({
           if (!open) setActiveTaskId(null);
         }}
         title={t("title")}
-        description={<code className="font-mono text-xs">{database}</code>}
+        description={<code className="font-mono text-sm">{database}</code>}
         onSuccess={onTaskSuccess}
         onRetry={runBackup}
         footer={
@@ -177,7 +177,7 @@ export function BackupDatabase({
               <span className="text-muted-foreground shrink-0">
                 {t("lastFileLabel")}
               </span>
-              <code className="font-mono text-xs truncate flex-1 min-w-0">
+              <code className="font-mono text-sm truncate flex-1 min-w-0">
                 {lastFilename}
               </code>
               <CopyButton value={lastFilename} label={tCommon("copy")} />

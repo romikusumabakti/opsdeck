@@ -77,7 +77,7 @@ export function ZonesClient({
         meta: { label: t("colZoneId") },
         header: t("colZoneId"),
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-sm text-muted-foreground">
             {row.getValue("zoneId")}
           </span>
         ),

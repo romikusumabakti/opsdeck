@@ -28,7 +28,7 @@ export function EnvironmentHost({
     <span
       title={host}
       className={cn(
-        "relative z-10 min-w-0 truncate font-mono text-xs text-muted-foreground",
+        "relative z-10 min-w-0 truncate font-mono text-sm text-muted-foreground",
         className
       )}
     >

@@ -95,7 +95,7 @@ export function RepoListRow({
           <span>
             {t.rich("pipelineNotNotifying", {
               code: (chunks) => (
-                <code className="font-mono text-xs">{chunks}</code>
+                <code className="font-mono text-sm">{chunks}</code>
               ),
             })}
           </span>

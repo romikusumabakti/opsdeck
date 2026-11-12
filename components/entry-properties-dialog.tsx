@@ -79,7 +79,7 @@ export default function EntryPropertiesDialog({
             {entry.type === "dir" ? t("kindFolder") : t("kindFile")}
           </Row>
           <Row label={t("location")}>
-            <span className="font-mono text-xs">
+            <span className="font-mono text-sm">
               /{entry.path.replace(/\/+$/, "")}
             </span>
           </Row>

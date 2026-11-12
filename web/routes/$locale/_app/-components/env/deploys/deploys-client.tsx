@@ -180,7 +180,7 @@ export function DeploysClient({
         title={run ? t("runTitle", { tag: run.tag }) : t("title")}
         description={
           run ? (
-            <code className="font-mono text-xs">
+            <code className="font-mono text-sm">
               {run.componentKey} · {run.tag}
             </code>
           ) : undefined
@@ -311,10 +311,10 @@ function TargetCard({
           )}
         </CardTitle>
         <CardDescription className="truncate">
-          <code className="font-mono text-xs">{target.sourceBranch}</code>
+          <code className="font-mono text-sm">{target.sourceBranch}</code>
           {serverName && <span> · {serverName}</span>}
           <span> · </span>
-          <code className="font-mono text-xs">
+          <code className="font-mono text-sm">
             {target.kind === "jar"
               ? `${target.deployDir}/${target.jarName}`
               : target.deployDir}
@@ -322,7 +322,7 @@ function TargetCard({
           {target.kind === "jar" && (
             <>
               <span> · </span>
-              <code className="font-mono text-xs">{target.systemdUnit}</code>
+              <code className="font-mono text-sm">{target.systemdUnit}</code>
             </>
           )}
         </CardDescription>
@@ -630,9 +630,9 @@ function BuildsTable({
               (environmentBusy ? t("startsAfterRunning") : null));
           return (
             <TableRow key={build.id}>
-              <TableCell className="font-mono text-xs">{build.tag}</TableCell>
+              <TableCell className="font-mono text-sm">{build.tag}</TableCell>
               <TableCell
-                className="font-mono text-xs text-muted-foreground"
+                className="font-mono text-sm text-muted-foreground"
                 title={build.commitSha}
               >
                 {build.commitSha.slice(0, 7)}
@@ -739,7 +739,7 @@ function DeploymentsTable({
       <TableBody>
         {deployments.map((d) => (
           <TableRow key={d.id}>
-            <TableCell className="font-mono text-xs">{d.tag}</TableCell>
+            <TableCell className="font-mono text-sm">{d.tag}</TableCell>
             <TableCell>{t(`trigger.${d.trigger}`)}</TableCell>
             <TableCell>
               <DeploymentStatusBadge status={d.status} />

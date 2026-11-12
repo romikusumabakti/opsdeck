@@ -96,7 +96,7 @@ export default function FolderPickerDialog({
       <DialogContent className="flex h-[70vh] max-h-[70vh] w-full flex-col gap-4 sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="truncate font-mono text-xs">
+          <DialogDescription className="truncate font-mono text-sm">
             {path ? `/${path.replace(/\/+$/, "")}` : rootLabel}
           </DialogDescription>
         </DialogHeader>

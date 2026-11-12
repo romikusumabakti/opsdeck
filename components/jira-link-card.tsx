@@ -344,7 +344,7 @@ function SyncStatus({
         </a>
       </div>
       {link.lastSyncError && (
-        <p className="mt-2 break-all font-mono text-xs text-destructive">
+        <p className="mt-2 break-all font-mono text-sm text-destructive">
           {link.lastSyncError}
         </p>
       )}

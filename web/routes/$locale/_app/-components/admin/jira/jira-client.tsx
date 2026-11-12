@@ -78,7 +78,7 @@ export function JiraClient({
           <DataTableColumnHeader column={column} title={t("colBaseUrl")} />
         ),
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.getValue("baseUrl")}</span>
+          <span className="font-mono text-sm">{row.getValue("baseUrl")}</span>
         ),
       },
       {

@@ -132,7 +132,7 @@ export function RoutesClient({
               missing: t("tunnelMissing", { container: tunnel.containerName }),
             }}
           />
-          <span className="text-xs text-muted-foreground font-mono">
+          <span className="text-sm text-muted-foreground font-mono">
             {tunnel.stackDir}/{tunnel.configPath}
           </span>
         </div>
@@ -189,7 +189,7 @@ export function RoutesClient({
                       {route.hostname}
                     </a>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-mono text-sm">
                     {route.service}
                     {route.originState === "not-found" && (
                       <Badge variant="destructive" className="ml-2">

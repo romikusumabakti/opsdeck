@@ -51,7 +51,7 @@ export function MyIssuesList({ items }: { items: MyIssue[] }) {
             title={i.title}
             className="flex min-w-0 flex-1 items-center gap-3 hover:underline"
           >
-            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+            <span className="shrink-0 font-mono text-sm text-muted-foreground">
               {i.projectKey}-{i.number}
             </span>
             <span className="truncate text-sm" title={i.title}>

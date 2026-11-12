@@ -456,7 +456,7 @@ function TargetHeading({ target }: { target: SettingsTarget }) {
         {target.repoFullName ?? target.componentKey}
       </span>
       {target.repoFullName && (
-        <span className="font-mono text-xs font-normal text-muted-foreground">
+        <span className="font-mono text-sm font-normal text-muted-foreground">
           {target.componentKey}
         </span>
       )}

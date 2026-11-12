@@ -154,7 +154,7 @@ export function CommandPalette({
             {t("triggerLabel")}
           </span>
         </span>
-        <kbd className="hidden md:inline-flex pointer-events-none h-5 select-none items-center gap-0.5 rounded border bg-background px-1.5 font-mono text-[10px] font-medium shrink-0">
+        <kbd className="hidden md:inline-flex pointer-events-none h-5 select-none items-center gap-0.5 rounded border bg-background px-1.5 font-mono text-sm font-medium shrink-0">
           <span className={modKey === "⌘" ? "text-xs" : ""}>{modKey}</span>K
         </kbd>
       </Button>
@@ -306,7 +306,7 @@ export function CommandPalette({
                   >
                     <FolderKanban />
                     <span className="truncate">{project.name}</span>
-                    <CommandShortcut className="font-mono">
+                    <CommandShortcut className="font-mono text-sm">
                       {project.key}
                     </CommandShortcut>
                   </CommandItem>

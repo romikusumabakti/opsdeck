@@ -40,7 +40,7 @@ export function AccessMatrix({
         id: `project-${p.id}`,
         meta: { label: p.key },
         header: () => (
-          <span title={p.name} className="font-mono text-xs">
+          <span title={p.name} className="font-mono text-sm">
             {p.key}
           </span>
         ),

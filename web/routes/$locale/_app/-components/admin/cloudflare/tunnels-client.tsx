@@ -88,7 +88,7 @@ export function TunnelsClient({
         cell: ({ row }) => (
           <span className="text-sm">
             {row.original.server.name}
-            <span className="text-muted-foreground font-mono text-xs ml-2">
+            <span className="text-muted-foreground font-mono text-sm ml-2">
               {row.original.server.host}
             </span>
           </span>
@@ -99,7 +99,7 @@ export function TunnelsClient({
         meta: { label: t("colZone") },
         header: t("colZone"),
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.original.zone.name}</span>
+          <span className="font-mono text-sm">{row.original.zone.name}</span>
         ),
       },
       {
@@ -107,7 +107,7 @@ export function TunnelsClient({
         meta: { label: t("colStackDir") },
         header: t("colStackDir"),
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-sm text-muted-foreground">
             {row.getValue("stackDir")}
           </span>
         ),

@@ -263,7 +263,7 @@ function ServiceCard({
           <ServiceStatusBadge state={state} loading={loading} />
         </div>
         <CardDescription className="truncate">
-          <code className="font-mono text-xs">{meta.serviceName}</code>
+          <code className="font-mono text-sm">{meta.serviceName}</code>
           <span className="text-muted-foreground"> · {meta.serverName}</span>
         </CardDescription>
       </CardHeader>
@@ -393,7 +393,7 @@ function ServiceCard({
         }
         description={
           <>
-            <code className="font-mono text-xs">{meta.serviceName}</code>
+            <code className="font-mono text-sm">{meta.serviceName}</code>
             <span>· {meta.serverName}</span>
           </>
         }

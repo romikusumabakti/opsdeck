@@ -126,7 +126,7 @@ export default function FileEditorDialog({
       <DialogContent className="flex h-[85vh] max-h-[85vh] w-full flex-col gap-4 sm:max-w-4xl">
         <DialogHeader className="shrink-0">
           <DialogTitle className="truncate">{entry.name}</DialogTitle>
-          <DialogDescription className="truncate font-mono text-xs">
+          <DialogDescription className="truncate font-mono text-sm">
             {entry.path}
           </DialogDescription>
         </DialogHeader>

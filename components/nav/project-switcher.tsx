@@ -78,7 +78,7 @@ export function ProjectSwitcher({
                   <span className="flex-1 min-w-0 truncate">
                     {project.name}
                   </span>
-                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                  <span className="shrink-0 font-mono text-sm text-muted-foreground">
                     {project.key}
                   </span>
                   <Check

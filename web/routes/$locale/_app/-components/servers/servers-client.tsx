@@ -167,7 +167,7 @@ export function ServersClient({
           <DataTableColumnHeader column={column} title={t("colHost")} />
         ),
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.getValue("host")}</span>
+          <span className="font-mono text-sm">{row.getValue("host")}</span>
         ),
       },
       {
@@ -219,10 +219,10 @@ export function ServersClient({
             <span className="font-medium truncate">{server.name}</span>
             {server.infraOnly ? <InfraOnlyBadge /> : null}
           </span>
-          <span className="font-mono text-xs text-muted-foreground truncate">
+          <span className="font-mono text-sm text-muted-foreground truncate">
             {server.host}
           </span>
-          <span className="font-mono text-xs text-muted-foreground truncate">
+          <span className="font-mono text-sm text-muted-foreground truncate">
             {server.username}
           </span>
           <AccessBadge server={server} />

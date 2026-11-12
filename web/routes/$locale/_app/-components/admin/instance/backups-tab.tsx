@@ -463,7 +463,7 @@ function HistoryCard({
                     <StatusBadge status={b.status} />
                   </TableCell>
                   <TableCell>{t(`location.${b.location}`)}</TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-mono text-sm">
                     {b.version}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">

@@ -276,7 +276,7 @@ export function GlobalIssuesClient({
         cell: ({ row }) => (
           <Link
             href={issueHref(row.original)}
-            className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+            className="font-mono text-sm text-muted-foreground hover:text-foreground hover:underline"
           >
             {row.original.project.key}-{row.original.number}
           </Link>
@@ -507,7 +507,7 @@ export function GlobalIssuesClient({
                 <TypeIcon type={issue.type} />
                 <Link
                   href={issueHref(issue)}
-                  className="font-mono text-xs text-muted-foreground"
+                  className="font-mono text-sm text-muted-foreground"
                 >
                   {issue.project.key}-{issue.number}
                 </Link>

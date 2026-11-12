@@ -31,7 +31,7 @@ export function EnvError({ error, reset }: ErrorComponentProps) {
               <span className="text-xs font-medium text-muted-foreground">
                 {t("errorDetails")}
               </span>
-              <p className="mt-0.5 font-mono text-xs text-foreground/80 break-words">
+              <p className="mt-0.5 font-mono text-sm text-foreground/80 break-words">
                 {(error as Error).message}
               </p>
             </div>

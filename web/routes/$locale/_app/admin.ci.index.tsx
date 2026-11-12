@@ -68,7 +68,7 @@ function CiPage() {
               {connections.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="font-mono text-sm">
                     {c.baseUrl}
                   </TableCell>
                   <TableCell>

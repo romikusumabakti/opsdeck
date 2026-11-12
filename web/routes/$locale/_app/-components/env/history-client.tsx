@@ -147,7 +147,7 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
             : Date.now();
           const ms = endMs - new Date(run.runAt).getTime();
           return (
-            <span className="font-mono text-xs text-muted-foreground tabular-nums">
+            <span className="font-mono text-sm text-muted-foreground tabular-nums">
               {formatDuration(ms)}
             </span>
           );

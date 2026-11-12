@@ -89,7 +89,7 @@ export function DeletedEnvironmentsCard() {
                               file.name
                             )}
                             download
-                            className="inline-flex items-center gap-1.5 font-mono text-xs underline-offset-4 hover:underline"
+                            className="inline-flex items-center gap-1.5 font-mono text-sm underline-offset-4 hover:underline"
                           >
                             <Download className="size-3.5" />
                             {file.name}

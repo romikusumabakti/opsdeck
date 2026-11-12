@@ -110,7 +110,7 @@ function ProjectOverviewPage() {
       />
 
       <div className="shrink-0 flex items-center gap-2 -mt-2">
-        <Badge variant="secondary" className="font-mono text-xs">
+        <Badge variant="secondary" className="font-mono text-sm">
           {project.key}
         </Badge>
       </div>
@@ -173,7 +173,7 @@ function ProjectOverviewPage() {
                           >
                             {tDash(`dbTypes.${env.dbType}`)}
                           </Badge>
-                          <code className="font-mono text-xs text-muted-foreground truncate">
+                          <code className="font-mono text-sm text-muted-foreground truncate">
                             {env.dbName}
                           </code>
                         </div>

@@ -105,7 +105,7 @@ export function RepoPicker({
                     requestAnimationFrame(() => setOpen(false));
                   }}
                 >
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                  <span className="min-w-0 flex-1 truncate font-mono text-sm">
                     {row.repoFullName}
                   </span>
                   {row.appName && (

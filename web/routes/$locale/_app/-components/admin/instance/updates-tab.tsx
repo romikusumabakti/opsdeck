@@ -460,7 +460,7 @@ function StatusCard({ data }: { data: InstanceUpdatesData }) {
             <summary className="cursor-pointer text-sm text-muted-foreground">
               {t("log")}
             </summary>
-            <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs whitespace-pre-wrap">
+            <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-sm whitespace-pre-wrap">
               {status.logTail.join("\n")}
             </pre>
           </details>

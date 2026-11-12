@@ -102,13 +102,13 @@ export function SshKeyTab() {
           <dl className="grid grid-cols-[auto_1fr] items-start gap-x-4 gap-y-2 text-sm">
             <dt className="text-muted-foreground">{t("publicKey")}</dt>
             <dd className="flex min-w-0 items-start gap-2">
-              <code className="min-w-0 flex-1 break-all font-mono text-xs">
+              <code className="min-w-0 flex-1 break-all font-mono text-sm">
                 {data.publicKey}
               </code>
               <CopyButton value={data.publicKey} />
             </dd>
             <dt className="text-muted-foreground">{t("fingerprint")}</dt>
-            <dd className="font-mono text-xs break-all">{data.fingerprint}</dd>
+            <dd className="font-mono text-sm break-all">{data.fingerprint}</dd>
           </dl>
           {data.previous ? (
             <p className="text-sm text-amber-700 dark:text-amber-500">

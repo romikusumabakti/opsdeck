@@ -74,7 +74,7 @@ export function ApiDocsSheet({ content }: { content: string }) {
                 }
                 return (
                   <code
-                    className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono"
+                    className="rounded bg-muted px-1.5 py-0.5 text-sm font-mono"
                     {...props}
                   >
                     {children}
@@ -83,7 +83,7 @@ export function ApiDocsSheet({ content }: { content: string }) {
               },
               pre: (props) => (
                 <pre
-                  className="my-3 rounded-md border bg-muted/50 p-3 overflow-x-auto text-xs font-mono leading-relaxed"
+                  className="my-3 rounded-md border bg-muted/50 p-3 overflow-x-auto text-sm font-mono leading-relaxed"
                   {...props}
                 />
               ),

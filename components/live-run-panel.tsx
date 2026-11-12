@@ -259,7 +259,7 @@ export function LiveRunPanel({ runId, onDismiss, onSuccess, onRetry }: Props) {
             <CircleAlert className="size-4 shrink-0 mt-0.5" />
             <div className="flex flex-col gap-1 min-w-0 flex-1">
               <span className="font-medium">{t("errorLabel")}</span>
-              <code className="font-mono text-xs break-all">
+              <code className="font-mono text-sm break-all">
                 {snapshot.errorMessage}
               </code>
             </div>
@@ -289,7 +289,7 @@ export function LiveRunPanel({ runId, onDismiss, onSuccess, onRetry }: Props) {
         <pre
           ref={logRef}
           onScroll={onScroll}
-          className="font-mono text-xs leading-relaxed bg-background border-t px-4 py-3 max-h-64 overflow-auto whitespace-pre-wrap"
+          className="font-mono text-sm leading-relaxed bg-background border-t px-4 py-3 max-h-64 overflow-auto whitespace-pre-wrap"
         >
           {snapshot?.output || (
             <span className="text-muted-foreground italic">
