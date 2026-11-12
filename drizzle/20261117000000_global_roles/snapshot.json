@@ -42,7 +42,7 @@
         "n|col|public.project_members.role",
         "n|enum|public.project_role"
       ],
-      "sqlHash": "179c68a6508da9c0"
+      "sqlHash": "9fa1a7b2be466264"
     },
     {
       "statementType": "alter_column",
@@ -75,7 +75,7 @@
       "op": "alter",
       "key": "columns\u0000[\"public\",\"project_members\",\"role\"]",
       "set": {
-        "default": "'qa'"
+        "default": "'viewer'"
       }
     },
     {

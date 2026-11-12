@@ -24,7 +24,7 @@ describe("global roles migration", () => {
   it("maps users, and gives the membership role a default for role-less inserts", () => {
     expect(sql.indexOf('UPDATE "users"')).toBeGreaterThan(0);
     expect(sql).toContain(
-      `ALTER TABLE "project_members" ALTER COLUMN "role" SET DEFAULT 'qa';`
+      `ALTER TABLE "project_members" ALTER COLUMN "role" SET DEFAULT 'viewer'::"project_role";`
     );
   });
 

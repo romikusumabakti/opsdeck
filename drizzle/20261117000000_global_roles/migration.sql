@@ -9,4 +9,4 @@ WHERE u."role" NOT IN ('admin', 'infra', 'observer', 'engineer', 'qa')
 UPDATE "invitations" SET "role" = 'qa' WHERE "role" NOT IN ('admin', 'infra', 'engineer', 'qa', 'observer');--> statement-breakpoint
 ALTER TABLE "users" ALTER COLUMN "role" SET DEFAULT 'qa';--> statement-breakpoint
 ALTER TABLE "invitations" ALTER COLUMN "role" SET DEFAULT 'qa';--> statement-breakpoint
-ALTER TABLE "project_members" ALTER COLUMN "role" SET DEFAULT 'qa';
+ALTER TABLE "project_members" ALTER COLUMN "role" SET DEFAULT 'viewer'::"project_role";

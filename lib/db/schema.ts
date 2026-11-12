@@ -1126,8 +1126,10 @@ export const projectMembers = pgTable(
       }),
     // Legacy: the previous release still reads and writes it (update.sh can
     // roll back to it on this schema); this code never reads or writes it, so
-    // inserts take the default. Dropped in the next release.
-    role: projectRoleEnum("role").notNull().default("qa"),
+    // inserts take the default, 'viewer', so that after a rollback a membership
+    // added by this release can only lower rights, never raise them. Dropped in
+    // the next release.
+    role: projectRoleEnum("role").notNull().default("viewer"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [

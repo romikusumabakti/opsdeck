@@ -214,7 +214,7 @@ describe.skipIf(!enabled)("global roles migration on a real Postgres", () => {
 
   // A replay of the users mapping (a re-run by hand, a restore) must not touch
   // anyone already on a job role: an engineer added to a project after the
-  // migration holds a role-less membership, which defaults to 'qa', and the
+  // migration holds a role-less membership, which takes the default, and the
   // mapping would otherwise demote them to qa.
   it("replaying the users mapping changes nothing, even after a role-less membership", async () => {
     const usersUpdate = readFileSync(
@@ -242,7 +242,8 @@ describe.skipIf(!enabled)("global roles migration on a real Postgres", () => {
     expect(await typeExists("project_role")).toBe(true);
     // This release's insert: no role, so the default applies.
     await sql`insert into project_members (project_id, user_id) values (${p2}, ${userId("infra")})`;
-    expect(await membershipRole("infra", "p2")).toBe("qa");
+    // 'viewer', so a rollback can only lower rights.
+    expect(await membershipRole("infra", "p2")).toBe("viewer");
     // The previous release's insert and select with an explicit role.
     await sql`insert into project_members (project_id, user_id, role) values (${p2}, ${userId("observer without memberships")}, 'engineer')`;
     const rows =
