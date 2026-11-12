@@ -1143,6 +1143,77 @@ export const projectMembers = pgTable(
   ]
 );
 
+// A row says the project builds and deploys this app: one of its Sources.
+// Expand-only: the previous release never reads it, so environments created
+// during a rollback window have no row here, and reads take the union with
+// the apps of the project's environments.
+export const projectApps = pgTable(
+  "project_apps",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, {
+        name: "project_apps_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
+    appId: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, {
+        name: "project_apps_app_id_apps_id_fk",
+        onDelete: "restrict",
+      }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({
+      name: "project_apps_project_id_app_id_pk",
+      columns: [t.projectId, t.appId],
+    }),
+    // FK index: `on delete restrict` scans by app when an app is deleted.
+    index("project_apps_app_idx").on(t.appId),
+  ]
+);
+
+// A row is the project's default branch for one component: the branch a new
+// environment's target of that component starts on. Expand-only: the previous
+// release never reads it. The service, not a composite FK, checks that the
+// component's app is one of the project's sources (app_components has no
+// (app_id, component_key) key to reference).
+export const projectComponentBranches = pgTable(
+  "project_component_branches",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, {
+        name: "project_component_branches_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
+    // Named by hand: drizzle's default FK name would pass the 63-byte limit.
+    componentKey: text("component_key")
+      .notNull()
+      .references(() => appComponents.componentKey, {
+        name: "project_component_branches_component_key_fk",
+        onDelete: "restrict",
+      }),
+    branch: text("branch").notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    updatedBy: uuid("updated_by").references(() => users.id, {
+      name: "project_component_branches_updated_by_users_id_fk",
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    primaryKey({
+      name: "project_component_branches_project_id_component_key_pk",
+      columns: [t.projectId, t.componentKey],
+    }),
+    // FK index: `on delete restrict` scans by component when one is deleted.
+    index("project_component_branches_component_idx").on(t.componentKey),
+    // FK index: `on delete set null` scans by updater when a user is deleted.
+    index("project_component_branches_updated_by_idx").on(t.updatedBy),
+  ]
+);
+
 // =========================
 // Issue tracker (per project)
 // =========================
@@ -2126,6 +2197,10 @@ export type NewProject = InferInsertModel<typeof projects>;
 
 export type ProjectMember = InferSelectModel<typeof projectMembers>;
 export type NewProjectMember = InferInsertModel<typeof projectMembers>;
+export type ProjectApp = InferSelectModel<typeof projectApps>;
+export type ProjectComponentBranch = InferSelectModel<
+  typeof projectComponentBranches
+>;
 
 export type Issue = InferSelectModel<typeof issues>;
 export type NewIssue = InferInsertModel<typeof issues>;

@@ -1,0 +1,572 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "3c76955b-c87e-4138-a2f1-61d042620f5b",
+  "prevIds": [
+    "baafd5a9-755b-4bd3-9d3d-5bc4bb340ee1"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "project_apps"
+      ],
+      "writes": [
+        "s|tbl|public.project_apps",
+        "n|tbl|public.project_apps",
+        "e|tbl|public.project_apps",
+        "n|rel|public.project_apps",
+        "n|type|public.project_apps",
+        "n|rel|public.project_apps_project_id_app_id_pk"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "project_component_branches"
+      ],
+      "writes": [
+        "s|tbl|public.project_component_branches",
+        "n|tbl|public.project_component_branches",
+        "e|tbl|public.project_component_branches",
+        "n|rel|public.project_component_branches",
+        "n|type|public.project_component_branches",
+        "n|rel|public.project_component_branches_project_id_component_key_pk"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "project_apps",
+        "project_apps_app_idx"
+      ],
+      "writes": [
+        "s|idx|public.project_apps_app_idx",
+        "n|idx|public.project_apps_app_idx",
+        "e|idx|public.project_apps_app_idx",
+        "n|rel|public.project_apps_app_idx"
+      ],
+      "reads": [
+        "n|tbl|public.project_apps",
+        "n|sch|public",
+        "n|col|public.project_apps.app_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "project_component_branches",
+        "project_component_branches_component_idx"
+      ],
+      "writes": [
+        "s|idx|public.project_component_branches_component_idx",
+        "n|idx|public.project_component_branches_component_idx",
+        "e|idx|public.project_component_branches_component_idx",
+        "n|rel|public.project_component_branches_component_idx"
+      ],
+      "reads": [
+        "n|tbl|public.project_component_branches",
+        "n|sch|public",
+        "n|col|public.project_component_branches.component_key"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "project_component_branches",
+        "project_component_branches_updated_by_idx"
+      ],
+      "writes": [
+        "s|idx|public.project_component_branches_updated_by_idx",
+        "n|idx|public.project_component_branches_updated_by_idx",
+        "e|idx|public.project_component_branches_updated_by_idx",
+        "n|rel|public.project_component_branches_updated_by_idx"
+      ],
+      "reads": [
+        "n|tbl|public.project_component_branches",
+        "n|sch|public",
+        "n|col|public.project_component_branches.updated_by"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "project_apps"
+      ],
+      "writes": [
+        "s|fk|public.project_apps.project_apps_project_id_projects_id_fk",
+        "n|fk|public.project_apps.project_apps_project_id_projects_id_fk",
+        "e|fk|public.project_apps.project_apps_project_id_projects_id_fk",
+        "n|con|public.project_apps.project_apps_project_id_projects_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.project_apps",
+        "n|sch|public",
+        "n|tbl|public.projects",
+        "n|sch|public",
+        "n|col|public.project_apps.project_id",
+        "n|col|public.projects.id",
+        "e|uniqueness|public.projects.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "project_apps"
+      ],
+      "writes": [
+        "s|fk|public.project_apps.project_apps_app_id_apps_id_fk",
+        "n|fk|public.project_apps.project_apps_app_id_apps_id_fk",
+        "e|fk|public.project_apps.project_apps_app_id_apps_id_fk",
+        "n|con|public.project_apps.project_apps_app_id_apps_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.project_apps",
+        "n|sch|public",
+        "n|tbl|public.apps",
+        "n|sch|public",
+        "n|col|public.project_apps.app_id",
+        "n|col|public.apps.id",
+        "e|uniqueness|public.apps.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "project_component_branches"
+      ],
+      "writes": [
+        "s|fk|public.project_component_branches.project_component_branches_project_id_projects_id_fk",
+        "n|fk|public.project_component_branches.project_component_branches_project_id_projects_id_fk",
+        "e|fk|public.project_component_branches.project_component_branches_project_id_projects_id_fk",
+        "n|con|public.project_component_branches.project_component_branches_project_id_projects_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.project_component_branches",
+        "n|sch|public",
+        "n|tbl|public.projects",
+        "n|sch|public",
+        "n|col|public.project_component_branches.project_id",
+        "n|col|public.projects.id",
+        "e|uniqueness|public.projects.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "project_component_branches"
+      ],
+      "writes": [
+        "s|fk|public.project_component_branches.project_component_branches_component_key_fk",
+        "n|fk|public.project_component_branches.project_component_branches_component_key_fk",
+        "e|fk|public.project_component_branches.project_component_branches_component_key_fk",
+        "n|con|public.project_component_branches.project_component_branches_component_key_fk"
+      ],
+      "reads": [
+        "n|tbl|public.project_component_branches",
+        "n|sch|public",
+        "n|tbl|public.app_components",
+        "n|sch|public",
+        "n|col|public.project_component_branches.component_key",
+        "n|col|public.app_components.component_key",
+        "e|uniqueness|public.app_components.component_key"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "project_component_branches"
+      ],
+      "writes": [
+        "s|fk|public.project_component_branches.project_component_branches_updated_by_users_id_fk",
+        "n|fk|public.project_component_branches.project_component_branches_updated_by_users_id_fk",
+        "e|fk|public.project_component_branches.project_component_branches_updated_by_users_id_fk",
+        "n|con|public.project_component_branches.project_component_branches_updated_by_users_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.project_component_branches",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.project_component_branches.updated_by",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "project_apps",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "project_component_branches",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_apps",
+        "name": "project_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_apps",
+        "name": "app_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_apps",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "project_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "component_key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "branch",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "updated_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "updated_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_apps",
+        "name": "project_apps_app_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "app_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "project_component_branches_component_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "component_key",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "project_component_branches_updated_by_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "updated_by",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_apps",
+        "name": "project_apps_project_id_projects_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "project_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "projects",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_apps",
+        "name": "project_apps_app_id_apps_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "app_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "apps",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "RESTRICT",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "project_component_branches_project_id_projects_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "project_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "projects",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "project_component_branches_component_key_fk",
+        "nameExplicit": true,
+        "columns": [
+          "component_key"
+        ],
+        "schemaTo": "public",
+        "tableTo": "app_components",
+        "columnsTo": [
+          "component_key"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "RESTRICT",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "project_component_branches_updated_by_users_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "updated_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "users",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_apps",
+        "name": "project_apps_project_id_app_id_pk",
+        "columns": [
+          "project_id",
+          "app_id"
+        ],
+        "nameExplicit": true,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "project_component_branches",
+        "name": "project_component_branches_project_id_component_key_pk",
+        "columns": [
+          "project_id",
+          "component_key"
+        ],
+        "nameExplicit": true,
+        "entityType": "pks"
+      }
+    }
+  ]
+}
