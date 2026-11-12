@@ -148,7 +148,7 @@ export function VariablesClient({
 
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-2 mb-4">
         <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         <div className="flex flex-wrap justify-end gap-2">
           {hasMasked && (
