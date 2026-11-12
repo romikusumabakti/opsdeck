@@ -73,6 +73,12 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+const projectSources = vi.hoisted(() => ({
+  recordTargetSourceIn: vi.fn(),
+  ensureProjectSourceIn: vi.fn(),
+}));
+vi.mock("@/lib/project-sources", () => projectSources);
+
 const variables = vi.hoisted(() => ({ getVariable: vi.fn() }));
 vi.mock("@/lib/variables/repository", () => variables);
 
@@ -520,5 +526,29 @@ describe("update", () => {
     const res = await patch(body);
     expect(res.status).toBe(400);
     expect(repo.upsertTarget).not.toHaveBeenCalled();
+  });
+
+  it("insertDeployTargetIn adds the component's app to the project's sources and seeds its branch, in the same transaction", async () => {
+    componentArtifact(null);
+    await insertDeployTargetIn(txState.tx as never, {
+      ...base,
+      kind: "compose",
+      deployDir: "/opt/core",
+      services: ["app"],
+      tagVariable: "IMAGE_TAG",
+      autoDeploy: false,
+      healthTimeoutSeconds: 180,
+      backupBeforeDeploy: false,
+      preStartCommand: null,
+      healthUrl: null,
+    });
+    expect(projectSources.recordTargetSourceIn).toHaveBeenCalledWith(
+      txState.tx,
+      {
+        environmentId: ENV_ID,
+        componentKey: "core-web",
+        sourceBranch: "kestrel/development",
+      }
+    );
   });
 });

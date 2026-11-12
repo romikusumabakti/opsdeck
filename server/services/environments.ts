@@ -54,6 +54,7 @@ import {
   canPlaceEnvironment,
   type ProjectRole,
 } from "@/lib/permissions";
+import { ensureProjectSourceIn } from "@/lib/project-sources";
 import { projectReleasableSql } from "@/lib/releases/repository";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
@@ -920,6 +921,8 @@ export async function insertEnvironmentIn(
       .returning(),
     "environment"
   );
+  // Silent auto-add (never a refusal, no activity): keeps project_apps in step with environments.app_id.
+  if (extra.appId) await ensureProjectSourceIn(tx, env.id, extra.appId);
   const services = [
     input.hasDatabase ? dbServiceValues(input) : undefined,
     backendServiceValues(input),

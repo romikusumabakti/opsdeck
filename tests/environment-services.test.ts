@@ -53,6 +53,12 @@ vi.mock("drizzle-orm", async (importOriginal) => ({
   and: (...conditions: unknown[]) => conditions,
 }));
 
+const projectSources = vi.hoisted(() => ({
+  ensureProjectSourceIn: vi.fn(),
+  recordTargetSourceIn: vi.fn(),
+}));
+vi.mock("@/lib/project-sources", () => projectSources);
+
 // No teardown under way (lib/teardown/guard has its own tests).
 vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),
@@ -104,9 +110,9 @@ vi.mock("@/lib/db", () => {
   };
 });
 
-const { createEnvironment, updateEnvironment } = await import(
-  "@/server/services/environments"
-);
+const { createEnvironment, updateEnvironment, insertEnvironmentIn } =
+  await import("@/server/services/environments");
+const { db } = await import("@/lib/db");
 
 const backend = {
   backendServerId: UUID,
@@ -274,5 +280,42 @@ describe("updateEnvironment with optional services", () => {
     await updateEnvironment(ENV_ID, { ...database, backendServiceName: "x" });
     expect(state.calls.some((c) => c.op === "delete")).toBe(false);
     expect(rolesInserted()).toEqual([]);
+  });
+});
+
+describe("insertEnvironmentIn project sources", () => {
+  const input = {
+    projectId: UUID,
+    name: "Dev",
+    kind: "development",
+    hasDatabase: false,
+    hasFrontend: false,
+    ...backend,
+  } as never;
+  const APP = "22222222-2222-4222-8222-222222222222";
+
+  it("adds the app to the project's sources when the setup sets one", async () => {
+    await db.transaction((tx) =>
+      insertEnvironmentIn(tx as never, input, {
+        slug: "dev",
+        ownerId: "user-1",
+        extra: { appId: APP },
+      })
+    );
+    expect(projectSources.ensureProjectSourceIn).toHaveBeenCalledWith(
+      expect.anything(),
+      ENV_ID,
+      APP
+    );
+  });
+
+  it("adds nothing without an app", async () => {
+    await db.transaction((tx) =>
+      insertEnvironmentIn(tx as never, input, {
+        slug: "dev",
+        ownerId: "user-1",
+      })
+    );
+    expect(projectSources.ensureProjectSourceIn).not.toHaveBeenCalled();
   });
 });

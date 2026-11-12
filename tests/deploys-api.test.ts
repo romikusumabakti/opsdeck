@@ -62,6 +62,12 @@ const apps = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/apps", () => apps);
 
+// The silent project-sources insert needs a real tx; its own tests cover it.
+vi.mock("@/lib/project-sources", () => ({
+  recordTargetSourceIn: vi.fn(),
+  ensureProjectSourceIn: vi.fn(),
+}));
+
 // No teardown under way (lib/teardown/guard has its own tests).
 vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/teardown/guard")>()),

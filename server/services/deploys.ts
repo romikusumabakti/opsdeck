@@ -38,6 +38,7 @@ import {
   tagVariableSchema,
 } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
+import { recordTargetSourceIn } from "@/lib/project-sources";
 import { tearingDownIn } from "@/lib/teardown/guard";
 import { uuidSchema } from "@/lib/validation";
 import { getVariable } from "@/lib/variables/repository";
@@ -449,7 +450,7 @@ export async function insertDeployTargetIn(
     input.kind === "compose"
       ? { ...input, preStartCommand: input.preStartCommand ?? null }
       : { ...input, services: [] };
-  return upsertTarget(
+  const target = await upsertTarget(
     {
       ...row,
       ...flags,
@@ -457,6 +458,13 @@ export async function insertDeployTargetIn(
     },
     tx
   );
+  // Silent auto-add (never a refusal, no activity): keeps project_apps in step with the targets.
+  await recordTargetSourceIn(tx, {
+    environmentId: input.environmentId,
+    componentKey: input.componentKey,
+    sourceBranch: input.sourceBranch,
+  });
+  return target;
 }
 
 export async function updateDeployTarget(

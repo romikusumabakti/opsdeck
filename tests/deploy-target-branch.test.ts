@@ -48,6 +48,12 @@ const apps = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/apps", () => apps);
 
+// The silent project-sources insert needs a real tx; its own tests cover it.
+vi.mock("@/lib/project-sources", () => ({
+  recordTargetSourceIn: vi.fn(),
+  ensureProjectSourceIn: vi.fn(),
+}));
+
 const forge = vi.hoisted(() => ({
   branchExists: vi.fn(),
   commitFile: vi.fn(),
