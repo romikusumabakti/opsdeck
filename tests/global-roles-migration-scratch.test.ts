@@ -1,6 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { cpSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -204,6 +210,29 @@ describe.skipIf(!enabled)("global roles migration on a real Postgres", () => {
     await sql`insert into invitations (email, name, token, expires_at) values
       ('n@example.invalid', 'N', 'invite-new', now() + interval '1 day')`;
     expect(await inviteRole("invite-new")).toBe("qa");
+  });
+
+  // A replay of the users mapping (a re-run by hand, a restore) must not touch
+  // anyone already on a job role: an engineer added to a project after the
+  // migration holds a role-less membership, which defaults to 'qa', and the
+  // mapping would otherwise demote them to qa.
+  it("replaying the users mapping changes nothing, even after a role-less membership", async () => {
+    const usersUpdate = readFileSync(
+      join("drizzle", MIGRATION, "migration.sql"),
+      "utf8"
+    )
+      .split("--> statement-breakpoint")
+      .map((statement) => statement.trim())
+      .find((statement) => statement.startsWith('UPDATE "users"'));
+    if (!usersUpdate) throw new Error("no users UPDATE in the migration");
+    const p3 = Bun.randomUUIDv7();
+    await sql`insert into projects (id, name, key) values (${p3}, 'Project three', 'P3')`;
+    await sql`insert into project_members (project_id, user_id) values (${p3}, ${userId("member with only engineer")})`;
+    const roles = () => sql`select id, role from users order by id`;
+    const before = await roles();
+    expect(await roleOf("member with only engineer")).toBe("engineer");
+    await sql.unsafe(usersUpdate);
+    expect(await roles()).toEqual(before);
   });
 
   // The previous release still runs on this schema (update.sh rolls back to

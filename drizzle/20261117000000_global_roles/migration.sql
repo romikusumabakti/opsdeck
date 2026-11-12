@@ -4,7 +4,7 @@ UPDATE "users" AS u SET "role" = CASE
     WHEN EXISTS (SELECT 1 FROM "project_members" m WHERE m."user_id" = u."id" AND m."role" = 'engineer') THEN 'engineer'
     ELSE 'qa'
   END
-WHERE u."role" NOT IN ('admin', 'infra', 'observer')
+WHERE u."role" NOT IN ('admin', 'infra', 'observer', 'engineer', 'qa')
    OR (u."role" = 'observer' AND EXISTS (SELECT 1 FROM "project_members" m WHERE m."user_id" = u."id" AND m."role" IN ('qa', 'engineer')));--> statement-breakpoint
 UPDATE "invitations" SET "role" = 'qa' WHERE "role" NOT IN ('admin', 'infra', 'engineer', 'qa', 'observer');--> statement-breakpoint
 ALTER TABLE "users" ALTER COLUMN "role" SET DEFAULT 'qa';--> statement-breakpoint
