@@ -10,6 +10,7 @@ import {
   Play,
   Plus,
   Rocket,
+  RotateCcw,
   ScrollText,
   Settings,
   Undo2,
@@ -267,10 +268,14 @@ function TargetCard({
   }
 
   async function onDeploy(tag: string) {
+    const redeploy =
+      tag === target.currentTag && target.currentStatus === "success";
     const ok = await dialog.confirm({
-      title: t("deployConfirmTitle", { tag }),
+      title: t(redeploy ? "redeployConfirmTitle" : "deployConfirmTitle", {
+        tag,
+      }),
       description: deployConfirmDescription(tag),
-      confirmText: t("deploy"),
+      confirmText: t(redeploy ? "redeploy" : "deploy"),
       cancelText: tCommon("cancel"),
     });
     if (ok) await start(tag, () => deployTag(target.id, tag));
@@ -390,8 +395,8 @@ function TargetCard({
           ) : (
             <BuildsTable
               builds={target.recentBuilds}
-              // Only a tag that deployed cleanly is pointless to redeploy; the
-              // tag of a failed deploy can be retried.
+              // The tag running cleanly is offered as Redeploy (to apply a
+              // changed .env or override); a failed one is a plain retry.
               deployedTag={
                 target.currentStatus === "success" ? target.currentTag : null
               }
@@ -587,6 +592,7 @@ function BuildsTable({
   onDeploy,
 }: {
   builds: Build[];
+  // The tag the target runs after a successful deploy: its row reads Redeploy.
   deployedTag: string | null;
   // Tags with a queued or running deployment on this target.
   activeTags: ReadonlySet<string>;
@@ -617,12 +623,11 @@ function BuildsTable({
       <TableBody>
         {builds.map((build) => {
           const active = activeTags.has(build.tag);
+          const redeploy = build.tag === deployedTag;
           const hint = active
             ? null
-            : build.tag === deployedTag
-              ? t("alreadyDeployed")
-              : (lockedReason ??
-                (environmentBusy ? t("startsAfterRunning") : null));
+            : (lockedReason ??
+              (environmentBusy ? t("startsAfterRunning") : null));
           return (
             <TableRow key={build.id}>
               <TableCell className="font-mono text-xs">{build.tag}</TableCell>
@@ -656,10 +661,7 @@ function BuildsTable({
                       variant="outline"
                       size="sm"
                       disabled={
-                        active ||
-                        pending !== null ||
-                        lockedReason !== null ||
-                        build.tag === deployedTag
+                        active || pending !== null || lockedReason !== null
                       }
                       onClick={() => onDeploy(build.tag)}
                     >
@@ -668,10 +670,16 @@ function BuildsTable({
                           data-icon="inline-start"
                           className="animate-spin"
                         />
+                      ) : redeploy ? (
+                        <RotateCcw data-icon="inline-start" />
                       ) : (
                         <Rocket data-icon="inline-start" />
                       )}
-                      {active ? t("deploying") : t("deploy")}
+                      {active
+                        ? t("deploying")
+                        : redeploy
+                          ? t("redeploy")
+                          : t("deploy")}
                     </Button>
                   </ButtonHint>
                 </TableCell>

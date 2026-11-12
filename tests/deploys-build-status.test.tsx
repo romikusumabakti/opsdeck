@@ -212,7 +212,7 @@ describe("Deploy button of the deployed build", () => {
     pipelineUrl: null,
   };
 
-  it("is disabled and explains why", async () => {
+  it("offers Redeploy for the tag running cleanly", async () => {
     api.getActiveBuild.mockResolvedValue(null);
     await mount(
       target({
@@ -221,23 +221,26 @@ describe("Deploy button of the deployed build", () => {
         recentBuilds: [build],
       })
     );
+    const redeploy = [...container.querySelectorAll("button")].find(
+      (b) => b.textContent === messages.deploys.redeploy
+    );
+    expect(redeploy?.disabled).toBe(false);
+    expect(redeploy?.closest('[data-slot="tooltip-trigger"]')).toBeNull();
+  });
+
+  it("offers a plain Deploy to retry a failed tag", async () => {
+    api.getActiveBuild.mockResolvedValue(null);
+    await mount(
+      target({
+        currentTag: "abc1234",
+        currentStatus: "failed",
+        recentBuilds: [build],
+      })
+    );
     const deploy = [...container.querySelectorAll("button")].find(
       (b) => b.textContent === messages.deploys.deploy
     );
-    expect(deploy?.disabled).toBe(true);
-    const trigger = deploy?.closest('[data-slot="tooltip-trigger"]');
-    expect(trigger).not.toBeNull();
-    await act(async () => {
-      trigger?.dispatchEvent(
-        new PointerEvent("pointerenter", { bubbles: true })
-      );
-      trigger?.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
-      trigger?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
-      await new Promise((r) => setTimeout(r, 700));
-    });
-    expect(document.body.textContent).toContain(
-      messages.deploys.alreadyDeployed
-    );
+    expect(deploy?.disabled).toBe(false);
   });
 
   it("stays enabled for another build", async () => {

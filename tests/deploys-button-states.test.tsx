@@ -172,7 +172,7 @@ describe("Deploy buttons while a deploy is active", () => {
     expect(button.parentElement?.tagName).toBe("TD");
   });
 
-  it("keeps the cleanly deployed tag disabled once the deploy succeeded", async () => {
+  it("offers Redeploy on the cleanly deployed tag once the deploy succeeded", async () => {
     await mount([
       target("a", {
         currentTag: "new",
@@ -180,8 +180,8 @@ describe("Deploy buttons while a deploy is active", () => {
         recentDeployments: [deployment("new", "success")],
       }),
     ]);
-    expect(rowButton("a", "new").disabled).toBe(true);
-    expect(rowButton("a", "new").textContent).toBe(messages.deploys.deploy);
+    expect(rowButton("a", "new").disabled).toBe(false);
+    expect(rowButton("a", "new").textContent).toBe(messages.deploys.redeploy);
   });
 
   it("shows the running status next to the current tag", async () => {
