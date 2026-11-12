@@ -13,6 +13,7 @@ export function BackupButton({ environmentId }: { environmentId: string }) {
     <Button
       variant="ghost"
       size="xs"
+      className="hover:bg-muted dark:hover:bg-muted"
       disabled={pending}
       onClick={() =>
         startTransition(async () => {

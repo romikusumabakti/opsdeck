@@ -31,7 +31,7 @@ export function RecentEnvsSection({
           {environments.map((env) => (
             <li
               key={env.id}
-              className="group flex items-center gap-1 pe-2 transition-colors hover:bg-accent/50"
+              className="group flex items-center gap-1 pe-2 transition-colors hover:bg-muted/40"
             >
               <Link
                 href={env.path}

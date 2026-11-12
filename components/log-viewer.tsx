@@ -453,7 +453,11 @@ export function LogViewer({
           <RefreshCw className={cn("size-4", isConnecting && "animate-spin")} />
         </Button>
         {entries.length > 0 && (
-          <CopyButton value={copyText} label={t("logs.copy")} />
+          <CopyButton
+            value={copyText}
+            label={t("logs.copy")}
+            variant="outline"
+          />
         )}
         {entries.length > 0 && (
           <Button

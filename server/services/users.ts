@@ -216,7 +216,7 @@ export async function listUsers() {
     .leftJoin(sessions, eq(sessions.userId, userTable.id))
     .leftJoin(projectMembers, eq(projectMembers.userId, userTable.id))
     .groupBy(userTable.id)
-    .orderBy(userTable.createdAt);
+    .orderBy(userTable.name);
 }
 
 export type UserListRow = Awaited<ReturnType<typeof listUsers>>[number];

@@ -1,3 +1,4 @@
+import type { SortingState } from "@tanstack/react-table";
 import { Trash2 } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
@@ -14,6 +15,9 @@ import { useUserActions } from "./use-user-actions";
 import { RoleBadge } from "./user-badges";
 import { UserIdentityCell } from "./user-identity-cell";
 import { type UserPermissions, UserRowActions } from "./user-row-actions";
+
+// Stable reference: DataTable keys an effect on initialSorting.
+const NAME_ASC: SortingState = [{ id: "name", desc: false }];
 
 export function UsersTable({
   users,
@@ -159,6 +163,7 @@ export function UsersTable({
       getRowId={(row) => row.id}
       canSelectRow={(row) => perms.canDelete && row.id !== currentUserId}
       urlKey="usr"
+      initialSorting={NAME_ASC}
       renderCard={renderCard}
       toolbar={toolbar}
       bulkActions={(ids, clearSelection) => (

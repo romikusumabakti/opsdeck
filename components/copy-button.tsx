@@ -8,9 +8,11 @@ import { TooltipHint } from "@/components/ui/tooltip";
 export function CopyButton({
   value,
   label,
+  variant = "ghost",
 }: {
   value: string;
   label?: string;
+  variant?: "ghost" | "outline";
 }) {
   const t = useTranslations("common");
   const [copied, setCopied] = useState(false);
@@ -30,11 +32,15 @@ export function CopyButton({
     <TooltipHint label={label ?? t("copy")}>
       <Button
         type="button"
-        variant="ghost"
+        variant={variant}
         size="icon-sm"
         onClick={onCopy}
         aria-label={label ?? t("copy")}
-        className="text-muted-foreground hover:text-foreground"
+        className={
+          variant === "ghost"
+            ? "text-muted-foreground hover:text-foreground"
+            : undefined
+        }
       >
         {copied ? (
           <Check className="size-3.5" />

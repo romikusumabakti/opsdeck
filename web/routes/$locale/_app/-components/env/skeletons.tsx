@@ -23,7 +23,7 @@ export function SettingsPending() {
   return (
     <>
       <PageHeaderSkeleton withAction={false} />
-      <div className="flex flex-col gap-6 max-w-2xl w-full">
+      <div className="flex flex-col gap-6 max-w-4xl w-full">
         {/* TabsList */}
         <Skeleton className="h-9 w-56 rounded-lg" />
 

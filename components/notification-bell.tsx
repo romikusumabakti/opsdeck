@@ -77,14 +77,14 @@ export function NotificationBell({
           ) : null}
         </PopoverTrigger>
       </TooltipHint>
-      <PopoverContent align="end" className="w-80 p-0">
+      <PopoverContent align="end" className="w-80 gap-0 p-0">
         <div className="flex items-center justify-between px-3 py-2.5 border-b">
           <span className="text-sm font-medium">{t("title")}</span>
           {unread > 0 ? (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs"
+              className="h-7 text-xs hover:bg-muted dark:hover:bg-muted"
               onClick={onMarkAll}
             >
               {t("markAllRead")}
@@ -102,7 +102,7 @@ export function NotificationBell({
                 <button
                   type="button"
                   onClick={() => onItemClick(n)}
-                  className="flex w-full items-start gap-2.5 px-3 py-2.5 text-start hover:bg-accent/50 transition-colors"
+                  className="flex w-full items-start gap-2.5 px-3 py-2.5 text-start hover:bg-muted/40 transition-colors"
                 >
                   <span className="mt-0.5 shrink-0 text-muted-foreground">
                     {n.type === "run_failed" ||

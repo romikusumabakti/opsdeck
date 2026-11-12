@@ -113,7 +113,7 @@ export function AttentionList({
   return (
     <ul className="flex flex-col divide-y">
       {instanceBackup ? (
-        <li className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors">
+        <li className="flex items-center gap-2 px-3 py-2 hover:bg-muted/40 transition-colors">
           <CircleAlert className="size-3.5 shrink-0 text-destructive" />
           <Link
             href="/admin/instance"
@@ -133,6 +133,7 @@ export function AttentionList({
               <Button
                 variant="ghost"
                 size="xs"
+                className="hover:bg-muted dark:hover:bg-muted"
                 onClick={() => acknowledgeBackup(instanceBackup.backupId)}
               >
                 <Check />
@@ -145,7 +146,7 @@ export function AttentionList({
       {visible.map((g) => (
         <li
           key={groupId(g)}
-          className="flex items-center gap-2 px-3 py-2 hover:bg-accent/50 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 hover:bg-muted/40 transition-colors"
         >
           <CircleAlert className="size-3.5 shrink-0 text-destructive" />
           <Link
@@ -166,13 +167,23 @@ export function AttentionList({
             <RelativeTime date={g.latest.runAt} />
           </span>
           {issueDialog.canCreateIn(g.projectId) ? (
-            <Button variant="ghost" size="xs" onClick={() => createIssue(g)}>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="hover:bg-muted dark:hover:bg-muted"
+              onClick={() => createIssue(g)}
+            >
               <FilePlus2 />
               {t("attention.createIssue")}
             </Button>
           ) : null}
           {g.canAcknowledge ? (
-            <Button variant="ghost" size="xs" onClick={() => acknowledge(g)}>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="hover:bg-muted dark:hover:bg-muted"
+              onClick={() => acknowledge(g)}
+            >
               <Check />
               {t("attention.acknowledge")}
             </Button>

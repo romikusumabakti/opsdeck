@@ -133,7 +133,7 @@ export function EnvironmentSettingsTabs({
           setOwnTab(value);
           onTabChange?.(value);
         }}
-        className="w-full max-w-2xl"
+        className="w-full max-w-4xl"
       >
         <TabsList className="h-auto flex-wrap">
           {SETTINGS_TABS.filter(

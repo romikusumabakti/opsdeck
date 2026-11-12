@@ -63,7 +63,7 @@ export function ActiveRunsIndicator() {
             <Loader2 className="size-4 animate-spin text-primary" />
             <span className="text-xs font-medium tabular-nums">{count}</span>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0">
+          <PopoverContent align="end" className="w-80 gap-0 p-0">
             <div className="px-3 py-2 border-b">
               <p className="text-sm font-medium">{t("title")}</p>
               <p className="text-xs text-muted-foreground">
@@ -79,7 +79,7 @@ export function ActiveRunsIndicator() {
                       setOpen(false);
                       setActiveTaskId(run.id);
                     }}
-                    className="w-full text-left px-3 py-2 hover:bg-accent flex items-start gap-2 transition-colors"
+                    className="w-full text-left px-3 py-2 hover:bg-muted/40 flex items-start gap-2 transition-colors"
                   >
                     <Loader2 className="size-3.5 animate-spin text-primary mt-0.5 shrink-0" />
                     <span className="flex-1 min-w-0">
