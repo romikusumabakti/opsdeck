@@ -32,6 +32,7 @@ const WS_PATH = "/ws/terminal";
 // 1s, 2s, 4s, 8s, then give up and let the user retry by hand — past the 60s
 // grace window there is nothing left to reattach to anyway.
 const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
+const FONT_SIZE = 13;
 
 function socketUrl(): string {
   const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -97,14 +98,20 @@ export function ServerTerminal({
         import("@xterm/addon-clipboard"),
         import("@xterm/addon-unicode11"),
       ]);
+      // xterm measures the cell size on a canvas, where `var(...)` is not a
+      // valid font — the canvas then silently measures its 10px sans-serif
+      // default and every cell comes out too wide. Hand it the resolved stack
+      // from the host's `font-mono` class, and wait for the webfont so the
+      // first measurement isn't taken against a fallback face.
+      const fontFamily = getComputedStyle(host).fontFamily;
+      await document.fonts.load(`${FONT_SIZE}px ${fontFamily}`).catch(() => {});
       if (disposed) return;
 
       const term = new Terminal({
         allowProposedApi: true,
         cursorBlink: true,
-        fontFamily:
-          'var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace)',
-        fontSize: 13,
+        fontFamily,
+        fontSize: FONT_SIZE,
         scrollback: 10_000,
         theme,
       });
@@ -295,7 +302,7 @@ export function ServerTerminal({
         // xterm's rows are absolutely positioned and don't survive RTL — force
         // the host LTR regardless of the page's own direction under /ar.
         dir="ltr"
-        className="h-[70vh] w-full overflow-hidden rounded-lg border bg-background p-2"
+        className="h-[70vh] w-full overflow-hidden rounded-lg border bg-background p-2 font-mono"
       />
       <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
         <span className="flex items-center gap-2">
