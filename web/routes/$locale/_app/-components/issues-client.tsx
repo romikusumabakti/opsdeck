@@ -584,6 +584,7 @@ export function IssuesClient({
                     </TableCell>
                     <TableCell>
                       <PrioritySelect
+                        variant="compact"
                         value={issue.priority as Priority}
                         onChange={(p) => onPriorityChange(issue.id, p)}
                       />
@@ -597,6 +598,7 @@ export function IssuesClient({
                     </TableCell>
                     <TableCell>
                       <AssigneeSelect
+                        variant="compact"
                         users={users}
                         value={issue.assignee?.id ?? null}
                         onChange={(a) => onAssigneeChange(issue.id, a)}

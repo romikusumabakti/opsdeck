@@ -1,0 +1,109 @@
+import { readFileSync } from "node:fs";
+import { renderToString } from "react-dom/server";
+import { IntlProvider } from "use-intl";
+import { describe, expect, it } from "vitest";
+import {
+  AssigneeSelect,
+  PrioritySelect,
+  type SelectVariant,
+  StatusSelect,
+} from "@/components/issues-board";
+import messages from "@/messages/en.json";
+
+const COMPACT = [
+  "h-7",
+  "w-auto",
+  "max-w-full",
+  "border-transparent",
+  "bg-transparent",
+  "px-2",
+  "hover:bg-muted",
+];
+
+function wrap(node: React.ReactNode) {
+  return renderToString(
+    <IntlProvider locale="en" messages={messages} timeZone="UTC">
+      {node}
+    </IntlProvider>
+  );
+}
+
+const noop = () => {};
+
+function statusHtml(variant?: SelectVariant) {
+  return wrap(<StatusSelect value="open" onChange={noop} variant={variant} />);
+}
+function priorityHtml(variant?: SelectVariant) {
+  return wrap(
+    <PrioritySelect value="medium" onChange={noop} variant={variant} />
+  );
+}
+function assigneeHtml(variant?: SelectVariant) {
+  return wrap(
+    <AssigneeSelect
+      users={[{ id: "u1", name: "Ada Lovelace", image: null }]}
+      value={null}
+      onChange={noop}
+      variant={variant}
+    />
+  );
+}
+
+function triggerClass(html: string) {
+  const tag = html.match(/<[^>]*data-slot="select-trigger"[^>]*>/)?.[0] ?? "";
+  return tag.match(/class="([^"]*)"/)?.[1] ?? "";
+}
+
+describe("issue selects compact variant", () => {
+  it("Status, Priority and Assignee share the compact trigger classes", () => {
+    for (const html of [
+      statusHtml("compact"),
+      priorityHtml("compact"),
+      assigneeHtml("compact"),
+    ]) {
+      const cls = triggerClass(html).split(/\s+/);
+      for (const token of COMPACT) expect(cls).toContain(token);
+      expect(cls).not.toContain("w-full");
+    }
+  });
+
+  it("the default variant keeps the bordered full-width trigger", () => {
+    for (const html of [statusHtml(), priorityHtml(), assigneeHtml()]) {
+      const cls = triggerClass(html).split(/\s+/);
+      expect(cls).toContain("h-8");
+      expect(cls).toContain("w-full");
+      expect(cls).not.toContain("border-transparent");
+    }
+  });
+
+  it("every inline issue select passes variant compact", () => {
+    for (const file of [
+      "components/global-issues-client.tsx",
+      "web/routes/$locale/_app/-components/issues-client.tsx",
+      "components/issues-board.tsx",
+    ]) {
+      const uses =
+        readFileSync(file, "utf8").match(
+          /<(StatusSelect|PrioritySelect|AssigneeSelect)\b[\s\S]*?\/>/g
+        ) ?? [];
+      expect(uses.length, file).toBeGreaterThan(0);
+      for (const use of uses) expect(use, file).toContain('variant="compact"');
+    }
+  });
+
+  it("forms keep the default variant", () => {
+    for (const file of [
+      "components/issue-create-dialog.tsx",
+      "web/routes/$locale/_app/-components/project/issue-detail-client.tsx",
+    ])
+      expect(readFileSync(file, "utf8")).not.toContain('variant="compact"');
+  });
+
+  it("a long assignee name stays inside its column", () => {
+    // SSR does not mount the items, so pin the two classes that do the work.
+    expect(triggerClass(assigneeHtml("compact"))).toContain("max-w-full");
+    expect(readFileSync("components/issues-board.tsx", "utf8")).toContain(
+      '<span className="truncate">{u.name}</span>'
+    );
+  });
+});

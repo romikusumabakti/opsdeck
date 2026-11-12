@@ -76,7 +76,19 @@ export type BoardIssue = {
 
 export type Swimlane = "none" | "assignee" | "milestone";
 
-// Compact status control with a colored dot, reused by the table and board.
+export type SelectVariant = "default" | "compact";
+
+// "compact" sizes to content with no resting border, for dense rows and cards;
+// max-w-full keeps a long value inside a fixed-width column.
+const COMPACT_TRIGGER =
+  "h-7 w-auto max-w-full gap-1.5 border-transparent bg-transparent px-2 hover:bg-muted";
+
+function triggerClass(variant: SelectVariant, className?: string) {
+  return cn(variant === "compact" ? COMPACT_TRIGGER : "h-8 w-full", className);
+}
+
+// Status control with a colored dot, reused by the table and board.
+// Pass variant="compact" for dense rows and cards.
 export function StatusSelect({
   value,
   onChange,
@@ -86,19 +98,13 @@ export function StatusSelect({
   value: Status;
   onChange: (s: Status) => void;
   className?: string;
-  // "compact" sizes to content with no resting border, for dense lists.
-  variant?: "default" | "compact";
+  variant?: SelectVariant;
 }) {
   const t = useTranslations("issues");
   return (
     <Select value={value} onValueChange={(v) => v && onChange(v as Status)}>
       <SelectTrigger
-        className={cn(
-          variant === "compact"
-            ? "h-7 w-auto gap-1.5 border-transparent bg-transparent px-2 hover:bg-muted"
-            : "h-8 w-full",
-          className
-        )}
+        className={triggerClass(variant, className)}
         aria-label={t(`status.${value}`)}
       >
         {/* No dot here: SelectValue renders the selected item's own content
@@ -172,20 +178,23 @@ export function TypeSelect({
 }
 
 // Priority control with an urgency dot, reused by the table, board, and dialog.
+// Pass variant="compact" for dense rows and cards.
 export function PrioritySelect({
   value,
   onChange,
   className,
+  variant = "default",
 }: {
   value: Priority;
   onChange: (v: Priority) => void;
   className?: string;
+  variant?: SelectVariant;
 }) {
   const t = useTranslations("issues");
   return (
     <Select value={value} onValueChange={(v) => v && onChange(v as Priority)}>
       <SelectTrigger
-        className={cn("h-8 w-full", className)}
+        className={triggerClass(variant, className)}
         aria-label={t(`priority.${value}`)}
       >
         {/* SelectValue already renders the selected item's dot + label. */}
@@ -212,17 +221,19 @@ export type AssignableUser = UserRef & {
 const UNASSIGNED = "__unassigned";
 
 // Assignee picker reused by the create dialog and the inline table/board cells.
-// `null` = unassigned.
+// `null` = unassigned. Pass variant="compact" for dense rows and cards.
 export function AssigneeSelect({
   users,
   value,
   onChange,
   className,
+  variant = "default",
 }: {
   users: AssignableUser[];
   value: string | null;
   onChange: (assigneeId: string | null) => void;
   className?: string;
+  variant?: SelectVariant;
 }) {
   const t = useTranslations("issues");
   return (
@@ -231,7 +242,7 @@ export function AssigneeSelect({
       onValueChange={(v) => onChange(!v || v === UNASSIGNED ? null : v)}
     >
       <SelectTrigger
-        className={cn("h-8 w-full", className)}
+        className={triggerClass(variant, className)}
         aria-label={t("assignee")}
       >
         <SelectValue />
@@ -345,6 +356,7 @@ function IssueCard({
         </div>
       ) : null}
       <StatusSelect
+        variant="compact"
         value={issue.status}
         onChange={(s) => onStatusChange(issue.id, s)}
       />

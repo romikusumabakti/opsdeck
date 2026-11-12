@@ -349,7 +349,7 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <PrioritySelect
-            className="h-7"
+            variant="compact"
             value={row.original.priority}
             onChange={(p) => onPriorityChange(row.original.id, p)}
           />
@@ -364,7 +364,7 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <AssigneeSelect
-            className="h-7"
+            variant="compact"
             users={users}
             value={row.original.assignee?.id ?? null}
             onChange={(a) => onAssigneeChange(row.original.id, a)}
@@ -518,14 +518,17 @@ export function GlobalIssuesClient({
               <LabelChips labels={issue.labels} max={3} />
               <div className="flex flex-wrap items-center gap-2">
                 <StatusSelect
+                  variant="compact"
                   value={issue.status}
                   onChange={(s) => onStatusChange(issue.id, s)}
                 />
                 <PrioritySelect
+                  variant="compact"
                   value={issue.priority}
                   onChange={(p) => onPriorityChange(issue.id, p)}
                 />
                 <AssigneeSelect
+                  variant="compact"
                   users={users}
                   value={issue.assignee?.id ?? null}
                   onChange={(a) => onAssigneeChange(issue.id, a)}
