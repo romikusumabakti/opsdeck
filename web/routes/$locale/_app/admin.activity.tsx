@@ -91,6 +91,33 @@ function message(
             actor,
             project: String(d.project),
           });
+    case "project.sourceAdded":
+      return t("projectSourceAdded", {
+        actor,
+        project: String(d.project),
+        app: String(d.app),
+      });
+    case "project.sourceRemoved":
+      return t("projectSourceRemoved", {
+        actor,
+        project: String(d.project),
+        app: String(d.app),
+      });
+    case "project.defaultBranchChanged":
+      return d.from
+        ? t("projectDefaultBranchChanged", {
+            actor,
+            project: String(d.project),
+            component: String(d.component),
+            from: String(d.from),
+            to: String(d.to),
+          })
+        : t("projectDefaultBranchSet", {
+            actor,
+            project: String(d.project),
+            component: String(d.component),
+            to: String(d.to),
+          });
     case "user.offboarded":
       return t("userOffboarded", { actor, user: String(d.user) });
     case "user.roleChanged":

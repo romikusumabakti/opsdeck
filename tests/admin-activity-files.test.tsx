@@ -115,4 +115,59 @@ describe("activity page file explorer events", () => {
     expect(text).not.toContain("did something");
     await act(async () => root.unmount());
   });
+
+  it("renders project source and default branch events", async () => {
+    const events = [
+      row("1", "project.sourceAdded", {
+        project: "Kestrel Membership",
+        app: "dplk-membership",
+      }),
+      row("2", "project.sourceRemoved", {
+        project: "Kestrel Membership",
+        app: "dplk-membership",
+      }),
+      row("3", "project.defaultBranchChanged", {
+        project: "Kestrel Membership",
+        component: "backend",
+        from: "",
+        to: "kestrel/development",
+      }),
+      row("4", "project.defaultBranchChanged", {
+        project: "Kestrel Membership",
+        component: "backend",
+        from: "kestrel/demo",
+        to: "kestrel/development",
+      }),
+    ];
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["activity", "listActivity"], events);
+    const Page = Route.options.component as React.ComponentType;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <IntlProvider locale="en" messages={messages}>
+            <Page />
+          </IntlProvider>
+        </QueryClientProvider>
+      );
+    });
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "Rina added dplk-membership to the sources of Kestrel Membership"
+    );
+    expect(text).toContain(
+      "Rina removed dplk-membership from the sources of Kestrel Membership"
+    );
+    expect(text).toContain(
+      "Rina set the default branch of backend in Kestrel Membership to kestrel/development"
+    );
+    expect(text).toContain(
+      "Rina changed the default branch of backend in Kestrel Membership from kestrel/demo to kestrel/development"
+    );
+    expect(text).not.toContain("did something");
+    await act(async () => root.unmount());
+  });
 });

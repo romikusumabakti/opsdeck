@@ -5,6 +5,7 @@ import { locales } from "@/i18n/locales";
 type Catalog = {
   actionErrors: Record<string, string>;
   projectSources: Record<string, string>;
+  activity: Record<string, string>;
 };
 
 function catalog(locale: string): Catalog {
@@ -13,6 +14,13 @@ function catalog(locale: string): Catalog {
 
 const ERROR_KEYS = ["sourceInUse", "componentNotInSources"] as const;
 const SOURCE_KEYS = ["addedSuccess", "removedSuccess", "branchSaved"] as const;
+
+const ACTIVITY_KEYS = [
+  "projectSourceAdded",
+  "projectSourceRemoved",
+  "projectDefaultBranchSet",
+  "projectDefaultBranchChanged",
+] as const;
 
 describe("project sources messages", () => {
   const en = catalog("en");
@@ -28,6 +36,32 @@ describe("project sources messages", () => {
       }
     });
   }
+
+  for (const locale of locales) {
+    it(`${locale} has the activity feed sentences`, () => {
+      const { activity } = catalog(locale);
+      for (const key of ACTIVITY_KEYS) {
+        expect(activity[key], key).toContain("{actor}");
+        expect(activity[key], key).toContain("{project}");
+      }
+      expect(activity.projectDefaultBranchChanged).toContain("{from}");
+      expect(activity.projectDefaultBranchChanged).toContain("{to}");
+    });
+  }
+
+  it("the activity page renders the three project source actions", () => {
+    const page = readFileSync(
+      "web/routes/$locale/_app/admin.activity.tsx",
+      "utf8"
+    );
+    for (const action of [
+      "project.sourceAdded",
+      "project.sourceRemoved",
+      "project.defaultBranchChanged",
+    ]) {
+      expect(page).toContain(`case "${action}"`);
+    }
+  });
 
   it("id is translated, not a copy of en", () => {
     const id = catalog("id");
