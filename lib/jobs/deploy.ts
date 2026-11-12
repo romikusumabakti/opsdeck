@@ -173,8 +173,8 @@ async function recordClaimedDeployment(
     await runClaimedDeployment(deploymentId, runId);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    // An unexpected error (SSH non-zero exit, with the script's output and
-    // HEALTH TIMEOUT) is marked as such; an abort is a plain sentence.
+    // An unexpected error (a script exit, summarized by scriptFailure, or a
+    // connection error) is marked as such; an abort is a plain sentence.
     const line = err instanceof DeployAborted ? message : `✗ ${message}`;
     await failClaimedDeployment(deploymentId, runId, message, line);
     return { status: "failed" };
@@ -236,8 +236,10 @@ export async function failStaleDeployments(): Promise<void> {
   }
 }
 
-// The deploy script's own failure markers (stdout); compose noise goes to stderr.
-const SCRIPT_MARKER = /^[A-Z][A-Z ]*(FAILED|TIMEOUT|LOCKED)$/;
+// The deploy scripts' own failure markers, printed on stdout (lib/deploy/*:
+// ENV INSTALL FAILED, DEPLOY LOCKED, HEALTH TIMEOUT, SWAP FAILED, UNIT NOT
+// FOUND, ARTIFACT INVALID, NGINX CONFIG INVALID, …); compose noise is stderr.
+const SCRIPT_MARKER = /^[A-Z][A-Z ]*(FAILED|TIMEOUT|LOCKED|INVALID|NOT FOUND)$/;
 
 function lastLine(text: string, match?: RegExp): string | null {
   const lines = text

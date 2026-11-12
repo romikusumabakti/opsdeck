@@ -795,6 +795,26 @@ describe("handleDeploy with a managed .env", () => {
     expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, "db down");
   });
 
+  it("removes the staged file when the script exits non-zero, with a one-line error", async () => {
+    silenceErrors();
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    ssh.executeRemoteCommand
+      .mockRejectedValueOnce(
+        new RemoteCommandError(1, "ENV INSTALL FAILED", "mv: cannot move")
+      )
+      .mockResolvedValueOnce("");
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    expect(ssh.executeRemoteCommand.mock.calls[1]?.[1]).toBe(
+      `rm -f '${STAGED_PATH}'`
+    );
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      "Deploy script exited with code 1: ENV INSTALL FAILED"
+    );
+  });
+
   it("removes the staged file when the script fails to run, and still fails", async () => {
     silenceErrors();
     variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);

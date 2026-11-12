@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RemoteCommandError } from "@/lib/remote-command-error";
 
 const TARGET_ID = "0197f3a0-1b2c-7def-8000-0123456789b1";
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789b2";
@@ -365,6 +366,25 @@ describe("handleDeploy for a jar target", () => {
     expect(outputLines()).toContain(
       "✗ SSH Command Failed (exit 1): UNIT NOT FOUND"
     );
+  });
+
+  it("a failed artifact script keeps its output in the log and names its marker", async () => {
+    ssh.executeRemoteCommand.mockRejectedValue(
+      new RemoteCommandError(
+        1,
+        "Enabled core\nUNIT NOT FOUND",
+        "Warning: The unit file changed on disk"
+      )
+    );
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    const summary = "Deploy script exited with code 1: UNIT NOT FOUND";
+    expect(outputLines()).toContain(
+      "Enabled core\nUNIT NOT FOUND\nWarning: The unit file changed on disk"
+    );
+    expect(outputLines()).toContain(`✗ ${summary}`);
+    expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, summary);
   });
 
   it("a jar target without a jar name or unit aborts before the registry", async () => {
