@@ -6,7 +6,7 @@ A self-hosted, whitelabel hub where a delivery team (PM, BA, QA, Dev and DevOps)
 
 - **Projects and environments.** Each project has environments (dev, staging, prod, and so on). For each environment you can manage services and stream their logs, and manage databases (Postgres, MSSQL, MySQL/MariaDB on Docker or Kubernetes). You can also run backups and restores, mock the system clock, view Mailpit mail and see the run history.
 - **Background runs.** Backups, restores, database changes, service control and Jira sync are queued on BullMQ. Their progress streams live to the browser.
-- **Issue tracker.** Issues come with labels, milestones, saved views, test runs, attachments and project membership. Optional two-way sync with Jira is available.
+- **Issue tracker.** Issues come with labels, saved views, test runs, attachments and project membership. Optional two-way sync with Jira is available.
 - **Knowledge base.** Rich-text pages (Tiptap) with revision history. Images are stored in S3 (Garage) and served through imgproxy.
 - **Servers.** SSH connections, an SFTP file explorer and a browser terminal (xterm.js).
 - **Storage.** Browse S3-compatible buckets.

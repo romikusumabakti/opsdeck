@@ -5,6 +5,10 @@ projects, push disabled everywhere (verified 2026-11-01) · **Written:** 2026-08
 **Scope:** the existing project issue tracker (`issues`, `issueComments`,
 `issueLabels`, `milestones`).
 
+> **Update 2026-11-12:** the fixVersions → milestone mirror was removed together
+with milestones (navigation cleanup). Sections below that mention milestones or
+fixVersions describe the original design and no longer match the code.
+
 Three things changed during implementation; the sections below reflect the code
 as built:
 
