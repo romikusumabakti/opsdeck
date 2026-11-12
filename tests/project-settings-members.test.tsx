@@ -42,7 +42,9 @@ vi.mock("@/web/api/project-members", () => ({
   }),
   listMemberCandidatesQuery: (id: string) => ({
     queryKey: ["candidates", id],
-    queryFn: async () => [{ id: "u9", name: "Aisha", email: "a@x" }],
+    queryFn: async () => [
+      { id: "u9", name: "Aisha", email: "a@x", image: null },
+    ],
   }),
 }));
 
@@ -74,7 +76,12 @@ const member = (id: string, name: string, orgRole: string) =>
 
 async function render(
   members: ProjectMemberRow[],
-  candidates: { id: string; name: string; email: string }[] = []
+  candidates: {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+  }[] = []
 ) {
   container = document.createElement("div");
   document.body.append(container);
@@ -152,14 +159,26 @@ describe("Members tab", () => {
     expect(text()).toContain("QA / BA");
     expect(text()).toContain("Admin");
     // Only the user picker: no per-member role select.
-    expect(container?.querySelectorAll('[role="combobox"]')).toHaveLength(1);
+    expect(
+      container?.querySelectorAll('button[aria-label="Select a user…"]')
+    ).toHaveLength(1);
   });
 
   it("adds the picked user without a role", async () => {
     api.addProjectMember.mockResolvedValue({ success: true });
-    await render([], [{ id: "u9", name: "Aisha", email: "a@x" }]);
-    await click(container?.querySelector('[role="combobox"]'));
-    await click(byText('[role="option"]', "Aisha"));
+    await render([], [{ id: "u9", name: "Aisha", email: "a@x", image: null }]);
+    await click(
+      container?.querySelector('button[aria-label="Select a user…"]')
+    );
+    // The popup mounts in a portal, a tick after the click.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    await click(
+      [...document.querySelectorAll('[data-slot="combobox-item"]')].find((el) =>
+        el.textContent?.includes("Aisha")
+      )
+    );
     await click(byText("button", messages.projectMembers.add));
     expect(api.addProjectMember).toHaveBeenCalledWith({
       projectId: PROJECT,
@@ -201,7 +220,7 @@ describe("ProjectMembersTab", () => {
     // The candidate list reached the picker: it is enabled.
     expect(
       container
-        .querySelector('[role="combobox"]')
+        .querySelector('button[aria-label="Select a user…"]')
         ?.hasAttribute("data-disabled")
     ).toBe(false);
   });

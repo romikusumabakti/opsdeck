@@ -8,6 +8,7 @@ import {
 import { useTranslations } from "use-intl";
 import { COMPACT_TRIGGER } from "@/components/compact-trigger";
 import { LabelChips } from "@/components/label-ui";
+import { PersonPicker } from "@/components/person-picker";
 import {
   Select,
   SelectContent,
@@ -15,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
 import { Link } from "@/i18n/navigation";
 import type { LabelLite } from "@/lib/db/schema";
@@ -210,10 +210,9 @@ export function PrioritySelect({
 }
 
 export type AssignableUser = UserRef & {
+  email?: string | null;
   status?: { emoji: string | null; text: string | null } | null;
 };
-
-const UNASSIGNED = "__unassigned";
 
 // Assignee picker reused by the create dialog and the inline table/board cells.
 // `null` = unassigned. Pass variant="compact" for dense rows and cards.
@@ -232,32 +231,15 @@ export function AssigneeSelect({
 }) {
   const t = useTranslations("issues");
   return (
-    <Select
-      value={value ?? UNASSIGNED}
-      onValueChange={(v) => onChange(!v || v === UNASSIGNED ? null : v)}
-    >
-      <SelectTrigger
-        className={triggerClass(variant, className)}
-        aria-label={t("assignee")}
-      >
-        {/* min-w-0 lets the value shrink so a long name truncates. */}
-        <SelectValue className="min-w-0" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={UNASSIGNED}>{t("unassigned")}</SelectItem>
-        {users.map((u) => (
-          <SelectItem key={u.id} value={u.id}>
-            <span className="flex min-w-0 items-center gap-2">
-              <UserAvatar user={u} size="xs" />
-              <span className="truncate">{u.name}</span>
-              {u.status?.emoji && (
-                <span title={u.status.text ?? undefined}>{u.status.emoji}</span>
-              )}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <PersonPicker
+      people={users}
+      value={value}
+      onChange={onChange}
+      noneLabel={t("unassigned")}
+      aria-label={t("assignee")}
+      variant={variant}
+      className={className}
+    />
   );
 }
 

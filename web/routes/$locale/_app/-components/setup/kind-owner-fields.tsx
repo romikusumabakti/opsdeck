@@ -1,4 +1,5 @@
 import { useTranslations } from "use-intl";
+import { type Person, PersonPicker } from "@/components/person-picker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
@@ -23,7 +24,7 @@ export function KindOwnerFields({
 }: {
   kind: EnvKind | null | undefined;
   ownerId: string | null | undefined;
-  owners: { id: string; name: string }[] | undefined;
+  owners: Person[] | undefined;
   onKind: (kind: EnvKind | null) => void;
   onOwner: (ownerId: string | null) => void;
 }) {
@@ -59,28 +60,14 @@ export function KindOwnerFields({
         </Field>
         <Field>
           <FieldLabel htmlFor="env-owner">{t("owner")}</FieldLabel>
-          <Select
-            value={ownerId ?? NONE}
-            onValueChange={(value) =>
-              onOwner(value && value !== NONE ? value : null)
-            }
-          >
-            <SelectTrigger id="env-owner" aria-label={t("owner")}>
-              <SelectValue>
-                {(value: string) =>
-                  owners?.find((u) => u.id === value)?.name ?? t("ownerNone")
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>{t("ownerNone")}</SelectItem>
-              {(owners ?? []).map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PersonPicker
+            id="env-owner"
+            aria-label={t("owner")}
+            people={owners ?? []}
+            value={ownerId ?? null}
+            onChange={onOwner}
+            noneLabel={t("ownerNone")}
+          />
         </Field>
       </CardContent>
     </Card>

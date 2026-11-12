@@ -4,15 +4,9 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
+import { PersonPicker } from "@/components/person-picker";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -64,7 +58,12 @@ export function ProjectMembersClient({
   projectId: string;
   projectName: string;
   initialMembers: ProjectMemberRow[];
-  memberCandidates: { id: string; name: string; email: string }[];
+  memberCandidates: {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+  }[];
 }) {
   const t = useTranslations("projectMembers");
   const dialog = useDialog();
@@ -111,23 +110,15 @@ export function ProjectMembersClient({
     <div className="flex flex-col gap-4">
       {/* Add member */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
-        <Select
-          value={addUserId}
-          onValueChange={(v) => setAddUserId(v ?? "")}
+        <PersonPicker
+          people={candidates}
+          value={addUserId || null}
+          onChange={(id) => setAddUserId(id ?? "")}
+          placeholder={t("selectUser")}
+          aria-label={t("selectUser")}
           disabled={candidates.length === 0 || isPending}
-        >
-          <SelectTrigger className="min-w-52">
-            <SelectValue placeholder={t("selectUser")} />
-          </SelectTrigger>
-          <SelectContent>
-            {candidates.map((u) => (
-              <SelectItem key={u.id} value={u.id}>
-                {u.name}
-                <span className="text-muted-foreground text-xs">{u.email}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          className="min-w-52"
+        />
         <Button
           disabled={!addUserId || isPending}
           onClick={() => {

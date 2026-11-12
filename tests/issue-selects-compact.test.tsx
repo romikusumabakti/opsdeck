@@ -50,7 +50,10 @@ function assigneeHtml(variant?: SelectVariant) {
 }
 
 function triggerClass(html: string) {
-  const tag = html.match(/<[^>]*data-slot="select-trigger"[^>]*>/)?.[0] ?? "";
+  // Status and Priority use a Select; the assignee is a PersonPicker Combobox.
+  const tag =
+    html.match(/<[^>]*data-slot="(?:select|combobox)-trigger"[^>]*>/)?.[0] ??
+    "";
   return tag.match(/class="([^"]*)"/)?.[1] ?? "";
 }
 
@@ -102,12 +105,12 @@ describe("issue selects compact variant", () => {
   // Class pins: SSR cannot measure layout, so these guard the classes that make
   // a long assignee name truncate instead of widening an auto-layout column.
   it("pins the assignee truncation classes (class pin, not a layout test)", () => {
-    const board = readFileSync("components/issues-board.tsx", "utf8");
-    expect(board).toContain('<SelectValue className="min-w-0" />');
-    expect(board).toContain(
-      '<span className="flex min-w-0 items-center gap-2">'
+    const picker = readFileSync("components/person-picker.tsx", "utf8");
+    expect(picker).toContain('<span className="truncate">{person.name}</span>');
+    expect(picker).toContain(
+      '<span className="flex min-w-0 items-center gap-1.5">'
     );
-    expect(board).toContain('<span className="truncate">{u.name}</span>');
+    expect(picker).toContain('<span className="flex min-w-0 flex-col">');
   });
 
   it("caps the compact assignee trigger at every call site", () => {

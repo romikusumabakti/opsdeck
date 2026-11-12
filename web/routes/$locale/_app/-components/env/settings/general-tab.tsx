@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Controller, useWatch } from "react-hook-form";
 import { useTranslations } from "use-intl";
 import { AdvancedOptions } from "@/components/advanced-options";
+import { PersonPicker } from "@/components/person-picker";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UserAvatar } from "@/components/user/user-avatar";
 import { Link } from "@/i18n/navigation";
 import { listAssignableUsersQuery } from "@/web/api/users";
 import { Hint, SaveButton } from "./fields";
@@ -40,7 +40,6 @@ import {
 
 // Sentinels for the "unspecified" options (a Select can't hold "").
 const KIND_NONE = "__none";
-const OWNER_NONE = "__none";
 
 /**
  * Name, kind, owner and URL. With a domain the URL is derived from it and
@@ -66,7 +65,6 @@ export function GeneralTab({
   const t = useTranslations("environmentForm");
   const tSettings = useTranslations("environmentSettings");
   const tKinds = useTranslations("environmentKinds");
-  const tPeople = useTranslations("people");
   const form = useSettingsFormContext();
   const hasDomain = domainUrl !== null;
   const { errors } = form.formState;
@@ -200,38 +198,14 @@ export function GeneralTab({
                   render={({ field, fieldState }) => (
                     <Field data-invalid={fieldState.invalid}>
                       <FieldLabel htmlFor="env-owner">{t("owner")}</FieldLabel>
-                      <Select
-                        value={field.value || OWNER_NONE}
-                        onValueChange={(v) =>
-                          field.onChange(!v || v === OWNER_NONE ? "" : v)
-                        }
-                      >
-                        <SelectTrigger
-                          id="env-owner"
-                          aria-invalid={fieldState.invalid}
-                          className="w-full"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={OWNER_NONE}>
-                            {t("ownerNone")}
-                          </SelectItem>
-                          {ownerOptions.map((u) => (
-                            <SelectItem key={u.id} value={u.id}>
-                              <span className="flex min-w-0 items-center gap-2">
-                                <UserAvatar user={u} size="xs" />
-                                <span className="truncate">{u.name}</span>
-                                {u.banned && (
-                                  <span className="shrink-0 text-xs text-muted-foreground">
-                                    ({tPeople("deactivated")})
-                                  </span>
-                                )}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <PersonPicker
+                        id="env-owner"
+                        aria-invalid={fieldState.invalid}
+                        people={ownerOptions}
+                        value={field.value || null}
+                        onChange={(id) => field.onChange(id ?? "")}
+                        noneLabel={t("ownerNone")}
+                      />
                       <Hint>{t("ownerHint")}</Hint>
                       <FieldError errors={[fieldState.error]} />
                     </Field>
