@@ -109,5 +109,8 @@ describe("withPrelude", () => {
     expect(HTML_PRELUDE).toContain("script-src 'none'");
     expect(HTML_PRELUDE).toContain('<base target="_blank">');
     expect(HTML_PRELUDE).toContain('content="no-referrer"');
+    expect(HTML_PRELUDE).toContain(
+      ":where(body){font-family:ui-sans-serif,system-ui,sans-serif}"
+    );
   });
 });

@@ -12,10 +12,14 @@ export const MAX_INLINE_TOTAL_BYTES = 10 * 1024 * 1024;
 // Defence in depth on top of the sandbox (which already blocks scripts): no
 // scripts/plugins/form posts, no Referer leaking the OpsDeck URL to remote
 // image hosts, and links open in a new tab instead of navigating the frame.
+// Mail clients give unstyled mail a sans-serif default; a bare frame would
+// fall back to the browser's serif. `:where()` has zero specificity, so any
+// font the email sets itself, even a plain `body {}` rule, still wins.
 export const HTML_PRELUDE =
   `<meta http-equiv="Content-Security-Policy" content="script-src 'none'; object-src 'none'; form-action 'none'">` +
   `<meta name="referrer" content="no-referrer">` +
-  `<base target="_blank">`;
+  `<base target="_blank">` +
+  `<style>:where(body){font-family:ui-sans-serif,system-ui,sans-serif}</style>`;
 
 const CID_RE = /cid:([^"'\s)>]+)/gi;
 const SAFE_CONTENT_TYPE = /^[\w.+-]+\/[\w.+-]+$/;
