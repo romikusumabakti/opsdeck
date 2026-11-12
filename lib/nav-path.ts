@@ -176,7 +176,6 @@ export function groupEnvironmentsByProject<
 export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
   "services",
   "deploys",
-  "variables",
   "databases",
   "mock-time",
   "mail",

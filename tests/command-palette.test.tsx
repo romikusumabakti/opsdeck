@@ -6,9 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import messages from "../messages/en.json";
 
 const push = vi.hoisted(() => vi.fn());
+const nav = vi.hoisted(() => ({ pathname: "/" }));
 vi.mock("@/i18n/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => "/",
+  usePathname: () => nav.pathname,
 }));
 vi.mock("@/components/theme-provider", () => ({
   useTheme: () => ({ setTheme: vi.fn() }),
@@ -68,6 +69,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   push.mockClear();
+  nav.pathname = "/";
 });
 
 describe("command palette pages", () => {
@@ -138,5 +140,28 @@ describe("command palette pages", () => {
     ]) {
       expect(shown).not.toContain(label);
     }
+  });
+});
+
+describe("command palette Variables entry", () => {
+  it("offers Variables inside an environment to an engineer", async () => {
+    nav.pathname = "/KMEM/dev-1/deploys";
+    await openPalette("member", "engineer");
+    const el = [...document.querySelectorAll<HTMLElement>("[cmdk-item]")].find(
+      (item) => item.textContent === messages.nav.variables
+    );
+    await act(async () => el?.click());
+    expect(push).toHaveBeenCalledWith("/KMEM/dev-1/settings?tab=variables");
+  });
+
+  it("hides Variables from QA inside an environment", async () => {
+    nav.pathname = "/KMEM/dev-1/deploys";
+    await openPalette("member", "qa");
+    expect(labels()).not.toContain(messages.nav.variables);
+  });
+
+  it("hides Variables outside an environment", async () => {
+    await openPalette("member", "engineer");
+    expect(labels()).not.toContain(messages.nav.variables);
   });
 });

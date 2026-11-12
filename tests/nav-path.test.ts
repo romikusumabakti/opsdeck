@@ -6,6 +6,7 @@ import {
   environmentsOf,
   groupEnvironmentsByProject,
   isProjectReleasable,
+  PARALLEL_SECTIONS,
   parseNavPath,
   projectNavItems,
   projectSwitchHref,
@@ -331,6 +332,9 @@ describe("environmentSwitchHref", () => {
     expect(
       environmentSwitchHref(dest, parseNavPath("/CMEM/prod/settings"), "viewer")
     ).toBe("/CMEM/qa");
+  });
+  it("no longer treats variables as a parallel section", () => {
+    expect(PARALLEL_SECTIONS.has("variables")).toBe(false);
   });
   it("no longer treats issues as a parallel section", () => {
     expect(

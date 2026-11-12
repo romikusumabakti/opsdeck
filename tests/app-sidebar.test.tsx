@@ -264,6 +264,12 @@ describe("project group", () => {
     expect(groupRows("Dev")).not.toContain("Issues");
   });
 
+  it("the environment group has no Variables entry", async () => {
+    await renderSidebar("member", "/CRMB/dev/deploys", scope(true));
+    expect(groupRows("Dev")).not.toContain("Variables");
+    expect(hrefs().some((h) => h?.endsWith("/variables"))).toBe(false);
+  });
+
   it("has no Releases entry for a container-only project", async () => {
     await renderSidebar("member", "/CRMB/dev/deploys", scope(false));
     expect(groupRows("CAR Membership")).not.toContain("Releases");

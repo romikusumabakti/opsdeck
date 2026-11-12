@@ -12,7 +12,6 @@ import {
   HardDrive,
   History,
   House,
-  KeyRound,
   LayoutDashboard,
   type LucideIcon,
   Mail,
@@ -97,12 +96,6 @@ const environmentItems: EnvironmentItem[] = [
   { key: "dashboard", url: "", icon: LayoutDashboard },
   { key: "services", url: "/services", icon: ServerCog },
   { key: "deploys", url: "/deploys", icon: Rocket },
-  {
-    key: "variables",
-    url: "/variables",
-    icon: KeyRound,
-    perm: SECTION_PERMS.variables,
-  },
   { key: "databases", url: "/databases", icon: DatabaseZap },
   {
     key: "mockTime",

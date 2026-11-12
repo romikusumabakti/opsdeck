@@ -1,27 +1,17 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { listVariablesQuery } from "@/web/api/variables";
-import { requireRole } from "@/web/project-guard";
-import { loaderQuery } from "@/web/query-client";
-import { HistoryPending } from "./-components/env/skeletons";
-import { VariablesClient } from "./-components/env/variables/variables-client";
+import { redirect } from "@/i18n/navigation";
 
-// The environment's variables: engineers and admins (project
-// variable:read, like the API).
+// Variables moved into the environment settings as a tab. Keep this route as a
+// redirect so existing bookmarks and links still resolve; the original query
+// string is carried over and `tab` is forced to variables. The settings route
+// guards `environment:update` and the tab gates `variable:read`.
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/variables"
 )({
-  beforeLoad: ({ context: { role } }) =>
-    requireRole(role, { variable: ["read"] }),
-  loader: async ({ context: { queryClient, environmentId } }) => {
-    await loaderQuery(queryClient, listVariablesQuery(environmentId));
+  validateSearch: (search: Record<string, unknown>) => search,
+  beforeLoad: ({ params: { locale, projectKey, envSlug }, location }) => {
+    const params = new URLSearchParams(location.searchStr);
+    params.set("tab", "variables");
+    return redirect(`/${projectKey}/${envSlug}/settings?${params}`, locale);
   },
-  pendingComponent: HistoryPending,
-  component: VariablesPage,
 });
-
-function VariablesPage() {
-  const { environmentId } = Route.useRouteContext();
-  const listing = useSuspenseQuery(listVariablesQuery(environmentId)).data;
-  return <VariablesClient environmentId={environmentId} listing={listing} />;
-}

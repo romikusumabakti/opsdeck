@@ -55,6 +55,8 @@ import { MOTIFS } from "@/lib/motifs";
 import {
   groupEnvironmentsByProject,
   type NavProject,
+  parseNavPath,
+  SECTION_PERMS,
   stripProjectPrefix,
 } from "@/lib/nav-path";
 import {
@@ -99,6 +101,16 @@ export function CommandPalette({
   const canCreateEnvironment = Object.values(projectRoles).some((role) =>
     canProject(role, SETUP_PERMISSIONS)
   );
+  // Inside an environment the palette offers its Variables settings tab, behind
+  // the same permission as the tab.
+  const here = parseNavPath(pathname);
+  const hereProject =
+    here.scope === "env"
+      ? projects.find((project) => project.key === here.projectKey)
+      : undefined;
+  const canOpenVariables =
+    hereProject !== undefined &&
+    canProject(projectRoles[hereProject.id] ?? null, SECTION_PERMS.variables);
   const environmentGroups = useMemo(
     () => groupEnvironmentsByProject(projects, environments),
     [projects, environments]
@@ -290,6 +302,21 @@ export function CommandPalette({
               >
                 <CloudCog />
                 {tNav("cloudflare")}
+              </CommandItem>
+            )}
+            {here.scope === "env" && canOpenVariables && (
+              <CommandItem
+                value="variables env secrets"
+                onSelect={() =>
+                  run(() =>
+                    router.push(
+                      `/${here.projectKey}/${here.envSlug}/settings?tab=variables`
+                    )
+                  )
+                }
+              >
+                <KeyRound />
+                {tNav("variables")}
               </CommandItem>
             )}
           </CommandGroup>

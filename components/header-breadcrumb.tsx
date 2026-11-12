@@ -127,8 +127,6 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.services";
     case "deploys":
       return "breadcrumbs.deploys";
-    case "variables":
-      return "breadcrumbs.variables";
     case "databases":
       return "breadcrumbs.databases";
     case "backup-restore":
