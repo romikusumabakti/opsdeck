@@ -38,7 +38,6 @@ const SCOPED_READS: Record<string, string[]> = {
   // notifications are deliberately absent: they're per-user rows with no
   // project column, written only to their recipient; a link into a project the
   // user has since lost resolves to the 404 page.
-  "server/services/milestones.ts": ["listMilestones"],
   "lib/people/queries.ts": [
     "listPeople",
     "getPersonProjects",
@@ -100,12 +99,6 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     deleteIssueAttachment: /issue: \["write"\]/,
   },
   "server/services/labels.ts": { setIssueLabels: /issue: \["write"\]/ },
-  "server/services/milestones.ts": {
-    createMilestone: /issue: \["write"\]/,
-    updateMilestone: /issue: \["write"\]/,
-    setMilestoneClosed: /issue: \["write"\]/,
-    deleteMilestone: /issue: \["delete"\]/,
-  },
   "server/services/test-runs.ts": {
     listIssueTestRuns: /project: \["read"\]/,
     recordTestRun: /issue: \["write"\]/,
@@ -271,15 +264,6 @@ describe("lookups by client-supplied id check the caller first", () => {
     expect(fn.indexOf("uuidSchema.safeParse(runId)")).toBeLessThan(
       fn.indexOf("findFirst(")
     );
-  });
-  it("milestoneProjectId requires a session before its lookup", () => {
-    const source = readFileSync("server/services/milestones.ts", "utf8");
-    const start = source.indexOf("async function milestoneProjectId");
-    const end = source.slice(start).search(/\r?\n\}\r?\n/);
-    expect(end).toBeGreaterThan(0);
-    const fn = source.slice(start, start + end);
-    expect(fn.indexOf("requireSession()")).toBeGreaterThan(-1);
-    expect(fn.indexOf("requireSession()")).toBeLessThan(fn.indexOf(".select("));
   });
   it("deleteIssueAttachment requires a session before its lookup", () => {
     const fn = body(

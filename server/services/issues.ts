@@ -37,7 +37,6 @@ import {
   issues,
   type LabelLite,
   labels,
-  milestones,
   projectMembers,
   projects,
   users as userTable,
@@ -59,7 +58,6 @@ import {
   issueStatusSchema,
   issueUpdateSchema,
 } from "@/lib/validation";
-import { listMilestones } from "@/server/services/milestones";
 import { getProjectWithEnvironments } from "@/server/services/project-catalog";
 import {
   type AssignableUserRow,
@@ -68,7 +66,7 @@ import {
 
 /**
  * Which local field edits are mirrored to Jira, and under which name.
- * Everything absent from this map (type, milestone, parent, environment) is
+ * Everything absent from this map (type, parent, environment) is
  * OpsDeck-only by design — see lib/jira/push.ts for why the allowlist is small.
  */
 const JIRA_PUSHABLE: Record<string, PushableField> = {
@@ -592,17 +590,16 @@ async function canAssignTo(
   return !!row;
 }
 
-// environmentId / milestoneId / parentId must belong to the issue's own
+// environmentId / parentId must belong to the issue's own
 // project, or a writer could reach into another project's data by id.
 async function referencesInProject(
   projectId: string,
   refs: {
     environmentId?: string | null;
-    milestoneId?: string | null;
     parentId?: string | null;
   }
 ): Promise<boolean> {
-  const [env, milestone, parent] = await Promise.all([
+  const [env, parent] = await Promise.all([
     refs.environmentId
       ? db
           .select({ id: environments.id })
@@ -611,18 +608,6 @@ async function referencesInProject(
             and(
               eq(environments.id, refs.environmentId),
               eq(environments.projectId, projectId)
-            )
-          )
-          .limit(1)
-      : null,
-    refs.milestoneId
-      ? db
-          .select({ id: milestones.id })
-          .from(milestones)
-          .where(
-            and(
-              eq(milestones.id, refs.milestoneId),
-              eq(milestones.projectId, projectId)
             )
           )
           .limit(1)
@@ -639,7 +624,6 @@ async function referencesInProject(
   ]);
   return (
     (!refs.environmentId || !!env?.length) &&
-    (!refs.milestoneId || !!milestone?.length) &&
     (!refs.parentId || !!parent?.length)
   );
 }
@@ -724,7 +708,6 @@ export async function createIssue(
               priority: input.priority,
               environmentId: input.environmentId ?? null,
               assigneeId: input.assigneeId ?? null,
-              milestoneId: input.milestoneId ?? null,
               parentId: input.parentId ?? null,
               createdById: session.user.id,
             })
@@ -905,7 +888,6 @@ export async function deleteIssue(id: string): Promise<ActionResponse> {
 export type IssueFormOptions = {
   environments: { id: string; name: string }[];
   users: AssignableUserRow[];
-  milestones: { id: string; name: string }[];
 };
 
 /**
@@ -917,10 +899,9 @@ export async function getIssueFormOptions(
   projectId: string
 ): Promise<IssueFormOptions> {
   await requireProjectPermission({ projectId }, { issue: ["write"] });
-  const [project, users, milestones] = await Promise.all([
+  const [project, users] = await Promise.all([
     getProjectWithEnvironments(projectId),
     listAssignableUsers(projectId),
-    listMilestones(projectId),
   ]);
   return {
     environments: (project?.environments ?? []).map((e) => ({
@@ -928,6 +909,5 @@ export async function getIssueFormOptions(
       name: e.name,
     })),
     users,
-    milestones: milestones.map((m) => ({ id: m.id, name: m.name })),
   };
 }

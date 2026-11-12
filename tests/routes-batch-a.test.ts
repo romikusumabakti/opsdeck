@@ -26,8 +26,6 @@ const GATED: [method: "GET" | "POST" | "PATCH" | "DELETE", path: string][] = [
   ["POST", "/api/issue-attachments/delete-issue-attachment"],
   ["GET", "/api/labels/list-labels"],
   ["POST", "/api/labels/set-issue-labels"],
-  ["GET", `/api/milestones/list-milestones?projectId=${ID}`],
-  ["POST", "/api/milestones/create-milestone"],
   ["GET", "/api/saved-views/list-saved-views"],
   ["POST", "/api/saved-views/create-saved-view"],
   ["GET", "/api/notifications/list-notifications"],

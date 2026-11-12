@@ -35,7 +35,6 @@ import { knowledgeRouter } from "@/server/routes/knowledge";
 import { labelsRouter } from "@/server/routes/labels";
 import { mailFilesRouter, mailRouter } from "@/server/routes/mail";
 import { mailpitSettingsRouter } from "@/server/routes/mailpit-settings";
-import { milestonesRouter } from "@/server/routes/milestones";
 import { mockTimeRouter } from "@/server/routes/mock-time";
 import { notificationsRouter } from "@/server/routes/notifications";
 import { avatarsRouter, profileRouter } from "@/server/routes/profile";
@@ -98,7 +97,6 @@ export const app = createBaseApp()
   .route("/api/issues", issueAttachmentFilesRouter)
   .route("/api/issue-attachments", issueAttachmentsRouter)
   .route("/api/labels", labelsRouter)
-  .route("/api/milestones", milestonesRouter)
   .route("/api/saved-views", savedViewsRouter)
   .route("/api/notifications", notificationsRouter)
   .route("/api/home", homeRouter)

@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildSweepJql } from "@/lib/jira/sync";
+import { ISSUE_FIELDS } from "@/lib/jira/types";
 
 /**
  * The sweep query is the contract that makes syncing resumable and idempotent,
@@ -48,6 +50,17 @@ describe("buildSweepJql", () => {
   it("escapes a quote in the project key so the clause can't be broken open", () => {
     expect(buildSweepJql({ ...base, jiraProjectKey: 'A"B' })).toContain(
       'project = "A\\"B"'
+    );
+  });
+});
+
+describe("fixVersions are no longer mirrored", () => {
+  it("are not requested", () => {
+    expect(ISSUE_FIELDS).not.toContain("fixVersions");
+  });
+  it("the sync no longer touches milestones", () => {
+    expect(readFileSync("lib/jira/sync.ts", "utf8")).not.toMatch(
+      /milestone|fixVersion/i
     );
   });
 });

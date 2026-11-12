@@ -98,7 +98,6 @@ export const jiraIssueSchema = z
         reporter: jiraUserSchema.nullish(),
         labels: z.array(z.string()).nullish(),
         parent: z.object({ id: z.string(), key: z.string() }).loose().nullish(),
-        fixVersions: z.array(z.object({ name: z.string() }).loose()).nullish(),
       })
       .loose(),
   })
@@ -181,5 +180,4 @@ export const ISSUE_FIELDS = [
   "reporter",
   "labels",
   "parent",
-  "fixVersions",
 ] as const;

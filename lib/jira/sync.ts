@@ -16,7 +16,6 @@ import {
   jiraConnections,
   jiraProjectLinks,
   labels,
-  milestones,
   users,
 } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/secrets";
@@ -129,7 +128,7 @@ function toJqlTimestamp(date: Date): string {
 }
 
 /**
- * Per-sweep caches. Label and milestone lookups repeat heavily across a page of
+ * Per-sweep caches. Label lookups repeat heavily across a page of
  * issues, and the user map is small enough to load once. Scoped to a single
  * sweep so a rename in Jira is picked up on the next one.
  */
@@ -140,7 +139,6 @@ type SyncContext = {
   usersByAccount: Map<string, string>;
   usersByEmail: Map<string, string>;
   labelIds: Map<string, string>;
-  milestoneIds: Map<string, string>;
   /** Remote parent id → local child ids, resolved after the sweep. */
   pendingParents: Map<string, string[]>;
 };
@@ -170,7 +168,6 @@ async function createContext(
     usersByAccount,
     usersByEmail,
     labelIds: new Map(),
-    milestoneIds: new Map(),
     pendingParents: new Map(),
   };
 }
@@ -239,35 +236,6 @@ async function resolveLabel(ctx: SyncContext, name: string): Promise<string> {
     id = existing.id;
   }
   ctx.labelIds.set(name, id);
-  return id;
-}
-
-/** Get-or-create a milestone by name within the project (fixVersion mirror). */
-async function resolveMilestone(
-  ctx: SyncContext,
-  name: string
-): Promise<string> {
-  const cached = ctx.milestoneIds.get(name);
-  if (cached) return cached;
-  const [existing] = await db
-    .select({ id: milestones.id })
-    .from(milestones)
-    .where(
-      and(eq(milestones.projectId, ctx.projectId), eq(milestones.name, name))
-    )
-    .limit(1);
-  let id = existing?.id;
-  if (!id) {
-    const created = one(
-      await db
-        .insert(milestones)
-        .values({ projectId: ctx.projectId, name })
-        .returning({ id: milestones.id }),
-      "issue"
-    );
-    id = created.id;
-  }
-  ctx.milestoneIds.set(name, id);
   return id;
 }
 
@@ -426,15 +394,9 @@ export async function applyRemoteIssue(
   const mapped = mapFields(remote, ctx);
   const assigneeId = await resolveUser(ctx, remote.fields.assignee);
   const createdById = await resolveUser(ctx, remote.fields.reporter);
-  const versionName = remote.fields.fixVersions?.[0]?.name;
-  const milestoneId = versionName
-    ? await resolveMilestone(ctx, versionName)
-    : null;
-
   const shared = {
     ...mapped,
     assigneeId,
-    milestoneId,
     // The remote timestamp, not `now()`: otherwise a full import would shove
     // every mirrored issue to the top of the "recent activity" ordering.
     updatedAt: remoteUpdated,
