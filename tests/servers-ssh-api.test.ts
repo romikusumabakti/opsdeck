@@ -22,8 +22,11 @@ const state = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => {
   const query = () => {
     const q: Record<string, unknown> = {};
-    q.from = () => q;
-    q.where = () => q;
+    // Awaited directly, from()/where() are the org guards' project and
+    // membership lookups (none here).
+    const rows = () => Object.assign(Promise.resolve([]), q);
+    q.from = rows;
+    q.where = rows;
     q.orderBy = async () => state.rows;
     q.limit = async () => state.rows.slice(0, 1);
     return q;

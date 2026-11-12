@@ -12,6 +12,7 @@ import {
 import {
   canAnyProject,
   canOrg,
+  canOrgAccess,
   canProject,
   effectiveProjectRole,
   normalizeOrgRole,
@@ -185,11 +186,23 @@ export async function getProjectRole(
   return access.roles[projectId] ?? null;
 }
 
+// Org permission for the signed-in caller: their org role, or the engineer
+// grant (lib/permissions#canOrgAccess). Memberships are loaded only when the
+// org role alone says no.
+async function callerCanOrg(
+  session: Session,
+  perms: OrgPermissions
+): Promise<boolean> {
+  if (canOrg(session.user.role, perms)) return true;
+  const access = await getProjectAccess();
+  return canOrgAccess(session.user.role, Object.values(access.roles), perms);
+}
+
 export async function requireOrgPermission(
   perms: OrgPermissions
 ): Promise<Session> {
   const session = await requireSession();
-  if (!canOrg(session.user.role, perms)) throw new ForbiddenError();
+  if (!(await callerCanOrg(session, perms))) throw new ForbiddenError();
   return session;
 }
 
@@ -281,7 +294,7 @@ export async function routeOrgGuard(
 ): Promise<{ ok: true; session: Session } | { ok: false; response: Response }> {
   const session = await getServerSession();
   if (!session) return { ok: false, response: denial("Unauthorized", 401) };
-  if (!canOrg(session.user.role, perms)) {
+  if (!(await callerCanOrg(session, perms))) {
     return { ok: false, response: denial("Forbidden", 403) };
   }
   return { ok: true, session };

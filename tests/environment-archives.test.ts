@@ -52,6 +52,16 @@ vi.mock("@/lib/auth-session", () => ({
   getServerSession: async () => ({ user: { id: "user-1", role: state.role } }),
 }));
 
+// The org guards read projects and memberships for a caller the org role denies.
+vi.mock("@/lib/db", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  db: {
+    select: () => ({
+      from: () => Object.assign(Promise.resolve([]), { where: async () => [] }),
+    }),
+  },
+}));
+
 vi.mock("@/lib/instance-backup/archive", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   get LOCAL_BACKUP_ROOT() {

@@ -69,7 +69,15 @@ vi.mock("@/lib/db", async () => {
   };
   return {
     db: {
-      select: () => ({ from: () => ({ limit: async () => [row] }) }),
+      select: () => ({
+        // `limit` is the Cloudflare account row; awaiting from() or where()
+        // directly is the org guards' project/membership lookup (none here).
+        from: () =>
+          Object.assign(Promise.resolve([]), {
+            limit: async () => [row],
+            where: async () => [],
+          }),
+      }),
     },
   };
 });

@@ -52,6 +52,9 @@ const state = vi.hoisted(() => ({
     servers: [] as Record<string, unknown>[],
     ssh_keys: [] as Record<string, unknown>[],
     ssh_key_jobs: [] as Record<string, unknown>[],
+    // Read by the org guards' membership lookup.
+    projects: [] as Record<string, unknown>[],
+    project_members: [] as Record<string, unknown>[],
   },
   activity: [] as Record<string, unknown>[],
   enqueued: [] as { name: string; data: unknown; options: unknown }[],
