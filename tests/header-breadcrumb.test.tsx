@@ -131,4 +131,31 @@ describe("HeaderBreadcrumb", () => {
     expect(text).toContain("Dev");
     expect(text).toContain("Deploys");
   });
+
+  it.each([
+    ["/servers/019e/terminal", "Terminal"],
+    ["/servers/019e/files", "Files"],
+    ["/servers/019e", "Edit"],
+  ])("names the server sub-page on %s", async (path, label) => {
+    nav.pathname = path;
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <IntlProvider locale="en" messages={messages}>
+          <HeaderBreadcrumb
+            environments={[]}
+            projects={[]}
+            orgRole={"admin" as never}
+            projectRoles={{}}
+          />
+        </IntlProvider>
+      );
+    });
+    const text = container.textContent ?? "";
+    expect(text).toContain("Servers");
+    expect(text).toContain(label);
+    if (label !== "Edit") expect(text).not.toContain("Edit");
+  });
 });

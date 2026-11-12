@@ -79,6 +79,8 @@
     "new": "新建",
     "newEnvironment": "新建环境",
     "edit": "编辑",
+    "terminal": "终端",
+    "files": "文件",
     "loading": "加载中…",
     "security": "安全",
     "sessions": "会话",

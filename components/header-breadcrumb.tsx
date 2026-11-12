@@ -45,6 +45,14 @@ function getStaticSegments(pathname: string): StaticSegment[] {
       { kind: "static", labelKey: "breadcrumbs.new" },
     ];
   }
+  // /servers/[id]/terminal and /servers/[id]/files
+  const serverSubPage = /^\/servers\/[^/]+\/(terminal|files)$/.exec(pathname);
+  if (serverSubPage?.[1]) {
+    return [
+      { kind: "static", href: "/servers", labelKey: "breadcrumbs.servers" },
+      { kind: "static", labelKey: `breadcrumbs.${serverSubPage[1]}` },
+    ];
+  }
   // /servers/[id] — edit view
   if (pathname.startsWith("/servers/")) {
     return [

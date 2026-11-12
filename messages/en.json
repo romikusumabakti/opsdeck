@@ -79,6 +79,8 @@
     "new": "New",
     "newEnvironment": "New environment",
     "edit": "Edit",
+    "terminal": "Terminal",
+    "files": "Files",
     "loading": "Loading…",
     "security": "Security",
     "sessions": "Sessions",
