@@ -393,6 +393,7 @@ describe("environment settings tabs", () => {
 
   it("the embedded list renders no second page heading", async () => {
     await mount({ tab: "variables" });
+    expect(document.body.textContent).toContain(messages.variables.emptyTitle);
     expect(document.querySelectorAll("h1").length).toBe(0);
   });
 
