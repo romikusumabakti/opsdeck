@@ -3,6 +3,7 @@ import {
   canCreateEnvironment,
   canCreateProject,
   canOrg,
+  canOrgAccess,
   canProject,
   canRegisterApp,
   effectiveProjectRole,
@@ -10,6 +11,7 @@ import {
   normalizeOrgRole,
   normalizeProjectRole,
   ORG_ROLES,
+  type OrgPermissions,
   type OrgRole,
   PROJECT_ROLES,
   type ProjectRole,
@@ -248,5 +250,62 @@ describe("QA and engineer behaviour", () => {
     expect(canCreateProject("infra", [])).toBe(true);
     expect(canCreateProject("observer", ["viewer"])).toBe(false);
     expect(canCreateProject("observer", ["engineer"])).toBe(true);
+  });
+});
+
+describe("canOrgAccess", () => {
+  const engineer: ProjectRole[] = ["engineer"];
+
+  it("lets an engineer of any project reach servers and storage", () => {
+    const allowed: OrgPermissions[] = [
+      { server: ["read"] },
+      { server: ["terminal"] },
+      { server: ["files"] },
+      { storage: ["read"] },
+      { storage: ["files"] },
+      { server: ["read"], storage: ["read"] },
+    ];
+    for (const perms of allowed) {
+      expect(canOrgAccess("member", engineer, perms)).toBe(true);
+    }
+  });
+
+  it("keeps management and other areas away from engineers", () => {
+    const denied: OrgPermissions[] = [
+      { server: ["manage"] },
+      { storage: ["manage"] },
+      { tunnel: ["read"] },
+      { server: ["read", "manage"] },
+      { audit: ["read"] },
+    ];
+    for (const perms of denied) {
+      expect(canOrgAccess("member", engineer, perms)).toBe(false);
+    }
+  });
+
+  it("grants nothing to members without an engineer membership", () => {
+    expect(canOrgAccess("member", ["qa", "viewer"], { server: ["read"] })).toBe(
+      false
+    );
+    expect(canOrgAccess("member", [], { server: ["read"] })).toBe(false);
+  });
+
+  it("keeps the observer floor and adds the engineer grant on top", () => {
+    expect(canOrgAccess("observer", [], { server: ["read"] })).toBe(true);
+    expect(canOrgAccess("observer", [], { server: ["terminal"] })).toBe(false);
+    expect(canOrgAccess("observer", engineer, { server: ["terminal"] })).toBe(
+      true
+    );
+  });
+
+  it("keeps infra management through canOrg", () => {
+    expect(canOrgAccess("infra", [], { server: ["manage"] })).toBe(true);
+  });
+
+  it("treats an unknown role string as the floor", () => {
+    expect(canOrgAccess("toString", engineer, { server: ["read"] })).toBe(true);
+    expect(canOrgAccess("toString", engineer, { server: ["manage"] })).toBe(
+      false
+    );
   });
 });

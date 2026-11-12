@@ -67,6 +67,14 @@ export const orgRoles = {
   }),
 } satisfies Record<OrgRole, unknown>;
 
+// What holding engineer on any project adds at org level: the Servers and
+// Storage pages, the server terminal and the file explorers, fleet-wide.
+// Managing servers, storage connections and tunnels stays with admin/infra.
+const engineerOrgGrant = orgAc.newRole({
+  server: ["read", "terminal", "files"],
+  storage: ["read", "files"],
+});
+
 // Project-scoped statements, checked against the effective project role.
 const projectStatements = {
   project: ["read"],
@@ -192,6 +200,20 @@ export function canOrg(
   return orgRoles[normalizeOrgRole(role)].authorize(perms as never).success;
 }
 
+// canOrg, plus the engineer grant above for callers who are engineer on at
+// least one project. The server guards (lib/authz) and the UI both use it.
+export function canOrgAccess(
+  orgRole: string | null | undefined,
+  projectRoles: readonly ProjectRole[],
+  perms: OrgPermissions
+): boolean {
+  if (canOrg(orgRole, perms)) return true;
+  return (
+    holdsEngineerAnywhere(orgRole, projectRoles) &&
+    engineerOrgGrant.authorize(perms as never).success
+  );
+}
+
 export function canProject(
   role: ProjectRole | null,
   perms: ProjectPermissions
@@ -261,7 +283,7 @@ export function canCreateProject(
   return holdsEngineerAnywhere(orgRole, projectRoles);
 }
 
-function holdsEngineerAnywhere(
+export function holdsEngineerAnywhere(
   orgRole: string | null | undefined,
   projectRoles: readonly ProjectRole[]
 ): boolean {
