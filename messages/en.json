@@ -2017,32 +2017,18 @@
   "projectMembers": {
     "selectUser": "Select a user…",
     "add": "Add",
-    "role": {
-      "viewer": "Viewer",
-      "qa": "QA",
-      "engineer": "Engineer"
-    },
     "colName": "User",
     "colRole": "Role",
     "remove": "Remove",
     "empty": "No members yet",
-    "emptyDescription": "Only members (and admins, infra and observers) can see this project.",
+    "emptyDescription": "Engineers and QA see only the projects they are members of. Admins, infra and observers see every project.",
     "addedSuccess": "Member added",
-    "roleUpdatedSuccess": "Role updated",
     "removedSuccess": "Member removed",
     "errorInvalidInput": "Invalid input",
-    "errorInvalidRole": "Invalid role",
     "errorAddFailed": "Failed to add member",
-    "roleDescription": {
-      "viewer": "View the project and read service logs",
-      "qa": "Work on issues, restart services, back up and restore databases, control the clock",
-      "engineer": "Everything, plus manage services, databases, environments and members"
-    },
     "removeConfirmTitle": "Remove {name} from {project}?",
-    "removeConfirmDescription": "They lose access to this project, unless their organisation role still grants it.",
-    "removeMember": "Remove {name}",
-    "orgAccessTitle": "Also has access through their organisation role",
-    "orgAccessDescription": "Admins and infra are engineers on every project; observers can view every project. Change org roles in Admin → Access."
+    "removeConfirmDescription": "An engineer or QA loses access to this project. Admins, infra and observers still see it.",
+    "removeMember": "Remove {name}"
   },
   "activity": {
     "title": "Activity",
@@ -2053,6 +2039,7 @@
     "issueCreated": "{actor} created {key}",
     "issueStatusChanged": "{actor} moved {key} to {status}",
     "memberAdded": "{actor} added {user} to {project} as {role}",
+    "memberAddedToProject": "{actor} added {user} to {project}",
     "memberRemoved": "{actor} removed {user} from {project}",
     "memberRoleChanged": "{actor} changed {user} in {project} from {from} to {to}",
     "terminalOpened": "{actor} opened a terminal on {server}",

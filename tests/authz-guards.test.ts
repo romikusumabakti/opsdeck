@@ -149,7 +149,6 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     listProjectMembers: /member: \["manage"\]/,
     listMemberCandidates: /member: \["manage"\]/,
     addProjectMember: /member: \["manage"\]/,
-    updateProjectMemberRole: /member: \["manage"\]/,
     removeProjectMember: /member: \["manage"\]/,
   },
   "server/services/environment-setup.ts": {

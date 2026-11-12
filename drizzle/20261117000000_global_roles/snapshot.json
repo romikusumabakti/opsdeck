@@ -1,0 +1,89 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "baafd5a9-755b-4bd3-9d3d-5bc4bb340ee1",
+  "prevIds": [
+    "1e204d06-fdd8-45cb-99af-508c3e9511a6"
+  ],
+  "footprints": [
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "invitations",
+        "role"
+      ],
+      "writes": [
+        "s|colprop|public.invitations.role.default"
+      ],
+      "reads": [
+        "n|tbl|public.invitations",
+        "n|sch|public",
+        "n|col|public.invitations.role"
+      ],
+      "sqlHash": "e5b2b25d8163c92b"
+    },
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "project_members",
+        "role"
+      ],
+      "writes": [
+        "s|colprop|public.project_members.role.default"
+      ],
+      "reads": [
+        "n|tbl|public.project_members",
+        "n|sch|public",
+        "n|col|public.project_members.role",
+        "n|enum|public.project_role"
+      ],
+      "sqlHash": "179c68a6508da9c0"
+    },
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "users",
+        "role"
+      ],
+      "writes": [
+        "s|colprop|public.users.role.default"
+      ],
+      "reads": [
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.users.role"
+      ],
+      "sqlHash": "4fbcf492f1960eea"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"invitations\",\"role\"]",
+      "set": {
+        "default": "'qa'"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"project_members\",\"role\"]",
+      "set": {
+        "default": "'qa'"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"users\",\"role\"]",
+      "set": {
+        "default": "'qa'"
+      }
+    }
+  ]
+}

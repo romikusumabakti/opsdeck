@@ -2017,32 +2017,18 @@
   "projectMembers": {
     "selectUser": "选择用户…",
     "add": "添加",
-    "role": {
-      "viewer": "Viewer",
-      "qa": "QA",
-      "engineer": "Engineer"
-    },
     "colName": "用户",
     "colRole": "角色",
     "remove": "移除",
     "empty": "暂无成员",
-    "emptyDescription": "只有成员（以及管理员、基础设施和观察者）可以查看此项目。",
+    "emptyDescription": "Engineer 和 QA 只能看到自己所属的项目。管理员、基础设施和观察者可以看到所有项目。",
     "addedSuccess": "已添加成员",
-    "roleUpdatedSuccess": "角色已更新",
     "removedSuccess": "已移除成员",
     "errorInvalidInput": "输入无效",
-    "errorInvalidRole": "角色无效",
     "errorAddFailed": "添加成员失败",
-    "roleDescription": {
-      "viewer": "查看项目并读取服务日志",
-      "qa": "处理问题、重启服务、备份和恢复数据库、控制时钟",
-      "engineer": "以上全部，并可管理服务、数据库、环境和成员"
-    },
     "removeConfirmTitle": "将 {name} 从 {project} 中移除？",
-    "removeConfirmDescription": "对方将失去此项目的访问权限，除非其组织角色仍授予访问权限。",
-    "removeMember": "移除 {name}",
-    "orgAccessTitle": "通过组织角色同样拥有访问权限",
-    "orgAccessDescription": "管理员和基础设施角色在所有项目中都是 Engineer；观察者可以查看所有项目。可在“管理 → 访问”中更改组织角色。"
+    "removeConfirmDescription": "Engineer 或 QA 将失去此项目的访问权限。管理员、基础设施和观察者仍可查看。",
+    "removeMember": "移除 {name}"
   },
   "activity": {
     "title": "动态",
@@ -2053,6 +2039,7 @@
     "issueCreated": "{actor} 创建了 {key}",
     "issueStatusChanged": "{actor} 将 {key} 移动到 {status}",
     "memberAdded": "{actor} 将 {user} 添加到 {project}，角色为 {role}",
+    "memberAddedToProject": "{actor} 将 {user} 添加到 {project}",
     "memberRemoved": "{actor} 从 {project} 移除了 {user}",
     "memberRoleChanged": "{actor} 将 {user} 在 {project} 中的角色从 {from} 改为 {to}",
     "terminalOpened": "{actor} 在 {server} 上打开了终端",

@@ -173,17 +173,15 @@ export async function addProject(
   try {
     // The creator always becomes a member, in the same transaction: it lists
     // them on the project, and it is what makes the project visible to an
-    // engineer. The role column is written until it is dropped.
+    // engineer.
     const created = await db.transaction(async (tx) => {
       const project = one(
         await tx.insert(projects).values(parsed.data).returning(),
         "project"
       );
-      await tx.insert(projectMembers).values({
-        projectId: project.id,
-        userId: session.user.id,
-        role: "engineer",
-      });
+      await tx
+        .insert(projectMembers)
+        .values({ projectId: project.id, userId: session.user.id });
       return project;
     });
     // The membership is logged like one added on the Members tab.
@@ -192,11 +190,7 @@ export async function addProject(
       action: "member.added",
       entityType: "member",
       entityId: session.user.id,
-      data: {
-        user: session.user.name ?? "?",
-        project: created.name,
-        role: "engineer",
-      },
+      data: { user: session.user.name ?? "?", project: created.name },
     });
     return { success: true, data: created };
   } catch (error) {

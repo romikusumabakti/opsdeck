@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getProjectByKeyWithEnvironmentsQuery } from "@/web/api/project-catalog";
 import {
   listMemberCandidatesQuery,
-  listOrgWideAccessQuery,
   listProjectMembersQuery,
 } from "@/web/api/project-members";
 import { requireProjectRole } from "@/web/project-guard";
@@ -34,7 +33,6 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/members")({
     await Promise.all([
       loaderQuery(queryClient, listProjectMembersQuery(project.id)),
       loaderQuery(queryClient, listMemberCandidatesQuery(project.id)),
-      loaderQuery(queryClient, listOrgWideAccessQuery(project.id)),
     ]);
   },
   pendingComponent: MembersPending,
@@ -52,9 +50,6 @@ function ProjectMembersPage() {
   const memberCandidates = useSuspenseQuery(
     listMemberCandidatesQuery(project.id)
   ).data;
-  const orgWideAccess = useSuspenseQuery(
-    listOrgWideAccessQuery(project.id)
-  ).data;
 
   return (
     <>
@@ -64,7 +59,6 @@ function ProjectMembersPage() {
         projectName={project.name}
         initialMembers={members}
         memberCandidates={memberCandidates}
-        orgWideAccess={orgWideAccess}
       />
     </>
   );

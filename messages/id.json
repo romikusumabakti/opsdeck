@@ -2017,32 +2017,18 @@
   "projectMembers": {
     "selectUser": "Pilih pengguna…",
     "add": "Tambah",
-    "role": {
-      "viewer": "Viewer",
-      "qa": "QA",
-      "engineer": "Engineer"
-    },
     "colName": "Pengguna",
     "colRole": "Peran",
     "remove": "Hapus",
     "empty": "Belum ada anggota",
-    "emptyDescription": "Hanya anggota (serta admin, infra, dan pengamat) yang bisa melihat project ini.",
+    "emptyDescription": "Engineer dan QA hanya melihat project tempat mereka menjadi anggota. Admin, infra, dan pemantau melihat semua project.",
     "addedSuccess": "Anggota ditambahkan",
-    "roleUpdatedSuccess": "Peran diperbarui",
     "removedSuccess": "Anggota dihapus",
     "errorInvalidInput": "Masukan tidak valid",
-    "errorInvalidRole": "Peran tidak valid",
     "errorAddFailed": "Gagal menambahkan anggota",
-    "roleDescription": {
-      "viewer": "Melihat project dan membaca log service",
-      "qa": "Mengerjakan issue, restart service, backup dan restore database, mengatur waktu",
-      "engineer": "Semuanya, ditambah mengelola service, database, environment, dan anggota"
-    },
     "removeConfirmTitle": "Hapus {name} dari {project}?",
-    "removeConfirmDescription": "Dia akan kehilangan akses ke project ini, kecuali role organisasinya masih memberikan akses.",
-    "removeMember": "Hapus {name}",
-    "orgAccessTitle": "Juga punya akses lewat role organisasi",
-    "orgAccessDescription": "Admin dan infra adalah engineer di semua project; observer bisa melihat semua project. Ubah role organisasi di Admin → Access."
+    "removeConfirmDescription": "Engineer atau QA akan kehilangan akses ke project ini. Admin, infra, dan pemantau tetap bisa melihatnya.",
+    "removeMember": "Hapus {name}"
   },
   "activity": {
     "title": "Aktivitas",
@@ -2053,6 +2039,7 @@
     "issueCreated": "{actor} membuat {key}",
     "issueStatusChanged": "{actor} memindah {key} ke {status}",
     "memberAdded": "{actor} menambahkan {user} ke {project} sebagai {role}",
+    "memberAddedToProject": "{actor} menambahkan {user} ke {project}",
     "memberRemoved": "{actor} menghapus {user} dari {project}",
     "memberRoleChanged": "{actor} mengubah {user} di {project} dari {from} menjadi {to}",
     "terminalOpened": "{actor} membuka terminal di {server}",

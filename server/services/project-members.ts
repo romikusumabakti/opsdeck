@@ -1,31 +1,22 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { recordActivity } from "@/lib/activity";
-import { ORG_WIDE_VISIBLE_ROLES } from "@/lib/assignees";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
-import {
-  isProjectRole,
-  normalizeOrgRole,
-  type OrgRole,
-  type ProjectRole,
-  projectRoleForOrgRole,
-} from "@/lib/permissions";
+import { normalizeOrgRole, type OrgRole } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
 
+// A membership carries no role: it lists the person on the project, and what
+// they may do there comes from their global role, shown as `orgRole`.
 export type ProjectMemberRow = {
   userId: string;
   name: string;
   image: string | null;
   email: string;
-  role: ProjectRole;
+  orgRole: OrgRole;
 };
-
-function isValidRole(role: string): role is ProjectRole {
-  return isProjectRole(role);
-}
 
 // Managing membership needs member:manage on the project (engineer, or an
 // admin/infra org role).
@@ -39,57 +30,22 @@ export async function listProjectMembers(
       name: userTable.name,
       image: userTable.image,
       email: userTable.email,
-      role: projectMembers.role,
+      role: userTable.role,
     })
     .from(projectMembers)
     .innerJoin(userTable, eq(userTable.id, projectMembers.userId))
     .where(eq(projectMembers.projectId, projectId))
     .orderBy(userTable.name);
-  return rows as ProjectMemberRow[];
-}
-
-export type OrgWideAccessRow = {
-  userId: string;
-  name: string;
-  image: string | null;
-  orgRole: OrgRole;
-  role: ProjectRole;
-};
-
-// People who reach this project through their org role (admin/infra are
-// engineers everywhere, observers viewers) whether or not they hold a
-// membership. The members tab lists them so "who can see this project?" has a
-// complete answer; the page drops anyone already in the members table.
-export async function listOrgWideAccess(
-  projectId: string
-): Promise<OrgWideAccessRow[]> {
-  await requireProjectPermission({ projectId }, { member: ["manage"] });
-  const rows = await db
-    .select({
-      userId: userTable.id,
-      name: userTable.name,
-      image: userTable.image,
-      orgRole: userTable.role,
-    })
-    .from(userTable)
-    .where(
-      and(
-        eq(userTable.banned, false),
-        inArray(userTable.role, ORG_WIDE_VISIBLE_ROLES)
-      )
-    )
-    .orderBy(userTable.name);
-  return rows.map((r) => {
-    const orgRole = normalizeOrgRole(r.orgRole);
-    const role = projectRoleForOrgRole(orgRole);
-    return { ...r, orgRole, role };
-  });
+  return rows.map(({ role, ...row }) => ({
+    ...row,
+    orgRole: normalizeOrgRole(role),
+  }));
 }
 
 // Everyone who could be added to the project: every non-banned user, by name.
 // The picker drops current members itself. Membership is how an engineer or
-// QA gains access to a project, so this list deliberately reaches beyond the
-// project's current members (unlike listAssignableUsers).
+// QA gains a project, so this list deliberately reaches beyond the project's
+// current members (unlike listAssignableUsers).
 export async function listMemberCandidates(
   projectId: string
 ): Promise<{ id: string; name: string; email: string }[]> {
@@ -122,7 +78,6 @@ async function memberNames(projectId: string, userId: string) {
 export async function addProjectMember(input: {
   projectId: string;
   userId: string;
-  role: string;
 }): Promise<ActionResponse> {
   const { session } = await requireProjectPermission(
     { projectId: input.projectId },
@@ -135,85 +90,29 @@ export async function addProjectMember(input: {
   ) {
     return { success: false, message: t("errorInvalidInput") };
   }
-  if (!isValidRole(input.role)) {
-    return { success: false, message: t("errorInvalidRole") };
-  }
+  let inserted: { userId: string }[];
   try {
-    // Idempotent: re-adding an existing member updates their role instead of
-    // erroring on the (project_id, user_id) primary key.
-    await db
+    // Idempotent: re-adding an existing member is a no-op on the
+    // (project_id, user_id) primary key, not an error.
+    inserted = await db
       .insert(projectMembers)
-      .values({
-        projectId: input.projectId,
-        userId: input.userId,
-        role: input.role,
-      })
-      .onConflictDoUpdate({
-        target: [projectMembers.projectId, projectMembers.userId],
-        set: { role: input.role },
-      });
+      .values({ projectId: input.projectId, userId: input.userId })
+      .onConflictDoNothing()
+      .returning({ userId: projectMembers.userId });
   } catch {
     return { success: false, message: t("errorAddFailed") };
   }
-  const names = await memberNames(input.projectId, input.userId);
-  await recordActivity({
-    actorId: session.user.id,
-    action: "member.added",
-    entityType: "member",
-    entityId: input.userId,
-    data: { ...names, role: input.role },
-  });
+  // Only a row that was really added is logged.
+  if (inserted.length > 0) {
+    await recordActivity({
+      actorId: session.user.id,
+      action: "member.added",
+      entityType: "member",
+      entityId: input.userId,
+      data: await memberNames(input.projectId, input.userId),
+    });
+  }
   return { success: true, message: t("addedSuccess") };
-}
-
-export async function updateProjectMemberRole(input: {
-  projectId: string;
-  userId: string;
-  role: string;
-}): Promise<ActionResponse> {
-  const { session } = await requireProjectPermission(
-    { projectId: input.projectId },
-    { member: ["manage"] }
-  );
-  const t = await getServerTranslator("projectMembers");
-  if (!uuidSchema.safeParse(input.userId).success) {
-    return { success: false, message: t("errorInvalidInput") };
-  }
-  if (!isValidRole(input.role)) {
-    return { success: false, message: t("errorInvalidRole") };
-  }
-  const [previous] = await db
-    .select({ role: projectMembers.role })
-    .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, input.projectId),
-        eq(projectMembers.userId, input.userId)
-      )
-    )
-    .limit(1);
-  if (!previous) return { success: false, message: t("errorInvalidInput") };
-  await db
-    .update(projectMembers)
-    .set({ role: input.role })
-    .where(
-      and(
-        eq(projectMembers.projectId, input.projectId),
-        eq(projectMembers.userId, input.userId)
-      )
-    );
-  await recordActivity({
-    actorId: session.user.id,
-    action: "member.roleChanged",
-    entityType: "member",
-    entityId: input.userId,
-    data: {
-      ...(await memberNames(input.projectId, input.userId)),
-      from: previous.role,
-      to: input.role,
-    },
-  });
-  return { success: true, message: t("roleUpdatedSuccess") };
 }
 
 export async function removeProjectMember(input: {

@@ -1098,15 +1098,17 @@ export const environmentAccess = pgTable(
 // Per-project membership (RBAC)
 // =========================
 
-// Project role, per lib/permissions PROJECT_ROLES. Effective role on a project =
-// max(this membership, the role the user's org role implies); no row and no
-// implicit role = the project is invisible to them.
+// Legacy: the type of project_members.role below, dropped with it in the next
+// release.
 export const projectRoleEnum = pgEnum("project_role", [
   "viewer",
   "qa",
   "engineer",
 ]);
 
+// A row lists a person on a project, and makes the project visible to an
+// engineer or QA (admin, infra and observer see every project anyway). What
+// they may do there comes from their global role (users.role).
 export const projectMembers = pgTable(
   "project_members",
   {
@@ -1122,7 +1124,10 @@ export const projectMembers = pgTable(
         name: "project_members_user_id_users_id_fk",
         onDelete: "cascade",
       }),
-    role: projectRoleEnum("role").notNull(),
+    // Legacy: the previous release still reads and writes it (update.sh can
+    // roll back to it on this schema); this code never reads or writes it, so
+    // inserts take the default. Dropped in the next release.
+    role: projectRoleEnum("role").notNull().default("qa"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
@@ -1130,8 +1135,8 @@ export const projectMembers = pgTable(
       name: "project_members_project_id_user_id_pk",
       columns: [t.projectId, t.userId],
     }),
-    // "Which projects can this user reach, and at what role" — the membership
-    // lookup on every capability check that carries a project/environment scope.
+    // "Which projects can this user reach" — the membership lookup on every
+    // capability check that carries a project/environment scope.
     index("project_members_user_idx").on(t.userId),
   ]
 );
@@ -1432,8 +1437,9 @@ export const notifications = pgTable(
 // =========================
 
 // `role`, `banned`, `banReason`, `banExpires` are managed by the better-auth
-// admin plugin (lib/auth.ts). Default role for invited users is "member"; the
-// bootstrap user created in `createInitialUser` is promoted to "admin".
+// admin plugin (lib/auth.ts). `role` is the global job role (lib/permissions
+// ORG_ROLES); it defaults to "qa", and the bootstrap user created in
+// `createInitialUser` is promoted to "admin".
 export type AvatarSource = "upload" | "microsoft" | "removed";
 
 export const users = pgTable(
@@ -1444,7 +1450,7 @@ export const users = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),
-    role: text("role").notNull().default("member"),
+    role: text("role").notNull().default("qa"),
     banned: boolean("banned").notNull().default(false),
     banReason: text("ban_reason"),
     banExpires: timestamp("ban_expires"),
@@ -1592,9 +1598,9 @@ export const invitations = pgTable(
     id: uuid("id").primaryKey().default(sql`uuidv7()`),
     email: text("email").notNull(),
     name: text("name").notNull(),
-    // The role assigned to the user upon accepting the invitation. Validated
-    // against ROLE_ADMIN/ROLE_MEMBER in actions/users.ts.
-    role: text("role").notNull().default("member"),
+    // The global job role the user gets upon accepting the invitation, one of
+    // lib/permissions ORG_ROLES (validated in server/services/users.ts).
+    role: text("role").notNull().default("qa"),
     // token is a separate random secret used in the invite URL — keep as text.
     token: text("token").notNull().unique(),
     invitedById: uuid("invited_by_id").references(() => users.id, {

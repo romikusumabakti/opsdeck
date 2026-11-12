@@ -102,7 +102,7 @@ describe("addProject", () => {
     );
     expect(membership).toMatchObject({
       inTx: true,
-      values: { projectId: PROJECT_ID, userId: USER_ID, role: "engineer" },
+      values: { projectId: PROJECT_ID, userId: USER_ID },
     });
     expect(state.inserts.find((i) => i.table === schema.projects)?.inTx).toBe(
       true
@@ -113,7 +113,7 @@ describe("addProject", () => {
         action: "member.added",
         entityType: "member",
         entityId: USER_ID,
-        data: { user: "Rina", project: "New project", role: "engineer" },
+        data: { user: "Rina", project: "New project" },
       },
     ]);
   });

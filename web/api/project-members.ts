@@ -19,20 +19,6 @@ export const listProjectMembersQuery = (
     queryFn: () => listProjectMembers(...args),
   });
 
-export async function listOrgWideAccess(projectId: string) {
-  return parseResponse(
-    routes["list-org-wide-access"].$get({ query: { projectId } })
-  );
-}
-
-export const listOrgWideAccessQuery = (
-  ...args: Parameters<typeof listOrgWideAccess>
-) =>
-  queryOptions({
-    queryKey: ["project-members", "listOrgWideAccess", args],
-    queryFn: () => listOrgWideAccess(...args),
-  });
-
 export async function listMemberCandidates(projectId: string) {
   return parseResponse(
     routes["list-member-candidates"].$get({ query: { projectId } })
@@ -57,18 +43,6 @@ export async function addProjectMember(
   );
 }
 
-export async function updateProjectMemberRole(
-  input: Body<"update-project-member-role">["input"]
-) {
-  return orFailure(
-    () =>
-      parseResponse(
-        routes["update-project-member-role"].$post({ json: { input } })
-      ),
-    (message) => ({ success: false, message }) as const
-  );
-}
-
 export async function removeProjectMember(
   input: Body<"remove-project-member">["input"]
 ) {
@@ -80,7 +54,4 @@ export async function removeProjectMember(
 }
 export type ProjectMemberRow = Awaited<
   ReturnType<typeof listProjectMembers>
->[number];
-export type OrgWideAccessRow = Awaited<
-  ReturnType<typeof listOrgWideAccess>
 >[number];

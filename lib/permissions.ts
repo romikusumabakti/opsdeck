@@ -170,22 +170,11 @@ export function isOrgRole(value: string): value is OrgRole {
   return (ORG_ROLES as readonly string[]).includes(value);
 }
 
-export function isProjectRole(value: string): value is ProjectRole {
-  return (PROJECT_ROLES as readonly string[]).includes(value);
-}
-
 // Unknown org roles — legacy `member`/`viewer`/`maintainer`, typos, forged
 // values — floor to `qa`, the least privileged role: it sees only the projects
 // it is a member of.
 export function normalizeOrgRole(role: string | null | undefined): OrgRole {
   return role && isOrgRole(role) ? role : "qa";
-}
-
-// Unknown project roles count as no membership at all.
-export function normalizeProjectRole(
-  role: string | null | undefined
-): ProjectRole | null {
-  return role && isProjectRole(role) ? role : null;
 }
 
 // The project statement set a job role holds on any project it can see.

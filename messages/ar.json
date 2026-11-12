@@ -2017,32 +2017,18 @@
   "projectMembers": {
     "selectUser": "اختر مستخدمًا…",
     "add": "إضافة",
-    "role": {
-      "viewer": "Viewer",
-      "qa": "QA",
-      "engineer": "Engineer"
-    },
     "colName": "المستخدم",
     "colRole": "الدور",
     "remove": "إزالة",
     "empty": "لا يوجد أعضاء بعد",
-    "emptyDescription": "يمكن للأعضاء فقط (والمسؤولين وفريق البنية التحتية والمراقبين) رؤية هذا المشروع.",
+    "emptyDescription": "يرى الـ Engineers وفريق QA المشاريع التي هم أعضاء فيها فقط. يرى المسؤولون وفريق البنية التحتية والمراقبون كل المشاريع.",
     "addedSuccess": "تمت إضافة العضو",
-    "roleUpdatedSuccess": "تم تحديث الدور",
     "removedSuccess": "تمت إزالة العضو",
     "errorInvalidInput": "مدخل غير صالح",
-    "errorInvalidRole": "دور غير صالح",
     "errorAddFailed": "فشل في إضافة العضو",
-    "roleDescription": {
-      "viewer": "عرض المشروع وقراءة سجلات الخدمات",
-      "qa": "العمل على المشكلات، وإعادة تشغيل الخدمات، ونسخ قواعد البيانات احتياطيًا واستعادتها، والتحكم في الساعة",
-      "engineer": "كل ما سبق، بالإضافة إلى إدارة الخدمات وقواعد البيانات والبيئات والأعضاء"
-    },
     "removeConfirmTitle": "إزالة {name} من {project}؟",
-    "removeConfirmDescription": "سيفقد الوصول إلى هذا المشروع، ما لم يمنحه دوره في المؤسسة الوصول.",
-    "removeMember": "إزالة {name}",
-    "orgAccessTitle": "لديهم وصول أيضًا من خلال دورهم في المؤسسة",
-    "orgAccessDescription": "المسؤولون وفريق البنية التحتية Engineers على كل المشاريع؛ والمراقبون يمكنهم عرض كل المشاريع. غيّر أدوار المؤسسة من الإدارة ← الوصول."
+    "removeConfirmDescription": "سيفقد الـ Engineer أو QA الوصول إلى هذا المشروع. يظل المسؤولون وفريق البنية التحتية والمراقبون يرونه.",
+    "removeMember": "إزالة {name}"
   },
   "activity": {
     "title": "النشاط",
@@ -2053,6 +2039,7 @@
     "issueCreated": "أنشأ {actor} {key}",
     "issueStatusChanged": "نقل {actor} {key} إلى {status}",
     "memberAdded": "أضاف {actor} {user} إلى {project} بدور {role}",
+    "memberAddedToProject": "أضاف {actor} {user} إلى {project}",
     "memberRemoved": "أزال {actor} {user} من {project}",
     "memberRoleChanged": "غيّر {actor} دور {user} في {project} من {from} إلى {to}",
     "terminalOpened": "{actor} فتح طرفية على {server}",

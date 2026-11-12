@@ -2017,32 +2017,18 @@
   "projectMembers": {
     "selectUser": "Selecciona un usuario…",
     "add": "Añadir",
-    "role": {
-      "viewer": "Viewer",
-      "qa": "QA",
-      "engineer": "Engineer"
-    },
     "colName": "Usuario",
     "colRole": "Rol",
     "remove": "Quitar",
     "empty": "Aún no hay miembros",
-    "emptyDescription": "Solo los miembros (y administradores, infraestructura y observadores) pueden ver este proyecto.",
+    "emptyDescription": "Los engineers y QA solo ven los proyectos de los que son miembros. Los administradores, infraestructura y observadores ven todos los proyectos.",
     "addedSuccess": "Miembro añadido",
-    "roleUpdatedSuccess": "Rol actualizado",
     "removedSuccess": "Miembro eliminado",
     "errorInvalidInput": "Entrada no válida",
-    "errorInvalidRole": "Rol no válido",
     "errorAddFailed": "No se pudo añadir el miembro",
-    "roleDescription": {
-      "viewer": "Ver el proyecto y leer los registros de servicios",
-      "qa": "Trabajar en incidencias, reiniciar servicios, respaldar y restaurar bases de datos, controlar el reloj",
-      "engineer": "Todo lo anterior, más gestionar servicios, bases de datos, entornos y miembros"
-    },
     "removeConfirmTitle": "¿Quitar a {name} de {project}?",
-    "removeConfirmDescription": "Perderá el acceso a este proyecto, salvo que su rol en la organización todavía se lo conceda.",
-    "removeMember": "Quitar a {name}",
-    "orgAccessTitle": "También tienen acceso por su rol en la organización",
-    "orgAccessDescription": "Los administradores e infra son engineers en todos los proyectos; los observadores pueden ver todos los proyectos. Cambia los roles en Admin → Acceso."
+    "removeConfirmDescription": "Un engineer o QA pierde el acceso a este proyecto. Los administradores, infraestructura y observadores lo siguen viendo.",
+    "removeMember": "Quitar a {name}"
   },
   "activity": {
     "title": "Actividad",
@@ -2053,6 +2039,7 @@
     "issueCreated": "{actor} creó {key}",
     "issueStatusChanged": "{actor} movió {key} a {status}",
     "memberAdded": "{actor} añadió a {user} a {project} como {role}",
+    "memberAddedToProject": "{actor} añadió a {user} a {project}",
     "memberRemoved": "{actor} quitó a {user} de {project}",
     "memberRoleChanged": "{actor} cambió a {user} en {project} de {from} a {to}",
     "terminalOpened": "{actor} abrió un terminal en {server}",

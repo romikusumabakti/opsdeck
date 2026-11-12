@@ -53,12 +53,19 @@ function message(
         status: tIssues(`status.${d.status}`),
       });
     case "member.added":
-      return t("memberAdded", {
-        actor,
-        user: String(d.user),
-        project: String(d.project),
-        role: String(d.role),
-      });
+      // Rows written before memberships lost their role still name it.
+      return d.role
+        ? t("memberAdded", {
+            actor,
+            user: String(d.user),
+            project: String(d.project),
+            role: String(d.role),
+          })
+        : t("memberAddedToProject", {
+            actor,
+            user: String(d.user),
+            project: String(d.project),
+          });
     case "member.removed":
       return t("memberRemoved", {
         actor,

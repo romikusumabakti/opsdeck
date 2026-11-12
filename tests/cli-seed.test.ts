@@ -166,16 +166,12 @@ describe.skipIf(!enabled)("opsdeck seed demo on a real Postgres", () => {
       "demo-qa@example.invalid": "qa",
     });
     const members = await sql`
-      select u.email, m.role, p.key from project_members m
+      select u.email, p.key from project_members m
       join users u on u.id = m.user_id join projects p on p.id = m.project_id`;
     expect(members).toHaveLength(4);
-    for (const [name, role] of [
-      ["demo-engineer", "engineer"],
-      ["demo-qa", "qa"],
-    ]) {
+    for (const name of ["demo-engineer", "demo-qa"]) {
       const mine = members.filter((m) => m.email === `${name}@example.invalid`);
       expect(mine.map((m) => m.key).sort()).toEqual(["DEMO", "DEMOPORTAL"]);
-      expect(mine.every((m) => m.role === role)).toBe(true);
     }
     expect(DEMO_ACCOUNTS).toHaveLength(5);
     const credential = await sql`select provider_id from accounts`;

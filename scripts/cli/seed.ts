@@ -17,7 +17,7 @@ import {
   servers,
   users,
 } from "@/lib/db/schema";
-import type { OrgRole, ProjectRole } from "@/lib/permissions";
+import type { OrgRole } from "@/lib/permissions";
 
 export const SEED_USAGE = `Usage: opsdeck seed demo [--print-passwords] [--force]
   (in the image: bun dist/cli.js seed demo [--print-passwords] [--force])
@@ -36,15 +36,17 @@ export const DEMO_EMAIL_DOMAIN = "example.invalid";
 interface DemoAccount {
   name: string;
   orgRole: OrgRole;
-  projectRole: ProjectRole | null;
+  // A member of both demo projects: what makes them visible to an engineer
+  // or QA.
+  member: boolean;
 }
 
 export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
-  { name: "demo-admin", orgRole: "admin", projectRole: null },
-  { name: "demo-infra", orgRole: "infra", projectRole: null },
-  { name: "demo-observer", orgRole: "observer", projectRole: null },
-  { name: "demo-engineer", orgRole: "engineer", projectRole: "engineer" },
-  { name: "demo-qa", orgRole: "qa", projectRole: "qa" },
+  { name: "demo-admin", orgRole: "admin", member: false },
+  { name: "demo-infra", orgRole: "infra", member: false },
+  { name: "demo-observer", orgRole: "observer", member: false },
+  { name: "demo-engineer", orgRole: "engineer", member: true },
+  { name: "demo-qa", orgRole: "qa", member: true },
 ];
 
 const DEMO_PROJECTS = [
@@ -204,16 +206,10 @@ export async function seedDemo(
       } else {
         lines.push(`exists  ${email}`);
       }
-      if (account.projectRole) {
+      if (account.member) {
         await tx
           .insert(projectMembers)
-          .values(
-            projectIds.map((projectId) => ({
-              projectId,
-              userId,
-              role: account.projectRole as ProjectRole,
-            }))
-          )
+          .values(projectIds.map((projectId) => ({ projectId, userId })))
           .onConflictDoNothing();
       }
     }
