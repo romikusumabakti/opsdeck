@@ -296,8 +296,8 @@ function latestBy<T>(
 /**
  * Where picking a project in the project switcher should go: the caller's most
  * recently opened environment there (same section when it can), the equivalent
- * project page, or the project overview. Picking the current project goes to
- * its overview, like the plain project crumb this replaced.
+ * project page, or the project Environments page. Picking the current project
+ * goes to its Environments page, like the plain project crumb this replaced.
  *
  * `visitedAt` (environment id → browser epoch ms) carries visits made since the
  * shell's environment list was loaded: the root layout doesn't re-render on
@@ -323,14 +323,15 @@ export function projectSwitchHref({
   /** Whether the target project deploys releases. */
   releasable?: boolean;
 }): string {
-  const overview = `/${projectKey}`;
-  if (from.scope !== null && from.projectKey === projectKey) return overview;
+  const environmentsPage = `/${projectKey}`;
+  if (from.scope !== null && from.projectKey === projectKey)
+    return environmentsPage;
   if (from.scope === "project") {
     const key = from.page === "issue" ? "issues" : from.page;
     const item = projectNavItems(projectKey, role, releasable).find(
       (i) => i.key === key
     );
-    return item?.href ?? overview;
+    return item?.href ?? environmentsPage;
   }
   if (from.scope === "env") {
     // A visit this session is newer than anything the shell loaded, so it
@@ -343,5 +344,5 @@ export function projectSwitchHref({
       );
     if (latest) return environmentSwitchHref(latest, from, role);
   }
-  return overview;
+  return environmentsPage;
 }
