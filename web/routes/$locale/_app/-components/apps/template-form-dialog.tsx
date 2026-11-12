@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -14,14 +14,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -167,19 +166,24 @@ export function TemplateFormDialog({
   }
 
   const toggle = (name: "required" | "escrow") => (
-    <FormField
-      control={form.control}
+    <Controller
       name={name}
-      render={({ field }) => (
-        <FormItem>
-          <div className="flex items-center gap-2">
-            <FormControl>
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            </FormControl>
-            <FormLabel className="font-normal">{t(name)}</FormLabel>
-          </div>
-          <FormDescription>{t(`${name}Hint`)}</FormDescription>
-        </FormItem>
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+          <Switch
+            id={`template-${name}`}
+            aria-invalid={fieldState.invalid}
+            checked={field.value}
+            onCheckedChange={field.onChange}
+          />
+          <FieldContent>
+            <FieldLabel htmlFor={`template-${name}`} className="font-normal">
+              {t(name)}
+            </FieldLabel>
+            <FieldDescription>{t(`${name}Hint`)}</FieldDescription>
+          </FieldContent>
+        </Field>
       )}
     />
   );
@@ -195,46 +199,48 @@ export function TemplateFormDialog({
           </DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
-            <FormField
-              control={form.control}
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col gap-4"
+        >
+          <FieldGroup>
+            <Controller
               name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("name")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="font-mono"
-                      placeholder="APP_URL"
-                      disabled={template !== null}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="template-name">{t("name")}</FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="font-mono"
+                    placeholder="APP_URL"
+                    disabled={template !== null}
+                    {...field}
+                    id="template-name"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="kind"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("kind")}</FormLabel>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="template-kind">{t("kind")}</FieldLabel>
                   <Select
                     value={field.value}
                     onValueChange={(value) => field.onChange(value ?? "plain")}
                   >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
+                    <SelectTrigger
+                      id="template-kind"
+                      aria-invalid={fieldState.invalid}
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {VARIABLE_KINDS.map((k) => (
                         <SelectItem key={k} value={k}>
@@ -243,82 +249,95 @@ export function TemplateFormDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
             {kind === "plain" && (
-              <FormField
-                control={form.control}
+              <Controller
                 name="defaultValue"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("defaultValue")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        autoComplete="off"
-                        spellCheck={false}
-                        className="font-mono"
-                        placeholder="{url}/api"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>{t("defaultValueHint")}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="template-default-value">
+                      {t("defaultValue")}
+                    </FieldLabel>
+                    <Input
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="font-mono"
+                      placeholder="{url}/api"
+                      {...field}
+                      id="template-default-value"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <FieldDescription>{t("defaultValueHint")}</FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
                 )}
               />
             )}
             {kind === "generated" && (
-              <FormField
-                control={form.control}
+              <Controller
                 name="generatedLength"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("generatedLength")}</FormLabel>
-                    <FormControl>
-                      <Input inputMode="numeric" placeholder="32" {...field} />
-                    </FormControl>
-                    <FormDescription>
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="template-generated-length">
+                      {t("generatedLength")}
+                    </FieldLabel>
+                    <Input
+                      inputMode="numeric"
+                      placeholder="32"
+                      {...field}
+                      id="template-generated-length"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <FieldDescription>
                       {t("generatedLengthHint", {
                         min: LENGTH_MIN,
                         max: LENGTH_MAX,
                       })}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
+                    </FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
                 )}
               />
             )}
             {toggle("required")}
             {toggle("escrow")}
-            <FormField
-              control={form.control}
+            <Controller
               name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("descriptionLabel")}</FormLabel>
-                  <FormControl>
-                    <Input autoComplete="off" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="template-description">
+                    {t("descriptionLabel")}
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    {...field}
+                    id="template-description"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {tCommon("save")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+          </FieldGroup>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {tCommon("save")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -15,14 +15,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/web/api/client";
@@ -123,53 +121,61 @@ export function MarkReleaseDialog({
             </p>
           </div>
         )}
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
-            <FormField
-              control={form.control}
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col gap-4"
+        >
+          <FieldGroup>
+            <Controller
               name="version"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("version")}</FormLabel>
-                  <FormControl>
-                    <Input autoComplete="off" spellCheck={false} {...field} />
-                  </FormControl>
-                  <FormDescription>{t("versionHint")}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
               control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("notes")}</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} />
-                  </FormControl>
-                  <FormDescription>{t("notesHint")}</FormDescription>
-                  <FormMessage />
-                </FormItem>
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="release-version">
+                    {t("version")}
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    spellCheck={false}
+                    {...field}
+                    id="release-version"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldDescription>{t("versionHint")}</FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {t("submit")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+            <Controller
+              name="notes"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="release-notes">{t("notes")}</FieldLabel>
+                  <Textarea
+                    {...field}
+                    id="release-notes"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldDescription>{t("notesHint")}</FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+          </FieldGroup>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {t("submit")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

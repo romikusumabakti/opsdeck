@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
-import { type Resolver, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -15,14 +15,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -407,6 +405,8 @@ export function TargetFormDialog({
   }
 
   const kind = form.watch("kind");
+  const kebab = (name: string) =>
+    name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
   // `copy` is the message prefix of the label and hint, for a field whose
   // wording depends on the kind (the directory).
@@ -418,40 +418,47 @@ export function TargetFormDialog({
     props: React.ComponentProps<typeof Input> = {},
     copy: string = name
   ) => (
-    <FormField
-      control={form.control}
+    <Controller
       name={name}
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>{t(copy as "deployDir")}</FormLabel>
-          <FormControl>
-            <Input
-              autoComplete="off"
-              spellCheck={false}
-              {...field}
-              {...props}
-            />
-          </FormControl>
-          <FormDescription>
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor={`target-${kebab(name)}`}>
+            {t(copy as "deployDir")}
+          </FieldLabel>
+          <Input
+            autoComplete="off"
+            spellCheck={false}
+            {...field}
+            id={`target-${kebab(name)}`}
+            aria-invalid={fieldState.invalid}
+            {...props}
+          />
+          <FieldDescription>
             {t(`${copy}Hint` as "deployDirHint")}
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
+          </FieldDescription>
+          <FieldError errors={[fieldState.error]} />
+        </Field>
       )}
     />
   );
 
   const toggle = (name: "autoDeploy" | "backupBeforeDeploy") => (
-    <FormField
-      control={form.control}
+    <Controller
       name={name}
-      render={({ field }) => (
-        <FormItem className="flex items-center gap-2">
-          <FormControl>
-            <Switch checked={field.value} onCheckedChange={field.onChange} />
-          </FormControl>
-          <FormLabel className="font-normal">{t(name)}</FormLabel>
-        </FormItem>
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+          <Switch
+            id={`target-${kebab(name)}`}
+            aria-invalid={fieldState.invalid}
+            checked={field.value}
+            onCheckedChange={field.onChange}
+          />
+          <FieldLabel htmlFor={`target-${kebab(name)}`} className="font-normal">
+            {t(name)}
+          </FieldLabel>
+        </Field>
       )}
     />
   );
@@ -463,11 +470,11 @@ export function TargetFormDialog({
           <DialogTitle>{t("createTitle")}</DialogTitle>
           <DialogDescription>{t("createDescription")}</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col gap-4"
+        >
+          <FieldGroup>
             {!fromApp ? (
               text("componentKey", { placeholder: "dplk-accounting" })
             ) : failed ? (
@@ -487,14 +494,14 @@ export function TargetFormDialog({
             ) : nothingToPick ? (
               <p className="text-sm text-muted-foreground">{nothingToPick}</p>
             ) : (
-              <FormField
-                control={form.control}
+              <Controller
                 name="componentKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel htmlFor="target-component">
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="target-component">
                       {t("component")}
-                    </FormLabel>
+                    </FieldLabel>
                     <Select
                       value={field.value || null}
                       disabled={loading}
@@ -514,13 +521,13 @@ export function TargetFormDialog({
                         }
                       }}
                     >
-                      <FormControl>
-                        <SelectTrigger id="target-component" className="w-full">
-                          <SelectValue
-                            placeholder={t("componentPlaceholder")}
-                          />
-                        </SelectTrigger>
-                      </FormControl>
+                      <SelectTrigger
+                        id="target-component"
+                        aria-invalid={fieldState.invalid}
+                        className="w-full"
+                      >
+                        <SelectValue placeholder={t("componentPlaceholder")} />
+                      </SelectTrigger>
                       <SelectContent>
                         {(components ?? []).map((c) => (
                           <SelectItem
@@ -536,18 +543,18 @@ export function TargetFormDialog({
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>{t("componentHint")}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
+                    <FieldDescription>{t("componentHint")}</FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
                 )}
               />
             )}
-            <FormField
-              control={form.control}
+            <Controller
               name="kind"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("kind")}</FormLabel>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>{t("kind")}</FieldLabel>
                   <RadioGroup
                     aria-label={t("kind")}
                     className="flex flex-wrap gap-4"
@@ -571,25 +578,27 @@ export function TargetFormDialog({
                       </label>
                     ))}
                   </RadioGroup>
-                  <FormMessage />
-                </FormItem>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="serverId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("server")}</FormLabel>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="target-server">{t("server")}</FieldLabel>
                   <Select
                     value={field.value}
                     onValueChange={(value) => field.onChange(value ?? "")}
                   >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={t("serverPlaceholder")} />
-                      </SelectTrigger>
-                    </FormControl>
+                    <SelectTrigger
+                      id="target-server"
+                      aria-invalid={fieldState.invalid}
+                      className="w-full"
+                    >
+                      <SelectValue placeholder={t("serverPlaceholder")} />
+                    </SelectTrigger>
                     <SelectContent>
                       {servers.map((server) => (
                         <SelectItem key={server.id} value={server.id}>
@@ -598,9 +607,9 @@ export function TargetFormDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormDescription>{t("serverHint")}</FormDescription>
-                  <FormMessage />
-                </FormItem>
+                  <FieldDescription>{t("serverHint")}</FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
             {text("sourceBranch", { placeholder: "kestrel/development" })}
@@ -648,8 +657,8 @@ export function TargetFormDialog({
                 {t("create")}
               </Button>
             </DialogFooter>
-          </form>
-        </Form>
+          </FieldGroup>
+        </form>
       </DialogContent>
     </Dialog>
   );

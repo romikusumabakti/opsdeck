@@ -1,16 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { useWatch } from "react-hook-form";
+import { Controller, useWatch } from "react-hook-form";
 import { useTranslations } from "use-intl";
 import { AdvancedOptions } from "@/components/advanced-options";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
@@ -92,44 +91,45 @@ export function DatabaseTab({
   return (
     <Card>
       <CardContent>
-        <form
-          onSubmit={form.handleSubmit(onSave)}
-          className="flex flex-col gap-6"
-        >
-          {readOnly && <Hint>{t("infraReadOnlyHint")}</Hint>}
-          <FormField
-            control={form.control}
-            name="dbKind"
-            render={() => (
-              <FormItem>
-                <FormLabel>{t("dbKind")}</FormLabel>
-                <EnumSelect
-                  field={{
-                    value: hasDatabase ? dbKind : NONE,
-                    onChange: onKind,
-                  }}
-                  options={KIND_OPTIONS}
-                  getLabel={(v) =>
-                    v === NONE ? tSettings("noDatabase") : t(`dbKinds.${v}`)
-                  }
-                  placeholder={t("dbKindNone")}
-                  disabled={readOnly}
-                />
-                <Hint>{t("dbKindHint")}</Hint>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <form onSubmit={form.handleSubmit(onSave)}>
+          <FieldGroup>
+            {readOnly && <Hint>{t("infraReadOnlyHint")}</Hint>}
+            <Controller
+              name="dbKind"
+              control={form.control}
+              render={({ fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="env-db-kind">{t("dbKind")}</FieldLabel>
+                  <EnumSelect
+                    id="env-db-kind"
+                    invalid={fieldState.invalid}
+                    field={{
+                      value: hasDatabase ? dbKind : NONE,
+                      onChange: onKind,
+                    }}
+                    options={KIND_OPTIONS}
+                    getLabel={(v) =>
+                      v === NONE ? tSettings("noDatabase") : t(`dbKinds.${v}`)
+                    }
+                    placeholder={t("dbKindNone")}
+                    disabled={readOnly}
+                  />
+                  <Hint>{t("dbKindHint")}</Hint>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
 
-          {hasDatabase && (
-            <>
-              <FormField
-                control={form.control}
-                name="dbName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("dbName")}</FormLabel>
-                    <FormControl>
+            {hasDatabase && (
+              <>
+                <Controller
+                  name="dbName"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="env-db-name">
+                        {t("dbName")}
+                      </FieldLabel>
                       <Input
                         className="font-mono"
                         disabled={readOnly}
@@ -139,95 +139,114 @@ export function DatabaseTab({
                             : undefined
                         }
                         {...field}
+                        id="env-db-name"
+                        aria-invalid={fieldState.invalid}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <AdvancedOptions
-                attempt={form.formState.submitCount}
-                invalid={ADVANCED_FIELDS.some((field) => errors[field])}
-              >
-                {shared ? (
-                  <SharedDatabaseFields
-                    environment={environment}
-                    projectKey={projectKey}
-                    readOnly={readOnly}
-                  />
-                ) : (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="dbServerId"
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-2">
-                          <FormLabel htmlFor="server-db">
-                            {t("server")}
-                          </FormLabel>
-                          <ServerSelect
-                            id="server-db"
-                            value={field.value}
-                            onChange={field.onChange}
-                            servers={servers}
-                            disabled={readOnly}
-                          />
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
+                <AdvancedOptions
+                  attempt={form.formState.submitCount}
+                  invalid={ADVANCED_FIELDS.some((field) => errors[field])}
+                >
+                  {shared ? (
+                    <SharedDatabaseFields
+                      environment={environment}
+                      projectKey={projectKey}
+                      readOnly={readOnly}
                     />
-                    <FormField
-                      control={form.control}
-                      name="dbServiceType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("serviceType")}</FormLabel>
-                          <EnumSelect
-                            field={field}
-                            options={SERVICE_TYPES}
-                            getLabel={(v) => tEnums(`serviceTypes.${v}`)}
-                            disabled={readOnly}
-                          />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="dbServiceName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("serviceName")}</FormLabel>
-                          <FormControl>
-                            <Input disabled={readOnly} {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="dbType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("dbType")}</FormLabel>
-                          <EnumSelect
-                            field={field}
-                            options={DB_TYPES}
-                            getLabel={(v) => tEnums(`dbTypes.${v}`)}
-                            disabled={readOnly}
-                          />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="dbUser"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("dbUser")}</FormLabel>
-                          <FormControl>
+                  ) : (
+                    <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                      <Controller
+                        name="dbServerId"
+                        control={form.control}
+                        render={({ field, fieldState }) => (
+                          <Field
+                            className="sm:col-span-2"
+                            data-invalid={fieldState.invalid}
+                          >
+                            <FieldLabel htmlFor="server-db">
+                              {t("server")}
+                            </FieldLabel>
+                            <ServerSelect
+                              id="server-db"
+                              value={field.value}
+                              onChange={field.onChange}
+                              servers={servers}
+                              disabled={readOnly}
+                              invalid={fieldState.invalid}
+                            />
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                      <Controller
+                        name="dbServiceType"
+                        control={form.control}
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel htmlFor="env-db-service-type">
+                              {t("serviceType")}
+                            </FieldLabel>
+                            <EnumSelect
+                              id="env-db-service-type"
+                              invalid={fieldState.invalid}
+                              field={field}
+                              options={SERVICE_TYPES}
+                              getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                              disabled={readOnly}
+                            />
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                      <Controller
+                        name="dbServiceName"
+                        control={form.control}
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel htmlFor="env-db-service-name">
+                              {t("serviceName")}
+                            </FieldLabel>
+                            <Input
+                              disabled={readOnly}
+                              {...field}
+                              id="env-db-service-name"
+                              aria-invalid={fieldState.invalid}
+                            />
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                      <Controller
+                        name="dbType"
+                        control={form.control}
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel htmlFor="env-db-type">
+                              {t("dbType")}
+                            </FieldLabel>
+                            <EnumSelect
+                              id="env-db-type"
+                              invalid={fieldState.invalid}
+                              field={field}
+                              options={DB_TYPES}
+                              getLabel={(v) => tEnums(`dbTypes.${v}`)}
+                              disabled={readOnly}
+                            />
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                      <Controller
+                        name="dbUser"
+                        control={form.control}
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel htmlFor="env-db-user">
+                              {t("dbUser")}
+                            </FieldLabel>
                             {/* The placeholder shows the account used when
                                 the field is left blank. */}
                             <Input
@@ -235,57 +254,66 @@ export function DatabaseTab({
                               disabled={readOnly}
                               placeholder={dbAdminUser(dbType, null)}
                               {...field}
+                              id="env-db-user"
+                              aria-invalid={fieldState.invalid}
                             />
-                          </FormControl>
-                          <Hint>{t("dbUserHint")}</Hint>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="dbPassword"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("dbPassword")}</FormLabel>
-                          <FormControl>
+                            <Hint>{t("dbUserHint")}</Hint>
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                      <Controller
+                        name="dbPassword"
+                        control={form.control}
+                        render={({ field, fieldState }) => (
+                          <Field data-invalid={fieldState.invalid}>
+                            <FieldLabel htmlFor="env-db-password">
+                              {t("dbPassword")}
+                            </FieldLabel>
                             <PasswordInput
                               autoComplete="new-password"
                               disabled={readOnly}
                               placeholder={t("dbPasswordEditPlaceholder")}
                               {...field}
+                              id="env-db-password"
+                              aria-invalid={fieldState.invalid}
                             />
-                          </FormControl>
-                          <Hint>{t("dbPasswordHint")}</Hint>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="dbBackupPath"
-                      render={({ field }) => (
-                        <FormItem className="sm:col-span-2">
-                          <FormLabel>{t("backupPath")}</FormLabel>
-                          <FormControl>
+                            <Hint>{t("dbPasswordHint")}</Hint>
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                      <Controller
+                        name="dbBackupPath"
+                        control={form.control}
+                        render={({ field, fieldState }) => (
+                          <Field
+                            className="sm:col-span-2"
+                            data-invalid={fieldState.invalid}
+                          >
+                            <FieldLabel htmlFor="env-db-backup-path">
+                              {t("backupPath")}
+                            </FieldLabel>
                             <Input
                               disabled={readOnly}
                               placeholder="/var/backups/db"
                               {...field}
+                              id="env-db-backup-path"
+                              aria-invalid={fieldState.invalid}
                             />
-                          </FormControl>
-                          <Hint>{t("backupPathHint")}</Hint>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                )}
-              </AdvancedOptions>
-            </>
-          )}
+                            <Hint>{t("backupPathHint")}</Hint>
+                            <FieldError errors={[fieldState.error]} />
+                          </Field>
+                        )}
+                      />
+                    </FieldGroup>
+                  )}
+                </AdvancedOptions>
+              </>
+            )}
 
-          {!readOnly && <SaveButton />}
+            {!readOnly && <SaveButton />}
+          </FieldGroup>
         </form>
       </CardContent>
     </Card>
@@ -326,14 +354,18 @@ function SharedDatabaseFields({
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <FormField
-        control={form.control}
+    <FieldGroup className="grid gap-4 sm:grid-cols-2">
+      <Controller
         name="databaseHostId"
-        render={({ field }) => (
-          <FormItem className="sm:col-span-2">
-            <FormLabel>{t("databaseHost")}</FormLabel>
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field className="sm:col-span-2" data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor="env-database-host">
+              {t("databaseHost")}
+            </FieldLabel>
             <EnumSelect
+              id="env-database-host"
+              invalid={fieldState.invalid}
               field={field}
               options={hosts.map((h) => h.id)}
               getLabel={(id) => {
@@ -344,35 +376,39 @@ function SharedDatabaseFields({
               disabled={readOnly}
             />
             <Hint>{t("databaseHostHint")}</Hint>
-            <FormMessage />
-          </FormItem>
+            <FieldError errors={[fieldState.error]} />
+          </Field>
         )}
       />
-      <FormField
-        control={form.control}
+      <Controller
         name="dbRole"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("dbRole")}</FormLabel>
-            <FormControl>
-              <Input
-                className="font-mono"
-                disabled={readOnly}
-                placeholder={suggestion}
-                {...field}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor="env-db-role">{t("dbRole")}</FieldLabel>
+            <Input
+              className="font-mono"
+              disabled={readOnly}
+              placeholder={suggestion}
+              {...field}
+              id="env-db-role"
+              aria-invalid={fieldState.invalid}
+            />
+            <FieldError errors={[fieldState.error]} />
+          </Field>
         )}
       />
-      <FormField
-        control={form.control}
+      <Controller
         name="dbPasswordVariable"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("dbPasswordVariable")}</FormLabel>
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor="env-db-password-variable">
+              {t("dbPasswordVariable")}
+            </FieldLabel>
             <EnumSelect
+              id="env-db-password-variable"
+              invalid={fieldState.invalid}
               field={field}
               options={names}
               getLabel={(v) => v}
@@ -380,8 +416,8 @@ function SharedDatabaseFields({
               disabled={readOnly}
             />
             <Hint>{t("dbPasswordVariableHint")}</Hint>
-            <FormMessage />
-          </FormItem>
+            <FieldError errors={[fieldState.error]} />
+          </Field>
         )}
       />
       <div className="flex items-center justify-between gap-3 sm:col-span-2">
@@ -399,6 +435,6 @@ function SharedDatabaseFields({
           {t("useSuggestedNames")}
         </Button>
       </div>
-    </div>
+    </FieldGroup>
   );
 }

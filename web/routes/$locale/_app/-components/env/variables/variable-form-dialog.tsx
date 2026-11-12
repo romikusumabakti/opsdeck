@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Lock } from "lucide-react";
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -17,14 +17,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -241,48 +240,54 @@ export function VariableFormDialog({
             <AlertDescription>{t("escrowWarning")}</AlertDescription>
           </Alert>
         )}
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
-            <FormField
-              control={form.control}
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col gap-4"
+        >
+          <FieldGroup>
+            <Controller
               name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{tForm("name")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="font-mono"
-                      placeholder="DB_PASSWORD"
-                      disabled={variable !== null}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>{tForm("nameHint")}</FormDescription>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="variable-name">
+                    {tForm("name")}
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="font-mono"
+                    placeholder="DB_PASSWORD"
+                    disabled={variable !== null}
+                    {...field}
+                    id="variable-name"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldDescription>{tForm("nameHint")}</FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="kind"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{tForm("kind")}</FormLabel>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="variable-kind">
+                    {tForm("kind")}
+                  </FieldLabel>
                   <Select
                     value={field.value}
                     onValueChange={(value) => field.onChange(value ?? "plain")}
                     disabled={escrowed}
                   >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
+                    <SelectTrigger
+                      id="variable-kind"
+                      aria-invalid={fieldState.invalid}
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {VARIABLE_KINDS.map((k) => (
                         <SelectItem key={k} value={k}>
@@ -291,81 +296,91 @@ export function VariableFormDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormDescription>{tForm(`kindHint.${kind}`)}</FormDescription>
-                  <FormMessage />
-                </FormItem>
+                  <FieldDescription>
+                    {tForm(`kindHint.${kind}`)}
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="value"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{tForm("value")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="font-mono"
-                      type={kind === "plain" ? "text" : "password"}
-                      disabled={escrowed}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>{valueHint}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
               control={form.control}
-              name="escrow"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center gap-2">
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        // Escrow is only ever cleared explicitly (below).
-                        disabled={escrowed}
-                      />
-                    </FormControl>
-                    <FormLabel className="font-normal">
-                      {tForm("escrow")}
-                    </FormLabel>
-                  </div>
-                  <FormDescription>{tForm("escrowHint")}</FormDescription>
-                </FormItem>
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="variable-value">
+                    {tForm("value")}
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="font-mono"
+                    type={kind === "plain" ? "text" : "password"}
+                    disabled={escrowed}
+                    {...field}
+                    id="variable-value"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldDescription>{valueHint}</FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <DialogFooter>
-              {escrowed && canClearEscrow && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  className="sm:me-auto"
-                  onClick={() => void onClearEscrow()}
+            <Controller
+              name="escrow"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field
+                  orientation="horizontal"
+                  data-invalid={fieldState.invalid}
                 >
-                  {tForm("clearEscrow")}
-                </Button>
+                  <Switch
+                    id="variable-escrow"
+                    aria-invalid={fieldState.invalid}
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    // Escrow is only ever cleared explicitly (below).
+                    disabled={escrowed}
+                  />
+                  <FieldContent>
+                    <FieldLabel
+                      htmlFor="variable-escrow"
+                      className="font-normal"
+                    >
+                      {tForm("escrow")}
+                    </FieldLabel>
+                    <FieldDescription>{tForm("escrowHint")}</FieldDescription>
+                  </FieldContent>
+                </Field>
               )}
+            />
+          </FieldGroup>
+          <DialogFooter>
+            {escrowed && canClearEscrow && (
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
+                variant="destructive"
+                className="sm:me-auto"
+                onClick={() => void onClearEscrow()}
               >
-                {tCommon("cancel")}
+                {tForm("clearEscrow")}
               </Button>
-              <Button
-                type="submit"
-                disabled={escrowed || form.formState.isSubmitting}
-              >
-                {tCommon("save")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="submit"
+              disabled={escrowed || form.formState.isSubmitting}
+            >
+              {tCommon("save")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

@@ -2,10 +2,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { useForm } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Form } from "@/components/ui/form";
 import messages from "../messages/en.json";
 
 const SERVER = "0197f3a0-1b2c-7def-8000-0123456789c1";
@@ -97,7 +96,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-type FormProps = React.ComponentProps<typeof Form>;
+type FormProps = React.ComponentProps<typeof FormProvider>;
 const f = messages.deploys.form;
 const field = (name: string) =>
   document.querySelector<HTMLInputElement>(`input[name="${name}"]`);
@@ -247,6 +246,45 @@ describe("target form kinds", () => {
     expect(body).not.toHaveProperty("preStartCommand");
   });
 
+  it("empty submit marks the required fields", async () => {
+    await render(
+      <TargetFormDialog
+        open
+        onOpenChange={() => {}}
+        environment={{ id: ENV, appId: null }}
+        servers={[
+          { id: SERVER, name: ".56.129" },
+          { id: "0197f3a0-1b2c-7def-8000-0123456789c2", name: ".56.130" },
+        ]}
+      />
+    );
+    await act(async () => {
+      document.querySelector("form")?.requestSubmit();
+    });
+    await settle();
+    expect(api.createDeployTarget).not.toHaveBeenCalled();
+    const alerts = [...document.querySelectorAll('[role="alert"]')].map((a) =>
+      a.textContent?.trim()
+    );
+    expect(alerts).toContain(messages.common.required);
+    const required: [string, string][] = [
+      ["serverId", "target-server"],
+      ["sourceBranch", "target-source-branch"],
+    ];
+    for (const [name, id] of required) {
+      const control = document.getElementById(id);
+      const field = control?.closest('[data-slot="field"]');
+      expect(field?.getAttribute("data-invalid")).toBe("true");
+      expect(
+        field?.querySelector('[aria-invalid="true"]'),
+        `${name} control`
+      ).not.toBeNull();
+      expect(field?.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+        messages.common.required
+      );
+    }
+  });
+
   it("shows a pipeline-file failure notice after saving", async () => {
     api.createDeployTarget.mockResolvedValue({
       pipelineFileFailures: [{ branch: "main", componentKey: "core-web" }],
@@ -303,7 +341,7 @@ function SettingsHarness({ kind }: { kind: "jar" | "compose" }) {
     },
   });
   return (
-    <Form {...(form as unknown as FormProps)}>
+    <FormProvider {...(form as unknown as FormProps)}>
       <SourceDeployTab
         environment={{ id: ENV, appId: null, services: [] } as never}
         servers={[{ id: SERVER, name: ".56.129" }]}
@@ -311,7 +349,7 @@ function SettingsHarness({ kind }: { kind: "jar" | "compose" }) {
         deployed={false}
         onSave={async () => {}}
       />
-    </Form>
+    </FormProvider>
   );
 }
 

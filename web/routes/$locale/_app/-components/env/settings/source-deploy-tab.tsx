@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { useWatch } from "react-hook-form";
+import { Controller, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { AdvancedOptions } from "@/components/advanced-options";
@@ -8,12 +8,12 @@ import { useProjectCan } from "@/components/project-role";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldContent,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -147,30 +147,35 @@ export function SourceDeployTab({
     }
   }
 
+  const kebab = (name: string) =>
+    name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
   const targetText = (
     index: number,
     name: TextField,
     props: React.ComponentProps<typeof Input> = {},
     copy: string = name
   ) => (
-    <FormField
-      control={form.control}
+    <Controller
       name={`targets.${index}.${name}`}
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>{tTarget(copy as "deployDir")}</FormLabel>
-          <FormControl>
-            <Input
-              autoComplete="off"
-              spellCheck={false}
-              disabled={!canConfigure}
-              {...field}
-              {...props}
-            />
-          </FormControl>
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor={`env-target-${index}-${kebab(name)}`}>
+            {tTarget(copy as "deployDir")}
+          </FieldLabel>
+          <Input
+            autoComplete="off"
+            spellCheck={false}
+            disabled={!canConfigure}
+            {...field}
+            id={`env-target-${index}-${kebab(name)}`}
+            aria-invalid={fieldState.invalid}
+            {...props}
+          />
           <Hint>{tTarget(`${copy}Hint` as "deployDirHint")}</Hint>
-          <FormMessage />
-        </FormItem>
+          <FieldError errors={[fieldState.error]} />
+        </Field>
       )}
     />
   );
@@ -179,73 +184,90 @@ export function SourceDeployTab({
     index: number,
     name: "autoDeploy" | "backupBeforeDeploy"
   ) => (
-    <FormField
-      control={form.control}
+    <Controller
       name={`targets.${index}.${name}`}
-      render={({ field }) => (
-        <FormItem className="flex items-center gap-2">
-          <FormControl>
-            <Switch
-              checked={field.value}
-              onCheckedChange={field.onChange}
-              disabled={!canConfigure}
-            />
-          </FormControl>
-          <FormLabel className="font-normal">{tTarget(name)}</FormLabel>
-        </FormItem>
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+          <Switch
+            id={`env-target-${index}-${kebab(name)}`}
+            aria-invalid={fieldState.invalid}
+            checked={field.value}
+            onCheckedChange={field.onChange}
+            disabled={!canConfigure}
+          />
+          <FieldLabel
+            htmlFor={`env-target-${index}-${kebab(name)}`}
+            className="font-normal"
+          >
+            {tTarget(name)}
+          </FieldLabel>
+        </Field>
       )}
     />
   );
 
   const service = (role: "backend" | "frontend") => (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <FormField
-        control={form.control}
+    <FieldGroup className="grid gap-4 sm:grid-cols-2">
+      <Controller
         name={`${role}ServerId`}
-        render={({ field }) => (
-          <FormItem className="sm:col-span-2">
-            <FormLabel htmlFor={`server-${role}`}>{tForm("server")}</FormLabel>
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field className="sm:col-span-2" data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`server-${role}`}>
+              {tForm("server")}
+            </FieldLabel>
             <ServerSelect
               id={`server-${role}`}
               value={field.value}
               onChange={field.onChange}
               servers={servers}
               disabled={!canManageServers}
+              invalid={fieldState.invalid}
             />
-            <FormMessage />
-          </FormItem>
+            <FieldError errors={[fieldState.error]} />
+          </Field>
         )}
       />
-      <FormField
-        control={form.control}
+      <Controller
         name={`${role}ServiceType`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{tForm("serviceType")}</FormLabel>
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`env-${role}-service-type`}>
+              {tForm("serviceType")}
+            </FieldLabel>
             <EnumSelect
+              id={`env-${role}-service-type`}
+              invalid={fieldState.invalid}
               field={field}
               options={SERVICE_TYPES}
               getLabel={(v) => tEnums(`serviceTypes.${v}`)}
               disabled={!canManageServers}
             />
-            <FormMessage />
-          </FormItem>
+            <FieldError errors={[fieldState.error]} />
+          </Field>
         )}
       />
-      <FormField
-        control={form.control}
+      <Controller
         name={`${role}ServiceName`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{tForm("serviceName")}</FormLabel>
-            <FormControl>
-              <Input disabled={!canManageServers} {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`env-${role}-service-name`}>
+              {tForm("serviceName")}
+            </FieldLabel>
+            <Input
+              disabled={!canManageServers}
+              {...field}
+              id={`env-${role}-service-name`}
+              aria-invalid={fieldState.invalid}
+            />
+            <FieldError errors={[fieldState.error]} />
+          </Field>
         )}
       />
-    </div>
+    </FieldGroup>
   );
 
   return (
@@ -323,24 +345,25 @@ export function SourceDeployTab({
               {targets.map((target, index) => (
                 <section key={target.id} className="flex flex-col gap-4">
                   <TargetHeading target={target} />
-                  <FormField
-                    control={form.control}
+                  <Controller
                     name={`targets.${index}.serverId`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel htmlFor={`target-server-${index}`}>
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor={`target-server-${index}`}>
                           {tTarget("server")}
-                        </FormLabel>
+                        </FieldLabel>
                         <ServerSelect
                           id={`target-server-${index}`}
                           value={field.value}
                           onChange={field.onChange}
                           servers={targetServers}
                           disabled={!canConfigure}
+                          invalid={fieldState.invalid}
                         />
                         <Hint>{tTarget("serverHint")}</Hint>
-                        <FormMessage />
-                      </FormItem>
+                        <FieldError errors={[fieldState.error]} />
+                      </Field>
                     )}
                   />
                   {target.kind !== "compose" && (
@@ -405,25 +428,31 @@ export function SourceDeployTab({
 
               <section className="flex flex-col gap-4">
                 <h3 className="text-sm font-medium">{tForm("frontend")}</h3>
-                <FormField
-                  control={form.control}
+                <Controller
                   name="hasFrontend"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center gap-2">
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            disabled={!canManageServers}
-                          />
-                        </FormControl>
-                        <FormLabel className="font-normal">
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field
+                      orientation="horizontal"
+                      data-invalid={fieldState.invalid}
+                    >
+                      <Switch
+                        id="env-has-frontend"
+                        aria-invalid={fieldState.invalid}
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={!canManageServers}
+                      />
+                      <FieldContent>
+                        <FieldLabel
+                          htmlFor="env-has-frontend"
+                          className="font-normal"
+                        >
                           {tForm("hasFrontend")}
-                        </FormLabel>
-                      </div>
-                      <Hint>{tForm("hasFrontendHint")}</Hint>
-                    </FormItem>
+                        </FieldLabel>
+                        <Hint>{tForm("hasFrontendHint")}</Hint>
+                      </FieldContent>
+                    </Field>
                   )}
                 />
                 {hasFrontend && service("frontend")}

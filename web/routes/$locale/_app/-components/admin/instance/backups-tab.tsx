@@ -10,7 +10,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -28,14 +28,12 @@ import {
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
@@ -285,26 +283,30 @@ function SettingsCard({ data }: { data: InstanceBackupsData }) {
         </CardAction>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex max-w-2xl flex-col gap-4"
-          >
-            <FormField
-              control={form.control}
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex max-w-2xl flex-col gap-4"
+        >
+          <FieldGroup>
+            <Controller
               name="destinationId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("destination")}</FormLabel>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="instance-backup-destination">
+                    {t("destination")}
+                  </FieldLabel>
                   <Select
                     value={field.value}
                     onValueChange={(value) => field.onChange(value ?? LOCAL)}
                   >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
+                    <SelectTrigger
+                      id="instance-backup-destination"
+                      aria-invalid={fieldState.invalid}
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={LOCAL}>
                         {t("destinationLocal")}
@@ -316,81 +318,101 @@ function SettingsCard({ data }: { data: InstanceBackupsData }) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormDescription>
+                  <FieldDescription>
                     {t("destinationDescription")}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="time"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("time")}</FormLabel>
-                  <FormControl>
-                    <Input type="time" className="w-32" {...field} />
-                  </FormControl>
-                  <FormDescription>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="instance-backup-time">
+                    {t("time")}
+                  </FieldLabel>
+                  <Input
+                    type="time"
+                    className="w-32"
+                    {...field}
+                    id="instance-backup-time"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldDescription>
                     {t("timeDescription", { zone: settings.timeZone })}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
+            <FieldGroup className="grid gap-4 sm:grid-cols-2">
+              <Controller
                 name="keepDaily"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("keepDaily")}</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={1} max={90} {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      {t("keepDailyDescription")}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
                 control={form.control}
-                name="keepWeekly"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("keepWeekly")}</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={0} max={52} {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      {t("keepWeeklyDescription")}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="instance-backup-keep-daily">
+                      {t("keepDaily")}
+                    </FieldLabel>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={90}
+                      {...field}
+                      id="instance-backup-keep-daily"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <FieldDescription>
+                      {t("keepDailyDescription")}
+                    </FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
                 )}
               />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => form.reset()}
-                disabled={loading || !form.formState.isDirty}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading && (
-                  <Loader2 data-icon="inline-start" className="animate-spin" />
+              <Controller
+                name="keepWeekly"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="instance-backup-keep-weekly">
+                      {t("keepWeekly")}
+                    </FieldLabel>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={52}
+                      {...field}
+                      id="instance-backup-keep-weekly"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <FieldDescription>
+                      {t("keepWeeklyDescription")}
+                    </FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
                 )}
-                {tCommon("save")}
-              </Button>
-            </div>
-          </form>
-        </Form>
+              />
+            </FieldGroup>
+          </FieldGroup>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => form.reset()}
+              disabled={loading || !form.formState.isDirty}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && (
+                <Loader2 data-icon="inline-start" className="animate-spin" />
+              )}
+              {tCommon("save")}
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   );

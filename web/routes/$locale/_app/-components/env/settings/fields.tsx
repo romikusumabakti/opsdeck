@@ -1,6 +1,5 @@
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
-import { FormControl } from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -37,6 +36,7 @@ export function EnumSelect({
   placeholder,
   disabled,
   id,
+  invalid,
 }: {
   field: { value: string; onChange: (value: string) => void };
   options: readonly string[];
@@ -44,6 +44,7 @@ export function EnumSelect({
   placeholder?: string;
   disabled?: boolean;
   id?: string;
+  invalid?: boolean;
 }) {
   return (
     <Select
@@ -51,11 +52,9 @@ export function EnumSelect({
       onValueChange={(v) => field.onChange(v ?? "")}
       disabled={disabled}
     >
-      <FormControl {...(id ? { id } : {})}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-      </FormControl>
+      <SelectTrigger id={id} aria-invalid={invalid} className="w-full">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
       <SelectContent>
         {options.map((v) => (
           <SelectItem key={v} value={v}>
@@ -77,12 +76,14 @@ export function ServerSelect({
   onChange,
   servers,
   disabled,
+  invalid,
 }: {
   id: string;
   value: string;
   onChange: (value: string) => void;
   servers: ServerOption[];
   disabled?: boolean;
+  invalid?: boolean;
 }) {
   const t = useTranslations("environmentForm");
   return (
@@ -91,7 +92,12 @@ export function ServerSelect({
       onValueChange={(v) => onChange(v ?? "")}
       disabled={disabled}
     >
-      <SelectTrigger id={id} data-server-select="" className="w-full">
+      <SelectTrigger
+        id={id}
+        aria-invalid={invalid}
+        data-server-select=""
+        className="w-full"
+      >
         <SelectValue placeholder={t("pickServer")} />
       </SelectTrigger>
       <SelectContent>

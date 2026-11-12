@@ -13,7 +13,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useFormatter, useNow, useTranslations } from "use-intl";
 import { z } from "zod";
@@ -40,14 +40,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -510,34 +509,38 @@ function SettingsCard({ data }: { data: InstanceUpdatesData }) {
         <CardDescription>{t("settingsDescription")}</CardDescription>
       </CardHeader>
       <CardContent>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex max-w-2xl flex-col gap-4"
-          >
-            <FormField
-              control={form.control}
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex max-w-2xl flex-col gap-4"
+        >
+          <FieldGroup>
+            <Controller
               name="channel"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("channel")}</FormLabel>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="instance-update-channel">
+                    {t("channel")}
+                  </FieldLabel>
                   <Select
                     value={field.value}
                     onValueChange={(value) =>
                       field.onChange(value ?? data.channel)
                     }
                   >
-                    <FormControl>
-                      <SelectTrigger className="w-48">
-                        <SelectValue>
-                          {(value: string) =>
-                            value === "beta"
-                              ? t("channelBeta")
-                              : t("channelStable")
-                          }
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
+                    <SelectTrigger
+                      id="instance-update-channel"
+                      aria-invalid={fieldState.invalid}
+                      className="w-48"
+                    >
+                      <SelectValue>
+                        {(value: string) =>
+                          value === "beta"
+                            ? t("channelBeta")
+                            : t("channelStable")
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="stable">
                         {t("channelStable")}
@@ -545,67 +548,79 @@ function SettingsCard({ data }: { data: InstanceUpdatesData }) {
                       <SelectItem value="beta">{t("channelBeta")}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormDescription>{t("channelDescription")}</FormDescription>
-                  <FormMessage />
-                </FormItem>
+                  <FieldDescription>{t("channelDescription")}</FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="autoUpdate"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center gap-2">
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormLabel className="font-normal">
-                      {t("autoUpdate")}
-                    </FormLabel>
-                  </div>
-                  <FormDescription>
-                    {t("autoUpdateDescription")}
-                  </FormDescription>
-                </FormItem>
-              )}
-            />
-            <FormField
               control={form.control}
-              name="window"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("window")}</FormLabel>
-                  <FormControl>
-                    <Input type="time" className="w-32" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    {t("windowDescription", { zone: data.timeZone })}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+              render={({ field, fieldState }) => (
+                <Field
+                  orientation="horizontal"
+                  data-invalid={fieldState.invalid}
+                >
+                  <Switch
+                    id="instance-update-auto"
+                    aria-invalid={fieldState.invalid}
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                  <FieldContent>
+                    <FieldLabel
+                      htmlFor="instance-update-auto"
+                      className="font-normal"
+                    >
+                      {t("autoUpdate")}
+                    </FieldLabel>
+                    <FieldDescription>
+                      {t("autoUpdateDescription")}
+                    </FieldDescription>
+                  </FieldContent>
+                </Field>
               )}
             />
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => form.reset()}
-                disabled={loading || !form.formState.isDirty}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading && (
-                  <Loader2 data-icon="inline-start" className="animate-spin" />
-                )}
-                {tCommon("save")}
-              </Button>
-            </div>
-          </form>
-        </Form>
+            <Controller
+              name="window"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="instance-update-window">
+                    {t("window")}
+                  </FieldLabel>
+                  <Input
+                    type="time"
+                    className="w-32"
+                    {...field}
+                    id="instance-update-window"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldDescription>
+                    {t("windowDescription", { zone: data.timeZone })}
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
+              )}
+            />
+          </FieldGroup>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => form.reset()}
+              disabled={loading || !form.formState.isDirty}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && (
+                <Loader2 data-icon="inline-start" className="animate-spin" />
+              )}
+              {tCommon("save")}
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   );

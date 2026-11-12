@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
 import { useEffect } from "react";
-import { useWatch } from "react-hook-form";
+import { Controller, useWatch } from "react-hook-form";
 import { useTranslations } from "use-intl";
 import { AdvancedOptions } from "@/components/advanced-options";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -115,24 +114,24 @@ export function GeneralTab({
     </div>
   );
   const urlField = (
-    <FormField
-      control={form.control}
+    <Controller
       name="url"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel htmlFor="env-url">{t("url")}</FormLabel>
-          <FormControl id="env-url">
-            <Input
-              type="url"
-              inputMode="url"
-              className="font-mono"
-              placeholder="https://app.example.com"
-              {...field}
-            />
-          </FormControl>
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor="env-url">{t("url")}</FieldLabel>
+          <Input
+            type="url"
+            inputMode="url"
+            className="font-mono"
+            placeholder="https://app.example.com"
+            {...field}
+            id="env-url"
+            aria-invalid={fieldState.invalid}
+          />
           <Hint>{t("urlHint")}</Hint>
-          <FormMessage />
-        </FormItem>
+          <FieldError errors={[fieldState.error]} />
+        </Field>
       )}
     />
   );
@@ -141,150 +140,160 @@ export function GeneralTab({
     <div className="flex flex-col gap-6">
       <Card>
         <CardContent>
-          <form
-            onSubmit={form.handleSubmit(onSave)}
-            className="flex flex-col gap-6"
-          >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel htmlFor="env-name">{t("name")}</FormLabel>
-                  <FormControl id="env-name">
-                    <Input placeholder={t("namePlaceholder")} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
+          <form onSubmit={form.handleSubmit(onSave)}>
+            <FieldGroup>
+              <Controller
+                name="name"
                 control={form.control}
-                name="kind"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("kind")}</FormLabel>
-                    <Select
-                      value={field.value || KIND_NONE}
-                      onValueChange={(v) =>
-                        field.onChange(!v || v === KIND_NONE ? "" : v)
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={KIND_NONE}>
-                          {t("kindNone")}
-                        </SelectItem>
-                        {ENV_KINDS.map((k) => (
-                          <SelectItem key={k} value={k}>
-                            {tKinds(k)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Hint>{t("kindHint")}</Hint>
-                    <FormMessage />
-                  </FormItem>
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="env-name">{t("name")}</FieldLabel>
+                    <Input
+                      placeholder={t("namePlaceholder")}
+                      {...field}
+                      id="env-name"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="ownerId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("owner")}</FormLabel>
-                    <Select
-                      value={field.value || OWNER_NONE}
-                      onValueChange={(v) =>
-                        field.onChange(!v || v === OWNER_NONE ? "" : v)
-                      }
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Controller
+                  name="kind"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="env-kind">{t("kind")}</FieldLabel>
+                      <Select
+                        value={field.value || KIND_NONE}
+                        onValueChange={(v) =>
+                          field.onChange(!v || v === KIND_NONE ? "" : v)
+                        }
+                      >
+                        <SelectTrigger
+                          id="env-kind"
+                          aria-invalid={fieldState.invalid}
+                          className="w-full"
+                        >
                           <SelectValue />
                         </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={OWNER_NONE}>
-                          {t("ownerNone")}
-                        </SelectItem>
-                        {ownerOptions.map((u) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            <span className="flex min-w-0 items-center gap-2">
-                              <UserAvatar user={u} size="xs" />
-                              <span className="truncate">{u.name}</span>
-                              {u.banned && (
-                                <span className="shrink-0 text-xs text-muted-foreground">
-                                  ({tPeople("deactivated")})
-                                </span>
-                              )}
-                            </span>
+                        <SelectContent>
+                          <SelectItem value={KIND_NONE}>
+                            {t("kindNone")}
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Hint>{t("ownerHint")}</Hint>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            {hasDomain && derivedUrl}
-
-            <AdvancedOptions
-              attempt={form.formState.submitCount}
-              invalid={!!(errors.projectId || (!hasDomain && errors.url))}
-            >
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="env-slug">{tSettings("slug")}</Label>
-                <Input
-                  id="env-slug"
-                  className="font-mono"
-                  value={environment.slug}
-                  disabled
-                  readOnly
+                          {ENV_KINDS.map((k) => (
+                            <SelectItem key={k} value={k}>
+                              {tKinds(k)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Hint>{t("kindHint")}</Hint>
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
                 />
-                <Hint>{tSettings("slugHint")}</Hint>
+                <Controller
+                  name="ownerId"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="env-owner">{t("owner")}</FieldLabel>
+                      <Select
+                        value={field.value || OWNER_NONE}
+                        onValueChange={(v) =>
+                          field.onChange(!v || v === OWNER_NONE ? "" : v)
+                        }
+                      >
+                        <SelectTrigger
+                          id="env-owner"
+                          aria-invalid={fieldState.invalid}
+                          className="w-full"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={OWNER_NONE}>
+                            {t("ownerNone")}
+                          </SelectItem>
+                          {ownerOptions.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              <span className="flex min-w-0 items-center gap-2">
+                                <UserAvatar user={u} size="xs" />
+                                <span className="truncate">{u.name}</span>
+                                {u.banned && (
+                                  <span className="shrink-0 text-xs text-muted-foreground">
+                                    ({tPeople("deactivated")})
+                                  </span>
+                                )}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Hint>{t("ownerHint")}</Hint>
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
               </div>
-              {!hasDomain && urlField}
-              <FormField
-                control={form.control}
-                name="projectId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("project")}</FormLabel>
-                    <Select
-                      value={field.value || null}
-                      onValueChange={(v) => field.onChange(v ?? "")}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
+              {hasDomain && derivedUrl}
+
+              <AdvancedOptions
+                attempt={form.formState.submitCount}
+                invalid={!!(errors.projectId || (!hasDomain && errors.url))}
+              >
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="env-slug">{tSettings("slug")}</Label>
+                  <Input
+                    id="env-slug"
+                    className="font-mono"
+                    value={environment.slug}
+                    disabled
+                    readOnly
+                  />
+                  <Hint>{tSettings("slugHint")}</Hint>
+                </div>
+                {!hasDomain && urlField}
+                <Controller
+                  name="projectId"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field data-invalid={fieldState.invalid}>
+                      <FieldLabel htmlFor="env-project">
+                        {t("project")}
+                      </FieldLabel>
+                      <Select
+                        value={field.value || null}
+                        onValueChange={(v) => field.onChange(v ?? "")}
+                      >
+                        <SelectTrigger
+                          id="env-project"
+                          aria-invalid={fieldState.invalid}
+                          className="w-full"
+                        >
                           <SelectValue placeholder={t("pickProject")} />
                         </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {projects.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                            <span className="ms-2 text-xs text-muted-foreground">
-                              {p.key}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </AdvancedOptions>
+                        <SelectContent>
+                          {projects.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                              <span className="ms-2 text-xs text-muted-foreground">
+                                {p.key}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldError errors={[fieldState.error]} />
+                    </Field>
+                  )}
+                />
+              </AdvancedOptions>
 
-            <SaveButton />
+              <SaveButton />
+            </FieldGroup>
           </form>
         </CardContent>
       </Card>

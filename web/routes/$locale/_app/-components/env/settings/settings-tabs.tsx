@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FormProvider } from "react-hook-form";
 import { useTranslations } from "use-intl";
 import {
   Card,
@@ -7,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Form } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { domainUrl } from "@/lib/domains/validation";
 import type { DeployTargetState } from "@/web/api/deploys";
@@ -114,7 +114,7 @@ export function EnvironmentSettingsTabs({
   );
 
   return (
-    <Form {...form}>
+    <FormProvider {...form}>
       <Tabs
         value={tab}
         onValueChange={(value: SettingsTabId) => {
@@ -194,6 +194,6 @@ export function EnvironmentSettingsTabs({
           </Card>
         </TabsContent>
       </Tabs>
-    </Form>
+    </FormProvider>
   );
 }

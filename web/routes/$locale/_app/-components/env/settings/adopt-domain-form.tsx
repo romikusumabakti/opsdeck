@@ -1,19 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -89,54 +87,57 @@ export function AdoptDomainForm({ environmentId }: { environmentId: string }) {
   const loading = form.formState.isSubmitting;
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <p className="text-sm text-muted-foreground">
-          {t("adopt.description")}
-        </p>
-        <FormField
-          control={form.control}
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      className="flex flex-col gap-4"
+    >
+      <p className="text-sm text-muted-foreground">{t("adopt.description")}</p>
+      <FieldGroup>
+        <Controller
           name="hostname"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("adopt.hostname")}</FormLabel>
-              <FormControl>
-                <Input
-                  autoComplete="off"
-                  className="font-mono"
-                  placeholder="app.example.com"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="adopt-domain-hostname">
+                {t("adopt.hostname")}
+              </FieldLabel>
+              <Input
+                autoComplete="off"
+                className="font-mono"
+                placeholder="app.example.com"
+                {...field}
+                id="adopt-domain-hostname"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="remoteTunnelId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("adopt.tunnel")}</FormLabel>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="adopt-domain-tunnel">
+                {t("adopt.tunnel")}
+              </FieldLabel>
               <Select
                 value={field.value || undefined}
                 onValueChange={(value) => field.onChange(value ?? "")}
                 disabled={tunnels.length === 0}
               >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        tunnels.length === 0
-                          ? t("adopt.noTunnels")
-                          : t("adopt.tunnelPlaceholder")
-                      }
-                    />
-                  </SelectTrigger>
-                </FormControl>
+                <SelectTrigger
+                  id="adopt-domain-tunnel"
+                  aria-invalid={fieldState.invalid}
+                >
+                  <SelectValue
+                    placeholder={
+                      tunnels.length === 0
+                        ? t("adopt.noTunnels")
+                        : t("adopt.tunnelPlaceholder")
+                    }
+                  />
+                </SelectTrigger>
                 <SelectContent>
                   {tunnels.map((tunnel) => (
                     <SelectItem key={tunnel.id} value={tunnel.id}>
@@ -145,35 +146,39 @@ export function AdoptDomainForm({ environmentId }: { environmentId: string }) {
                   ))}
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="service"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("adopt.service")}</FormLabel>
-              <FormControl>
-                <Input
-                  autoComplete="off"
-                  className="font-mono"
-                  placeholder="http://container:port"
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>{t("adopt.serviceDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="adopt-domain-service">
+                {t("adopt.service")}
+              </FieldLabel>
+              <Input
+                autoComplete="off"
+                className="font-mono"
+                placeholder="http://container:port"
+                {...field}
+                id="adopt-domain-service"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>
+                {t("adopt.serviceDescription")}
+              </FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <div className="flex justify-end">
-          <Button type="submit" variant="outline" disabled={loading}>
-            {loading ? t("adopt.adopting") : t("adopt.submit")}
-          </Button>
-        </div>
-      </form>
-    </Form>
+      </FieldGroup>
+      <div className="flex justify-end">
+        <Button type="submit" variant="outline" disabled={loading}>
+          {loading ? t("adopt.adopting") : t("adopt.submit")}
+        </Button>
+      </div>
+    </form>
   );
 }
