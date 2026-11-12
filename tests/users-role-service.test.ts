@@ -79,6 +79,14 @@ describe("changing a role", () => {
   });
 });
 
+describe("setting pm", () => {
+  it("sets a user to pm", async () => {
+    const result = await updateUserRole({ userId: "u2", role: "pm" });
+    expect(result.success).toBe(true);
+    expect(db.writes.map((w) => w.table)).toEqual([schema.users]);
+  });
+});
+
 describe("inviting", () => {
   it.each(["member", "viewer", "", "toString"])(
     "refuses to invite with role %j",
@@ -93,7 +101,7 @@ describe("inviting", () => {
     }
   );
 
-  it("invites with each of the five roles", async () => {
+  it("invites with each of the six roles", async () => {
     for (const role of ORG_ROLES) {
       const result = await inviteUser({
         email: `${role}@acme.test`,

@@ -113,12 +113,20 @@ describe("Change role submenu", () => {
     await click(byText('[role="menuitem"]', en.roleChangeTitle));
   }
 
-  it("offers the five roles, each with a one-line description", async () => {
+  it("offers the six roles, each with a one-line description", async () => {
     await openRoleSubmenu(user("qa"));
-    for (const label of ["Admin", "Infra", "Engineer", "QA / BA", "Observer"]) {
+    for (const label of [
+      "Admin",
+      "Infra",
+      "Engineer",
+      "QA / BA",
+      "PM",
+      "Observer",
+    ]) {
       expect(bodyText()).toContain(label);
     }
     expect(bodyText()).toContain(en.roleDescription.engineer);
+    expect(bodyText()).toContain(en.roleDescription.pm);
     expect(bodyText()).not.toContain("Member");
   });
 });

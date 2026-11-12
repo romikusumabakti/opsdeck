@@ -1299,6 +1299,7 @@
       "infra": "Infraestructura",
       "engineer": "Ingeniero",
       "qa": "QA / BA",
+      "pm": "PM",
       "observer": "Supervisor"
     },
     "rolePlaceholder": "Selecciona un rol",
@@ -1307,6 +1308,7 @@
       "infra": "Todos los proyectos, además de servidores, almacenamiento y túneles",
       "engineer": "Acceso completo a sus proyectos, además de terminales y archivos del servidor",
       "qa": "Sus proyectos: incidencias, reinicios, copias de seguridad y restauraciones, correo y reloj",
+      "pm": "Sus proyectos, con permisos de QA: incidencias, reinicios, copias de seguridad y restauraciones, correo y reloj",
       "observer": "Acceso de solo lectura a todos los proyectos"
     },
     "roleChangeTitle": "Cambiar rol",

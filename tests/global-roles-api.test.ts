@@ -55,6 +55,10 @@ vi.mock("@/lib/auth-session", () => ({
   getServerSession: async () => ({ user: { id: "u1", role: state.role } }),
 }));
 vi.mock("@/lib/activity", () => ({ recordActivity: vi.fn() }));
+vi.mock("@/lib/environments", async (o) => ({
+  ...(await o<typeof import("@/lib/environments")>()),
+  loadEnvironmentWithServers: async () => null,
+}));
 vi.mock("@/lib/deploy/repository", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/deploy/repository")>()),
   getTarget: async (id: string) =>
@@ -73,6 +77,13 @@ const deploy = () =>
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ targetId: TARGET, tag: "v1.0.0" }),
+  });
+
+const control = (action: string) =>
+  app.request("/api/services/control-service", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ environmentId: ENV1, role: "backend", action }),
   });
 
 describe("global job roles through the API", () => {
@@ -102,5 +113,28 @@ describe("global job roles through the API", () => {
   it("an engineer who is not a member gets 404 on another project's deploy", async () => {
     as("engineer", P2);
     expect((await deploy()).status).toBe(404);
+  });
+
+  it("a pm sees only their memberships, with the qa set", async () => {
+    as("pm", P1);
+    const res = await app.request("/api/project-catalog/my-access");
+    expect(await res.json()).toEqual({ all: false, roles: { [P1]: "qa" } });
+  });
+
+  it("a pm member cannot deploy (403)", async () => {
+    as("pm", P1);
+    expect((await deploy()).status).toBe(403);
+  });
+
+  it("a pm member cannot start or stop a service (403)", async () => {
+    as("pm", P1);
+    expect((await control("start")).status).toBe(403);
+    expect((await control("stop")).status).toBe(403);
+  });
+
+  it("a pm member passes the restart guard", async () => {
+    as("pm", P1);
+    const { status } = await control("restart");
+    expect([401, 403, 404]).not.toContain(status);
   });
 });

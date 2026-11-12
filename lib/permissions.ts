@@ -6,8 +6,9 @@
 // both the org-level rights (orgRoles) and, on every project the user can see,
 // which project statement set applies (ProjectRole: viewer, qa or engineer).
 // ProjectRole is that statement-set key, not a stored per-project value.
-// admin, infra and observer see every project; engineer and qa see the
-// projects they are members of. Roles are defined in code on purpose; admins
+// admin, infra and observer see every project; engineer, qa and pm see the
+// projects they are members of. pm holds exactly the qa set (it only carries
+// a different label). Roles are defined in code on purpose; admins
 // only assign them.
 // See docs/superpowers/specs/2026-11-12-global-roles-design.md (and, for the
 // statements themselves, 2026-10-03-access-control-design.md).
@@ -20,6 +21,7 @@ export const ORG_ROLES = [
   "infra",
   "engineer",
   "qa",
+  "pm",
   "observer",
 ] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
@@ -74,6 +76,10 @@ export const orgRoles = {
     knowledge: ["read", "write"],
   }),
   qa: orgAc.newRole({
+    knowledge: ["read", "write"],
+  }),
+  // pm is qa under another name: the same org rights.
+  pm: orgAc.newRole({
     knowledge: ["read", "write"],
   }),
   observer: orgAc.newRole({
@@ -186,10 +192,11 @@ export function projectRoleForOrgRole(
     return "engineer";
   }
   if (org === "observer") return "viewer";
+  if (org === "qa" || org === "pm") return "qa";
   return "qa";
 }
 
-// admin, infra and observer see every project; engineer and qa only the
+// admin, infra and observer see every project; engineer, qa and pm only the
 // projects they are members of.
 export function seesAllProjects(orgRole: string | null | undefined): boolean {
   const org = normalizeOrgRole(orgRole);

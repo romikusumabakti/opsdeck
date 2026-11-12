@@ -1299,6 +1299,7 @@
       "infra": "Infra",
       "engineer": "Engineer",
       "qa": "QA / BA",
+      "pm": "PM",
       "observer": "Observer"
     },
     "rolePlaceholder": "Select a role",
@@ -1307,6 +1308,7 @@
       "infra": "Every project, plus servers, storage and tunnels",
       "engineer": "Their projects in full, plus server terminals and files",
       "qa": "Their projects: issues, restarts, backups and restores, mail and clock",
+      "pm": "Their projects, with QA rights: issues, restarts, backups and restores, mail and clock",
       "observer": "Read-only access to every project"
     },
     "roleChangeTitle": "Change role",

@@ -1299,6 +1299,7 @@
       "infra": "Infra",
       "engineer": "Engineer",
       "qa": "QA / BA",
+      "pm": "PM",
       "observer": "Pemantau"
     },
     "rolePlaceholder": "Pilih peran",
@@ -1307,6 +1308,7 @@
       "infra": "Semua project, ditambah server, storage, dan tunnel",
       "engineer": "Akses penuh ke project-nya, ditambah terminal dan file server",
       "qa": "Project-nya: issue, restart, backup dan restore, mail, dan jam",
+      "pm": "Project-nya, dengan hak QA: issue, restart, backup dan restore, mail, dan jam",
       "observer": "Akses baca saja ke semua project"
     },
     "roleChangeTitle": "Ubah peran",

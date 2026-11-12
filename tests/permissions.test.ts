@@ -8,6 +8,7 @@ import {
   canProject,
   canRegisterApp,
   effectiveProjectRole,
+  holdsEngineerAnywhere,
   normalizeOrgRole,
   ORG_ROLES,
   type OrgRole,
@@ -38,7 +39,17 @@ const JUNK_ROLES = [
 ];
 
 describe("normalizeOrgRole", () => {
-  it("keeps the five roles", () => {
+  it("lists the six roles in order", () => {
+    expect(ORG_ROLES).toEqual([
+      "admin",
+      "infra",
+      "engineer",
+      "qa",
+      "pm",
+      "observer",
+    ]);
+  });
+  it("keeps the six roles", () => {
     for (const r of ORG_ROLES) expect(normalizeOrgRole(r)).toBe(r);
   });
   it("floors member, legacy and junk roles to qa", () => {
@@ -90,6 +101,21 @@ describe("effectiveProjectRole", () => {
   });
 });
 
+describe("pm", () => {
+  it("holds the qa set on memberships and nothing elsewhere", () => {
+    expect(projectRoleForOrgRole("pm")).toBe("qa");
+    expect(effectiveProjectRole("pm", true)).toBe("qa");
+    expect(effectiveProjectRole("pm", false)).toBeNull();
+    expect(seesAllProjects("pm")).toBe(false);
+  });
+  it("has no engineer grant", () => {
+    expect(holdsEngineerAnywhere("pm")).toBe(false);
+    expect(canCreateProject("pm")).toBe(false);
+    expect(canRegisterApp("pm")).toBe(false);
+    expect(canOrgAccess("pm", { server: ["read"] })).toBe(false);
+  });
+});
+
 describe("seesAllProjects", () => {
   it.each([
     ["admin", true],
@@ -106,26 +132,26 @@ describe("seesAllProjects", () => {
 // The spec's org matrix, verbatim. One row per statement, one column per role.
 // biome-ignore format: kept as a one-row-per-statement table to mirror the spec
 const ORG_MATRIX: [string, string, Record<OrgRole, boolean>][] = [
-  ["user", "list", { admin: true, infra: false, observer: true, engineer: false, qa: false }],
-  ["user", "invite", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
-  ["user", "set-role", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
-  ["user", "offboard", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
-  ["project", "create", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
-  ["project", "delete", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
-  ["server", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false }],
-  ["server", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
-  ["server", "terminal", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
-  ["server", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
-  ["storage", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false }],
-  ["storage", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
-  ["storage", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
-  ["tunnel", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false }],
-  ["tunnel", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
-  ["integration", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
-  ["knowledge", "read", { admin: true, infra: true, observer: true, engineer: true, qa: true }],
-  ["knowledge", "write", { admin: true, infra: true, observer: false, engineer: true, qa: true }],
-  ["knowledge", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
-  ["audit", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false }],
+  ["user", "list", { admin: true, infra: false, observer: true, engineer: false, qa: false, pm: false }],
+  ["user", "invite", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
+  ["user", "set-role", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
+  ["user", "offboard", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
+  ["project", "create", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
+  ["project", "delete", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
+  ["server", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, pm: false }],
+  ["server", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
+  ["server", "terminal", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
+  ["server", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
+  ["storage", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, pm: false }],
+  ["storage", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
+  ["storage", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
+  ["tunnel", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, pm: false }],
+  ["tunnel", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
+  ["integration", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
+  ["knowledge", "read", { admin: true, infra: true, observer: true, engineer: true, qa: true, pm: true }],
+  ["knowledge", "write", { admin: true, infra: true, observer: false, engineer: true, qa: true, pm: true }],
+  ["knowledge", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
+  ["audit", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, pm: false }],
 ];
 
 describe("canOrg matrix", () => {
