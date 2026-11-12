@@ -3283,6 +3283,7 @@
     "belowMinFrom": "لا يمكن لهذا الإصدار التحديث إلى {version} مباشرة. حدّث أولًا إلى {minFrom} أو أحدث.",
     "checkFailed": "تعذّر الوصول إلى GitHub للتحقق من التحديثات. هذه آخر نتيجة معروفة.",
     "lastChecked": "تم التحقق {time}.",
+    "checkNow": "تحقق الآن",
     "neverChecked": "لم يتم التحقق بعد.",
     "updaterMissingTitle": "أداة التحديث غير مثبتة",
     "updaterMissingDescription": "لم تُثبَّت هذه اللوحة باستخدام install.sh، لذا لا يمكنها تحديث نفسها أو استعادتها من هنا.",

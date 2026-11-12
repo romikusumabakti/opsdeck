@@ -83,6 +83,9 @@ export const instanceRouter = sessionRouter()
       )
   )
   .get("/updates", async (c) => c.json(await getInstanceUpdates()))
+  .post("/updates/check", async (c) =>
+    c.json(await getInstanceUpdates({ force: true }))
+  )
   .put("/updates/settings", json(updateSettingsSchema), async (c) =>
     c.json(await saveInstanceUpdateSettings(c.req.valid("json")))
   )

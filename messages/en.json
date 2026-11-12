@@ -3283,6 +3283,7 @@
     "belowMinFrom": "This version cannot update to {version} directly. Update to {minFrom} or later first.",
     "checkFailed": "GitHub could not be reached to check for updates. This is the last known result.",
     "lastChecked": "Checked {time}.",
+    "checkNow": "Check now",
     "neverChecked": "Not checked yet.",
     "updaterMissingTitle": "The updater is not installed",
     "updaterMissingDescription": "This Panel was not installed with install.sh, so it cannot update or restore itself from here.",

@@ -3283,6 +3283,7 @@
     "belowMinFrom": "Esta versión no puede actualizarse directamente a {version}. Actualice primero a {minFrom} o posterior.",
     "checkFailed": "No se pudo contactar con GitHub para buscar actualizaciones. Este es el último resultado conocido.",
     "lastChecked": "Comprobado {time}.",
+    "checkNow": "Comprobar ahora",
     "neverChecked": "Aún no comprobado.",
     "updaterMissingTitle": "El actualizador no está instalado",
     "updaterMissingDescription": "Este Panel no se instaló con install.sh, así que no puede actualizarse ni restaurarse desde aquí.",

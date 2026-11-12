@@ -3283,6 +3283,7 @@
     "belowMinFrom": "此版本无法直接更新到 {version}。请先更新到 {minFrom} 或更高版本。",
     "checkFailed": "无法连接 GitHub 检查更新。以下是最后一次已知的结果。",
     "lastChecked": "检查于 {time}。",
+    "checkNow": "立即检查",
     "neverChecked": "尚未检查。",
     "updaterMissingTitle": "未安装更新程序",
     "updaterMissingDescription": "此 Panel 不是用 install.sh 安装的，因此无法在这里自行更新或恢复。",

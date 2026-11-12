@@ -3283,6 +3283,7 @@
     "belowMinFrom": "Versi ini tidak bisa langsung diperbarui ke {version}. Perbarui dulu ke {minFrom} atau yang lebih baru.",
     "checkFailed": "GitHub tidak dapat dihubungi untuk memeriksa pembaruan. Ini hasil terakhir yang diketahui.",
     "lastChecked": "Diperiksa {time}.",
+    "checkNow": "Cek sekarang",
     "neverChecked": "Belum diperiksa.",
     "updaterMissingTitle": "Updater belum terpasang",
     "updaterMissingDescription": "Panel ini tidak dipasang dengan install.sh, jadi tidak bisa memperbarui atau memulihkan dirinya dari sini.",

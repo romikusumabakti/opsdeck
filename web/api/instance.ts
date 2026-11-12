@@ -71,6 +71,11 @@ export async function saveInstanceUpdateSettings(
   return parseResponse(routes.updates.settings.$put({ json }));
 }
 
+/** Re-reads the releases now instead of the hourly cached result. */
+export async function checkInstanceUpdates() {
+  return parseResponse(routes.updates.check.$post());
+}
+
 export async function applyInstanceUpdate(version: string) {
   return parseResponse(routes.updates.apply.$post({ json: { version } }));
 }

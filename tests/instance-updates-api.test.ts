@@ -254,6 +254,7 @@ describe("permissions", () => {
       state.role = role;
       const calls: [string, string, unknown?][] = [
         ["GET", "/api/instance/updates"],
+        ["POST", "/api/instance/updates/check"],
         ["PUT", "/api/instance/updates/settings", { channel: "nope" }],
         ["POST", "/api/instance/updates/apply", { version: "../x" }],
         ["POST", "/api/instance/updates/restore-safety-backup", {}],
@@ -332,6 +333,22 @@ describe("GET /api/instance/updates", () => {
       available: AVAILABLE,
       checkError: "updateCheckFailed",
     });
+  });
+});
+
+describe("POST /api/instance/updates/check", () => {
+  it("forces a fresh release check and returns the page data", async () => {
+    const res = await send("POST", "/api/instance/updates/check");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      current: "1.2.0",
+      available: AVAILABLE,
+      checkError: null,
+    });
+    expect(state.checkCalls).toEqual([
+      { channel: "stable", current: "1.2.0", force: true },
+    ]);
+    expect(await readdir(dirs.updates)).toEqual([]);
   });
 });
 

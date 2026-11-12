@@ -103,11 +103,21 @@ async function loadSettings() {
   return row;
 }
 
-export async function getInstanceUpdates(): Promise<InstanceUpdatesPage> {
+/**
+ * The Updates tab's data. `force` re-reads the releases now instead of the
+ * hourly cached result (the "Check now" button).
+ */
+export async function getInstanceUpdates(
+  opts: { force?: boolean } = {}
+): Promise<InstanceUpdatesPage> {
   await requireInstanceManage();
   const row = await loadSettings();
   const [check, installed] = await Promise.all([
-    checkForUpdate(row.updateChannel, OPSDECK_VERSION),
+    checkForUpdate(
+      row.updateChannel,
+      OPSDECK_VERSION,
+      opts.force ? { force: true } : undefined
+    ),
     updaterInstalled(UPDATES_DIR),
   ]);
   const status = installed ? await readUpdateStatus(UPDATES_DIR) : null;

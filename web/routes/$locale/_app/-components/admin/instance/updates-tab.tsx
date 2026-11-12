@@ -8,6 +8,7 @@ import {
   Download,
   ExternalLink,
   Loader2,
+  RefreshCw,
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
@@ -65,6 +66,7 @@ import {
 import { compareVersions, parseVersion } from "@/lib/version";
 import {
   applyInstanceUpdate,
+  checkInstanceUpdates,
   getInstanceUpdatesQuery,
   type InstanceUpdatesData,
   restoreSafetyBackup,
@@ -130,6 +132,7 @@ function VersionCard({ data }: { data: InstanceUpdatesData }) {
   const tCommon = useTranslations("common");
   const [applying, setApplying] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [checking, setChecking] = useState(false);
   const queryClient = useQueryClient();
   const { available } = data;
   const busy = data.pending || data.status?.state === "running";
@@ -150,6 +153,20 @@ function VersionCard({ data }: { data: InstanceUpdatesData }) {
       reportError(error);
     } finally {
       setApplying(false);
+    }
+  }
+
+  async function checkNow() {
+    setChecking(true);
+    try {
+      queryClient.setQueryData(
+        getInstanceUpdatesQuery().queryKey,
+        await checkInstanceUpdates()
+      );
+    } catch (error) {
+      reportError(error);
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -250,13 +267,29 @@ function VersionCard({ data }: { data: InstanceUpdatesData }) {
             {t("checkFailed")}
           </p>
         )}
-        <p className="text-xs text-muted-foreground">
-          {data.checkedAt
-            ? t("lastChecked", {
-                time: format.relativeTime(new Date(data.checkedAt), now),
-              })
-            : t("neverChecked")}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            {data.checkedAt
+              ? t("lastChecked", {
+                  time: format.relativeTime(new Date(data.checkedAt), now),
+                })
+              : t("neverChecked")}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={checking}
+            onClick={() => void checkNow()}
+          >
+            {checking ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <RefreshCw data-icon="inline-start" />
+            )}
+            {t("checkNow")}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

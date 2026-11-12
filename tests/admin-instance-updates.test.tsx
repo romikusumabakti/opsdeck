@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   get: vi.fn(),
   save: vi.fn(),
   apply: vi.fn(),
+  check: vi.fn(),
   restoreSafety: vi.fn(),
   restoreBackup: vi.fn(),
 }));
@@ -28,6 +29,7 @@ vi.mock("@/web/api/instance", () => ({
   }),
   saveInstanceUpdateSettings: api.save,
   applyInstanceUpdate: api.apply,
+  checkInstanceUpdates: api.check,
   restoreSafetyBackup: api.restoreSafety,
   restoreInstanceBackup: api.restoreBackup,
 }));
@@ -175,6 +177,18 @@ describe("Admin → Instance → Updates", () => {
     await render(data({ available: null }));
     expect(container.textContent).toContain(t.upToDate);
     expect(button(t.update)).toBeUndefined();
+  });
+
+  it("Check now re-reads the releases and shows a newer version", async () => {
+    await render(data({ available: null }));
+    expect(container.textContent).toContain(t.upToDate);
+    api.check.mockResolvedValue(data());
+    await act(async () => button(t.checkNow)?.click());
+    expect(api.check).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain("Version 1.2.1 is available.")
+    );
+    expect(button(t.update)?.disabled).toBe(false);
   });
 
   it("shows the live step progress of a running update and disables Update", async () => {
