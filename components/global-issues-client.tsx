@@ -365,6 +365,7 @@ export function GlobalIssuesClient({
         cell: ({ row }) => (
           <AssigneeSelect
             variant="compact"
+            className="max-w-32"
             users={users}
             value={row.original.assignee?.id ?? null}
             onChange={(a) => onAssigneeChange(row.original.id, a)}
@@ -529,6 +530,7 @@ export function GlobalIssuesClient({
                 />
                 <AssigneeSelect
                   variant="compact"
+                  className="max-w-40"
                   users={users}
                   value={issue.assignee?.id ?? null}
                   onChange={(a) => onAssigneeChange(issue.id, a)}

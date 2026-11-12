@@ -84,7 +84,7 @@ describe("issue selects compact variant", () => {
     ]) {
       const uses =
         readFileSync(file, "utf8").match(
-          /<(StatusSelect|PrioritySelect|AssigneeSelect)\b[\s\S]*?\/>/g
+          /<(StatusSelect|PrioritySelect|AssigneeSelect)\b[\s\S]*?\n\s*\/>/g
         ) ?? [];
       expect(uses.length, file).toBeGreaterThan(0);
       for (const use of uses) expect(use, file).toContain('variant="compact"');
@@ -99,11 +99,34 @@ describe("issue selects compact variant", () => {
       expect(readFileSync(file, "utf8")).not.toContain('variant="compact"');
   });
 
-  it("a long assignee name stays inside its column", () => {
-    // SSR does not mount the items, so pin the two classes that do the work.
-    expect(triggerClass(assigneeHtml("compact"))).toContain("max-w-full");
-    expect(readFileSync("components/issues-board.tsx", "utf8")).toContain(
-      '<span className="truncate">{u.name}</span>'
+  // Class pins: SSR cannot measure layout, so these guard the classes that make
+  // a long assignee name truncate instead of widening an auto-layout column.
+  it("pins the assignee truncation classes (class pin, not a layout test)", () => {
+    const board = readFileSync("components/issues-board.tsx", "utf8");
+    expect(board).toContain('<SelectValue className="min-w-0" />');
+    expect(board).toContain(
+      '<span className="flex min-w-0 items-center gap-2">'
     );
+    expect(board).toContain('<span className="truncate">{u.name}</span>');
+  });
+
+  it("caps the compact assignee trigger at every call site", () => {
+    for (const { file, cap } of [
+      { file: "components/global-issues-client.tsx", cap: "max-w-32" },
+      { file: "components/global-issues-client.tsx", cap: "max-w-40" },
+      {
+        file: "web/routes/$locale/_app/-components/issues-client.tsx",
+        cap: "max-w-32",
+      },
+    ]) {
+      const uses =
+        readFileSync(file, "utf8").match(
+          /<AssigneeSelect\b[\s\S]*?\n\s*\/>/g
+        ) ?? [];
+      expect(
+        uses.some((u) => u.includes(`className="${cap}"`)),
+        `${file} ${cap}`
+      ).toBe(true);
+    }
   });
 });

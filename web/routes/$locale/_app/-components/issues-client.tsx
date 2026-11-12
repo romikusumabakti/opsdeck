@@ -599,6 +599,7 @@ export function IssuesClient({
                     <TableCell>
                       <AssigneeSelect
                         variant="compact"
+                        className="max-w-32"
                         users={users}
                         value={issue.assignee?.id ?? null}
                         onChange={(a) => onAssigneeChange(issue.id, a)}

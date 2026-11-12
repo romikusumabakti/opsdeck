@@ -79,7 +79,8 @@ export type Swimlane = "none" | "assignee" | "milestone";
 export type SelectVariant = "default" | "compact";
 
 // "compact" sizes to content with no resting border, for dense rows and cards;
-// max-w-full keeps a long value inside a fixed-width column.
+// max-w-full only bounds the trigger by its container; in an auto-layout table
+// callers also pass an absolute cap (e.g. max-w-32) so a long value truncates.
 const COMPACT_TRIGGER =
   "h-7 w-auto max-w-full gap-1.5 border-transparent bg-transparent px-2 hover:bg-muted";
 
@@ -245,13 +246,14 @@ export function AssigneeSelect({
         className={triggerClass(variant, className)}
         aria-label={t("assignee")}
       >
-        <SelectValue />
+        {/* min-w-0 lets the value shrink so a long name truncates. */}
+        <SelectValue className="min-w-0" />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={UNASSIGNED}>{t("unassigned")}</SelectItem>
         {users.map((u) => (
           <SelectItem key={u.id} value={u.id}>
-            <span className="flex items-center gap-2">
+            <span className="flex min-w-0 items-center gap-2">
               <UserAvatar user={u} size="xs" />
               <span className="truncate">{u.name}</span>
               {u.status?.emoji && (
