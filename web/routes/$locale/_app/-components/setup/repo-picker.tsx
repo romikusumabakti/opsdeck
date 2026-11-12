@@ -1,3 +1,4 @@
+import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import * as React from "react";
@@ -10,7 +11,6 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-  ComboboxTrigger,
 } from "@/components/ui/combobox";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { type SetupRepoRow, setupReposQuery } from "@/web/api/setup";
@@ -71,7 +71,9 @@ export function RepoPicker({
       itemToStringLabel={(row) => row.repoFullName}
       itemToStringValue={(row) => `${row.ciConnectionId}:${row.repoFullName}`}
     >
-      <ComboboxTrigger
+      {/* Base UI's trigger, not ComboboxTrigger: that one appends a chevron. */}
+      <ComboboxPrimitive.Trigger
+        data-slot="combobox-trigger"
         render={
           <Button
             id="env-repo-picker"
@@ -83,7 +85,7 @@ export function RepoPicker({
       >
         <Plus data-icon="inline-start" />
         {label}
-      </ComboboxTrigger>
+      </ComboboxPrimitive.Trigger>
       <ComboboxContent className="w-96">
         <ComboboxInput showTrigger={false} placeholder={t("searchRepos")} />
         <ComboboxEmpty>

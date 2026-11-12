@@ -119,9 +119,10 @@ describe("DatabasePicker", () => {
   });
 
   it("Escape inside a dialog closes only the picker", async () => {
+    const onOpenChange = vi.fn();
     await act(async () =>
       root.render(
-        <Dialog open>
+        <Dialog open onOpenChange={onOpenChange}>
           <DialogContent>
             <DialogTitle>Restore</DialogTitle>
             {picker("", vi.fn())}
@@ -135,8 +136,21 @@ describe("DatabasePicker", () => {
 
     await press("Escape");
     expect(input()).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
     expect(
       document.querySelector('[data-slot="dialog-content"]')
     ).not.toBeNull();
+
+    // The picker is closed, so the next Escape reaches the dialog.
+    await act(async () => {
+      (document.activeElement ?? document.body).dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything());
   });
 });

@@ -642,22 +642,22 @@ export function TargetFormDialog({
             {text("healthTimeoutSeconds", { inputMode: "numeric" })}
             {toggle("autoDeploy")}
             {kind === "compose" && toggle("backupBeforeDeploy")}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button
-                type="submit"
-                disabled={cannotAdd || form.formState.isSubmitting}
-              >
-                {t("create")}
-              </Button>
-            </DialogFooter>
           </FieldGroup>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              type="submit"
+              disabled={cannotAdd || form.formState.isSubmitting}
+            >
+              {t("create")}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

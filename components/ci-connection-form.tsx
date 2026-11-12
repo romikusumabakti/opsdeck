@@ -315,15 +315,16 @@ export function CiConnectionForm({
               />
               <FieldDescription>{t("apiTokenDescription")}</FieldDescription>
               {connection.hasApiToken && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="self-start"
-                  onClick={() => setClearApiToken((v) => !v)}
-                >
-                  {clearApiToken ? t("keepStored") : t("clearStored")}
-                </Button>
+                <div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setClearApiToken((v) => !v)}
+                  >
+                    {clearApiToken ? t("keepStored") : t("clearStored")}
+                  </Button>
+                </div>
               )}
               <FieldError errors={[fieldState.error]} />
             </Field>
@@ -383,15 +384,16 @@ export function CiConnectionForm({
               />
               <FieldDescription>{t("forgeTokenDescription")}</FieldDescription>
               {connection.hasForgeToken && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="self-start"
-                  onClick={() => setClearForgeToken((v) => !v)}
-                >
-                  {clearForgeToken ? t("keepStored") : t("clearStored")}
-                </Button>
+                <div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setClearForgeToken((v) => !v)}
+                  >
+                    {clearForgeToken ? t("keepStored") : t("clearStored")}
+                  </Button>
+                </div>
               )}
               <FieldError errors={[fieldState.error]} />
             </Field>

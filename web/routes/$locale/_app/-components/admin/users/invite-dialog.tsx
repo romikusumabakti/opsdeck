@@ -168,22 +168,22 @@ export function InviteDialog({
                 </Field>
               )}
             />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleOpenChange(false)}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                <UserPlus className="size-4" />
-                {form.formState.isSubmitting
-                  ? t("inviteSubmitting")
-                  : t("inviteSubmit")}
-              </Button>
-            </DialogFooter>
           </FieldGroup>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
+              {tCommon("cancel")}
+            </Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              <UserPlus className="size-4" />
+              {form.formState.isSubmitting
+                ? t("inviteSubmitting")
+                : t("inviteSubmit")}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
