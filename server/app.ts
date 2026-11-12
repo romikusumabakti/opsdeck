@@ -33,6 +33,7 @@ import { issuesRouter } from "@/server/routes/issues";
 import { jiraRouter, jiraWebhookRouter } from "@/server/routes/jira";
 import { knowledgeRouter } from "@/server/routes/knowledge";
 import { labelsRouter } from "@/server/routes/labels";
+import { milestonesCompatRouter } from "@/server/routes/milestones-compat";
 import { mailFilesRouter, mailRouter } from "@/server/routes/mail";
 import { mailpitSettingsRouter } from "@/server/routes/mailpit-settings";
 import { mockTimeRouter } from "@/server/routes/mock-time";
@@ -97,6 +98,8 @@ export const app = createBaseApp()
   .route("/api/issues", issueAttachmentFilesRouter)
   .route("/api/issue-attachments", issueAttachmentsRouter)
   .route("/api/labels", labelsRouter)
+  // Remove with the milestones drop (plan Task 8).
+  .route("/api/milestones", milestonesCompatRouter)
   .route("/api/saved-views", savedViewsRouter)
   .route("/api/notifications", notificationsRouter)
   .route("/api/home", homeRouter)

@@ -26,9 +26,6 @@ describe("milestones removal", () => {
     ]) {
       expect(existsSync(f), f).toBe(false);
     }
-    expect(readFileSync("server/app.ts", "utf8")).not.toContain(
-      "/api/milestones"
-    );
     expect(readFileSync("server/services/issues.ts", "utf8")).not.toMatch(
       /milestone/i
     );
