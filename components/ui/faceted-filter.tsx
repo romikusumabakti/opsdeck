@@ -1,21 +1,16 @@
-import { Check, ListFilter } from "lucide-react";
+import { Combobox as ComboboxPrimitive } from "@base-ui/react";
+import { ListFilter } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 
 export type FacetOption = {
   value: string;
@@ -43,16 +38,22 @@ export function FacetedFilter({
   const t = useTranslations("dataTable");
   const active = new Set(selected);
 
-  const toggle = (value: string) => {
-    const next = new Set(active);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    onChange([...next]);
-  };
-
   return (
-    <Popover>
-      <PopoverTrigger
+    <Combobox
+      multiple
+      autoHighlight
+      items={options}
+      value={options.filter((option) => active.has(option.value))}
+      onValueChange={(next: FacetOption[]) =>
+        onChange(next.map((option) => option.value))
+      }
+      isItemEqualToValue={(a, b) => a.value === b.value}
+      itemToStringLabel={(option) => option.label}
+      itemToStringValue={(option) => option.value}
+    >
+      {/* Base UI's trigger, not ComboboxTrigger: that one appends a chevron. */}
+      <ComboboxPrimitive.Trigger
+        data-slot="combobox-trigger"
         render={
           <Button variant="outline" size="sm" className="border-dashed" />
         }
@@ -64,39 +65,23 @@ export function FacetedFilter({
             {selected.length}
           </Badge>
         )}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 gap-0 p-0">
-        <Command>
-          <CommandInput placeholder={title} />
-          <CommandList>
-            <CommandEmpty>{t("noResults")}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => {
-                const isOn = active.has(option.value);
-                return (
-                  <CommandItem
-                    key={option.value}
-                    value={option.label}
-                    data-checked={isOn || undefined}
-                    onSelect={() => toggle(option.value)}
-                  >
-                    <Check
-                      className={cn("size-4", !isOn && "invisible")}
-                      aria-hidden
-                    />
-                    <span className="flex-1 truncate">{option.label}</span>
-                    {option.count != null && (
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {option.count}
-                      </span>
-                    )}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      </ComboboxPrimitive.Trigger>
+      <ComboboxContent align="start" className="w-56">
+        <ComboboxInput showTrigger={false} placeholder={title} />
+        <ComboboxEmpty>{t("noResults")}</ComboboxEmpty>
+        <ComboboxList>
+          {(option: FacetOption) => (
+            <ComboboxItem key={option.value} value={option}>
+              <span className="flex-1 truncate">{option.label}</span>
+              {option.count != null && (
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {option.count}
+                </span>
+              )}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }
