@@ -472,6 +472,8 @@
     "startBuildHintManual": "Build {branch} sekarang; muncul di sini saat selesai, lalu deploy.",
     "buildRunning": "Build #{number} sedang berjalan…",
     "alreadyDeployed": "Sudah di-deploy",
+    "deploying": "Sedang deploy…",
+    "startsAfterRunning": "Mulai setelah deploy yang berjalan selesai",
     "waitingForFirstBuild": "Menunggu build pertama dari {branch}",
     "settingsLink": "Pengaturan deploy",
     "settingsHint": "Branch, server, dan target deploy diubah di Pengaturan → Sumber & Deploy.",

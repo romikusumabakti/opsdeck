@@ -65,6 +65,9 @@ type Deployment = DeployTargetState["recentDeployments"][number];
 type Build = DeployTargetState["recentBuilds"][number];
 type ActiveRun = { runId: string; tag: string; componentKey: string };
 
+const isActive = (d: Deployment) =>
+  d.status === "queued" || d.status === "running";
+
 /**
  * Deploy history, deploys and rollbacks. Deploy targets are edited in
  * Settings → Source & Deploy (`settingsHref`); with none yet, the empty state
@@ -89,6 +92,10 @@ export function DeploysClient({
   const lockedReason = lock
     ? t("lock.disabledHint", { reason: lock.reason })
     : null;
+  // Deploys in one environment run one at a time: a new one waits for this.
+  const environmentBusy = targets.some((target) =>
+    target.recentDeployments.some(isActive)
+  );
   const serverNames = React.useMemo(
     () => new Map(environmentServers(environment).map((s) => [s.id, s.name])),
     [environment]
@@ -158,6 +165,7 @@ export function DeploysClient({
               target={target}
               serverName={serverNames.get(target.serverId) ?? ""}
               lockedReason={lockedReason}
+              environmentBusy={environmentBusy}
               environmentId={environment.id}
               onRun={setRun}
             />
@@ -185,6 +193,7 @@ function TargetCard({
   target,
   serverName,
   lockedReason,
+  environmentBusy,
   environmentId,
   onRun,
 }: {
@@ -192,6 +201,8 @@ function TargetCard({
   serverName: string;
   // Set while the environment is locked: manual deploys and rollbacks are off.
   lockedReason: string | null;
+  // A deploy is queued or running somewhere in the environment.
+  environmentBusy: boolean;
   environmentId: string;
   onRun: (run: ActiveRun) => void;
 }) {
@@ -207,6 +218,9 @@ function TargetCard({
   const [pending, setPending] = React.useState<string | null>(null);
 
   const latest = target.recentDeployments[0];
+  const activeTags = new Set(
+    target.recentDeployments.filter(isActive).map((d) => d.tag)
+  );
   const services = target.services.join(", ");
 
   function errorText(error: unknown): string {
@@ -315,7 +329,12 @@ function TargetCard({
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">{t("currentTag")}</span>
               {target.currentTag ? (
-                <code className="font-mono">{target.currentTag}</code>
+                <>
+                  <code className="font-mono">{target.currentTag}</code>
+                  {target.currentStatus === "running" && (
+                    <DeploymentStatusBadge status="running" />
+                  )}
+                </>
               ) : (
                 <span className="italic text-muted-foreground">
                   {t("neverDeployed")}
@@ -330,7 +349,7 @@ function TargetCard({
             )}
           </div>
           {canRollback && target.previousTag && (
-            <DisabledHint reason={lockedReason}>
+            <ButtonHint hint={lockedReason}>
               <Button
                 variant="outline"
                 size="sm"
@@ -344,7 +363,7 @@ function TargetCard({
                 )}
                 {t("rollbackTo", { tag: target.previousTag })}
               </Button>
-            </DisabledHint>
+            </ButtonHint>
           )}
         </div>
 
@@ -376,8 +395,10 @@ function TargetCard({
               deployedTag={
                 target.currentStatus === "success" ? target.currentTag : null
               }
+              activeTags={activeTags}
               pending={pending}
               lockedReason={lockedReason}
+              environmentBusy={environmentBusy}
               onDeploy={canRun ? onDeploy : null}
             />
           )}
@@ -559,14 +580,19 @@ export function FirstBuild({
 function BuildsTable({
   builds,
   deployedTag,
+  activeTags,
   pending,
   lockedReason,
+  environmentBusy,
   onDeploy,
 }: {
   builds: Build[];
   deployedTag: string | null;
+  // Tags with a queued or running deployment on this target.
+  activeTags: ReadonlySet<string>;
   pending: string | null;
   lockedReason: string | null;
+  environmentBusy: boolean;
   // Null when the caller may not deploy: the column is left out entirely.
   onDeploy: ((tag: string) => void) | null;
 }) {
@@ -589,66 +615,70 @@ function BuildsTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {builds.map((build) => (
-          <TableRow key={build.id}>
-            <TableCell className="font-mono text-xs">{build.tag}</TableCell>
-            <TableCell
-              className="font-mono text-xs text-muted-foreground"
-              title={build.commitSha}
-            >
-              {build.commitSha.slice(0, 7)}
-              <BuildCommitDetail build={build} />
-            </TableCell>
-            <TableCell className="text-muted-foreground">
-              <RelativeTime date={build.receivedAt} />
-            </TableCell>
-            <TableCell>
-              {build.pipelineUrl && (
-                <a
-                  href={build.pipelineUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
-                >
-                  <ExternalLink className="size-3.5" />
-                  {t("pipeline")}
-                </a>
-              )}
-            </TableCell>
-            {onDeploy && (
-              <TableCell className="text-end">
-                <DisabledHint
-                  reason={
-                    build.tag === deployedTag
-                      ? t("alreadyDeployed")
-                      : lockedReason
-                  }
-                >
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={
-                      pending !== null ||
-                      lockedReason !== null ||
-                      build.tag === deployedTag
-                    }
-                    onClick={() => onDeploy(build.tag)}
-                  >
-                    {pending === build.tag ? (
-                      <Loader2
-                        data-icon="inline-start"
-                        className="animate-spin"
-                      />
-                    ) : (
-                      <Rocket data-icon="inline-start" />
-                    )}
-                    {t("deploy")}
-                  </Button>
-                </DisabledHint>
+        {builds.map((build) => {
+          const active = activeTags.has(build.tag);
+          const hint = active
+            ? null
+            : build.tag === deployedTag
+              ? t("alreadyDeployed")
+              : (lockedReason ??
+                (environmentBusy ? t("startsAfterRunning") : null));
+          return (
+            <TableRow key={build.id}>
+              <TableCell className="font-mono text-xs">{build.tag}</TableCell>
+              <TableCell
+                className="font-mono text-xs text-muted-foreground"
+                title={build.commitSha}
+              >
+                {build.commitSha.slice(0, 7)}
+                <BuildCommitDetail build={build} />
               </TableCell>
-            )}
-          </TableRow>
-        ))}
+              <TableCell className="text-muted-foreground">
+                <RelativeTime date={build.receivedAt} />
+              </TableCell>
+              <TableCell>
+                {build.pipelineUrl && (
+                  <a
+                    href={build.pipelineUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                  >
+                    <ExternalLink className="size-3.5" />
+                    {t("pipeline")}
+                  </a>
+                )}
+              </TableCell>
+              {onDeploy && (
+                <TableCell className="text-end">
+                  <ButtonHint hint={hint}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={
+                        active ||
+                        pending !== null ||
+                        lockedReason !== null ||
+                        build.tag === deployedTag
+                      }
+                      onClick={() => onDeploy(build.tag)}
+                    >
+                      {active || pending === build.tag ? (
+                        <Loader2
+                          data-icon="inline-start"
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <Rocket data-icon="inline-start" />
+                      )}
+                      {active ? t("deploying") : t("deploy")}
+                    </Button>
+                  </ButtonHint>
+                </TableCell>
+              )}
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
@@ -816,21 +846,21 @@ function DeploymentStatusBadge({ status }: { status: Deployment["status"] }) {
 }
 
 // A disabled button gets no pointer events of its own, so the tooltip hangs
-// off a wrapper. Without a reason the button renders as is.
-function DisabledHint({
-  reason,
+// off a wrapper. Without a hint the button renders as is.
+function ButtonHint({
+  hint,
   children,
 }: {
-  reason: string | null;
+  hint: string | null;
   children: React.ReactNode;
 }) {
-  if (reason === null) return <>{children}</>;
+  if (hint === null) return <>{children}</>;
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="inline-flex" />}>
         {children}
       </TooltipTrigger>
-      <TooltipContent>{reason}</TooltipContent>
+      <TooltipContent>{hint}</TooltipContent>
     </Tooltip>
   );
 }

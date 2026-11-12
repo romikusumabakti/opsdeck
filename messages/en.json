@@ -472,6 +472,8 @@
     "startBuildHintManual": "Build {branch} now; it shows here when done, then deploy it.",
     "buildRunning": "Build #{number} running…",
     "alreadyDeployed": "Already deployed",
+    "deploying": "Deploying…",
+    "startsAfterRunning": "Starts after the running deploy finishes",
     "waitingForFirstBuild": "Waiting for the first build of {branch}",
     "settingsLink": "Deploy settings",
     "settingsHint": "Branches, servers and deploy targets are edited in Settings → Source & Deploy.",

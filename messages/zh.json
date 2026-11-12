@@ -472,6 +472,8 @@
     "startBuildHintManual": "立即构建 {branch}；完成后显示在这里，再手动部署。",
     "buildRunning": "构建 #{number} 运行中…",
     "alreadyDeployed": "已部署",
+    "deploying": "正在部署…",
+    "startsAfterRunning": "将在当前部署完成后开始",
     "waitingForFirstBuild": "正在等待 {branch} 的首次构建",
     "settingsLink": "部署设置",
     "settingsHint": "分支、服务器和部署目标在“设置 → 源码与部署”中编辑。",

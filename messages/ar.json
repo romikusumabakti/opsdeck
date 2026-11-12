@@ -472,6 +472,8 @@
     "startBuildHintManual": "ابدأ بناء {branch} الآن؛ يظهر هنا عند اكتماله، ثم انشره.",
     "buildRunning": "البناء #{number} قيد التشغيل…",
     "alreadyDeployed": "منشور بالفعل",
+    "deploying": "جارٍ النشر…",
+    "startsAfterRunning": "يبدأ بعد انتهاء النشر الجاري",
     "waitingForFirstBuild": "في انتظار أول بناء للفرع {branch}",
     "settingsLink": "إعدادات النشر",
     "settingsHint": "تُعدَّل الفروع والخوادم وأهداف النشر من الإعدادات ← المصدر والنشر.",

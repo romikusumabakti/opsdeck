@@ -472,6 +472,8 @@
     "startBuildHintManual": "Compila {branch} ahora; aparece aquí al terminar y luego lo despliegas.",
     "buildRunning": "Compilación #{number} en curso…",
     "alreadyDeployed": "Ya desplegado",
+    "deploying": "Desplegando…",
+    "startsAfterRunning": "Empieza cuando termine el despliegue en curso",
     "waitingForFirstBuild": "Esperando la primera build de {branch}",
     "settingsLink": "Ajustes de despliegue",
     "settingsHint": "Las ramas, los servidores y los destinos se editan en Ajustes → Origen y despliegue.",
