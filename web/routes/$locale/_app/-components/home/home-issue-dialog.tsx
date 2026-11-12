@@ -139,7 +139,6 @@ export function HomeIssueDialogProvider({
           projectId={state.projectId}
           environments={current?.environments ?? []}
           users={current?.users ?? []}
-          milestones={current?.milestones ?? []}
           defaultEnvironmentId={state.environmentId ?? ""}
           defaults={state.defaults}
           loading={current === null}

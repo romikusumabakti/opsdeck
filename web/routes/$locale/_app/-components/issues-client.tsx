@@ -12,7 +12,6 @@ import {
   AssigneeSelect,
   IssueBoard,
   type IssueType,
-  type MilestoneOption,
   type Priority,
   PrioritySelect,
   STATUSES,
@@ -92,7 +91,6 @@ export function IssuesClient({
   currentEnvironmentId,
   environments,
   users,
-  milestones,
   initialIssues,
   status,
 }: {
@@ -101,7 +99,6 @@ export function IssuesClient({
   currentEnvironmentId: string;
   environments: Option[];
   users: AssignableUser[];
-  milestones: MilestoneOption[];
   initialIssues: IssueWithMeta[];
   /** The `status` URL param the list was loaded with (unset = open + in progress). */
   status: string | undefined;
@@ -136,42 +133,27 @@ export function IssuesClient({
   const [createOpen, setCreateOpen] = React.useState(false);
   const [view, setView] = React.useState<"table" | "board">("table");
   const [swimlane, setSwimlane] = React.useState<Swimlane>("none");
-  // "all" | "none" (unassigned) | a milestone id
-  const [milestoneFilter, setMilestoneFilter] = React.useState("all");
   // Paging is client-side: the project's issues are already in memory, so a
   // page is a slice. It exists to bound what the browser has to lay out and
   // what the reader has to scan, not to save a round-trip.
   const [pageIndex, setPageIndex] = React.useState(0);
   const [pageSize, setPageSize] = React.useState(DEFAULT_PAGE_SIZE);
 
-  const milestonesById = React.useMemo(
-    () => Object.fromEntries(milestones.map((m) => [m.id, m.name])),
-    [milestones]
-  );
-
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return issues.filter((i) => {
-      if (milestoneFilter === "none" && i.milestoneId) return false;
-      if (
-        milestoneFilter !== "all" &&
-        milestoneFilter !== "none" &&
-        i.milestoneId !== milestoneFilter
-      ) {
-        return false;
-      }
       if (!q) return true;
       return (
         i.title.toLowerCase().includes(q) ||
         `${projectKey}-${i.number}`.toLowerCase().includes(q)
       );
     });
-  }, [issues, query, projectKey, milestoneFilter]);
+  }, [issues, query, projectKey]);
 
   // Any change to the filtered set invalidates the page number — page 4 of the
   // old result set is rarely page 4 of the new one.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on filter change.
-  React.useEffect(() => setPageIndex(0), [query, milestoneFilter, pageSize]);
+  React.useEffect(() => setPageIndex(0), [query, pageSize]);
 
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(pageIndex, pageCount - 1);
@@ -370,25 +352,6 @@ export function IssuesClient({
             ))}
           </SelectContent>
         </Select>
-        {milestones.length > 0 ? (
-          <Select
-            value={milestoneFilter}
-            onValueChange={(v) => setMilestoneFilter(v ?? "all")}
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("allMilestones")}</SelectItem>
-              <SelectItem value="none">{t("noMilestone")}</SelectItem>
-              {milestones.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
         <div className="flex items-center gap-2 sm:ms-auto">
           {view === "board" ? (
             <Select
@@ -401,7 +364,6 @@ export function IssuesClient({
               <SelectContent>
                 <SelectItem value="none">{t("groupNone")}</SelectItem>
                 <SelectItem value="assignee">{t("groupAssignee")}</SelectItem>
-                <SelectItem value="milestone">{t("groupMilestone")}</SelectItem>
               </SelectContent>
             </Select>
           ) : null}
@@ -461,9 +423,6 @@ export function IssuesClient({
                 ? stripProjectPrefix(i.environment.name, projectName)
                 : null,
               assignee: i.assignee,
-              milestoneName: i.milestoneId
-                ? (milestonesById[i.milestoneId] ?? null)
-                : null,
               labels: i.labels,
             }))}
             onStatusChange={onStatusChange}
@@ -568,11 +527,6 @@ export function IssuesClient({
                           max={2}
                           className="inline-flex shrink-0 items-center gap-1"
                         />
-                        {issue.milestoneId ? (
-                          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                            {milestonesById[issue.milestoneId]}
-                          </span>
-                        ) : null}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -629,7 +583,6 @@ export function IssuesClient({
         projectId={projectId}
         environments={environments}
         users={users}
-        milestones={milestones}
         defaultEnvironmentId={currentEnvironmentId}
         onCreated={() => {
           setCreateOpen(false);

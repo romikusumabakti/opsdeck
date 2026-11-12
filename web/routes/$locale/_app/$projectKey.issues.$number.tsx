@@ -11,7 +11,6 @@ import { listIssueAttachmentsQuery } from "@/web/api/issue-attachments";
 import { getIssueDetailQuery, listIssuesQuery } from "@/web/api/issues";
 import { getJiraLinkQuery } from "@/web/api/jira";
 import { listLabelsQuery } from "@/web/api/labels";
-import { listMilestonesQuery } from "@/web/api/milestones";
 import { getProjectWithEnvironmentsQuery } from "@/web/api/project-catalog";
 import { listIssueTestRunsQuery } from "@/web/api/test-runs";
 import { listAssignableUsersQuery } from "@/web/api/users";
@@ -45,7 +44,6 @@ export const Route = createFileRoute(
       ),
       loaderQuery(queryClient, listAssignableUsersQuery(issue.project.id)),
       loaderQuery(queryClient, listLabelsQuery()),
-      loaderQuery(queryClient, listMilestonesQuery(issue.project.id)),
       loaderQuery(queryClient, listIssuesQuery(issue.project.id)),
       loaderQuery(queryClient, listIssueAttachmentsQuery(issue.id)),
       loaderQuery(queryClient, listIssueTestRunsQuery(issue.id)),
@@ -71,9 +69,6 @@ function IssueDetailPage() {
     listAssignableUsersQuery(issue.project.id)
   ).data;
   const allLabels = useSuspenseQuery(listLabelsQuery()).data;
-  const milestones = useSuspenseQuery(
-    listMilestonesQuery(issue.project.id)
-  ).data;
   const allIssues = useSuspenseQuery(listIssuesQuery(issue.project.id)).data;
   const attachments = useSuspenseQuery(
     listIssueAttachmentsQuery(issue.id)
@@ -130,7 +125,6 @@ function IssueDetailPage() {
         issue={issue}
         users={users}
         environments={environments}
-        milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
         siblings={siblings}
         attachments={attachments}
         testRuns={testRuns}
@@ -151,9 +145,9 @@ function IssuePending() {
       <div className="flex w-full max-w-3xl flex-col gap-6">
         <Skeleton className="h-11 w-full" />
 
-        {/* Type, status, priority, assignee, environment, milestone. */}
+        {/* Type, status, priority, assignee, environment. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {Array.from({ length: 6 }, (_, i) => (
+          {Array.from({ length: 5 }, (_, i) => (
             <div key={`meta-${i}`} className="flex flex-col gap-1.5">
               <Skeleton className="h-3 w-16" />
               <Skeleton className="h-8 w-full" />

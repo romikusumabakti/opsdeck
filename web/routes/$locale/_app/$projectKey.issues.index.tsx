@@ -4,7 +4,6 @@ import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { resolveStatusFilter } from "@/lib/issue-query";
 import { listIssuesQuery } from "@/web/api/issues";
-import { listMilestonesQuery } from "@/web/api/milestones";
 import { getProjectByKeyWithEnvironmentsQuery } from "@/web/api/project-catalog";
 import { listAssignableUsersQuery } from "@/web/api/users";
 import { requireProjectRole } from "@/web/project-guard";
@@ -44,7 +43,6 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/issues/")({
         listIssuesQuery(project.id, statusesFor(status))
       ),
       loaderQuery(queryClient, listAssignableUsersQuery(project.id)),
-      loaderQuery(queryClient, listMilestonesQuery(project.id)),
     ]);
   },
   pendingComponent: IssuesPending,
@@ -63,7 +61,6 @@ function ProjectIssuesPage() {
     listIssuesQuery(project.id, statusesFor(status))
   ).data;
   const users = useSuspenseQuery(listAssignableUsersQuery(project.id)).data;
-  const milestones = useSuspenseQuery(listMilestonesQuery(project.id)).data;
 
   return (
     <>
@@ -78,7 +75,6 @@ function ProjectIssuesPage() {
           name: e.name,
         }))}
         users={users}
-        milestones={milestones.map((m) => ({ id: m.id, name: m.name }))}
         initialIssues={issues}
         status={status}
       />

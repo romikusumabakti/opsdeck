@@ -69,12 +69,11 @@ export type BoardIssue = {
   keyPrefix: string;
   envName?: string | null;
   assignee?: UserRef | null;
-  milestoneName?: string | null;
   projectName?: string | null;
   labels?: LabelLite[];
 };
 
-export type Swimlane = "none" | "assignee" | "milestone";
+export type Swimlane = "none" | "assignee";
 
 export type SelectVariant = "default" | "compact";
 
@@ -267,46 +266,6 @@ export function AssigneeSelect({
   );
 }
 
-export type MilestoneOption = { id: string; name: string };
-
-const NO_MILESTONE = "__none";
-
-// Milestone picker reused by the create dialog and issue detail. `null` = none.
-export function MilestoneSelect({
-  milestones,
-  value,
-  onChange,
-  className,
-}: {
-  milestones: MilestoneOption[];
-  value: string | null;
-  onChange: (milestoneId: string | null) => void;
-  className?: string;
-}) {
-  const t = useTranslations("issues");
-  return (
-    <Select
-      value={value ?? NO_MILESTONE}
-      onValueChange={(v) => onChange(!v || v === NO_MILESTONE ? null : v)}
-    >
-      <SelectTrigger
-        className={cn("h-8 w-full", className)}
-        aria-label={t("milestone")}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NO_MILESTONE}>{t("noMilestone")}</SelectItem>
-        {milestones.map((m) => (
-          <SelectItem key={m.id} value={m.id}>
-            {m.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 // Kanban-by-status board. Columns are the fixed status set; each card can move
 // via its own StatusSelect (no drag dependency).
 function IssueCard({
@@ -416,7 +375,7 @@ function StatusColumns({
 }
 
 // Kanban-by-status board. Optional swimlanes split the issues into horizontal
-// bands by assignee or milestone, each an independent status kanban; each card
+// bands by assignee, each an independent status kanban; each card
 // still moves via its own StatusSelect (no drag dependency).
 export function IssueBoard({
   issues,
@@ -431,7 +390,7 @@ export function IssueBoard({
 }) {
   const t = useTranslations("issues");
 
-  if (swimlane === "none") {
+  if (swimlane !== "assignee") {
     return (
       <StatusColumns
         issues={issues}
@@ -441,13 +400,11 @@ export function IssueBoard({
     );
   }
 
-  const noneLabel =
-    swimlane === "assignee" ? t("unassigned") : t("noMilestone");
+  const noneLabel = t("unassigned");
   // Group, keeping the "none" bucket last and the rest alphabetical.
   const groups = new Map<string, BoardIssue[]>();
   for (const i of issues) {
-    const raw = swimlane === "assignee" ? i.assignee?.name : i.milestoneName;
-    const key = raw || noneLabel;
+    const key = i.assignee?.name || noneLabel;
     const arr = groups.get(key);
     if (arr) arr.push(i);
     else groups.set(key, [i]);

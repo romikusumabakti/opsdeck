@@ -107,8 +107,6 @@ function message(
       return t("userInvitationRevoked", { actor, email: String(d.email) });
     case "user.invitationResent":
       return t("userInvitationResent", { actor, email: String(d.email) });
-    case "milestone.created":
-      return t("milestoneCreated", { actor, name: String(d.name) });
     case "tunnel.route.created":
       return t("tunnelRouteCreated", {
         actor,

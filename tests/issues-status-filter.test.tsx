@@ -33,7 +33,6 @@ function render(status: string | undefined) {
         currentEnvironmentId=""
         environments={[]}
         users={[]}
-        milestones={[]}
         initialIssues={[]}
         status={status}
       />

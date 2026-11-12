@@ -12,8 +12,6 @@ import {
   type AssignableUser,
   AssigneeSelect,
   type IssueType,
-  type MilestoneOption,
-  MilestoneSelect,
   type Priority,
   PrioritySelect,
   type Status,
@@ -56,7 +54,6 @@ export function IssueDetailClient({
   issue,
   users,
   environments,
-  milestones,
   siblings,
   attachments,
   testRuns,
@@ -65,7 +62,6 @@ export function IssueDetailClient({
   issue: IssueDetail;
   users: AssignableUser[];
   environments: EnvOption[];
-  milestones: MilestoneOption[];
   siblings: { id: string; number: number; title: string }[];
   attachments: IssueAttachmentRow[];
   testRuns: TestRunRow[];
@@ -249,15 +245,6 @@ export function IssueDetailClient({
             </SelectContent>
           </Select>
         </Field>
-        {milestones.length > 0 ? (
-          <Field label={tIssues("milestone")}>
-            <MilestoneSelect
-              milestones={milestones}
-              value={issue.milestoneId ?? null}
-              onChange={(m) => patch({ milestoneId: m })}
-            />
-          </Field>
-        ) : null}
         {parentCandidates.length > 0 || issue.parentId ? (
           <Field label={t("parent")}>
             <Select

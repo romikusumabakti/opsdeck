@@ -5,8 +5,6 @@ import {
   type AssignableUser,
   AssigneeSelect,
   type IssueType,
-  type MilestoneOption,
-  MilestoneSelect,
   type Priority,
   PrioritySelect,
   TypeSelect,
@@ -46,7 +44,6 @@ export function IssueCreateDialog({
   projectId,
   environments,
   users,
-  milestones,
   defaultEnvironmentId,
   defaults,
   loading = false,
@@ -58,7 +55,6 @@ export function IssueCreateDialog({
   projectId: string;
   environments: Option[];
   users: AssignableUser[];
-  milestones: MilestoneOption[];
   defaultEnvironmentId: string;
   defaults?: IssueDefaults;
   loading?: boolean;
@@ -73,7 +69,6 @@ export function IssueCreateDialog({
   const [type, setType] = React.useState<IssueType>("task");
   const [priority, setPriority] = React.useState<Priority>("medium");
   const [assigneeId, setAssigneeId] = React.useState<string | null>(null);
-  const [milestoneId, setMilestoneId] = React.useState<string | null>(null);
   // Empty default (e.g. from the project overview, which has no "current" env)
   // falls back to the "None" option.
   const [environmentId, setEnvironmentId] = React.useState(
@@ -89,7 +84,6 @@ export function IssueCreateDialog({
       setType(defaults?.type ?? "task");
       setPriority("medium");
       setAssigneeId(null);
-      setMilestoneId(null);
       setEnvironmentId(defaultEnvironmentId || NONE);
     }
   }, [open, defaultEnvironmentId, defaults]);
@@ -102,10 +96,6 @@ export function IssueCreateDialog({
     : NONE;
   const assigneeValue =
     assigneeId && users.some((u) => u.id === assigneeId) ? assigneeId : null;
-  const milestoneValue =
-    milestoneId && milestones.some((m) => m.id === milestoneId)
-      ? milestoneId
-      : null;
 
   async function submit() {
     if (!title.trim() || loading) return;
@@ -118,7 +108,6 @@ export function IssueCreateDialog({
       priority,
       environmentId: envValue === NONE ? null : envValue,
       assigneeId: assigneeValue,
-      milestoneId: milestoneValue,
     });
     setSaving(false);
     if (!result.success) {
@@ -205,16 +194,6 @@ export function IssueCreateDialog({
               onChange={setAssigneeId}
             />
           </div>
-          {milestones.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">{t("milestone")}</span>
-              <MilestoneSelect
-                milestones={milestones}
-                value={milestoneValue}
-                onChange={setMilestoneId}
-              />
-            </div>
-          ) : null}
         </div>
         <DialogFooter>
           <Button
