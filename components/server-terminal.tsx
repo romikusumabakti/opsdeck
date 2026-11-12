@@ -32,7 +32,9 @@ const WS_PATH = "/ws/terminal";
 // 1s, 2s, 4s, 8s, then give up and let the user retry by hand — past the 60s
 // grace window there is nothing left to reattach to anyway.
 const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
-const FONT_SIZE = 13;
+// The UI's body size (text-sm), so terminal output reads at the same size as
+// the page around it.
+const FONT_SIZE = 14;
 
 function socketUrl(): string {
   const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -297,13 +299,21 @@ export function ServerTerminal({
 
   return (
     <div className="flex flex-col gap-2">
-      <div
-        ref={hostRef}
-        // xterm's rows are absolutely positioned and don't survive RTL — force
-        // the host LTR regardless of the page's own direction under /ar.
-        dir="ltr"
-        className="h-[70vh] w-full overflow-hidden rounded-lg border bg-background p-2 font-mono"
-      />
+      {/* The frame carries the padding and border; xterm opens in the bare
+          inner div. The fit addon sizes rows from its parent's computed
+          height, which under border-box includes padding and border — padding
+          the host itself made it ask for one row too many and clip the
+          prompt. */}
+      <div className="h-[70vh] w-full overflow-hidden rounded-lg border bg-background p-2">
+        <div
+          ref={hostRef}
+          // xterm's rows are absolutely positioned and don't survive RTL —
+          // force the host LTR regardless of the page's own direction under
+          // /ar.
+          dir="ltr"
+          className="size-full font-mono"
+        />
+      </div>
       <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
         <span className="flex items-center gap-2">
           <span
