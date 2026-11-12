@@ -33,7 +33,12 @@ describe("project members route", () => {
 
 describe("project overview ?tab=members", () => {
   it("goes straight to the Members tab of Project settings", () => {
-    expect(route("$projectKey.index.tsx")).toMatch(/settings\?tab=members/);
+    const src = route("$projectKey.index.tsx");
+    expect(src).toMatch(/settings\?tab=members/);
+    // The members branch must run before the generic `/${tab}` redirect.
+    expect(src.indexOf("settings?tab=members")).toBeLessThan(
+      src.search(/`\/\$\{projectKey\}\/\$\{tab\}/)
+    );
   });
 });
 

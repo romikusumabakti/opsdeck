@@ -30,16 +30,27 @@ vi.mock("@/web/api/project-members", () => ({
   removeProjectMember: api.removeProjectMember,
   listProjectMembersQuery: (id: string) => ({
     queryKey: ["members", id],
-    queryFn: async () => [],
+    queryFn: async () => [
+      {
+        userId: "u1",
+        name: "Rina",
+        email: "rina@x",
+        image: null,
+        orgRole: "engineer",
+      },
+    ],
   }),
   listMemberCandidatesQuery: (id: string) => ({
     queryKey: ["candidates", id],
-    queryFn: async () => [],
+    queryFn: async () => [{ id: "u9", name: "Aisha", email: "a@x" }],
   }),
 }));
 
 import type { ProjectMemberRow } from "@/web/api/project-members";
-import { ProjectMembersClient } from "../web/routes/$locale/_app/-components/project/project-members-client";
+import {
+  ProjectMembersClient,
+  ProjectMembersTab,
+} from "../web/routes/$locale/_app/-components/project/project-members-client";
 import {
   projectSettingsSearch,
   visibleSettingsTab,
@@ -164,5 +175,34 @@ describe("Members tab", () => {
       projectId: PROJECT,
       userId: "u1",
     });
+  });
+});
+
+describe("ProjectMembersTab", () => {
+  it("reads both queries and shows the roster and the candidates", async () => {
+    container = document.createElement("div");
+    document.body.append(container);
+    const mounted = createRoot(container);
+    root = mounted;
+    await act(async () => {
+      mounted.render(
+        <QueryClientProvider client={new QueryClient()}>
+          <IntlProvider locale="en" messages={messages} timeZone="UTC">
+            <ProjectMembersTab projectId={PROJECT} projectName="CAR" />
+          </IntlProvider>
+        </QueryClientProvider>
+      );
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(text()).toContain("Rina");
+    expect(text()).toContain("Engineer");
+    // The candidate list reached the picker: it is enabled.
+    expect(
+      container
+        .querySelector('[role="combobox"]')
+        ?.hasAttribute("data-disabled")
+    ).toBe(false);
   });
 });
