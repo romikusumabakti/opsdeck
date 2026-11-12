@@ -48,7 +48,7 @@ vi.mock("@/lib/db", async () => {
     const seen = new Set<unknown>();
     const walk = (node: unknown): string | undefined => {
       if (typeof node === "string") {
-        return /^[0-9a-f]{8}-[0-9a-f-]{27}$/.test(node) ? node : undefined;
+        return /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(node) ? node : undefined;
       }
       if (!node || typeof node !== "object" || seen.has(node)) return;
       seen.add(node);
@@ -68,11 +68,17 @@ vi.mock("@/lib/db", async () => {
             return answer(() => state.memberships);
           }
           if (table === schema.instanceSettings) {
-            return answer(() => [{ id: state.backupId }]);
+            return answer(() => {
+              // Postgres compares uuids case-insensitively; so does this fake
+              // when the query filters on one (backup_destination_id = …).
+              const id = whereId();
+              if (id === undefined) return [{ id: state.backupId }];
+              return id.toLowerCase() === state.backupId ? [{ id: 1 }] : [];
+            });
           }
           if (table === schema.servers) {
             return answer(() => {
-              const id = whereId();
+              const id = whereId()?.toLowerCase();
               if (id === NORMAL_ID) return [serverRow(NORMAL_ID, false)];
               if (id === INFRA_ID) return [serverRow(INFRA_ID, true)];
               return [];
@@ -193,6 +199,43 @@ describe("file explorer on restricted targets", () => {
       )}`
     );
     expect(res.status).toBe(403);
+    expect(resolved.sources).toEqual([]);
+  });
+
+  // z.uuid() accepts uppercase and resolveBackend's uuid lookup matches it,
+  // so the restriction must not hinge on the id's case.
+  it("denies an engineer member the backup bucket named in uppercase", async () => {
+    as("member", "engineer");
+    await expect(
+      listEntries(
+        { kind: "s3", connectionId: BACKUP_BUCKET_ID.toUpperCase() },
+        ""
+      )
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    const res = await download({
+      kind: "s3",
+      connectionId: BACKUP_BUCKET_ID.toUpperCase(),
+    });
+    expect(res.status).toBe(403);
+    await expect(
+      listEntries({ kind: "sftp", serverId: INFRA_ID.toUpperCase() }, "")
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(resolved.sources).toEqual([]);
+  });
+
+  it("refuses an engineer member an upload to an infra-only server", async () => {
+    as("member", "engineer");
+    const form = new FormData();
+    form.set("file", new File(["x"], "a.txt"));
+    form.set("source", JSON.stringify({ kind: "sftp", serverId: INFRA_ID }));
+    form.set("path", "");
+    const res = await app.request("/api/explorer/upload", {
+      method: "POST",
+      headers: { Origin: "http://localhost" },
+      body: form,
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "Forbidden" });
     expect(resolved.sources).toEqual([]);
   });
 

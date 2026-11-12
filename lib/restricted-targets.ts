@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   callerCanOrgTarget,
   ForbiddenError,
@@ -33,7 +33,19 @@ export async function isRestrictedSource(
   source: ExplorerSource
 ): Promise<boolean> {
   if (source.kind === "s3") {
-    return (await backupDestinationId()) === source.connectionId;
+    // Compared in SQL, with the uuid semantics resolveBackend's lookup uses:
+    // a JS string compare would let "<UPPERCASE backup id>" through.
+    const [row] = await db
+      .select({ id: instanceSettings.id })
+      .from(instanceSettings)
+      .where(
+        and(
+          eq(instanceSettings.id, 1),
+          eq(instanceSettings.backupDestinationId, source.connectionId)
+        )
+      )
+      .limit(1);
+    return row !== undefined;
   }
   const [row] = await db
     .select({ infraOnly: servers.infraOnly })
