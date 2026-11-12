@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { TooltipHint } from "@/components/ui/tooltip";
+import { RowActions } from "@/components/ui/row-actions";
 import { Link } from "@/i18n/navigation";
 import {
   deleteJiraConnection,
@@ -101,27 +101,24 @@ export function JiraClient({
                   : t("flavorDatacenter")}
               </Badge>
             </CardDescription>
-            <CardAction className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                nativeButton={false}
-                render={<Link href={`/admin/jira/${conn.id}`} />}
-              >
-                <Pencil className="size-4" />
-                {tCommon("edit")}
-              </Button>
-              <TooltipHint label={tCommon("delete")}>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={isPending}
-                  onClick={() => onDelete(conn)}
-                  aria-label={tCommon("delete")}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </TooltipHint>
+            <CardAction>
+              <RowActions
+                label={tCommon("openMenu")}
+                disabled={isPending}
+                primary={{
+                  label: tCommon("edit"),
+                  icon: Pencil,
+                  href: `/admin/jira/${conn.id}`,
+                }}
+                items={[
+                  {
+                    label: tCommon("delete"),
+                    icon: Trash2,
+                    destructive: true,
+                    onSelect: () => onDelete(conn),
+                  },
+                ]}
+              />
             </CardAction>
           </CardHeader>
           <CardContent>
