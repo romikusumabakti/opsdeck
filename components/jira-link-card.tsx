@@ -7,21 +7,20 @@ import {
   Unlink,
 } from "lucide-react";
 import { useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useFormatter, useTranslations } from "use-intl";
 import { z } from "zod";
 import { useDialog } from "@/components/dialog-provider";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -150,23 +149,23 @@ export function JiraLinkCard({
     <div className="flex flex-col gap-6">
       {link && <SyncStatus link={link} t={t} format={format} />}
 
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-4"
-        >
-          <FormField
-            control={form.control}
+      <form onSubmit={form.handleSubmit(onSubmit)}>
+        <FieldGroup>
+          <Controller
             name="connectionId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("connection")}</FormLabel>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="jira-link-connection-id">
+                  {t("connection")}
+                </FieldLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("connectionPlaceholder")} />
-                    </SelectTrigger>
-                  </FormControl>
+                  <SelectTrigger
+                    id="jira-link-connection-id"
+                    aria-invalid={fieldState.invalid}
+                  >
+                    <SelectValue placeholder={t("connectionPlaceholder")} />
+                  </SelectTrigger>
                   <SelectContent>
                     {connections.map((connection) => (
                       <SelectItem key={connection.id} value={connection.id}>
@@ -175,78 +174,100 @@ export function JiraLinkCard({
                     ))}
                   </SelectContent>
                 </Select>
-                <FormMessage />
-              </FormItem>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="jiraProjectKey"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("projectKey")}</FormLabel>
-                <FormControl>
-                  <Input placeholder="CMEM" className="font-mono" {...field} />
-                </FormControl>
-                <FormDescription>{t("projectKeyDescription")}</FormDescription>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="jira-link-jira-project-key">
+                  {t("projectKey")}
+                </FieldLabel>
+                <Input
+                  placeholder="CMEM"
+                  className="font-mono"
+                  {...field}
+                  id="jira-link-jira-project-key"
+                  aria-invalid={fieldState.invalid}
+                />
+                <FieldDescription>
+                  {t("projectKeyDescription")}
+                </FieldDescription>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="jqlFilter"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("jqlFilter")}</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="labels = opsdeck"
-                    className="font-mono"
-                    {...field}
-                  />
-                </FormControl>
-                <FormDescription>{t("jqlFilterDescription")}</FormDescription>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="jira-link-jql-filter">
+                  {t("jqlFilter")}
+                </FieldLabel>
+                <Input
+                  placeholder="labels = opsdeck"
+                  className="font-mono"
+                  {...field}
+                  id="jira-link-jql-filter"
+                  aria-invalid={fieldState.invalid}
+                />
+                <FieldDescription>{t("jqlFilterDescription")}</FieldDescription>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="enabled"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <FormLabel>{t("enabled")}</FormLabel>
-                  <FormDescription>{t("enabledDescription")}</FormDescription>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field
+                orientation="horizontal"
+                data-invalid={fieldState.invalid}
+                className="items-center justify-between gap-4"
+              >
+                <FieldContent>
+                  <FieldLabel htmlFor="jira-link-enabled">
+                    {t("enabled")}
+                  </FieldLabel>
+                  <FieldDescription>{t("enabledDescription")}</FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="jira-link-enabled"
+                  aria-invalid={fieldState.invalid}
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="pushEnabled"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <FormLabel>{t("pushEnabled")}</FormLabel>
-                  <FormDescription>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field
+                orientation="horizontal"
+                data-invalid={fieldState.invalid}
+                className="items-center justify-between gap-4"
+              >
+                <FieldContent>
+                  <FieldLabel htmlFor="jira-link-push-enabled">
+                    {t("pushEnabled")}
+                  </FieldLabel>
+                  <FieldDescription>
                     {t("pushEnabledDescription")}
-                  </FormDescription>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="jira-link-push-enabled"
+                  aria-invalid={fieldState.invalid}
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </Field>
             )}
           />
 
@@ -292,8 +313,8 @@ export function JiraLinkCard({
               {link ? t("save") : t("link")}
             </Button>
           </div>
-        </form>
-      </Form>
+        </FieldGroup>
+      </form>
     </div>
   );
 }

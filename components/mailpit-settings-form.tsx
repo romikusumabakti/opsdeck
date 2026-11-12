@@ -1,19 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlugZap } from "lucide-react";
 import { useTransition } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -105,67 +103,71 @@ export function MailpitSettingsForm({
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Controller
           name="url"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("url")}</FormLabel>
-              <FormControl>
-                <Input
-                  type="url"
-                  placeholder="https://mail-qa.example.com/"
-                  {...field}
-                />
-              </FormControl>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="mailpit-url">{t("url")}</FieldLabel>
+              <Input
+                type="url"
+                placeholder="https://mail-qa.example.com/"
+                {...field}
+                id="mailpit-url"
+                aria-invalid={fieldState.invalid}
+              />
               <p className="text-xs text-muted-foreground">{t("urlHint")}</p>
-              <FormMessage />
-            </FormItem>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField
-            control={form.control}
+          <Controller
             name="username"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("username")}</FormLabel>
-                <FormControl>
-                  <Input autoComplete="off" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="mailpit-username">
+                  {t("username")}
+                </FieldLabel>
+                <Input
+                  autoComplete="off"
+                  {...field}
+                  id="mailpit-username"
+                  aria-invalid={fieldState.invalid}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("password")}</FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    autoComplete="new-password"
-                    placeholder={
-                      settings?.hasPassword && keepsPassword
-                        ? t("passwordKeepPlaceholder")
-                        : ""
-                    }
-                    {...field}
-                  />
-                </FormControl>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="mailpit-password">
+                  {t("password")}
+                </FieldLabel>
+                <PasswordInput
+                  autoComplete="new-password"
+                  placeholder={
+                    settings?.hasPassword && keepsPassword
+                      ? t("passwordKeepPlaceholder")
+                      : ""
+                  }
+                  {...field}
+                  id="mailpit-password"
+                  aria-invalid={fieldState.invalid}
+                />
                 {settings?.hasPassword && !keepsPassword && (
                   <p className="text-xs text-muted-foreground">
                     {t("passwordReenter")}
                   </p>
                 )}
-                <FormMessage />
-              </FormItem>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
         </div>
@@ -184,7 +186,7 @@ export function MailpitSettingsForm({
             {saving ? t("saving") : t("save")}
           </Button>
         </div>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

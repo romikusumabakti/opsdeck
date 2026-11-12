@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -9,14 +9,12 @@ import { AdvancedOptions } from "@/components/advanced-options";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -154,28 +152,29 @@ export function EnvironmentDomainForm({
   useUnsavedChanges(form.formState.isDirty && !loading);
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit, (errors) => {
-          // Show the advanced field a failed save points at.
-          if (errors.zoneId || errors.entryPort || errors.hostname) {
-            setAdvancedOpen(true);
-          }
-        })}
-        className="flex flex-col gap-4"
-      >
+    <form
+      onSubmit={form.handleSubmit(onSubmit, (errors) => {
+        // Show the advanced field a failed save points at.
+        if (errors.zoneId || errors.entryPort || errors.hostname) {
+          setAdvancedOpen(true);
+        }
+      })}
+    >
+      <FieldGroup>
         {provisioned && (
           <Alert>
             <AlertDescription>{t("provisionedNotice")}</AlertDescription>
           </Alert>
         )}
 
-        <FormField
-          control={form.control}
+        <Controller
           name="kind"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("kind")}</FormLabel>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="environment-domain-kind">
+                {t("kind")}
+              </FieldLabel>
               <Select
                 value={field.value}
                 onValueChange={(value) => {
@@ -184,11 +183,12 @@ export function EnvironmentDomainForm({
                 }}
                 disabled={provisioned}
               >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
+                <SelectTrigger
+                  id="environment-domain-kind"
+                  aria-invalid={fieldState.invalid}
+                >
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {KINDS.map((k) => (
                     <SelectItem key={k} value={k}>
@@ -197,8 +197,8 @@ export function EnvironmentDomainForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
 
@@ -209,54 +209,59 @@ export function EnvironmentDomainForm({
                 {t("tunnelInUse", { tunnel: domain.tunnelName })}
               </p>
             )}
-            <FormField
-              control={form.control}
+            <Controller
               name="label"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("label")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      autoComplete="off"
-                      className="font-mono"
-                      disabled={provisioned}
-                      {...field}
-                      onChange={(e) =>
-                        field.onChange(e.target.value.toLowerCase())
-                      }
-                    />
-                  </FormControl>
-                  <FormDescription className="font-mono">
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="environment-domain-label">
+                    {t("label")}
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    className="font-mono"
+                    disabled={provisioned}
+                    {...field}
+                    id="environment-domain-label"
+                    aria-invalid={fieldState.invalid}
+                    onChange={(e) =>
+                      field.onChange(e.target.value.toLowerCase())
+                    }
+                  />
+                  <FieldDescription className="font-mono">
                     {label && zoneName
                       ? `${label}.${zoneName}`
                       : t("labelHint")}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="accessPolicyId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("accessPolicy")}</FormLabel>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="environment-domain-access-policy-id">
+                    {t("accessPolicy")}
+                  </FieldLabel>
                   <Select
                     value={field.value || undefined}
                     onValueChange={(value) => field.onChange(value ?? "")}
                     disabled={provisioned}
                   >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            policies.isError
-                              ? t("policiesFailed")
-                              : t("policyPlaceholder")
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
+                    <SelectTrigger
+                      id="environment-domain-access-policy-id"
+                      aria-invalid={fieldState.invalid}
+                    >
+                      <SelectValue
+                        placeholder={
+                          policies.isError
+                            ? t("policiesFailed")
+                            : t("policyPlaceholder")
+                        }
+                      />
+                    </SelectTrigger>
                     <SelectContent>
                       {canGoPublic && (
                         <SelectItem value={PUBLIC}>{t("public")}</SelectItem>
@@ -273,38 +278,41 @@ export function EnvironmentDomainForm({
                       {errorText(policies.error)}
                     </p>
                   )}
-                  <FormDescription>
+                  <FieldDescription>
                     {canGoPublic
                       ? t("accessPolicyDescription")
                       : t("accessPolicyRequired")}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
             <AdvancedOptions open={advancedOpen} onOpenChange={setAdvancedOpen}>
-              <FormField
-                control={form.control}
+              <Controller
                 name="zoneId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("zone")}</FormLabel>
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="environment-domain-zone-id">
+                      {t("zone")}
+                    </FieldLabel>
                     <Select
                       value={field.value || undefined}
                       onValueChange={(value) => field.onChange(value ?? "")}
                       disabled={provisioned || zones.length === 0}
                     >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={
-                              zones.length === 0
-                                ? t("noZones")
-                                : t("zonePlaceholder")
-                            }
-                          />
-                        </SelectTrigger>
-                      </FormControl>
+                      <SelectTrigger
+                        id="environment-domain-zone-id"
+                        aria-invalid={fieldState.invalid}
+                      >
+                        <SelectValue
+                          placeholder={
+                            zones.length === 0
+                              ? t("noZones")
+                              : t("zonePlaceholder")
+                          }
+                        />
+                      </SelectTrigger>
                       <SelectContent>
                         {zones.map((zone) => (
                           <SelectItem key={zone.id} value={zone.id}>
@@ -313,29 +321,31 @@ export function EnvironmentDomainForm({
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
                 )}
               />
-              <FormField
-                control={form.control}
+              <Controller
                 name="entryPort"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("entryPort")}</FormLabel>
-                    <FormControl>
-                      <Input
-                        inputMode="numeric"
-                        className="font-mono"
-                        disabled={provisioned}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="environment-domain-entry-port">
+                      {t("entryPort")}
+                    </FieldLabel>
+                    <Input
+                      inputMode="numeric"
+                      className="font-mono"
+                      disabled={provisioned}
+                      {...field}
+                      id="environment-domain-entry-port"
+                      aria-invalid={fieldState.invalid}
+                    />
+                    <FieldDescription>
                       {t("entryPortDescription")}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
+                    </FieldDescription>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
                 )}
               />
             </AdvancedOptions>
@@ -344,23 +354,27 @@ export function EnvironmentDomainForm({
 
         {kind === "external" && (
           <AdvancedOptions open={advancedOpen} onOpenChange={setAdvancedOpen}>
-            <FormField
-              control={form.control}
+            <Controller
               name="hostname"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("hostname")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      autoComplete="off"
-                      className="font-mono"
-                      placeholder="app.example.com"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>{t("hostnameDescription")}</FormDescription>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="environment-domain-hostname">
+                    {t("hostname")}
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    className="font-mono"
+                    placeholder="app.example.com"
+                    {...field}
+                    id="environment-domain-hostname"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldDescription>
+                    {t("hostnameDescription")}
+                  </FieldDescription>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
             <div className="text-sm">
@@ -379,7 +393,7 @@ export function EnvironmentDomainForm({
             {loading ? t("saving") : t("save")}
           </Button>
         </div>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

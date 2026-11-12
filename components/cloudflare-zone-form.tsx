@@ -1,21 +1,19 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { AdvancedOptions } from "@/components/advanced-options";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -142,82 +140,85 @@ export function CloudflareZoneForm({
     !loading;
 
   const tokenField = (
-    <FormField
-      control={form.control}
+    <Controller
       name="apiToken"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>{t("apiToken")}</FormLabel>
-          <FormControl>
-            <PasswordInput
-              placeholder={
-                mode.type === "edit" && mode.zone.hasToken
-                  ? t("apiTokenKeep")
-                  : undefined
-              }
-              {...field}
-              onChange={(e) => {
-                resetTest();
-                field.onChange(e);
-              }}
-            />
-          </FormControl>
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor="cloudflare-zone-api-token">
+            {t("apiToken")}
+          </FieldLabel>
+          <PasswordInput
+            placeholder={
+              mode.type === "edit" && mode.zone.hasToken
+                ? t("apiTokenKeep")
+                : undefined
+            }
+            {...field}
+            id="cloudflare-zone-api-token"
+            aria-invalid={fieldState.invalid}
+            onChange={(e) => {
+              resetTest();
+              field.onChange(e);
+            }}
+          />
           {/* The scope matters more than the value: this token should be
             able to edit DNS in one zone and nothing else. */}
-          <FormDescription>
+          <FieldDescription>
             {hasAccount
               ? t("apiTokenOptionalDescription")
               : t("apiTokenDescription")}
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
+          </FieldDescription>
+          <FieldError errors={[fieldState.error]} />
+        </Field>
       )}
     />
   );
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Controller
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="example.com"
-                  className="font-mono"
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>{t("nameDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="cloudflare-zone-name">
+                {t("name")}
+              </FieldLabel>
+              <Input
+                placeholder="example.com"
+                className="font-mono"
+                {...field}
+                id="cloudflare-zone-name"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("nameDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="zoneId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("zoneId")}</FormLabel>
-              <FormControl>
-                <Input
-                  className="font-mono"
-                  {...field}
-                  onChange={(e) => {
-                    resetTest();
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormDescription>{t("zoneIdDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="cloudflare-zone-zone-id">
+                {t("zoneId")}
+              </FieldLabel>
+              <Input
+                className="font-mono"
+                {...field}
+                id="cloudflare-zone-zone-id"
+                aria-invalid={fieldState.invalid}
+                onChange={(e) => {
+                  resetTest();
+                  field.onChange(e);
+                }}
+              />
+              <FieldDescription>{t("zoneIdDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
         {hasAccount ? (
@@ -268,7 +269,7 @@ export function CloudflareZoneForm({
             {testState.message}
           </p>
         )}
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

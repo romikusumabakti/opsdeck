@@ -1,21 +1,19 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
@@ -113,87 +111,99 @@ export function CloudflareAccountForm({
   useUnsavedChanges(form.formState.isDirty && !loading);
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Controller
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="cloudflare-account-name">
+                {t("name")}
+              </FieldLabel>
+              <Input
+                {...field}
+                id="cloudflare-account-name"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="accountId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("accountId")}</FormLabel>
-              <FormControl>
-                <Input autoComplete="off" className="font-mono" {...field} />
-              </FormControl>
-              <FormDescription>{t("accountIdDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="cloudflare-account-account-id">
+                {t("accountId")}
+              </FieldLabel>
+              <Input
+                autoComplete="off"
+                className="font-mono"
+                {...field}
+                id="cloudflare-account-account-id"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("accountIdDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="apiToken"
-          render={({ field }) => (
-            <FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
               <div className="flex items-center gap-2">
-                <FormLabel>{t("apiToken")}</FormLabel>
+                <FieldLabel htmlFor="cloudflare-account-api-token">
+                  {t("apiToken")}
+                </FieldLabel>
                 <Badge variant={account?.hasToken ? "secondary" : "outline"}>
                   {account?.hasToken ? t("set") : t("notSet")}
                 </Badge>
               </div>
-              <FormControl>
-                <PasswordInput
-                  autoComplete="new-password"
-                  placeholder={
-                    account?.hasToken ? t("keepPlaceholder") : undefined
-                  }
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>{t("apiTokenDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+              <PasswordInput
+                autoComplete="new-password"
+                placeholder={
+                  account?.hasToken ? t("keepPlaceholder") : undefined
+                }
+                {...field}
+                id="cloudflare-account-api-token"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("apiTokenDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="accessIdpId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("accessIdp")}</FormLabel>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="cloudflare-account-access-idp-id">
+                {t("accessIdp")}
+              </FieldLabel>
               <Select
                 value={field.value || undefined}
                 onValueChange={(value) => field.onChange(value ?? "")}
                 disabled={!idps.data}
               >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={
-                        account?.hasToken
-                          ? idps.isError
-                            ? t("idpLoadFailed")
-                            : t("idpPlaceholder")
-                          : t("idpAfterSave")
-                      }
-                    />
-                  </SelectTrigger>
-                </FormControl>
+                <SelectTrigger
+                  id="cloudflare-account-access-idp-id"
+                  aria-invalid={fieldState.invalid}
+                >
+                  <SelectValue
+                    placeholder={
+                      account?.hasToken
+                        ? idps.isError
+                          ? t("idpLoadFailed")
+                          : t("idpPlaceholder")
+                        : t("idpAfterSave")
+                    }
+                  />
+                </SelectTrigger>
                 <SelectContent>
                   {idps.data?.map((idp) => (
                     <SelectItem key={idp.id} value={idp.id}>
@@ -202,9 +212,9 @@ export function CloudflareAccountForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FormDescription>{t("accessIdpDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+              <FieldDescription>{t("accessIdpDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
 
@@ -223,7 +233,7 @@ export function CloudflareAccountForm({
             {loading ? t("submitting") : t("save")}
           </Button>
         </div>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

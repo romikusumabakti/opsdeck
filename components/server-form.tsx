@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -13,18 +13,11 @@ import {
   Field,
   FieldContent,
   FieldDescription,
+  FieldError,
+  FieldGroup,
   FieldLabel,
   FieldTitle,
 } from "@/components/ui/field";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -282,101 +275,106 @@ export function ServerForm({
   // A saved server's password is an advanced setting, and only exists while
   // it signs in with one; a key server has none.
   const passwordField = (
-    <FormField
-      control={form.control}
+    <Controller
       name="password"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>
+      control={form.control}
+      render={({ field, fieldState }) => (
+        <Field data-invalid={fieldState.invalid}>
+          <FieldLabel htmlFor="server-form-password">
             {creating ? t("passwordOnce") : t("passwordEdit")}
-          </FormLabel>
-          <FormControl>
-            <PasswordInput
-              autoComplete="new-password"
-              placeholder={creating ? undefined : t("passwordEditPlaceholder")}
-              {...field}
-              onChange={(e) => {
-                resetTest();
-                field.onChange(e);
-              }}
-            />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
+          </FieldLabel>
+          <PasswordInput
+            autoComplete="new-password"
+            placeholder={creating ? undefined : t("passwordEditPlaceholder")}
+            {...field}
+            id="server-form-password"
+            aria-invalid={fieldState.invalid}
+            onChange={(e) => {
+              resetTest();
+              field.onChange(e);
+            }}
+          />
+          <FieldError errors={[fieldState.error]} />
+        </Field>
       )}
     />
   );
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        {/* Read-only callers (no manage permission) see the stored values with
-            every input disabled and no test/save controls. */}
-        <fieldset disabled={readOnly} className="contents">
-          <FormField
-            control={form.control}
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      className="flex flex-col gap-4"
+    >
+      {/* Read-only callers (no manage permission) see the stored values with
+          every input disabled and no test/save controls. */}
+      <fieldset disabled={readOnly} className="contents">
+        <FieldGroup>
+          <Controller
             name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("name")}</FormLabel>
-                <FormControl>
-                  <Input placeholder={t("namePlaceholder")} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="server-form-name">{t("name")}</FieldLabel>
+                <Input
+                  placeholder={t("namePlaceholder")}
+                  {...field}
+                  id="server-form-name"
+                  aria-invalid={fieldState.invalid}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="host"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("host")}</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="192.168.x.x"
-                    {...field}
-                    onChange={(e) => {
-                      resetTest();
-                      field.onChange(e);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="server-form-host">{t("host")}</FieldLabel>
+                <Input
+                  placeholder="192.168.x.x"
+                  {...field}
+                  id="server-form-host"
+                  aria-invalid={fieldState.invalid}
+                  onChange={(e) => {
+                    resetTest();
+                    field.onChange(e);
+                  }}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="username"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("username")}</FormLabel>
-                <FormControl>
-                  <Input
-                    autoComplete="off"
-                    {...field}
-                    onChange={(e) => {
-                      resetTest();
-                      field.onChange(e);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="server-form-username">
+                  {t("username")}
+                </FieldLabel>
+                <Input
+                  autoComplete="off"
+                  {...field}
+                  id="server-form-username"
+                  aria-invalid={fieldState.invalid}
+                  onChange={(e) => {
+                    resetTest();
+                    field.onChange(e);
+                  }}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
           {creating ? (
             <>
-              <FormField
-                control={form.control}
+              <Controller
                 name="method"
+                control={form.control}
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("accessMethod")}</FormLabel>
+                  <Field>
+                    <FieldLabel>{t("accessMethod")}</FieldLabel>
                     <RadioGroup
                       value={field.value}
                       onValueChange={(v) => {
@@ -409,30 +407,32 @@ export function ServerForm({
                         </FieldLabel>
                       ))}
                     </RadioGroup>
-                  </FormItem>
+                  </Field>
                 )}
               />
               {watched.method === "key" ? (
                 <KeyInstall
                   sshFrom={
-                    <FormField
-                      control={form.control}
+                    <Controller
                       name="sshFrom"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t("sshFrom")}</FormLabel>
-                          <FormControl>
-                            <Input
-                              autoComplete="off"
-                              placeholder={t("sshFromPlaceholder")}
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormDescription>
+                      control={form.control}
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <FieldLabel htmlFor="server-form-ssh-from">
+                            {t("sshFrom")}
+                          </FieldLabel>
+                          <Input
+                            autoComplete="off"
+                            placeholder={t("sshFromPlaceholder")}
+                            {...field}
+                            id="server-form-ssh-from"
+                            aria-invalid={fieldState.invalid}
+                          />
+                          <FieldDescription>
                             {t("sshFromDescription")}
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
+                          </FieldDescription>
+                          <FieldError errors={[fieldState.error]} />
+                        </Field>
                       )}
                     />
                   }
@@ -443,36 +443,45 @@ export function ServerForm({
               )}
             </>
           ) : null}
-          <FormField
-            control={form.control}
+          <Controller
             name="sftpRoot"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("sftpRoot")}</FormLabel>
-                <FormControl>
-                  <Input placeholder="/" {...field} />
-                </FormControl>
-                <FormDescription>{t("sftpRootDescription")}</FormDescription>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="server-form-sftp-root">
+                  {t("sftpRoot")}
+                </FieldLabel>
+                <Input
+                  placeholder="/"
+                  {...field}
+                  id="server-form-sftp-root"
+                  aria-invalid={fieldState.invalid}
+                />
+                <FieldDescription>{t("sftpRootDescription")}</FieldDescription>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="placement"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("placement")}</FormLabel>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="server-form-placement">
+                  {t("placement")}
+                </FieldLabel>
                 <Select
                   value={field.value}
                   onValueChange={(v) => v && field.onChange(v)}
                   disabled={readOnly}
                 >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
+                  <SelectTrigger
+                    id="server-form-placement"
+                    className="w-full"
+                    aria-invalid={fieldState.invalid}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="restricted">
                       {t("placementRestricted")}
@@ -480,74 +489,82 @@ export function ServerForm({
                     <SelectItem value="open">{t("placementOpen")}</SelectItem>
                   </SelectContent>
                 </Select>
-                <FormDescription>{t("placementDescription")}</FormDescription>
-                <FormMessage />
-              </FormItem>
+                <FieldDescription>{t("placementDescription")}</FieldDescription>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="infraOnly"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <FormLabel>{t("infraOnly")}</FormLabel>
-                  <FormDescription>{t("infraOnlyDescription")}</FormDescription>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    disabled={readOnly}
-                  />
-                </FormControl>
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field
+                orientation="horizontal"
+                data-invalid={fieldState.invalid}
+                className="items-center justify-between gap-4"
+              >
+                <FieldContent>
+                  <FieldLabel htmlFor="server-form-infra-only">
+                    {t("infraOnly")}
+                  </FieldLabel>
+                  <FieldDescription>
+                    {t("infraOnlyDescription")}
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="server-form-infra-only"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  disabled={readOnly}
+                  aria-invalid={fieldState.invalid}
+                />
+              </Field>
             )}
           />
           {!creating && initial?.auth === "password" ? (
             <AdvancedOptions>{passwordField}</AdvancedOptions>
           ) : null}
-        </fieldset>
+        </FieldGroup>
+      </fieldset>
 
-        {readOnly ? null : (
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onTest}
-              disabled={!canTest}
-            >
-              {testState.kind === "testing" ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : null}
-              {t("testConnection")}
-            </Button>
-            <TestStatus state={testState} t={t} />
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2 pt-2">
+      {readOnly ? null : (
+        <div className="flex items-center gap-3 flex-wrap">
           <Button
             type="button"
-            variant="ghost"
-            onClick={handleCancel}
-            disabled={loading}
+            variant="outline"
+            size="sm"
+            onClick={onTest}
+            disabled={!canTest}
           >
-            {tCommon("cancel")}
+            {testState.kind === "testing" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : null}
+            {t("testConnection")}
           </Button>
-          {readOnly ? null : (
-            <Button type="submit" disabled={loading}>
-              {loading
-                ? t("submitting")
-                : mode.type === "edit"
-                  ? t("saveChanges")
-                  : t("create")}
-            </Button>
-          )}
+          <TestStatus state={testState} t={t} />
         </div>
-      </form>
-    </Form>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleCancel}
+          disabled={loading}
+        >
+          {tCommon("cancel")}
+        </Button>
+        {readOnly ? null : (
+          <Button type="submit" disabled={loading}>
+            {loading
+              ? t("submitting")
+              : mode.type === "edit"
+                ? t("saveChanges")
+                : t("create")}
+          </Button>
+        )}
+      </div>
+    </form>
   );
 }
 

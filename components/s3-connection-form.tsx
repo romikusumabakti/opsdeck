@@ -1,20 +1,19 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Switch } from "@/components/ui/switch";
@@ -158,149 +157,167 @@ export function S3ConnectionForm({
     !loading;
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
         {/* Read-only callers (no manage permission) see the stored values with
             every input disabled and no test/save controls. */}
         <fieldset disabled={readOnly} className="contents">
-          <FormField
-            control={form.control}
+          <Controller
             name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("name")}</FormLabel>
-                <FormControl>
-                  <Input placeholder={t("namePlaceholder")} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="s3-connection-name">
+                  {t("name")}
+                </FieldLabel>
+                <Input
+                  placeholder={t("namePlaceholder")}
+                  {...field}
+                  id="s3-connection-name"
+                  aria-invalid={fieldState.invalid}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="endpoint"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("endpoint")}</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="https://s3.example.com"
-                    {...field}
-                    onChange={(e) => {
-                      resetTest();
-                      field.onChange(e);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="s3-connection-endpoint">
+                  {t("endpoint")}
+                </FieldLabel>
+                <Input
+                  placeholder="https://s3.example.com"
+                  {...field}
+                  id="s3-connection-endpoint"
+                  aria-invalid={fieldState.invalid}
+                  onChange={(e) => {
+                    resetTest();
+                    field.onChange(e);
+                  }}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              control={form.control}
+            <Controller
               name="bucket"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("bucket")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      onChange={(e) => {
-                        resetTest();
-                        field.onChange(e);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="s3-connection-bucket">
+                    {t("bucket")}
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    id="s3-connection-bucket"
+                    aria-invalid={fieldState.invalid}
+                    onChange={(e) => {
+                      resetTest();
+                      field.onChange(e);
+                    }}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="region"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("region")}</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="s3-connection-region">
+                    {t("region")}
+                  </FieldLabel>
+                  <Input
+                    {...field}
+                    id="s3-connection-region"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
           </div>
-          <FormField
-            control={form.control}
+          <Controller
             name="accessKeyId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("accessKeyId")}</FormLabel>
-                <FormControl>
-                  <Input
-                    autoComplete="off"
-                    {...field}
-                    onChange={(e) => {
-                      resetTest();
-                      field.onChange(e);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="s3-connection-access-key-id">
+                  {t("accessKeyId")}
+                </FieldLabel>
+                <Input
+                  autoComplete="off"
+                  {...field}
+                  id="s3-connection-access-key-id"
+                  aria-invalid={fieldState.invalid}
+                  onChange={(e) => {
+                    resetTest();
+                    field.onChange(e);
+                  }}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="secretKey"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="s3-connection-secret-key">
                   {mode.type === "edit" ? t("secretKeyEdit") : t("secretKey")}
-                </FormLabel>
-                <FormControl>
-                  <PasswordInput
-                    autoComplete="new-password"
-                    placeholder={
-                      mode.type === "edit"
-                        ? t("secretKeyEditPlaceholder")
-                        : undefined
-                    }
-                    {...field}
-                    onChange={(e) => {
-                      resetTest();
-                      field.onChange(e);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+                </FieldLabel>
+                <PasswordInput
+                  autoComplete="new-password"
+                  placeholder={
+                    mode.type === "edit"
+                      ? t("secretKeyEditPlaceholder")
+                      : undefined
+                  }
+                  {...field}
+                  id="s3-connection-secret-key"
+                  aria-invalid={fieldState.invalid}
+                  onChange={(e) => {
+                    resetTest();
+                    field.onChange(e);
+                  }}
+                />
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
-          <FormField
-            control={form.control}
+          <Controller
             name="forcePathStyle"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <FormLabel>{t("forcePathStyle")}</FormLabel>
-                  <FormDescription>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field
+                orientation="horizontal"
+                data-invalid={fieldState.invalid}
+                className="items-center justify-between gap-4"
+              >
+                <FieldContent>
+                  <FieldLabel htmlFor="s3-connection-force-path-style">
+                    {t("forcePathStyle")}
+                  </FieldLabel>
+                  <FieldDescription>
                     {t("forcePathStyleDescription")}
-                  </FormDescription>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={(v) => {
-                      resetTest();
-                      field.onChange(v);
-                    }}
-                  />
-                </FormControl>
-              </FormItem>
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="s3-connection-force-path-style"
+                  aria-invalid={fieldState.invalid}
+                  checked={field.value}
+                  onCheckedChange={(v) => {
+                    resetTest();
+                    field.onChange(v);
+                  }}
+                />
+              </Field>
             )}
           />
         </fieldset>
@@ -342,8 +359,8 @@ export function S3ConnectionForm({
             </Button>
           )}
         </div>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }
 

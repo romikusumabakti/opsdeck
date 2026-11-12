@@ -1,18 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -107,55 +105,58 @@ export function TunnelForm({
   useUnsavedChanges(form.formState.isDirty && !loading);
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Controller
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input placeholder="dss-apps-136" {...field} />
-              </FormControl>
-              <FormDescription>{t("nameDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="tunnel-name">{t("name")}</FieldLabel>
+              <Input
+                placeholder="dss-apps-136"
+                {...field}
+                id="tunnel-name"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("nameDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="tunnelId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("tunnelId")}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="421f7083-06b9-4e64-98ec-d64df7e14e41"
-                  className="font-mono"
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>{t("tunnelIdDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="tunnel-tunnel-id">
+                {t("tunnelId")}
+              </FieldLabel>
+              <Input
+                placeholder="421f7083-06b9-4e64-98ec-d64df7e14e41"
+                className="font-mono"
+                {...field}
+                id="tunnel-tunnel-id"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("tunnelIdDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="zoneId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("zone")}</FormLabel>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="tunnel-zone-id">{t("zone")}</FieldLabel>
               <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("zonePlaceholder")} />
-                  </SelectTrigger>
-                </FormControl>
+                <SelectTrigger
+                  id="tunnel-zone-id"
+                  aria-invalid={fieldState.invalid}
+                >
+                  <SelectValue placeholder={t("zonePlaceholder")} />
+                </SelectTrigger>
                 <SelectContent>
                   {zones.map((zone) => (
                     <SelectItem key={zone.id} value={zone.id}>
@@ -164,23 +165,24 @@ export function TunnelForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FormDescription>{t("zoneDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+              <FieldDescription>{t("zoneDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="serverId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("server")}</FormLabel>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="tunnel-server-id">{t("server")}</FieldLabel>
               <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("serverPlaceholder")} />
-                  </SelectTrigger>
-                </FormControl>
+                <SelectTrigger
+                  id="tunnel-server-id"
+                  aria-invalid={fieldState.invalid}
+                >
+                  <SelectValue placeholder={t("serverPlaceholder")} />
+                </SelectTrigger>
                 <SelectContent>
                   {servers.map((server) => (
                     <SelectItem key={server.id} value={server.id}>
@@ -192,59 +194,70 @@ export function TunnelForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FormDescription>{t("serverDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+              <FieldDescription>{t("serverDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="stackDir"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("stackDir")}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="/opt/stacks/apps-tunnel"
-                  className="font-mono"
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>{t("stackDirDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="tunnel-stack-dir">
+                {t("stackDir")}
+              </FieldLabel>
+              <Input
+                placeholder="/opt/stacks/apps-tunnel"
+                className="font-mono"
+                {...field}
+                id="tunnel-stack-dir"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("stackDirDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="configPath"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("configPath")}</FormLabel>
-              <FormControl>
-                <Input className="font-mono" {...field} />
-              </FormControl>
-              <FormDescription>{t("configPathDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="tunnel-config-path">
+                {t("configPath")}
+              </FieldLabel>
+              <Input
+                className="font-mono"
+                {...field}
+                id="tunnel-config-path"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("configPathDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="containerName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("containerName")}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="apps-cloudflared"
-                  className="font-mono"
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>{t("containerNameDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="tunnel-container-name">
+                {t("containerName")}
+              </FieldLabel>
+              <Input
+                placeholder="apps-cloudflared"
+                className="font-mono"
+                {...field}
+                id="tunnel-container-name"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>
+                {t("containerNameDescription")}
+              </FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
 
@@ -261,7 +274,7 @@ export function TunnelForm({
             {tCommon("cancel")}
           </Button>
         </div>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

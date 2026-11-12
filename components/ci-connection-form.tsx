@@ -8,7 +8,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -22,14 +22,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -248,45 +246,51 @@ export function CiConnectionForm({
   );
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Controller
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="ci-connection-name">{t("name")}</FieldLabel>
+              <Input
+                {...field}
+                id="ci-connection-name"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="baseUrl"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("baseUrl")}</FormLabel>
-              <FormControl>
-                <Input placeholder="https://ci.example.com" {...field} />
-              </FormControl>
-              <FormDescription>{t("baseUrlDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="ci-connection-base-url">
+                {t("baseUrl")}
+              </FieldLabel>
+              <Input
+                placeholder="https://ci.example.com"
+                {...field}
+                id="ci-connection-base-url"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("baseUrlDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="apiToken"
-          render={({ field }) => (
-            <FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
               <div className="flex items-center gap-2">
-                <FormLabel>{t("apiToken")}</FormLabel>
+                <FieldLabel htmlFor="ci-connection-api-token">
+                  {t("apiToken")}
+                </FieldLabel>
                 <Badge
                   variant={
                     connection.hasApiToken && !clearApiToken
@@ -299,17 +303,17 @@ export function CiConnectionForm({
                     : t("notSet")}
                 </Badge>
               </div>
-              <FormControl>
-                <PasswordInput
-                  autoComplete="new-password"
-                  disabled={clearApiToken}
-                  placeholder={
-                    connection.hasApiToken ? t("keepPlaceholder") : undefined
-                  }
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>{t("apiTokenDescription")}</FormDescription>
+              <PasswordInput
+                autoComplete="new-password"
+                disabled={clearApiToken}
+                placeholder={
+                  connection.hasApiToken ? t("keepPlaceholder") : undefined
+                }
+                {...field}
+                id="ci-connection-api-token"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("apiTokenDescription")}</FieldDescription>
               {connection.hasApiToken && (
                 <Button
                   type="button"
@@ -321,31 +325,40 @@ export function CiConnectionForm({
                   {clearApiToken ? t("keepStored") : t("clearStored")}
                 </Button>
               )}
-              <FormMessage />
-            </FormItem>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="forgeUsername"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("forgeUsername")}</FormLabel>
-              <FormControl>
-                <Input autoComplete="off" {...field} />
-              </FormControl>
-              <FormDescription>{t("forgeUsernameDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="ci-connection-forge-username">
+                {t("forgeUsername")}
+              </FieldLabel>
+              <Input
+                autoComplete="off"
+                {...field}
+                id="ci-connection-forge-username"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>
+                {t("forgeUsernameDescription")}
+              </FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="forgeToken"
-          render={({ field }) => (
-            <FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
               <div className="flex items-center gap-2">
-                <FormLabel>{t("forgeToken")}</FormLabel>
+                <FieldLabel htmlFor="ci-connection-forge-token">
+                  {t("forgeToken")}
+                </FieldLabel>
                 <Badge
                   variant={
                     connection.hasForgeToken && !clearForgeToken
@@ -358,17 +371,17 @@ export function CiConnectionForm({
                     : t("notSet")}
                 </Badge>
               </div>
-              <FormControl>
-                <PasswordInput
-                  autoComplete="new-password"
-                  disabled={clearForgeToken}
-                  placeholder={
-                    connection.hasForgeToken ? t("keepPlaceholder") : undefined
-                  }
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>{t("forgeTokenDescription")}</FormDescription>
+              <PasswordInput
+                autoComplete="new-password"
+                disabled={clearForgeToken}
+                placeholder={
+                  connection.hasForgeToken ? t("keepPlaceholder") : undefined
+                }
+                {...field}
+                id="ci-connection-forge-token"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldDescription>{t("forgeTokenDescription")}</FieldDescription>
               {connection.hasForgeToken && (
                 <Button
                   type="button"
@@ -380,8 +393,8 @@ export function CiConnectionForm({
                   {clearForgeToken ? t("keepStored") : t("clearStored")}
                 </Button>
               )}
-              <FormMessage />
-            </FormItem>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
 
@@ -398,7 +411,7 @@ export function CiConnectionForm({
             {loading ? t("submitting") : t("saveChanges")}
           </Button>
         </div>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

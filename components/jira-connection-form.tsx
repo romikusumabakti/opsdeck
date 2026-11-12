@@ -1,20 +1,18 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
@@ -146,51 +144,57 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
     !loading;
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Controller
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input placeholder={t("namePlaceholder")} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="jira-connection-name">
+                {t("name")}
+              </FieldLabel>
+              <Input
+                placeholder={t("namePlaceholder")}
+                {...field}
+                id="jira-connection-name"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="baseUrl"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("baseUrl")}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="https://acme.atlassian.net"
-                  {...field}
-                  onChange={(e) => {
-                    resetTest();
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormDescription>{t("baseUrlDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="jira-connection-base-url">
+                {t("baseUrl")}
+              </FieldLabel>
+              <Input
+                placeholder="https://acme.atlassian.net"
+                {...field}
+                id="jira-connection-base-url"
+                aria-invalid={fieldState.invalid}
+                onChange={(e) => {
+                  resetTest();
+                  field.onChange(e);
+                }}
+              />
+              <FieldDescription>{t("baseUrlDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="flavor"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("flavor")}</FormLabel>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="jira-connection-flavor">
+                {t("flavor")}
+              </FieldLabel>
               <Select
                 value={field.value}
                 onValueChange={(value) => {
@@ -198,11 +202,12 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
                   field.onChange(value);
                 }}
               >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
+                <SelectTrigger
+                  id="jira-connection-flavor"
+                  aria-invalid={fieldState.invalid}
+                >
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cloud">{t("flavorCloud")}</SelectItem>
                   <SelectItem value="datacenter">
@@ -210,61 +215,65 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <FormDescription>{t("flavorDescription")}</FormDescription>
-              <FormMessage />
-            </FormItem>
+              <FieldDescription>{t("flavorDescription")}</FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
         {isCloud && (
-          <FormField
-            control={form.control}
+          <Controller
             name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("email")}</FormLabel>
-                <FormControl>
-                  <Input
-                    autoComplete="off"
-                    placeholder="service-account@acme.com"
-                    {...field}
-                    onChange={(e) => {
-                      resetTest();
-                      field.onChange(e);
-                    }}
-                  />
-                </FormControl>
-                <FormDescription>{t("emailDescription")}</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        <FormField
-          control={form.control}
-          name="apiToken"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{isCloud ? t("apiToken") : t("pat")}</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  autoComplete="new-password"
-                  placeholder={
-                    mode.type === "edit"
-                      ? t("apiTokenEditPlaceholder")
-                      : undefined
-                  }
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="jira-connection-email">
+                  {t("email")}
+                </FieldLabel>
+                <Input
+                  autoComplete="off"
+                  placeholder="service-account@acme.com"
                   {...field}
+                  id="jira-connection-email"
+                  aria-invalid={fieldState.invalid}
                   onChange={(e) => {
                     resetTest();
                     field.onChange(e);
                   }}
                 />
-              </FormControl>
-              <FormDescription>
+                <FieldDescription>{t("emailDescription")}</FieldDescription>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
+            )}
+          />
+        )}
+        <Controller
+          name="apiToken"
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="jira-connection-api-token">
+                {isCloud ? t("apiToken") : t("pat")}
+              </FieldLabel>
+              <PasswordInput
+                autoComplete="new-password"
+                placeholder={
+                  mode.type === "edit"
+                    ? t("apiTokenEditPlaceholder")
+                    : undefined
+                }
+                {...field}
+                id="jira-connection-api-token"
+                aria-invalid={fieldState.invalid}
+                onChange={(e) => {
+                  resetTest();
+                  field.onChange(e);
+                }}
+              />
+              <FieldDescription>
                 {isCloud ? t("apiTokenDescription") : t("patDescription")}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
+              </FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
 
@@ -301,8 +310,8 @@ export function JiraConnectionForm({ mode }: { mode: Mode }) {
                 : t("create")}
           </Button>
         </div>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }
 

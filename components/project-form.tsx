@@ -1,18 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -155,82 +153,89 @@ export function ProjectForm({
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Controller
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input placeholder={t("namePlaceholder")} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="project-name">{t("name")}</FieldLabel>
+              <Input
+                placeholder={t("namePlaceholder")}
+                {...field}
+                id="project-name"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="key"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("key")}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder={t("keyPlaceholder")}
-                  autoCapitalize="characters"
-                  {...field}
-                  onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                />
-              </FormControl>
-              <FormDescription>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="project-key">{t("key")}</FieldLabel>
+              <Input
+                placeholder={t("keyPlaceholder")}
+                autoCapitalize="characters"
+                {...field}
+                id="project-key"
+                aria-invalid={fieldState.invalid}
+                onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+              />
+              <FieldDescription>
                 {mode.type === "edit" ? t("keyEditHint") : t("keyHint")}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
+              </FieldDescription>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="client"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("client")}</FormLabel>
-              <FormControl>
-                <Input placeholder={t("clientPlaceholder")} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="project-client">{t("client")}</FieldLabel>
+              <Input
+                placeholder={t("clientPlaceholder")}
+                {...field}
+                id="project-client"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("description")}</FormLabel>
-              <FormControl>
-                <Textarea
-                  rows={3}
-                  placeholder={t("descriptionPlaceholder")}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="project-description">
+                {t("description")}
+              </FieldLabel>
+              <Textarea
+                rows={3}
+                placeholder={t("descriptionPlaceholder")}
+                {...field}
+                id="project-description"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
         {mode.type === "edit" && defaultServer && (
-          <FormField
-            control={form.control}
+          <Controller
             name="defaultServerId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t("defaultServer")}</FormLabel>
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="project-default-server-id">
+                  {t("defaultServer")}
+                </FieldLabel>
                 {canChangeDefaultServer ? (
                   <Select
                     value={field.value}
@@ -238,11 +243,13 @@ export function ProjectForm({
                       field.onChange(value ?? NO_SERVER)
                     }
                   >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
+                    <SelectTrigger
+                      id="project-default-server-id"
+                      aria-invalid={fieldState.invalid}
+                      className="w-full"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NO_SERVER}>
                         {t("defaultServerNone")}
@@ -263,13 +270,13 @@ export function ProjectForm({
                           ?.name ?? t("defaultServerSet"))}
                   </p>
                 )}
-                <FormDescription>
+                <FieldDescription>
                   {canChangeDefaultServer
                     ? t("defaultServerDescription")
                     : `${t("defaultServerDescription")} ${t("defaultServerAdminOnly")}`}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
+                </FieldDescription>
+                <FieldError errors={[fieldState.error]} />
+              </Field>
             )}
           />
         )}
@@ -293,7 +300,7 @@ export function ProjectForm({
                 : t("submit")}
           </Button>
         </div>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }
