@@ -13,6 +13,11 @@ const byProject = query(z.object({ projectId: uuidSchema }));
 const memberInput = z.object({ projectId: uuidSchema, userId: uuidSchema });
 
 export const projectMembersRouter = sessionRouter()
+  // One-release compatibility stub: a SPA bundle cached from before the global
+  // roles change still calls this endpoint from the Members route loader, and
+  // a 404 there fails the whole route until a full reload. Remove with plan
+  // Task 6 (drop project_members.role).
+  .get("/list-org-wide-access", (c) => c.json([]))
   .get("/list-project-members", byProject, async (c) =>
     c.json(await listProjectMembers(c.req.valid("query").projectId))
   )
