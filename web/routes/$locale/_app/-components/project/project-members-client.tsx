@@ -117,7 +117,7 @@ export function ProjectMembersClient({
           placeholder={t("selectUser")}
           aria-label={t("selectUser")}
           disabled={candidates.length === 0 || isPending}
-          className="min-w-52"
+          className="w-auto min-w-52 sm:w-72"
         />
         <Button
           disabled={!addUserId || isPending}
