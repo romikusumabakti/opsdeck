@@ -16,8 +16,9 @@ import { uuidSchema } from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
 
 // The Project access tab of /admin/users: every project plus each user's
-// project memberships (which projects each user is a member of). User rows (name, role, last active, banned) come from
-// listUsers, which the page already fetches, so they aren't read twice.
+// project memberships (which projects each user is a member of). User rows
+// (name, role, last active, banned) come from listUsers, which the page
+// already fetches, so they aren't read twice.
 export type AccessMatrix = {
   projects: { id: string; key: string; name: string }[];
   memberships: Record<string, string[]>;
