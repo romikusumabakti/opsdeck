@@ -20,8 +20,14 @@ describe("project sources migration", () => {
 
   it("is expand only: creates two tables, drops and renames nothing", () => {
     expect(sql).not.toMatch(/\b(DROP|RENAME)\b/);
-    // DML only: "ON DELETE CASCADE" in the FKs is the point, not a delete.
-    expect(sql).not.toMatch(/\bDELETE\s+FROM\b|\bUPDATE\s+"/);
+    // The FK actions ("ON DELETE CASCADE") are the point, not DML; strip them
+    // so any other DELETE, UPDATE (incl. ON CONFLICT DO UPDATE) or TRUNCATE
+    // fails.
+    const dml = sql.replace(
+      /\bON (DELETE|UPDATE) (CASCADE|RESTRICT|SET NULL|SET DEFAULT|NO ACTION)\b/g,
+      ""
+    );
+    expect(dml).not.toMatch(/\b(DELETE|UPDATE|TRUNCATE)\b/i);
     expect(sql).not.toMatch(
       /ALTER TABLE "(environments|deploy_targets|apps|app_components|projects)"/
     );

@@ -49,6 +49,7 @@ const P1 = id(1);
 const P2 = id(2);
 const P3 = id(3);
 const P4 = id(4);
+const P5 = id(5);
 const APP_A = id(11);
 const APP_B = id(12);
 const APP_C = id(13);
@@ -58,6 +59,7 @@ const E3 = id(23);
 const E4 = id(24);
 const E5 = id(25);
 const E6 = id(26);
+const E8 = id(28);
 const CI = id(31);
 const SERVER = id(32);
 
@@ -127,7 +129,8 @@ describe.skipIf(!enabled)(
       }
       await sql`insert into projects (id, name, key) values
       (${P1}, 'Project one', 'P1'), (${P2}, 'Project two', 'P2'),
-      (${P3}, 'Project three', 'P3'), (${P4}, 'Project four', 'P4')`;
+      (${P3}, 'Project three', 'P3'), (${P4}, 'Project four', 'P4'),
+      (${P5}, 'Project five', 'P5')`;
       for (const [environment, project, app] of [
         [E1, P1, APP_A],
         [E2, P1, APP_A],
@@ -135,6 +138,7 @@ describe.skipIf(!enabled)(
         [E4, P2, null],
         [E5, P3, null],
         [E6, P4, APP_B],
+        [E8, P5, APP_B],
       ] as const) {
         await sql`insert into environments (id, project_id, name, slug, app_id)
         values (${environment}, ${project}, ${`env ${environment}`},
@@ -146,6 +150,8 @@ describe.skipIf(!enabled)(
       await target(E1, "core-frontend", "fe-a");
       await target(E3, "core-frontend", "fe-b");
       await target(E4, "portal-api", "main");
+      // A target of an app A component on an app B environment.
+      await target(E8, "core-backend", "p5-branch");
 
       await migrate(db, { migrationsFolder: "drizzle" });
     });
@@ -168,6 +174,11 @@ describe.skipIf(!enabled)(
     it("an app-less environment with targets is covered", async () => {
       expect(await hasApp(P2, APP_C)).toBe(true);
       expect(await branchOf(P2, "portal-api")).toBe("main");
+    });
+
+    it("a target's app is covered even when its environment is on another app", async () => {
+      expect(await hasApp(P5, APP_A)).toBe(true);
+      expect(await hasApp(P5, APP_B)).toBe(true);
     });
 
     it("an environment without targets gives its app and no branch", async () => {
