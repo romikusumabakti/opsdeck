@@ -4,7 +4,7 @@ import { EnvironmentSwitcher } from "@/components/nav/environment-switcher";
 import { ProjectSwitcher } from "@/components/nav/project-switcher";
 import { Separator } from "@/components/ui/separator";
 import { useViewTransitionRouter } from "@/hooks/use-view-transition-router";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useSearchParams } from "@/i18n/navigation";
 import {
   environmentSwitchHref,
   environmentsOf,
@@ -252,6 +252,7 @@ export function HeaderBreadcrumb({
   projectRoles: Record<string, ProjectRole>;
 }) {
   const pathname = usePathname();
+  const settingsTab = useSearchParams().get("tab");
   const t = useTranslations();
   // View Transitions give a switch a perceptible crossfade so it doesn't look
   // like an instant context wipe.
@@ -346,7 +347,7 @@ export function HeaderBreadcrumb({
                 ? `/${activeProject.key}/environments/new`
                 : null
             }
-            onSelect={(env) => go(environmentSwitchHref(env, nav, role))}
+            onSelect={(env) => go(environmentSwitchHref(env, nav, role, settingsTab))}
           />
         </>
       )}

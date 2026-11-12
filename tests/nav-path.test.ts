@@ -314,6 +314,26 @@ describe("environmentSwitchHref", () => {
       )
     ).toBe("/CMEM/qa/services");
   });
+  it("carries the settings tab to the target's Settings", () => {
+    expect(
+      environmentSwitchHref(
+        dest,
+        parseNavPath("/CMEM/prod/settings"),
+        "engineer",
+        "variables"
+      )
+    ).toBe("/CMEM/qa/settings?tab=variables");
+  });
+  it("ignores the tab outside Settings", () => {
+    expect(
+      environmentSwitchHref(
+        dest,
+        parseNavPath("/CMEM/prod/services"),
+        "viewer",
+        "variables"
+      )
+    ).toBe("/CMEM/qa/services");
+  });
   it("drops non-parallel sections to the dashboard", () => {
     expect(
       environmentSwitchHref(

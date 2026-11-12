@@ -16,6 +16,7 @@ const nav = vi.hoisted(() => ({ pathname: "/" }));
 
 vi.mock("@/i18n/navigation", () => ({
   usePathname: () => nav.pathname,
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: () => undefined }),
   Link: ({
     href,

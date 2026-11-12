@@ -261,11 +261,16 @@ export function canOpenSection(
   return !perm || canProject(role, perm);
 }
 
-/** Where picking `env` in the environment switcher should go. */
+/**
+ * Where picking `env` in the environment switcher should go. `settingsTab` is
+ * the current `?tab=` value; it is carried over when the target is Settings so
+ * switching environments keeps the same tab open.
+ */
 export function environmentSwitchHref(
   env: SwitchEnvironment,
   from: NavPath,
-  role: ProjectRole | null
+  role: ProjectRole | null,
+  settingsTab: string | null = null
 ): string {
   const base = `/${env.key}/${env.slug}`;
   if (
@@ -274,7 +279,10 @@ export function environmentSwitchHref(
     PARALLEL_SECTIONS.has(from.section) &&
     canOpenSection(from.section, env, role)
   ) {
-    return `${base}/${from.section}`;
+    const href = `${base}/${from.section}`;
+    return from.section === "settings" && settingsTab
+      ? `${href}?tab=${encodeURIComponent(settingsTab)}`
+      : href;
   }
   return base;
 }
