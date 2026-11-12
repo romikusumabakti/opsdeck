@@ -835,7 +835,8 @@
     "pipelineModeGenerated": "Dibuat oleh Panel",
     "pipelineModeCustom": "Custom (.woodpecker.yaml milik repository)",
     "pipelinesHint": "Dipilih oleh deteksi. Pipeline yang dibuat Panel harus memuat branch environment ini di daftar branch-nya.",
-    "pipelineFileMissing": "Belum ada .woodpecker.yaml di branch ini: build-nya baru berjalan setelah repository punya file yang memberi tahu Panel."
+    "pipelineFileMissing": "Belum ada .woodpecker.yaml di branch ini: build-nya baru berjalan setelah repository punya file yang memberi tahu Panel.",
+    "notInSources": "{app} · bukan sumber proyek ini (Pengaturan proyek → Sumber)"
   },
   "environmentForm": {
     "info": "Informasi environment",

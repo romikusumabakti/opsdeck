@@ -835,7 +835,8 @@
     "pipelineModeGenerated": "Generado por el Panel",
     "pipelineModeCustom": "Propio (el .woodpecker.yaml del repositorio)",
     "pipelinesHint": "Lo eligió la detección. Un pipeline generado necesita la rama del entorno entre sus ramas.",
-    "pipelineFileMissing": "Esta rama aún no tiene .woodpecker.yaml: sus compilaciones empezarán cuando el repositorio tenga uno que avise al Panel."
+    "pipelineFileMissing": "Esta rama aún no tiene .woodpecker.yaml: sus compilaciones empezarán cuando el repositorio tenga uno que avise al Panel.",
+    "notInSources": "{app} · no está entre las fuentes de este proyecto (Ajustes del proyecto → Fuentes)"
   },
   "environmentForm": {
     "info": "Datos del entorno",

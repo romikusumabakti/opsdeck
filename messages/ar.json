@@ -835,7 +835,8 @@
     "pipelineModeGenerated": "تولّده اللوحة",
     "pipelineModeCustom": "مخصص (ملف .woodpecker.yaml في المستودع)",
     "pipelinesHint": "اختاره الاكتشاف. يحتاج خط البناء المولَّد إلى فرع البيئة ضمن فروعه.",
-    "pipelineFileMissing": "لا يوجد ملف .woodpecker.yaml في هذا الفرع بعد: تبدأ عمليات البناء عندما يحتوي المستودع على ملف يُبلغ اللوحة."
+    "pipelineFileMissing": "لا يوجد ملف .woodpecker.yaml في هذا الفرع بعد: تبدأ عمليات البناء عندما يحتوي المستودع على ملف يُبلغ اللوحة.",
+    "notInSources": "{app} · ليس ضمن مصادر هذا المشروع (إعدادات المشروع ← المصادر)"
   },
   "environmentForm": {
     "info": "معلومات البيئة",

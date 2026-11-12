@@ -145,3 +145,18 @@ describe("repoPickable", () => {
     expect(repoPickable(row("dss/other", null), ["dss/new"], null)).toBe(true);
   });
 });
+
+describe("repoPickable in sources mode", () => {
+  const row = (repoFullName: string, appKey: string | null) => ({
+    repoFullName,
+    appKey,
+  });
+  it("refuses a registered repository of an app outside the sources", () => {
+    expect(repoPickable(row("dss/h", "hris"), [], null, ["kmem"])).toBe(false);
+    expect(repoPickable(row("dss/a", "kmem"), [], null, ["kmem"])).toBe(true);
+    expect(repoPickable(row("dss/new", null), [], null, ["kmem"])).toBe(true);
+  });
+  it("keeps today's rule without sources", () => {
+    expect(repoPickable(row("dss/h", "hris"), [], null, null)).toBe(true);
+  });
+});

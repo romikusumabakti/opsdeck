@@ -67,6 +67,7 @@ import {
 import type { SetupIssue } from "@/lib/setup/schema";
 import { sectionOfField } from "@/lib/setup/sections";
 import { baseEnvSlug } from "@/lib/setup/slug";
+import { initialRepoBranch } from "@/lib/setup/source-branch";
 import { ApiError } from "@/web/api/client";
 import { listDatabaseHostsQuery } from "@/web/api/database-hosts";
 import {
@@ -97,6 +98,7 @@ import {
 import { RepoListRow } from "./repo-list-row";
 import { RepoPicker } from "./repo-picker";
 import { SetupReview } from "./review";
+import type { NewEnvironmentSources } from "./sources-mode";
 import { useApiErrorMessage, useIssueMessage } from "./use-issue-message";
 
 // The New environment page (inside a project): Start from, Name, Repository,
@@ -136,7 +138,6 @@ type AdvancedKey = "targets" | "services" | "database" | "variables" | "domain";
 
 const NEW = "__new";
 const ENTRY_PORT_VARIABLE = "ENTRY_PORT";
-const DEFAULT_BRANCH = "main";
 /** Lets the preview run (detection on pick) before a name is typed. */
 const PROBE_NAME = "new";
 
@@ -165,9 +166,10 @@ export function NewEnvironmentForm({
   canChoosePipelines,
   initialFrom,
   initialRepo,
+  sources = null,
 }: {
   project: NewEnvironmentProject;
-  /** The registered apps: their components' repositories and branches. */
+  /** The registered apps (only the project's sources, when it has any): their components' repositories and branches. */
   apps: NewEnvironmentApp[];
   /** May put an address behind no policy (org server:manage). */
   canPublish: boolean;
@@ -177,6 +179,8 @@ export function NewEnvironmentForm({
   initialFrom?: string;
   /** `?repo=`: the repository to start with. */
   initialRepo?: string;
+  /** The project's sources; null (no sources) keeps every app pickable. */
+  sources?: NewEnvironmentSources | null;
 }) {
   const t = useTranslations("newEnvironment");
   const tSetup = useTranslations("setup");
@@ -198,19 +202,34 @@ export function NewEnvironmentForm({
       components.filter((c) => c.repoFullName === repoFullName)
     );
   const startComponent = initialRepo ? componentOfRepo(initialRepo) : undefined;
+  // A component picked without a copy source starts on the project default
+  // branch, else its build spec's first branch, the repository's, "main".
+  const startBranch = (
+    component:
+      | { componentKey: string; buildSpec?: { branches: string[] } | null }
+      | undefined,
+    repoDefault?: string
+  ) =>
+    initialRepoBranch({
+      projectDefault: component
+        ? sources?.defaultBranches[component.componentKey]
+        : null,
+      specBranches: component?.buildSpec?.branches,
+      repoDefault,
+    });
 
   // Copy sources: the project's environments of an app, newest first
   // (uuidv7 ids sort by creation).
-  const sources = [...project.environments]
+  const copySources = [...project.environments]
     .filter((e) => e.appId !== null)
     .sort((a, b) => b.id.localeCompare(a.id));
   const defaultFrom =
     initialFrom ??
     (initialRepo
       ? startComponent
-        ? sources.find((e) => e.appId === startComponent.appId)?.id
+        ? copySources.find((e) => e.appId === startComponent.appId)?.id
         : undefined
-      : sources[0]?.id) ??
+      : copySources[0]?.id) ??
     null;
 
   const [startFrom, setStartFrom] = React.useState<string | null>(defaultFrom);
@@ -221,7 +240,7 @@ export function NewEnvironmentForm({
           {
             ciConnectionId: startComponent.ciConnectionId,
             repoFullName: startComponent.repoFullName,
-            branch: startComponent.buildSpec?.branches[0] ?? DEFAULT_BRANCH,
+            branch: startBranch(startComponent),
           },
         ]
       : []
@@ -344,7 +363,8 @@ export function NewEnvironmentForm({
 
   // The app the environment deploys: the copy source's, else the first
   // registered repository's. Other apps' repositories cannot be added.
-  const sourceAppId = sources.find((e) => e.id === startFrom)?.appId ?? null;
+  const sourceAppId =
+    copySources.find((e) => e.id === startFrom)?.appId ?? null;
   const currentApp =
     apps.find((a) => a.id === sourceAppId) ??
     repos.map((r) => componentOfRepo(r.repoFullName)?.app).find(Boolean) ??
@@ -557,9 +577,10 @@ export function NewEnvironmentForm({
     repoFullName: string;
     defaultBranch?: string;
   }) {
-    const component = componentOfRepo(row.repoFullName);
-    const branch =
-      component?.buildSpec?.branches[0] ?? row.defaultBranch ?? DEFAULT_BRANCH;
+    const branch = startBranch(
+      componentOfRepo(row.repoFullName),
+      row.defaultBranch
+    );
     changeRepos((rows) =>
       rows.some((r) => r.repoFullName === row.repoFullName)
         ? rows
@@ -811,7 +832,7 @@ export function NewEnvironmentForm({
                     {(value: string) => {
                       // `?from=` may name an environment of another project.
                       const copyName =
-                        sources.find((e) => e.id === value)?.name ??
+                        copySources.find((e) => e.id === value)?.name ??
                         (value === startFrom
                           ? sourceQuery.data?.environment.name
                           : undefined);
@@ -823,7 +844,7 @@ export function NewEnvironmentForm({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NEW}>{t("startFromNew")}</SelectItem>
-                  {sources.map((e) => (
+                  {copySources.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
                       {t("startFromCopy", { name: e.name })}
                     </SelectItem>
@@ -900,6 +921,7 @@ export function NewEnvironmentForm({
                 label={repos.length === 0 ? t("chooseRepo") : t("addRepo")}
                 picked={repos.map((r) => r.repoFullName)}
                 currentAppKey={currentApp?.appKey ?? null}
+                sourceAppKeys={sources?.appKeys ?? null}
                 onPick={addRepo}
               />
               {reposIssue && (

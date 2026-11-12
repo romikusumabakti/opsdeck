@@ -72,6 +72,12 @@ vi.mock("@/web/api/setup", () => ({
   previewNewEnvironment: api.preview,
   createNewEnvironment: api.create,
 }));
+vi.mock("@/web/api/project-sources", () => ({
+  listProjectSourcesQuery: (projectId: string) => ({
+    queryKey: ["project-sources", projectId],
+    queryFn: async () => [],
+  }),
+}));
 
 import { SETUP_PERMISSIONS } from "@/lib/permissions";
 import {
@@ -830,6 +836,98 @@ describe("New environment page", () => {
     expect(container.textContent).toContain(
       messages.setupWizard.sections.deploy
     );
+  });
+
+  describe("sources mode", () => {
+    const openPicker = async () => {
+      await act(async () =>
+        document.querySelector<HTMLElement>("#env-repo-picker")?.click()
+      );
+      await settle();
+    };
+
+    it("a repo picked without a copy starts on the project default", async () => {
+      await mount({
+        project: emptyProject,
+        sources: {
+          appKeys: ["kmem"],
+          defaultBranches: { "kmem-api": "kestrel/development" },
+        },
+      });
+      await openPicker();
+      await act(async () => byText('[role="option"]', "dss/kmem-api")?.click());
+      await settle();
+      expect(api.preview).toHaveBeenCalledOnce();
+      expect(api.preview.mock.calls[0]?.[0].repos).toEqual([
+        {
+          ciConnectionId: CONN,
+          repoFullName: "dss/kmem-api",
+          branch: "kestrel/development",
+        },
+      ]);
+    });
+
+    it("a copy keeps its branches; a repo added to it starts on the project default", async () => {
+      api.preview.mockResolvedValueOnce({
+        plan: plan(),
+        preview: {
+          ...cleanPreview.preview,
+          issues: [{ field: "targets", code: "targetMissing" }],
+        },
+      });
+      await mount({
+        project: projectWithEnvs,
+        initialFrom: OLD_ENV,
+        sources: {
+          appKeys: ["kmem"],
+          defaultBranches: {
+            "kmem-api": "kestrel/development",
+            "kmem-web": "kestrel/demo",
+          },
+        },
+      });
+      await act(async () => type(nameInput(), "Dev 3"));
+      await pressCreate();
+      // The copy is faithful: the source's branch, so no repos are sent.
+      expect(api.preview.mock.calls[0]?.[0]).toMatchObject({
+        copyFromEnvironmentId: OLD_ENV,
+        repos: [],
+      });
+      await act(async () => byText("button", "Add dss/kmem-web")?.click());
+      await settle();
+      expect(api.preview).toHaveBeenCalledTimes(2);
+      expect(api.preview.mock.calls[1]?.[0].repos).toEqual([
+        {
+          ciConnectionId: CONN,
+          repoFullName: "dss/kmem-api",
+          branch: "develop",
+        },
+        {
+          ciConnectionId: CONN,
+          repoFullName: "dss/kmem-web",
+          branch: "kestrel/demo",
+        },
+      ]);
+    });
+
+    it("other apps' repositories are disabled with the Sources hint in sources mode", async () => {
+      await mount({
+        project: emptyProject,
+        sources: { appKeys: ["kmem"], defaultBranches: {} },
+      });
+      await openPicker();
+      const hris = byText('[role="option"]', "dss/hris");
+      expect(hris?.getAttribute("aria-disabled")).toBe("true");
+      expect(hris?.textContent).toContain("not in this project's sources");
+      expect(hris?.textContent).toContain("HRIS");
+      // The source app's and an unregistered repository stay pickable.
+      expect(
+        byText('[role="option"]', "dss/kmem-api")?.getAttribute("aria-disabled")
+      ).not.toBe("true");
+      expect(
+        byText('[role="option"]', "dss/fresh")?.getAttribute("aria-disabled")
+      ).not.toBe("true");
+    });
   });
 
   it("qa sees forbidden", async () => {

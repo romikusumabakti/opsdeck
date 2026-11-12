@@ -835,7 +835,8 @@
     "pipelineModeGenerated": "由面板生成",
     "pipelineModeCustom": "自定义（仓库中的 .woodpecker.yaml）",
     "pipelinesHint": "由检测选择。生成的流水线必须在其分支中包含该环境的分支。",
-    "pipelineFileMissing": "此分支还没有 .woodpecker.yaml：仓库有一个会通知面板的文件后，构建才会开始。"
+    "pipelineFileMissing": "此分支还没有 .woodpecker.yaml：仓库有一个会通知面板的文件后，构建才会开始。",
+    "notInSources": "{app} · 不在本项目的来源中（项目设置 → 来源）"
   },
   "environmentForm": {
     "info": "环境信息",

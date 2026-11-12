@@ -20,15 +20,19 @@ const SEARCH_DEBOUNCE_MS = 300;
 /**
  * Whether a repository may join the list: not twice, and not one of another
  * app. A list of only unregistered repositories makes a new app, so then any
- * registered repository is another app's.
+ * registered repository is another app's. In a project with sources
+ * (`sourceAppKeys`), a registered repository of a non-source app is not
+ * offered either; an unregistered one still is.
  */
 export function repoPickable(
   row: Pick<SetupRepoRow, "repoFullName" | "appKey">,
   picked: readonly string[],
-  currentAppKey: string | null
+  currentAppKey: string | null,
+  sourceAppKeys: readonly string[] | null = null
 ): boolean {
   if (picked.includes(row.repoFullName)) return false;
   if (row.appKey === null) return true;
+  if (sourceAppKeys && !sourceAppKeys.includes(row.appKey)) return false;
   return currentAppKey === null
     ? picked.length === 0
     : row.appKey === currentAppKey;
@@ -36,17 +40,21 @@ export function repoPickable(
 
 /**
  * The repository search (the CI server's repositories). Repositories that
- * cannot be picked are listed disabled, with the app that owns them.
+ * cannot be picked are listed disabled, with the app that owns them, and a
+ * hint when only the project's sources keep them out.
  */
 export function RepoPicker({
   label,
   picked,
   currentAppKey,
+  sourceAppKeys,
   onPick,
 }: {
   label: string;
   picked: string[];
   currentAppKey: string | null;
+  /** The project's source apps; null when the project has none. */
+  sourceAppKeys: readonly string[] | null;
   onPick: (row: SetupRepoRow) => void;
 }) {
   const t = useTranslations("newEnvironment");
@@ -101,22 +109,38 @@ export function RepoPicker({
           )}
         </ComboboxEmpty>
         <ComboboxList aria-busy={loading || undefined}>
-          {(row: SetupRepoRow) => (
-            <ComboboxItem
-              key={`${row.ciConnectionId}:${row.repoFullName}`}
-              value={row}
-              disabled={!repoPickable(row, picked, currentAppKey)}
-            >
-              <span className="min-w-0 flex-1 truncate font-mono text-sm">
-                {row.repoFullName}
-              </span>
-              {row.appName && (
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {row.appName}
+          {(row: SetupRepoRow) => {
+            const pickable = repoPickable(
+              row,
+              picked,
+              currentAppKey,
+              sourceAppKeys
+            );
+            const notInSources =
+              !pickable && repoPickable(row, picked, currentAppKey);
+            return (
+              <ComboboxItem
+                key={`${row.ciConnectionId}:${row.repoFullName}`}
+                value={row}
+                disabled={!pickable}
+              >
+                <span className="min-w-0 flex-1 truncate font-mono text-sm">
+                  {row.repoFullName}
                 </span>
-              )}
-            </ComboboxItem>
-          )}
+                {row.appName &&
+                  (notInSources ? (
+                    // The longer hint wraps rather than squeezing the name.
+                    <span className="max-w-[60%] text-right text-xs text-muted-foreground">
+                      {t("notInSources", { app: row.appName })}
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {row.appName}
+                    </span>
+                  ))}
+              </ComboboxItem>
+            );
+          }}
         </ComboboxList>
       </ComboboxContent>
     </Combobox>
