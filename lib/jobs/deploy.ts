@@ -29,6 +29,7 @@ import { loadServerCredentials } from "@/lib/environments";
 import { handleCreateDatabaseBackup } from "@/lib/jobs/processor";
 import { enqueue, type JobMap } from "@/lib/queue";
 import { openArtifactLayer } from "@/lib/registry/artifact";
+import { RemoteCommandError } from "@/lib/remote-command-error";
 import {
   appendRunOutput,
   completeRun,
@@ -233,6 +234,44 @@ export async function failStaleDeployments(): Promise<void> {
     await bestEffort("append to the run", () => appendRunOutput(id, message));
     await bestEffort("fail the run", () => failRun(id, message));
   }
+}
+
+// The deploy script's own failure markers (stdout); compose noise goes to stderr.
+const SCRIPT_MARKER = /^[A-Z][A-Z ]*(FAILED|TIMEOUT|LOCKED)$/;
+
+function lastLine(text: string, match?: RegExp): string | null {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && (!match || match.test(l)));
+  return lines.at(-1) ?? null;
+}
+
+/**
+ * A failed deploy script's output goes to the run log in full, so the run's
+ * error is one line: the script's marker if it printed one, else the last
+ * line on stderr, else on stdout. Anything else (connection error, timeout)
+ * is returned as is.
+ */
+async function scriptFailure(runId: string, err: unknown): Promise<unknown> {
+  if (!(err instanceof RemoteCommandError)) return err;
+  const output = [err.stdout, err.stderr]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join("\n");
+  if (output) {
+    await bestEffort("append to the run", () => appendRunOutput(runId, output));
+  }
+  const reason =
+    lastLine(err.stdout, SCRIPT_MARKER) ??
+    lastLine(err.stderr) ??
+    lastLine(err.stdout);
+  const code = err.code ?? "none";
+  return new Error(
+    reason
+      ? `Deploy script exited with code ${code}: ${reason}`
+      : `Deploy script exited with code ${code}`
+  );
 }
 
 async function bestEffort(
@@ -459,7 +498,9 @@ async function runClaimedDeployment(
       credentials,
       script,
       DEPLOY_COMMAND_TIMEOUT_MS
-    );
+    ).catch(async (err) => {
+      throw await scriptFailure(runId, err);
+    });
   } catch (err) {
     // The script never ran, or failed. Either way the staged file is no longer
     // wanted: after an install it is gone already (rm -f is a no-op), and a
@@ -569,7 +610,9 @@ async function runArtifactDeployment(
     credentials,
     script,
     DEPLOY_COMMAND_TIMEOUT_MS
-  );
+  ).catch(async (err) => {
+    throw await scriptFailure(runId, err);
+  });
   const trimmed = output.trim();
   if (trimmed) await appendRunOutput(runId, trimmed);
 }

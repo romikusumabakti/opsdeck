@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
+import { RemoteCommandError } from "@/lib/remote-command-error";
 
 const TARGET_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789a2";
@@ -278,6 +279,46 @@ describe("handleDeploy", () => {
     expect(progress.failRun).toHaveBeenCalledWith(
       RUN_ID,
       expect.stringContaining("HEALTH TIMEOUT")
+    );
+  });
+
+  it("a failing script moves its output to the run log and fails with one line", async () => {
+    silenceErrors();
+    ssh.executeRemoteCommand.mockRejectedValue(
+      new RemoteCommandError(
+        1,
+        "origin-x: Pulling from dplk-membership-deploy\nStatus: Image is up to date",
+        "Container dplk-membership-backend Recreated\nContainer dplk-membership-backend Error dependency membership-backend failed to start\ndependency failed to start: container dplk-membership-backend is unhealthy"
+      )
+    );
+
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
+
+    const summary =
+      "Deploy script exited with code 1: dependency failed to start: container dplk-membership-backend is unhealthy";
+    const lines = progress.appendRunOutput.mock.calls.map((c) => c[1]);
+    expect(lines).toContain(
+      "origin-x: Pulling from dplk-membership-deploy\nStatus: Image is up to date\nContainer dplk-membership-backend Recreated\nContainer dplk-membership-backend Error dependency membership-backend failed to start\ndependency failed to start: container dplk-membership-backend is unhealthy"
+    );
+    expect(lines).toContain(`✗ ${summary}`);
+    expect(progress.failRun).toHaveBeenCalledWith(RUN_ID, summary);
+  });
+
+  it("a failing script's marker line wins over compose noise on stderr", async () => {
+    silenceErrors();
+    ssh.executeRemoteCommand.mockRejectedValue(
+      new RemoteCommandError(
+        1,
+        "Pulled\nHEALTH TIMEOUT",
+        "Container dplk-accounting-backend Started"
+      )
+    );
+
+    await handleDeploy(payload);
+
+    expect(progress.failRun).toHaveBeenCalledWith(
+      RUN_ID,
+      "Deploy script exited with code 1: HEALTH TIMEOUT"
     );
   });
 

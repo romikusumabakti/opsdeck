@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import type { ClientChannel } from "ssh2";
+import { RemoteCommandError } from "@/lib/remote-command-error";
 import {
   type ConnectOptions,
   HostKeyMismatchError,
@@ -81,15 +82,10 @@ export async function executeRemoteCommand(
     ]);
 
     if (result.code !== 0) {
-      // Some tools (sqlcmd, mysql client, etc.) write errors to stdout instead
-      // of stderr, so include both streams in the surfaced message — otherwise
-      // a non-zero exit shows up as "SSH Command Failed:" with no detail.
-      const detail = [result.stderr, result.stdout]
-        .map((s) => s?.trim())
-        .filter(Boolean)
-        .join("\n");
-      throw new Error(
-        `SSH Command Failed (exit ${result.code}): ${detail || "(no output)"}`
+      throw new RemoteCommandError(
+        result.code,
+        result.stdout ?? "",
+        result.stderr ?? ""
       );
     }
 
@@ -98,8 +94,19 @@ export async function executeRemoteCommand(
     // Carries no secret, and its code must reach the caller.
     if (error instanceof HostKeyMismatchError) throw error;
     if (secrets.length > 0) {
-      const message = error instanceof Error ? error.message : String(error);
-      const redacted = new Error(redactSecrets(message, secrets));
+      const redacted =
+        error instanceof RemoteCommandError
+          ? new RemoteCommandError(
+              error.code,
+              redactSecrets(error.stdout, secrets),
+              redactSecrets(error.stderr, secrets)
+            )
+          : new Error(
+              redactSecrets(
+                error instanceof Error ? error.message : String(error),
+                secrets
+              )
+            );
       console.error("SSH Error:", redacted.message);
       throw redacted;
     }
@@ -334,15 +341,7 @@ export async function pipeToRemoteCommand(
               resolve({ stdout, stderr });
               return;
             }
-            const detail = [stderr, stdout]
-              .map((text) => text.trim())
-              .filter(Boolean)
-              .join("\n");
-            reject(
-              new Error(
-                `SSH Command Failed (exit ${code ?? "none"}): ${detail || "(no output)"}`
-              )
-            );
+            reject(new RemoteCommandError(code, stdout, stderr));
           });
           source = Readable.fromWeb(body as unknown as WebReadableStream);
           // Reading the body failed (the registry dropped): fail the call.
