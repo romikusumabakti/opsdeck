@@ -1,20 +1,18 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { useRouter } from "@/i18n/navigation";
@@ -60,62 +58,63 @@ export function ResetPasswordForm({ token }: { token: string }) {
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
         {submitError && (
           <Alert variant="destructive">
             <CircleAlert />
             <AlertDescription>{submitError}</AlertDescription>
           </Alert>
         )}
-        <FormField
-          control={form.control}
+        <Controller
           name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("newPassword")}</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  autoComplete="new-password"
-                  {...field}
-                  onChange={(e) => {
-                    setSubmitError(null);
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="reset-password-password">
+                {t("newPassword")}
+              </FieldLabel>
+              <PasswordInput
+                autoComplete="new-password"
+                {...field}
+                id="reset-password-password"
+                aria-invalid={fieldState.invalid}
+                onChange={(e) => {
+                  setSubmitError(null);
+                  field.onChange(e);
+                }}
+              />
               <PasswordStrength value={field.value} />
-              <FormMessage />
-            </FormItem>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="confirm"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("confirmPassword")}</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  autoComplete="new-password"
-                  {...field}
-                  onChange={(e) => {
-                    setSubmitError(null);
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="reset-password-confirm">
+                {t("confirmPassword")}
+              </FieldLabel>
+              <PasswordInput
+                autoComplete="new-password"
+                {...field}
+                id="reset-password-confirm"
+                aria-invalid={fieldState.invalid}
+                onChange={(e) => {
+                  setSubmitError(null);
+                  field.onChange(e);
+                }}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? t("submitting") : t("submit")}
         </Button>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

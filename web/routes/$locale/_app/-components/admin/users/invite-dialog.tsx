@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { UserPlus } from "lucide-react";
 import * as React from "react";
 import { useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
@@ -16,13 +16,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -104,56 +102,60 @@ export function InviteDialog({
           <DialogTitle>{t("inviteCardTitle")}</DialogTitle>
           <DialogDescription>{t("inviteCardDescription")}</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onInvite)}
-            className="flex flex-col gap-4"
-          >
-            <FormField
-              control={form.control}
+        <form onSubmit={form.handleSubmit(onInvite)}>
+          <FieldGroup>
+            <Controller
               name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("fullName")}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={t("fullNamePlaceholder")} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="invite-name">{t("fullName")}</FieldLabel>
+                  <Input
+                    placeholder={t("fullNamePlaceholder")}
+                    {...field}
+                    id="invite-name"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("email")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder={t("emailPlaceholder")}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="invite-email">{t("email")}</FieldLabel>
+                  <Input
+                    type="email"
+                    placeholder={t("emailPlaceholder")}
+                    {...field}
+                    id="invite-email"
+                    aria-invalid={fieldState.invalid}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("roleLabel")}</FormLabel>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="invite-role">
+                    {t("roleLabel")}
+                  </FieldLabel>
                   <Select
                     value={field.value}
                     onValueChange={(v) => field.onChange(v ?? "")}
                   >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
+                    <SelectTrigger
+                      id="invite-role"
+                      className="w-full"
+                      aria-invalid={fieldState.invalid}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {ORG_ROLES.map((r) => (
                         <SelectItem key={r} value={r}>
@@ -162,8 +164,8 @@ export function InviteDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
             <DialogFooter>
@@ -181,8 +183,8 @@ export function InviteDialog({
                   : t("inviteSubmit")}
               </Button>
             </DialogFooter>
-          </form>
-        </Form>
+          </FieldGroup>
+        </form>
       </DialogContent>
     </Dialog>
   );

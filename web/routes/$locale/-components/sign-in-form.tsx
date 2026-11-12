@@ -1,19 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert, Fingerprint, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useLocale, useTranslations } from "use-intl";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Separator } from "@/components/ui/separator";
@@ -303,51 +301,53 @@ export function SignInForm({
       )}
 
       {emailExpanded ? (
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className={cn("flex flex-col gap-4", revealAnimation)}
-          >
-            <FormField
-              control={form.control}
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className={revealAnimation}
+        >
+          <FieldGroup>
+            <Controller
               name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("email")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      inputMode="email"
-                      // The `webauthn` token is what lets the browser list this
-                      // site's passkeys in the field's autofill dropdown; the
-                      // effect above starts the ceremony that fills it.
-                      autoComplete="email webauthn"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      // Set only when the disclosure revealed the form, so the
-                      // keyboard path is uninterrupted there without hijacking
-                      // focus on a normal page load.
-                      autoFocus={focusEmail}
-                      placeholder={t("emailPlaceholder")}
-                      {...field}
-                      onChange={(e) => {
-                        setSubmitError(null);
-                        field.onChange(e);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="sign-in-email">{t("email")}</FieldLabel>
+                  <Input
+                    type="email"
+                    inputMode="email"
+                    // The `webauthn` token is what lets the browser list this
+                    // site's passkeys in the field's autofill dropdown; the
+                    // effect above starts the ceremony that fills it.
+                    autoComplete="email webauthn"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    // Set only when the disclosure revealed the form, so the
+                    // keyboard path is uninterrupted there without hijacking
+                    // focus on a normal page load.
+                    autoFocus={focusEmail}
+                    placeholder={t("emailPlaceholder")}
+                    {...field}
+                    id="sign-in-email"
+                    aria-invalid={fieldState.invalid}
+                    onChange={(e) => {
+                      setSubmitError(null);
+                      field.onChange(e);
+                    }}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
-            <FormField
-              control={form.control}
+            <Controller
               name="password"
-              render={({ field }) => (
-                <FormItem>
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
                   <div className="flex items-center justify-between">
-                    <FormLabel>{t("password")}</FormLabel>
+                    <FieldLabel htmlFor="sign-in-password">
+                      {t("password")}
+                    </FieldLabel>
                     <Link
                       href="/forgot-password"
                       className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -355,18 +355,18 @@ export function SignInForm({
                       {t("forgotPassword")}
                     </Link>
                   </div>
-                  <FormControl>
-                    <PasswordInput
-                      autoComplete="current-password"
-                      {...field}
-                      onChange={(e) => {
-                        setSubmitError(null);
-                        field.onChange(e);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                  <PasswordInput
+                    autoComplete="current-password"
+                    {...field}
+                    id="sign-in-password"
+                    aria-invalid={fieldState.invalid}
+                    onChange={(e) => {
+                      setSubmitError(null);
+                      field.onChange(e);
+                    }}
+                  />
+                  <FieldError errors={[fieldState.error]} />
+                </Field>
               )}
             />
             <Button
@@ -382,8 +382,8 @@ export function SignInForm({
                 <span className="sr-only">{t("submitting")}</span>
               )}
             </Button>
-          </form>
-        </Form>
+          </FieldGroup>
+        </form>
       ) : (
         <Button
           type="button"

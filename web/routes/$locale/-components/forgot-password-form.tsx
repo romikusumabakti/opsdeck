@@ -1,19 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useLocale, useTranslations } from "use-intl";
 import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -70,37 +68,36 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
         {submitError && (
           <Alert variant="destructive">
             <CircleAlert />
             <AlertDescription>{submitError}</AlertDescription>
           </Alert>
         )}
-        <FormField
-          control={form.control}
+        <Controller
           name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("email")}</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  placeholder={t("emailPlaceholder")}
-                  {...field}
-                  onChange={(e) => {
-                    setSubmitError(null);
-                    field.onChange(e);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="forgot-password-email">
+                {t("email")}
+              </FieldLabel>
+              <Input
+                type="email"
+                autoComplete="email"
+                placeholder={t("emailPlaceholder")}
+                {...field}
+                id="forgot-password-email"
+                aria-invalid={fieldState.invalid}
+                onChange={(e) => {
+                  setSubmitError(null);
+                  field.onChange(e);
+                }}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
         <Button type="submit" disabled={form.formState.isSubmitting}>
@@ -112,7 +109,7 @@ export function ForgotPasswordForm() {
         >
           {t("backToSignIn")}
         </Link>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

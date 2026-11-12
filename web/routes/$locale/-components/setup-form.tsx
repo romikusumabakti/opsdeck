@@ -1,17 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
@@ -76,73 +74,81 @@ export function SetupForm() {
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Controller
           name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("name")}</FormLabel>
-              <FormControl>
-                <Input placeholder={t("namePlaceholder")} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="setup-name">{t("name")}</FieldLabel>
+              <Input
+                placeholder={t("namePlaceholder")}
+                {...field}
+                id="setup-name"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("email")}</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  placeholder={t("emailPlaceholder")}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="setup-email">{t("email")}</FieldLabel>
+              <Input
+                type="email"
+                autoComplete="email"
+                placeholder={t("emailPlaceholder")}
+                {...field}
+                id="setup-email"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("password")}</FormLabel>
-              <FormControl>
-                <PasswordInput autoComplete="new-password" {...field} />
-              </FormControl>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="setup-password">{t("password")}</FieldLabel>
+              <PasswordInput
+                autoComplete="new-password"
+                {...field}
+                id="setup-password"
+                aria-invalid={fieldState.invalid}
+              />
               <PasswordStrength value={field.value} />
-              <FormMessage />
-            </FormItem>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="confirm"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("confirmPassword")}</FormLabel>
-              <FormControl>
-                <PasswordInput autoComplete="new-password" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="setup-confirm">
+                {t("confirmPassword")}
+              </FieldLabel>
+              <PasswordInput
+                autoComplete="new-password"
+                {...field}
+                id="setup-confirm"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? t("submitting") : t("submit")}
         </Button>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }

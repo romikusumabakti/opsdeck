@@ -1,19 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PasswordStrength } from "@/components/ui/password-strength";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -77,50 +74,57 @@ export function AcceptInviteForm({
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="flex flex-col gap-4"
-      >
-        <div className="flex flex-col gap-2">
-          <Label>{t("name")}</Label>
-          <Input value={name} disabled />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>{t("email")}</Label>
-          <Input value={email} disabled />
-        </div>
-        <FormField
-          control={form.control}
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="accept-invite-name">{t("name")}</FieldLabel>
+          <Input id="accept-invite-name" value={name} disabled />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="accept-invite-email">{t("email")}</FieldLabel>
+          <Input id="accept-invite-email" value={email} disabled />
+        </Field>
+        <Controller
           name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("newPassword")}</FormLabel>
-              <FormControl>
-                <PasswordInput autoComplete="new-password" {...field} />
-              </FormControl>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="accept-invite-password">
+                {t("newPassword")}
+              </FieldLabel>
+              <PasswordInput
+                autoComplete="new-password"
+                {...field}
+                id="accept-invite-password"
+                aria-invalid={fieldState.invalid}
+              />
               <PasswordStrength value={field.value} />
-              <FormMessage />
-            </FormItem>
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
-        <FormField
-          control={form.control}
+        <Controller
           name="confirm"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("confirmPassword")}</FormLabel>
-              <FormControl>
-                <PasswordInput autoComplete="new-password" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field data-invalid={fieldState.invalid}>
+              <FieldLabel htmlFor="accept-invite-confirm">
+                {t("confirmPassword")}
+              </FieldLabel>
+              <PasswordInput
+                autoComplete="new-password"
+                {...field}
+                id="accept-invite-confirm"
+                aria-invalid={fieldState.invalid}
+              />
+              <FieldError errors={[fieldState.error]} />
+            </Field>
           )}
         />
         <Button type="submit" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? t("submitting") : t("submit")}
         </Button>
-      </form>
-    </Form>
+      </FieldGroup>
+    </form>
   );
 }
