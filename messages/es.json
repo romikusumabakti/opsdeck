@@ -280,7 +280,6 @@
       "start": "Iniciar",
       "stop": "Detener",
       "restart": "Reiniciar",
-      "viewLogs": "Ver registros",
       "logs": "Registros"
     },
     "confirmTitle": {

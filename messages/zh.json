@@ -280,7 +280,6 @@
       "start": "启动",
       "stop": "停止",
       "restart": "重启",
-      "viewLogs": "查看日志",
       "logs": "日志"
     },
     "confirmTitle": {

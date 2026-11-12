@@ -280,7 +280,6 @@
       "start": "Start",
       "stop": "Stop",
       "restart": "Restart",
-      "viewLogs": "View logs",
       "logs": "Logs"
     },
     "confirmTitle": {

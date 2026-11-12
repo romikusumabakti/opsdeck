@@ -280,7 +280,6 @@
       "start": "تشغيل",
       "stop": "إيقاف",
       "restart": "إعادة التشغيل",
-      "viewLogs": "عرض السجلات",
       "logs": "السجلات"
     },
     "confirmTitle": {
