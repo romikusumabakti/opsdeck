@@ -9,8 +9,8 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { basicSetup } from "codemirror";
-import { useTheme } from "next-themes";
 import * as React from "react";
+import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 
 // CodeMirror 6 wrapped for React. CM owns its own DOM and state — React only

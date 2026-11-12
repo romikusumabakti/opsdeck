@@ -26,7 +26,6 @@ import {
   UsersRound,
   Workflow,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "use-intl";
 import { AccentDot } from "@/components/accent-dot";
@@ -34,6 +33,7 @@ import { useAccent } from "@/components/accent-provider";
 import { useMotif } from "@/components/motif-provider";
 import { EnvironmentHost, urlHost } from "@/components/nav/environment-host";
 import { EnvironmentKindBadge } from "@/components/nav/environment-kind-badge";
+import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,

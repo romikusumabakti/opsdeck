@@ -1,12 +1,12 @@
 import "@xterm/xterm/css/xterm.css";
 
-import { useTheme } from "next-themes";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import {
   HostKeyReviewLink,
   isHostKeyMismatchFrame,
 } from "@/components/host-key-mismatch";
+import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 
 // The browser half of the terminal. xterm reaches for `window` during

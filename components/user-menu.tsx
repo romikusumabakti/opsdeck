@@ -11,7 +11,6 @@ import {
   Sun,
   UserRound,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import * as React from "react";
 import { useTransition } from "react";
 import { useLocale, useTranslations } from "use-intl";
@@ -19,6 +18,7 @@ import { AccentDot } from "@/components/accent-dot";
 import { useAccent } from "@/components/accent-provider";
 import { MotifInfoDialog } from "@/components/motif-info";
 import { useMotif } from "@/components/motif-provider";
+import { type Theme, useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -82,7 +82,7 @@ export function UserMenu({
   const router = useRouter();
   const pathname = usePathname();
   const currentLocale = useLocale() as Locale;
-  const { theme = "system", setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [pending, startTransition] = useTransition();
   const [statusOpen, setStatusOpen] = React.useState(false);
 
@@ -194,7 +194,7 @@ export function UserMenu({
               <DropdownMenuSubContent>
                 <DropdownMenuRadioGroup
                   value={theme}
-                  onValueChange={(v) => setTheme(v)}
+                  onValueChange={(v) => setTheme(v as Theme)}
                 >
                   {themeOptions.map(({ value, icon: Icon }) => (
                     <DropdownMenuRadioItem key={value} value={value}>

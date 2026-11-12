@@ -90,12 +90,7 @@ function LocaleLayout() {
   return (
     <IntlShell locale={locale} messages={messages}>
       <DocumentBrand />
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange
-      >
+      <ThemeProvider>
         <DialogProvider>
           <NavigationGuardProvider>
             {/* A locale switch remounts the page, as the [locale] segment

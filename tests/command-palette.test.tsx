@@ -10,7 +10,9 @@ vi.mock("@/i18n/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/",
 }));
-vi.mock("next-themes", () => ({ useTheme: () => ({ setTheme: vi.fn() }) }));
+vi.mock("@/components/theme-provider", () => ({
+  useTheme: () => ({ setTheme: vi.fn() }),
+}));
 vi.mock("@/components/accent-provider", () => ({
   useAccent: () => ({ setAccent: vi.fn() }),
 }));
