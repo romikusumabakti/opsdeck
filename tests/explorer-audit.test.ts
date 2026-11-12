@@ -1,8 +1,8 @@
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// File explorer audit: every successful write and download records one
-// activity event for the signed-in user; failures and reads record none.
+// File explorer audit: every successful write, download and editor read records one
+// activity event for the signed-in user; failures and listings record none.
 
 const SERVER_ID = "0197f3a0-1b2c-7def-8000-000000000001";
 const BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b1";
@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   activity: [] as Record<string, unknown>[],
   fail: false,
   presigned: false,
+  size: 1,
+  body: "x" as string | Buffer,
 }));
 
 vi.mock("@/lib/activity", () => ({
@@ -35,10 +37,15 @@ vi.mock("@/lib/explorer", () => {
   };
   const backend = {
     list: async () => [],
-    stat: async () => ({ name: "a", path: "a", type: "file", sizeBytes: 1 }),
+    stat: async () => ({
+      name: "a",
+      path: "a",
+      type: "file",
+      sizeBytes: state.size,
+    }),
     readStream: async () => {
       await act();
-      return Readable.from(["x"]);
+      return Readable.from([state.body]);
     },
     writeStream: async (_p: string, body: Readable) => {
       await act();
@@ -67,6 +74,8 @@ beforeEach(() => {
   state.activity = [];
   state.fail = false;
   state.presigned = false;
+  state.size = 1;
+  state.body = "x";
 });
 
 const q = (source: unknown, extra = "") =>
@@ -129,9 +138,35 @@ describe("explorer audit", () => {
     expect(state.activity).toEqual([]);
   });
 
-  it("records nothing for reads or a move that changes nothing", async () => {
+  it("records one files.read event for a successful editor read", async () => {
+    const res = await explorer.readFileText(sftp, "etc/.env");
+    expect(res.success).toBe(true);
+    expect(state.activity).toEqual([
+      expect.objectContaining({
+        action: "files.read",
+        actorId: "u1",
+        entityType: "server",
+        entityId: SERVER_ID,
+        data: { target: "web-1", path: "etc/.env" },
+      }),
+    ]);
+  });
+
+  it("records no read event for a too-large or non-text file", async () => {
+    state.size = 600 * 1024;
+    expect((await explorer.readFileText(sftp, "big.log")).success).toBe(false);
+    state.size = 1;
+    state.body = Buffer.from([0x61, 0x00, 0x62]);
+    expect((await explorer.readFileText(sftp, "a.bin")).success).toBe(false);
+    state.body = "x";
+    state.fail = true;
+    expect((await explorer.readFileText(sftp, "a.txt")).success).toBe(false);
+    expect((await explorer.readFileText(sftp, "")).success).toBe(false);
+    expect(state.activity).toEqual([]);
+  });
+
+  it("records nothing for listings, folder stats or a no-op move", async () => {
     await explorer.listEntries(sftp, "");
-    await explorer.readFileText(sftp, "a.txt");
     await explorer.folderStats(sftp, "");
     await explorer.getDownloadTarget(sftp, "a.txt");
     await explorer.moveEntry(sftp, "a.txt", "");

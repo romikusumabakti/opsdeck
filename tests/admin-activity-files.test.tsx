@@ -41,6 +41,7 @@ describe("activity page file explorer events", () => {
         archive: "x.zip",
       }),
       row("4", "files.download", { target: "bucket", path: "" }),
+      row("5", "files.read", { target: "web-1", path: "app/.env" }),
     ];
     const queryClient = new QueryClient();
     queryClient.setQueryData(["activity", "listActivity"], events);
@@ -64,6 +65,7 @@ describe("activity page file explorer events", () => {
       "Rina compressed a and 3 items in total into x.zip on web-1"
     );
     expect(text).toContain("Rina downloaded / from bucket");
+    expect(text).toContain("Rina opened app/.env on web-1");
     expect(text).not.toContain("did something");
     await act(async () => root.unmount());
   });

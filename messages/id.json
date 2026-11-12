@@ -2156,6 +2156,7 @@
     "releaseDownloaded": "{actor} mengunduh rilis {version} dari {component} di {project}",
     "releaseDeleted": "{actor} menghapus rilis {version} dari {component} di {project}",
     "files": {
+      "read": "{actor} membuka {path} di {target}",
       "save": "{actor} menyimpan {path} di {target}",
       "createFolder": "{actor} membuat folder {path} di {target}",
       "delete": "{actor} menghapus {path} di {target}",

@@ -210,6 +210,10 @@ export async function readFileText(
           result.reason === "too-large" ? t("fileTooLarge") : t("fileNotText"),
       };
     }
+    // The content leaves the server here, so it is audited like a download.
+    await recordFileAction(opened.actorId, opened.source, "files.read", {
+      path: parsedPath.data,
+    });
     return { success: true, content: result.content, eol: result.eol };
   } catch (error) {
     return { success: false, message: explain(error, t) };

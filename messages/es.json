@@ -2156,6 +2156,7 @@
     "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",
     "releaseDeleted": "{actor} deleted release {version} of {component} in {project}",
     "files": {
+      "read": "{actor} abrió {path} en {target}",
       "save": "{actor} guardó {path} en {target}",
       "createFolder": "{actor} creó la carpeta {path} en {target}",
       "delete": "{actor} eliminó {path} en {target}",

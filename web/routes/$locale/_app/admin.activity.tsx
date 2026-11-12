@@ -408,6 +408,7 @@ function message(
           });
     // File explorer events. `path` is "" for the root; a selection carries its
     // first path and a `count`.
+    case "files.read":
     case "files.save":
     case "files.createFolder":
     case "files.delete":

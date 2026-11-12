@@ -2156,6 +2156,7 @@
     "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",
     "releaseDeleted": "{actor} deleted release {version} of {component} in {project}",
     "files": {
+      "read": "{actor} 在 {target} 上打开了 {path}",
       "save": "{actor} 在 {target} 上保存了 {path}",
       "createFolder": "{actor} 在 {target} 上创建了文件夹 {path}",
       "delete": "{actor} 在 {target} 上删除了 {path}",
