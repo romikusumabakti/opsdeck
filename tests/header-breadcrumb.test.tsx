@@ -44,7 +44,7 @@ import { parseNavPath } from "@/lib/nav-path";
 describe("getTrailingSegments on project pages", () => {
   it.each([
     ["/CRMB/issues", [{ labelKey: "breadcrumbs.issues" }]],
-    ["/CRMB/milestones", [{ labelKey: "breadcrumbs.milestones" }]],
+    ["/CRMB/milestones", []],
     ["/CRMB/members", [{ labelKey: "breadcrumbs.members" }]],
     ["/CRMB/releases", [{ labelKey: "breadcrumbs.releases" }]],
     ["/CRMB/settings", [{ labelKey: "breadcrumbs.settings" }]],

@@ -22,8 +22,9 @@ import {
 import { getEnvironmentsLastActivityQuery } from "@/web/api/runs";
 import { requireProjectRole } from "@/web/project-guard";
 
-// Old `?tab=` links (issues, milestones, members lived here as tabs).
-const REDIRECT_TABS = ["issues", "milestones", "members"] as const;
+// Old `?tab=` links (issues and members lived here as tabs). Milestones no
+// longer exist, so `?tab=milestones` is an unknown tab and stays on the overview.
+const REDIRECT_TABS = ["issues", "members"] as const;
 type RedirectTab = (typeof REDIRECT_TABS)[number];
 const isRedirectTab = (value: unknown): value is RedirectTab =>
   REDIRECT_TABS.includes(value as RedirectTab);

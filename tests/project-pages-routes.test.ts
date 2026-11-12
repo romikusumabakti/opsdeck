@@ -31,11 +31,11 @@ describe("project members page", () => {
   });
 });
 
-describe("project milestones page", () => {
+describe("project milestones route", () => {
   const src = route("$projectKey.milestones.tsx");
-  it("guards by role and renders the milestones client", () => {
-    expect(src).toContain("requireProjectRole(");
-    expect(src).toContain("MilestonesClient");
+  it("only redirects; the page is gone", () => {
+    expect(src).toContain("redirect(");
+    expect(src).not.toContain("MilestonesClient");
   });
 });
 
@@ -58,18 +58,19 @@ describe("project overview", () => {
   });
   it("redirects legacy ?tab= links to the pages", () => {
     expect(src).toContain("redirect(");
-    for (const tab of ["issues", "milestones", "members"]) {
+    for (const tab of ["issues", "members"]) {
       expect(src).toContain(tab);
     }
+    expect(src).not.toMatch(/REDIRECT_TABS = \[[^\]]*milestones/);
     expect(src).toMatch(/`\/\$\{projectKey\}\/\$\{tab\}/);
     expect(src).toContain("status");
   });
 });
 
 describe("breadcrumb messages", () => {
-  it.each(locales)("%s has breadcrumbs.milestones and .members", (l) => {
+  it.each(locales)("%s has breadcrumbs.members and no milestones", (l) => {
     const m = JSON.parse(readFileSync(`messages/${l}.json`, "utf8"));
-    expect(typeof m.breadcrumbs.milestones).toBe("string");
     expect(typeof m.breadcrumbs.members).toBe("string");
+    expect(m.breadcrumbs.milestones).toBeUndefined();
   });
 });

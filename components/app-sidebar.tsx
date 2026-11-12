@@ -8,7 +8,6 @@ import {
   CloudCog,
   Cog,
   DatabaseZap,
-  Flag,
   FolderKanban,
   HardDrive,
   History,
@@ -89,7 +88,6 @@ type EnvironmentItem = {
 const PROJECT_ICONS: Record<ProjectNavKey, LucideIcon> = {
   overview: LayoutDashboard,
   issues: CircleDot,
-  milestones: Flag,
   releases: PackageCheck,
   members: Users,
   settings: Settings,

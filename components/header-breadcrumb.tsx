@@ -180,8 +180,6 @@ export function getTrailingSegments(
           },
           { kind: "static", label: `${nav.projectKey}-${nav.issueNumber}` },
         ];
-      case "milestones":
-        return [{ kind: "static", labelKey: "breadcrumbs.milestones" }];
       case "members":
         return [{ kind: "static", labelKey: "breadcrumbs.members" }];
       case "settings":

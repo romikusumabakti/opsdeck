@@ -34,6 +34,7 @@ export const RESERVED_ENV_SLUGS = new Set([
   "environments",
   "issues",
   "members",
+  // Kept reserved after the page's removal so no environment takes a slug old links point at.
   "milestones",
   "new",
   "releases",

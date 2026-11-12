@@ -90,7 +90,6 @@
     "repositories": "Repositorios",
     "variables": "Variables",
     "releases": "Releases",
-    "milestones": "Hitos",
     "members": "Miembros"
   },
   "commandPalette": {
@@ -126,7 +125,6 @@
     "history": "Historial",
     "settings": "Ajustes",
     "overview": "Resumen",
-    "milestones": "Hitos",
     "members": "Miembros",
     "projectSettings": "Ajustes del proyecto",
     "environmentSettings": "Ajustes del entorno",
@@ -1901,8 +1899,7 @@
     "noEnvironments": "Aún no hay entornos",
     "noEnvironmentsDescription": "Añade el primer entorno (un despliegue de QA, dev o release) para este proyecto.",
     "client": "Cliente",
-    "members": "Miembros",
-    "milestones": "Hitos"
+    "members": "Miembros"
   },
   "projectSettings": {
     "title": "Ajustes del proyecto",
@@ -2048,27 +2045,6 @@
     "removeMember": "Quitar a {name}",
     "orgAccessTitle": "También tienen acceso por su rol en la organización",
     "orgAccessDescription": "Los administradores e infra son engineers en todos los proyectos; los observadores pueden ver todos los proyectos. Cambia los roles en Admin → Acceso."
-  },
-  "milestones": {
-    "add": "Añadir",
-    "name": "Nombre",
-    "namePlaceholder": "p. ej. Lanzamiento v2.0",
-    "dueDate": "Fecha de vencimiento",
-    "noDue": "Sin fecha de vencimiento",
-    "colName": "Hito",
-    "colDue": "Vence",
-    "colIssues": "Incidencias",
-    "colStatus": "Estado",
-    "open": "Abierto",
-    "closed": "Cerrado",
-    "empty": "Aún no hay hitos",
-    "emptyDescription": "Crea un hito para agrupar incidencias hacia un lanzamiento u objetivo.",
-    "created": "Hito creado",
-    "closedMsg": "Hito cerrado",
-    "reopenedMsg": "Hito reabierto",
-    "deletedMsg": "Hito eliminado",
-    "delete": "Eliminar",
-    "errorGeneric": "Algo salió mal"
   },
   "activity": {
     "title": "Actividad",

@@ -90,7 +90,6 @@
     "repositories": "Repositori",
     "variables": "Variabel",
     "releases": "Rilis",
-    "milestones": "Milestone",
     "members": "Anggota"
   },
   "commandPalette": {
@@ -126,7 +125,6 @@
     "history": "Riwayat",
     "settings": "Pengaturan",
     "overview": "Ringkasan",
-    "milestones": "Milestone",
     "members": "Anggota",
     "projectSettings": "Pengaturan proyek",
     "environmentSettings": "Pengaturan lingkungan",
@@ -1901,8 +1899,7 @@
     "noEnvironments": "Belum ada environment",
     "noEnvironmentsDescription": "Tambahkan environment pertama (QA, dev, atau rilis) untuk proyek ini.",
     "client": "Klien",
-    "members": "Anggota",
-    "milestones": "Milestone"
+    "members": "Anggota"
   },
   "projectSettings": {
     "title": "Pengaturan proyek",
@@ -2048,27 +2045,6 @@
     "removeMember": "Hapus {name}",
     "orgAccessTitle": "Juga punya akses lewat role organisasi",
     "orgAccessDescription": "Admin dan infra adalah engineer di semua project; observer bisa melihat semua project. Ubah role organisasi di Admin → Access."
-  },
-  "milestones": {
-    "add": "Tambah",
-    "name": "Nama",
-    "namePlaceholder": "mis. Rilis v2.0",
-    "dueDate": "Tenggat",
-    "noDue": "Tanpa tenggat",
-    "colName": "Milestone",
-    "colDue": "Tenggat",
-    "colIssues": "Isu",
-    "colStatus": "Status",
-    "open": "Terbuka",
-    "closed": "Selesai",
-    "empty": "Belum ada milestone",
-    "emptyDescription": "Buat milestone untuk mengelompokkan isu menuju rilis atau target.",
-    "created": "Milestone dibuat",
-    "closedMsg": "Milestone ditutup",
-    "reopenedMsg": "Milestone dibuka lagi",
-    "deletedMsg": "Milestone dihapus",
-    "delete": "Hapus",
-    "errorGeneric": "Terjadi kesalahan"
   },
   "activity": {
     "title": "Aktivitas",

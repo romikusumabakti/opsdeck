@@ -22,7 +22,6 @@ export type ProjectPage =
   | "overview"
   | "issues"
   | "issue"
-  | "milestones"
   | "releases"
   | "members"
   | "settings"
@@ -53,7 +52,6 @@ export type NavProject = { id: string; key: string; name: string };
 const PROJECT_PAGES: Record<string, ProjectPage> = {
   settings: "settings",
   issues: "issues",
-  milestones: "milestones",
   releases: "releases",
   members: "members",
   environments: "new-environment",
@@ -199,7 +197,6 @@ export const SECTION_PERMS = {
 export type ProjectNavKey =
   | "overview"
   | "issues"
-  | "milestones"
   | "releases"
   | "members"
   | "settings";
@@ -218,7 +215,6 @@ export function projectNavItems(
   const allowed: Record<ProjectNavKey, boolean> = {
     overview: true,
     issues: true,
-    milestones: true,
     releases: releasable && canProject(role, { deploy: ["view"] }),
     members: canProject(role, { member: ["manage"] }),
     settings: canProject(role, SECTION_PERMS.settings),
@@ -226,7 +222,6 @@ export function projectNavItems(
   const keys: ProjectNavKey[] = [
     "overview",
     "issues",
-    "milestones",
     "releases",
     "members",
     "settings",

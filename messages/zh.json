@@ -90,7 +90,6 @@
     "repositories": "代码仓库",
     "variables": "变量",
     "releases": "Releases",
-    "milestones": "里程碑",
     "members": "成员"
   },
   "commandPalette": {
@@ -126,7 +125,6 @@
     "history": "历史记录",
     "settings": "设置",
     "overview": "概览",
-    "milestones": "里程碑",
     "members": "成员",
     "projectSettings": "项目设置",
     "environmentSettings": "环境设置",
@@ -1901,8 +1899,7 @@
     "noEnvironments": "暂无环境",
     "noEnvironmentsDescription": "为该项目添加第一个环境（QA、开发或发布部署）。",
     "client": "客户",
-    "members": "成员",
-    "milestones": "里程碑"
+    "members": "成员"
   },
   "projectSettings": {
     "title": "项目设置",
@@ -2048,27 +2045,6 @@
     "removeMember": "移除 {name}",
     "orgAccessTitle": "通过组织角色同样拥有访问权限",
     "orgAccessDescription": "管理员和基础设施角色在所有项目中都是 Engineer；观察者可以查看所有项目。可在“管理 → 访问”中更改组织角色。"
-  },
-  "milestones": {
-    "add": "添加",
-    "name": "名称",
-    "namePlaceholder": "例如：v2.0 发布",
-    "dueDate": "截止日期",
-    "noDue": "无截止日期",
-    "colName": "里程碑",
-    "colDue": "截止",
-    "colIssues": "问题",
-    "colStatus": "状态",
-    "open": "进行中",
-    "closed": "已关闭",
-    "empty": "暂无里程碑",
-    "emptyDescription": "创建里程碑以将问题归入某个发布或目标。",
-    "created": "里程碑已创建",
-    "closedMsg": "里程碑已关闭",
-    "reopenedMsg": "里程碑已重新打开",
-    "deletedMsg": "里程碑已删除",
-    "delete": "删除",
-    "errorGeneric": "出错了"
   },
   "activity": {
     "title": "动态",
