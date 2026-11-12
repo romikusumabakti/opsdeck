@@ -21,7 +21,7 @@ type Row = Record<string, unknown>;
 
 const state = vi.hoisted(() => ({
   projectRole: "engineer" as string | null,
-  orgRole: "member",
+  orgRole: "engineer",
   // Rows by table name; the fake db ignores `where` (fixtures are per test).
   rows: {} as Record<string, Row[]>,
   updates: [] as { table: string; values: Row; where: unknown }[],
@@ -287,7 +287,7 @@ const emptyPreview = {
 
 beforeEach(() => {
   state.projectRole = "engineer";
-  state.orgRole = "member";
+  state.orgRole = "engineer";
   state.rows = {
     projects: [{ id: PROJECT_ID, key: "PCAN", defaultServerId: null }],
     servers: [
@@ -692,6 +692,7 @@ describe("POST /api/setup/new-environment", () => {
   });
 
   it("qa cannot create environments", async () => {
+    state.orgRole = "qa";
     state.projectRole = "qa";
     for (const path of [
       "/api/setup/new-environment",
@@ -879,6 +880,7 @@ describe("GET /api/setup/repos", () => {
   });
 
   it("refuses a user who may not register repos", async () => {
+    state.orgRole = "qa";
     state.projectRole = "qa";
     const res = await app.request("/api/setup/repos?q=");
     expect(res.status).toBe(403);

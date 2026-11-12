@@ -119,7 +119,7 @@ describe("Adopt an existing hostname", () => {
     act(() => root.unmount());
     container.remove();
 
-    api.orgRole = "member";
+    api.orgRole = "engineer";
     await render(<DomainTab environmentId={ENV} domain={noDomain} />);
     expect(container.textContent).not.toContain(t.adopt.title);
   });

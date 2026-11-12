@@ -205,7 +205,7 @@ describe("GET /api/instance/environment-archives", () => {
   it("is 403 without instance:manage, for the list and a download", async () => {
     state.rows = [row()];
     writeLocal(state.rows[0] as Row);
-    for (const role of ["infra", "member", "observer"]) {
+    for (const role of ["infra", "engineer", "qa", "observer"]) {
       state.role = role;
       expect(
         (await app.request("/api/instance/environment-archives")).status

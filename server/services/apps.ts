@@ -108,11 +108,10 @@ const fail = (
   throw new HTTPException(status, { message });
 };
 
-/** Engineers of any project and admins (see canRegisterApp). */
+/** Admins and the job roles holding the engineer set (see canRegisterApp). */
 export async function requireRegistrant(): Promise<void> {
   const session = await requireSession();
-  const access = await getProjectAccess();
-  if (!canRegisterApp(session.user.role, Object.values(access.roles))) {
+  if (!canRegisterApp(session.user.role)) {
     forbidden();
   }
 }

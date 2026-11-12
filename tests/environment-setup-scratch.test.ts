@@ -35,7 +35,7 @@ if (scratchDb) {
 }
 
 const state = vi.hoisted(() => ({
-  user: { id: "", role: "member", name: "Wiz IT" },
+  user: { id: "", role: "engineer", name: "Wiz IT" },
   // Forces the domain's pre-check to pass, so the hostname clash happens
   // inside the transaction, on its last insert.
   skipHostnameCheck: false,
@@ -98,6 +98,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
   const ids = {
     maintainer: "",
     contributor: "",
+    observer: "",
     projectA: "",
     projectB: "",
     projectC: "",
@@ -236,20 +237,18 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
 
   beforeAll(async () => {
     await cleanup();
-    const user = (email: string) =>
+    const user = (email: string, role: string) =>
       one(
         db
           .insert(s.users)
-          .values({
-            id: crypto.randomUUID(),
-            name: email,
-            email,
-            role: "member",
-          })
+          .values({ id: crypto.randomUUID(), name: email, email, role })
           .returning({ id: s.users.id })
       );
-    ids.maintainer = (await user("wiz-it-maintainer@example.test")).id;
-    ids.contributor = (await user("wiz-it-contributor@example.test")).id;
+    ids.maintainer = (
+      await user("wiz-it-maintainer@example.test", "engineer")
+    ).id;
+    ids.contributor = (await user("wiz-it-contributor@example.test", "qa")).id;
+    ids.observer = (await user("wiz-it-observer@example.test", "observer")).id;
     const project = (key: string) =>
       one(
         db
@@ -466,7 +465,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
   });
 
   beforeEach(() => {
-    state.user = { id: ids.maintainer, role: "member", name: "Wiz IT" };
+    state.user = { id: ids.maintainer, role: "engineer", name: "Wiz IT" };
     state.skipHostnameCheck = false;
     state.enqueued = [];
     state.activity = [];
@@ -865,7 +864,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
   });
 
   it("refuses a QA contributor with 403", async () => {
-    state.user = { id: ids.contributor, role: "member", name: "QA" };
+    state.user = { id: ids.contributor, role: "qa", name: "QA" };
     const before = await counts();
     for (const path of [
       "/api/setup/environments",
@@ -938,9 +937,14 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     ]);
   });
 
-  it("leaves a secret blank for a caller without secret access to the source", async () => {
-    // A viewer of project B: the source is visible, its variables are not —
-    // not even their names, kinds or escrow flags (listVariables refuses).
+  it("hides the source's variables from a caller who sees it without secret access", async () => {
+    // An observer sees project B with the viewer set: the source is visible,
+    // its variables are not — not even their names, kinds or escrow flags
+    // (listVariables refuses). With one job role per user, no caller who may
+    // create an environment sees a project without variable:read, so the
+    // create's secretCopyForbidden refusal is covered by the service test
+    // (tests/environment-setup-api.test.ts) only.
+    state.user = { id: ids.observer, role: "observer", name: "Observer" };
     const view = await (
       await app.request(`/api/setup/environments/copy-source/${ids.sourceB}`)
     ).json();
@@ -950,25 +954,6 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
       zoneId: ids.zone,
       accessPolicyId: "pol-staff",
     });
-
-    const before = await counts();
-    const body = input({
-      copyFromEnvironmentId: ids.sourceB,
-      variables: [
-        { name: "SMTP_PASSWORD", kind: "secret", copy: true },
-        { name: "DATA_ENCRYPTION_KEY", kind: "secret", value: "k" },
-        { name: "DB_PASSWORD", kind: "generated" },
-      ],
-    });
-    const res = await post("/api/setup/environments/preview", body);
-    const text = await res.text();
-    expectNoSecret(text);
-    expect(JSON.parse(text).issues).toEqual([
-      { field: "variables.SMTP_PASSWORD", code: "secretCopyForbidden" },
-    ]);
-    const create = await post("/api/setup/environments", body);
-    expect(create.status).toBe(400);
-    expect(await counts()).toEqual(before);
   });
 
   it("lists the issues the create refuses with, first one first", async () => {
@@ -1356,7 +1341,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     });
 
     it("refuses a contributor and a project the caller cannot see", async () => {
-      state.user = { id: ids.contributor, role: "member", name: "QA" };
+      state.user = { id: ids.contributor, role: "qa", name: "QA" };
       expect(
         (await get(`/api/setup/options?projectId=${ids.projectA}`)).status
       ).toBe(403);
@@ -1364,7 +1349,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
         (await get(`/api/setup/access-policies?projectId=${ids.projectA}`))
           .status
       ).toBe(403);
-      state.user = { id: ids.maintainer, role: "member", name: "Wiz IT" };
+      state.user = { id: ids.maintainer, role: "engineer", name: "Wiz IT" };
       expect(
         (await get(`/api/setup/options?projectId=${ids.projectC}`)).status
       ).toBe(404);

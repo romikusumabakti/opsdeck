@@ -25,7 +25,7 @@ export const SEED_USAGE = `Usage: opsdeck seed demo [--print-passwords] [--force
 Creates (or keeps, when present) the demo projects DEMO and DEMOPORTAL with
 Dev and QA environments, two placeholder servers (sandbox-N.invalid, never
 reachable), a few issues, and one account per role (demo-admin, demo-infra,
-demo-observer, demo-engineer, demo-qa, demo-viewer @example.invalid) with
+demo-observer, demo-engineer, demo-qa @example.invalid) with
 email+password sign-in. Existing rows and accounts are never changed or reset.
 --print-passwords  Print the generated password of each account created now.
 --force            Seed even when NODE_ENV=production and the update channel
@@ -43,9 +43,8 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   { name: "demo-admin", orgRole: "admin", projectRole: null },
   { name: "demo-infra", orgRole: "infra", projectRole: null },
   { name: "demo-observer", orgRole: "observer", projectRole: null },
-  { name: "demo-engineer", orgRole: "member", projectRole: "engineer" },
-  { name: "demo-qa", orgRole: "member", projectRole: "qa" },
-  { name: "demo-viewer", orgRole: "member", projectRole: "viewer" },
+  { name: "demo-engineer", orgRole: "engineer", projectRole: "engineer" },
+  { name: "demo-qa", orgRole: "qa", projectRole: "qa" },
 ];
 
 const DEMO_PROJECTS = [

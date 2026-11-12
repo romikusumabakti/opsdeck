@@ -113,7 +113,7 @@ beforeEach(() => {
 
 describe("permissions", () => {
   it("a non-admin gets 403 on list and patch", async () => {
-    state.role = "member";
+    state.role = "engineer";
     expect((await send("GET", "/api/ci-connections")).status).toBe(403);
     expect(
       (await send("PATCH", `/api/ci-connections/${ID}`, { name: "x" })).status

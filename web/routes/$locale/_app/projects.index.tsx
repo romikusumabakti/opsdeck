@@ -63,12 +63,9 @@ function ProjectsPage() {
   const lastOpened = useSuspenseQuery(getEnvironmentsLastOpenedQuery()).data;
   const openIssueCounts = useSuspenseQuery(getOpenIssueCountsQuery()).data;
 
-  const orgRole = me?.orgRole ?? "member";
+  const orgRole = me?.orgRole ?? "qa";
   // The list is every member's; only the create affordances depend on the role.
-  const mayCreateProject = canCreateProject(
-    orgRole,
-    Object.values(access.roles)
-  );
+  const mayCreateProject = canCreateProject(orgRole);
 
   if (projects.length === 0) {
     return <ProjectsEmpty canCreate={mayCreateProject} />;

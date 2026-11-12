@@ -6,7 +6,6 @@ import {
 import { parseResponse } from "hono/client";
 import { canOrgAccessTarget, type OrgPermissions } from "@/lib/permissions";
 import { api } from "@/web/api/client";
-import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { ME_QUERY_KEY, queryClient } from "@/web/query-client";
 
 // What the SPA needs before it renders anything (server/routes/session.ts).
@@ -53,21 +52,19 @@ export function useMe() {
 }
 
 /**
- * The caller's org permission check, engineer grant included: an engineer on
- * any project also passes the server and storage read, terminal and files
- * checks (lib/permissions `canOrgAccess`). For a restricted target (an
- * infra-only server, the instance backup bucket) pass `restricted`: the org
- * role alone decides (`canOrgAccessTarget`).
+ * The caller's org permission check, engineer grant included: the engineer
+ * job role also passes the server and storage read, terminal and files checks
+ * (lib/permissions `canOrgAccess`). For a restricted target (an infra-only
+ * server, the instance backup bucket) pass `restricted`: the org role's own
+ * statements alone decide (`canOrgAccessTarget`).
  */
 export function useCanOrg(): (
   perms: OrgPermissions,
   restricted?: boolean
 ) => boolean {
   const me = useMe();
-  const access = useSuspenseQuery(getMyProjectAccessQuery()).data;
-  const roles = Object.values(access.roles);
   return (perms, restricted = false) =>
-    canOrgAccessTarget(me?.orgRole, roles, perms, restricted);
+    canOrgAccessTarget(me?.orgRole, perms, restricted);
 }
 
 /**

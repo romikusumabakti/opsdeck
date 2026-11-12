@@ -207,7 +207,7 @@ describe("DELETE /api/releases/:id", () => {
   });
 
   it("is 403 for a non-admin", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     const res = await send("DELETE", `/api/releases/${RELEASE_ID}`);
     expect(res.status).toBe(403);
     expect(store.delete).not.toHaveBeenCalled();

@@ -12,7 +12,7 @@ const RUN_ID = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 
 const state = vi.hoisted(() => ({
-  orgRole: "member" as string,
+  orgRole: "engineer" as string,
   projectRole: "engineer" as string | null,
   // Row-only delete: what DELETE … RETURNING yields.
   deleted: [{ name: "TD Dev" }] as { name: string }[],
@@ -186,7 +186,7 @@ function expectNothingStarted() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  state.orgRole = "member";
+  state.orgRole = "engineer";
   state.projectRole = "engineer";
   state.deleted = [{ name: "TD Dev" }];
   state.variables = [];
@@ -351,7 +351,7 @@ describe("POST /api/environments/:id/teardown", () => {
     for (const [orgRole, confirmEscrowedDeletion] of [
       ["admin", undefined],
       ["admin", false],
-      ["member", true],
+      ["engineer", true],
       ["infra", true],
     ] as const) {
       state.orgRole = orgRole;
@@ -381,7 +381,7 @@ describe("POST /api/environments/:id/teardown", () => {
 
   it("records no escrow confirmation without integration:manage", async () => {
     // infra: server:manage, not integration:manage; no escrowed variables yet.
-    for (const orgRole of ["infra", "member"]) {
+    for (const orgRole of ["infra", "engineer"]) {
       state.orgRole = orgRole;
       repo.saveTeardownSteps.mockClear();
       const res = await start({
@@ -456,7 +456,7 @@ describe("POST /api/environments/:id/teardown/retry", () => {
     expect(repo.confirmTeardownEscrowedDeletion).not.toHaveBeenCalled();
 
     // An engineer (and infra) may not: refused before any run opens.
-    for (const orgRole of ["member", "infra"]) {
+    for (const orgRole of ["engineer", "qa", "infra"]) {
       state.orgRole = orgRole;
       const res = await retry({ confirmEscrowedDeletion: true });
       expect(res.status).toBe(409);
@@ -602,7 +602,7 @@ describe("GET /api/environments/:id/teardown", () => {
 
 describe("DELETE /api/environments/:id (Remove from Panel only)", () => {
   it("is 403 for an engineer without org server:manage", async () => {
-    for (const orgRole of ["member", "observer"]) {
+    for (const orgRole of ["engineer", "qa", "observer"]) {
       state.orgRole = orgRole;
       const res = await send("DELETE", `/api/environments/${ENV_ID}`, {});
       expect(res.status).toBe(403);

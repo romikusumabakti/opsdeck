@@ -160,7 +160,7 @@ beforeEach(() => {
 
 describe("database hosts API", () => {
   it("is 403 without server:manage for create and delete", async () => {
-    for (const role of ["member", "observer"]) {
+    for (const role of ["engineer", "qa", "observer"]) {
       state.orgRole = role;
       expect((await send("POST", "/api/database-hosts", BODY)).status).toBe(
         403
@@ -182,7 +182,7 @@ describe("database hosts API", () => {
         containerName: "dplk-postgres",
       },
     ];
-    for (const role of ["member", "observer", "admin"]) {
+    for (const role of ["engineer", "qa", "observer", "admin"]) {
       state.orgRole = role;
       const res = await send(
         "GET",
@@ -349,7 +349,7 @@ describe("database hosts API", () => {
   });
 
   it("is 403 for PATCH without server:manage", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     const res = await send("PATCH", `/api/database-hosts/${HOST_ID}`, {
       network: "x",
     });

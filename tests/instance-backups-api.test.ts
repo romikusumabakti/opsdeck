@@ -156,7 +156,7 @@ beforeEach(() => {
 
 describe("permissions", () => {
   it("a non-admin gets 403 with code forbidden on every route", async () => {
-    for (const role of ["infra", "observer", "member"]) {
+    for (const role of ["infra", "observer", "engineer", "qa"]) {
       state.role = role;
       const calls: [string, string, unknown?][] = [
         ["GET", "/api/instance/backups"],
@@ -176,7 +176,7 @@ describe("permissions", () => {
     expect(state.enqueued).toEqual([]);
   });
   it("answers a non-admin 403 forbidden before validating the body", async () => {
-    state.role = "member";
+    state.role = "engineer";
     const calls: [string, string, unknown?][] = [
       ["PUT", "/api/instance/backups/settings", { time: "nope" }],
       ["PUT", "/api/instance/backups/settings", "not json"],

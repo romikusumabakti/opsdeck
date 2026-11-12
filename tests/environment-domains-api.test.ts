@@ -12,7 +12,7 @@ type Existing = {
 
 const state = vi.hoisted(() => ({
   projectRole: "engineer" as string | null,
-  orgRole: "member" as string,
+  orgRole: "engineer" as string,
   serverIds: ["srv-1"] as string[],
   tunnel: { id: "rt-1", name: "dss-113" } as {
     id: string;
@@ -173,7 +173,7 @@ const tunnelBody = (extra: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.projectRole = "engineer";
-  state.orgRole = "member";
+  state.orgRole = "engineer";
   state.serverIds = ["srv-1"];
   state.tunnel = { id: "rt-1", name: "dss-113" };
   state.zone = { id: "zone-row", name: "example.net" };

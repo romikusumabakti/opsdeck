@@ -24,7 +24,7 @@ type Dep = {
 const state = vi.hoisted(() => ({
   userId: "",
   role: "engineer" as string | null,
-  orgRole: "member",
+  orgRole: "engineer",
 }));
 
 const store = vi.hoisted(() => ({
@@ -184,7 +184,7 @@ const { sweepExpiredLocks } = await import("@/lib/deploy/lock-release");
 const NOW = new Date("2026-11-05T03:00:00Z"); // 10:00 WIB
 const LATER = new Date("2026-11-05T08:00:00Z");
 
-function as(userId: string, role: string | null, orgRole = "member") {
+function as(userId: string, role: string | null, orgRole = "engineer") {
   state.userId = userId;
   state.role = role;
   state.orgRole = orgRole;

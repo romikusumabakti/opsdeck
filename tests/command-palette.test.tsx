@@ -115,21 +115,21 @@ describe("command palette pages", () => {
     ]);
   });
 
-  it("lists Servers and Storage to a member who is an engineer", async () => {
-    await openPalette("member", "engineer");
+  it("lists Servers and Storage to an engineer", async () => {
+    await openPalette("engineer", "engineer");
     expect(labels()).toEqual(
       expect.arrayContaining([messages.userMenu.servers, messages.nav.storage])
     );
   });
 
   it("hides Servers and Storage from a QA member", async () => {
-    await openPalette("member", "qa");
+    await openPalette("qa", "qa");
     expect(labels()).not.toContain(messages.userMenu.servers);
     expect(labels()).not.toContain(messages.nav.storage);
   });
 
   it("hides Repositories, CI and Cloudflare from a QA member", async () => {
-    await openPalette("member", "qa");
+    await openPalette("qa", "qa");
     const shown = labels();
     for (const label of [
       messages.nav.repositories,
@@ -146,7 +146,7 @@ describe("command palette pages", () => {
 describe("command palette Variables entry", () => {
   it("offers Variables inside an environment to an engineer", async () => {
     nav.pathname = "/KMEM/dev-1/deploys";
-    await openPalette("member", "engineer");
+    await openPalette("engineer", "engineer");
     const el = [...document.querySelectorAll<HTMLElement>("[cmdk-item]")].find(
       (item) => item.textContent === messages.nav.variables
     );
@@ -156,12 +156,12 @@ describe("command palette Variables entry", () => {
 
   it("hides Variables from QA inside an environment", async () => {
     nav.pathname = "/KMEM/dev-1/deploys";
-    await openPalette("member", "qa");
+    await openPalette("qa", "qa");
     expect(labels()).not.toContain(messages.nav.variables);
   });
 
   it("hides Variables outside an environment", async () => {
-    await openPalette("member", "engineer");
+    await openPalette("engineer", "engineer");
     expect(labels()).not.toContain(messages.nav.variables);
   });
 });

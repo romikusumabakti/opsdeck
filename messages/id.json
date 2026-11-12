@@ -1299,8 +1299,9 @@
     "role": {
       "admin": "Admin",
       "infra": "Infra",
-      "observer": "Pemantau",
-      "member": "Anggota"
+      "engineer": "Engineer",
+      "qa": "QA / BA",
+      "observer": "Pemantau"
     },
     "roleChangeTitle": "Ubah peran",
     "roleChangeDescription": "Ubah peran {name} menjadi {role}?",

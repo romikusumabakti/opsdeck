@@ -6,7 +6,7 @@ import { isOrgRole } from "@/lib/permissions";
 export function RoleBadge({ role }: { role: string }) {
   const t = useTranslations("users");
   // Unknown/legacy role strings render verbatim rather than blowing up on a
-  // missing translation key — an unknown role is treated as `member` for access.
+  // missing translation key — an unknown role is treated as `qa` for access.
   const label = isOrgRole(role) ? t(`role.${role}`) : role;
   return (
     <Badge

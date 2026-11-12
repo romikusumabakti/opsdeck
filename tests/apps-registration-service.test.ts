@@ -93,7 +93,7 @@ const COMPONENT = {
 beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "registry.example.com");
   vi.clearAllMocks();
-  mocks.requireSession.mockResolvedValue({ user: { role: "member" } });
+  mocks.requireSession.mockResolvedValue({ user: { role: "engineer" } });
   mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "engineer" } });
   mocks.getForgeCredentials.mockResolvedValue({
     forge: "bitbucket",
@@ -235,6 +235,7 @@ describe("registerSetupApp (New environment, server-derived spec)", () => {
   });
 
   it("is refused for a user who may not register repos (403)", async () => {
+    mocks.requireSession.mockResolvedValue({ user: { role: "qa" } });
     mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
     await expect(registerSetupApp(REGISTER, BRANCHES)).rejects.toMatchObject({
       status: 403,
@@ -375,7 +376,7 @@ describe("addComponentsToApp", () => {
   });
 
   it("is refused for a user who may not register repos (403)", async () => {
-    mocks.requireSession.mockResolvedValue({ user: { role: "member" } });
+    mocks.requireSession.mockResolvedValue({ user: { role: "qa" } });
     mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
     await expect(
       addComponentsToApp("hris", CUSTOM.components)

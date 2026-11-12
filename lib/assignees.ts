@@ -6,7 +6,7 @@ import { projectMembers, users as userTable } from "@/lib/db/schema";
 export const ORG_WIDE_ASSIGNEE_ROLES = ["admin", "infra"];
 
 // Org roles that can see every project (observers read everything but are not
-// assignees, since an implicit viewer can't work on an issue).
+// assignees, since the viewer set can't work on an issue).
 export const ORG_WIDE_VISIBLE_ROLES = ["admin", "infra", "observer"];
 
 // Non-banned users whose org role is one of `orgRoles`, or who hold a

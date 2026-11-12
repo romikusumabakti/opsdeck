@@ -8,14 +8,13 @@ import {
   canProject,
   canRegisterApp,
   effectiveProjectRole,
-  implicitProjectRole,
   normalizeOrgRole,
-  normalizeProjectRole,
   ORG_ROLES,
-  type OrgPermissions,
   type OrgRole,
   PROJECT_ROLES,
   type ProjectRole,
+  projectRoleForOrgRole,
+  seesAllProjects,
 } from "@/lib/permissions";
 
 // Values that can reach the helpers from a legacy row, a hand-edited DB or a
@@ -35,85 +34,98 @@ const JUNK_ROLES = [
   "toString",
   "viewer", // old org role
   "maintainer", // old org role
+  "member", // old org role, replaced by engineer and qa
 ];
 
 describe("normalizeOrgRole", () => {
-  it("keeps every real org role", () => {
+  it("keeps the five roles", () => {
     for (const r of ORG_ROLES) expect(normalizeOrgRole(r)).toBe(r);
   });
-  it("floors junk and legacy values to member", () => {
-    for (const r of JUNK_ROLES) expect(normalizeOrgRole(r)).toBe("member");
+  it("floors member, legacy and junk roles to qa", () => {
+    for (const r of [
+      "member",
+      "viewer",
+      "maintainer",
+      "toString",
+      "",
+      null,
+      undefined,
+    ])
+      expect(normalizeOrgRole(r)).toBe("qa");
+    for (const r of JUNK_ROLES) expect(normalizeOrgRole(r)).toBe("qa");
   });
 });
 
-describe("normalizeProjectRole", () => {
-  it("keeps every real project role", () => {
-    for (const r of PROJECT_ROLES) expect(normalizeProjectRole(r)).toBe(r);
-  });
-  it("treats junk and the removed `admin`/`member` values as no membership", () => {
-    for (const r of [...JUNK_ROLES, "admin", "member"]) {
-      if (r === "viewer" || r === "engineer") continue;
-      expect(normalizeProjectRole(r)).toBeNull();
-    }
-  });
-});
-
-describe("implicitProjectRole", () => {
-  it("maps org roles to their implicit project role", () => {
-    expect(implicitProjectRole("admin")).toBe("engineer");
-    expect(implicitProjectRole("infra")).toBe("engineer");
-    expect(implicitProjectRole("observer")).toBe("viewer");
-    expect(implicitProjectRole("member")).toBeNull();
-  });
+describe("projectRoleForOrgRole", () => {
+  it.each([
+    ["admin", "engineer"],
+    ["infra", "engineer"],
+    ["engineer", "engineer"],
+    ["qa", "qa"],
+    ["observer", "viewer"],
+    ["member", "qa"],
+    ["toString", "qa"],
+  ])("%s → %s", (org, set) => expect(projectRoleForOrgRole(org)).toBe(set));
 });
 
 describe("effectiveProjectRole", () => {
-  const cases: [OrgRole, ProjectRole | null, ProjectRole | null][] = [
-    ["member", null, null],
-    ["member", "viewer", "viewer"],
-    ["member", "qa", "qa"],
-    ["member", "engineer", "engineer"],
-    ["observer", null, "viewer"],
-    ["observer", "qa", "qa"],
-    ["infra", null, "engineer"],
-    ["infra", "viewer", "engineer"],
-    ["admin", null, "engineer"],
-    ["admin", "qa", "engineer"],
-  ];
-  for (const [org, membership, expected] of cases) {
-    it(`${org} + ${membership ?? "none"} → ${expected ?? "none"}`, () => {
-      expect(effectiveProjectRole(org, membership)).toBe(expected);
-    });
-  }
+  it.each([
+    ["admin", false, "engineer"],
+    ["admin", true, "engineer"],
+    ["infra", false, "engineer"],
+    ["observer", false, "viewer"],
+    ["observer", true, "viewer"],
+    ["engineer", true, "engineer"],
+    ["engineer", false, null],
+    ["qa", true, "qa"],
+    ["qa", false, null],
+    ["member", true, "qa"],
+    ["member", false, null],
+  ] as const)("%s, member %s → %s", (org, isMember, expected) =>
+    expect(effectiveProjectRole(org, isMember)).toBe(expected)
+  );
   it("never lets a junk org role see a project without membership", () => {
     for (const r of JUNK_ROLES)
-      expect(effectiveProjectRole(r, null)).toBeNull();
+      expect(effectiveProjectRole(r, false)).toBeNull();
   });
+});
+
+describe("seesAllProjects", () => {
+  it.each([
+    ["admin", true],
+    ["infra", true],
+    ["observer", true],
+    ["engineer", false],
+    ["qa", false],
+    ["member", false],
+  ] as const)("%s → %s", (org, expected) =>
+    expect(seesAllProjects(org)).toBe(expected)
+  );
 });
 
 // The spec's org matrix, verbatim. One row per statement, one column per role.
 // biome-ignore format: kept as a one-row-per-statement table to mirror the spec
 const ORG_MATRIX: [string, string, Record<OrgRole, boolean>][] = [
-  ["user", "list", { admin: true, infra: false, observer: true, member: false }],
-  ["user", "invite", { admin: true, infra: false, observer: false, member: false }],
-  ["user", "set-role", { admin: true, infra: false, observer: false, member: false }],
-  ["user", "offboard", { admin: true, infra: false, observer: false, member: false }],
-  ["project", "create", { admin: true, infra: false, observer: false, member: false }],
-  ["project", "delete", { admin: true, infra: false, observer: false, member: false }],
-  ["server", "read", { admin: true, infra: true, observer: true, member: false }],
-  ["server", "manage", { admin: true, infra: true, observer: false, member: false }],
-  ["server", "terminal", { admin: true, infra: true, observer: false, member: false }],
-  ["server", "files", { admin: true, infra: true, observer: false, member: false }],
-  ["storage", "read", { admin: true, infra: true, observer: true, member: false }],
-  ["storage", "manage", { admin: true, infra: true, observer: false, member: false }],
-  ["storage", "files", { admin: true, infra: true, observer: false, member: false }],
-  ["tunnel", "read", { admin: true, infra: true, observer: true, member: false }],
-  ["tunnel", "manage", { admin: true, infra: true, observer: false, member: false }],
-  ["integration", "manage", { admin: true, infra: false, observer: false, member: false }],
-  ["knowledge", "read", { admin: true, infra: true, observer: true, member: true }],
-  ["knowledge", "write", { admin: true, infra: true, observer: false, member: true }],
-  ["knowledge", "manage", { admin: true, infra: false, observer: false, member: false }],
-  ["audit", "read", { admin: true, infra: true, observer: true, member: false }],
+  ["user", "list", { admin: true, infra: false, observer: true, engineer: false, qa: false }],
+  ["user", "invite", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
+  ["user", "set-role", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
+  ["user", "offboard", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
+  ["project", "create", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
+  ["project", "delete", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
+  ["server", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false }],
+  ["server", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
+  ["server", "terminal", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
+  ["server", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
+  ["storage", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false }],
+  ["storage", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
+  ["storage", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
+  ["tunnel", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false }],
+  ["tunnel", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false }],
+  ["integration", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
+  ["knowledge", "read", { admin: true, infra: true, observer: true, engineer: true, qa: true }],
+  ["knowledge", "write", { admin: true, infra: true, observer: false, engineer: true, qa: true }],
+  ["knowledge", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false }],
+  ["audit", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false }],
 ];
 
 describe("canOrg matrix", () => {
@@ -126,7 +138,7 @@ describe("canOrg matrix", () => {
       });
     }
   }
-  it("denies every statement to junk roles except what member has", () => {
+  it("denies every statement to junk roles except what qa has", () => {
     for (const r of JUNK_ROLES) {
       expect(canOrg(r, { user: ["invite"] })).toBe(false);
       expect(canOrg(r, { server: ["terminal"] })).toBe(false);
@@ -194,34 +206,13 @@ describe("canCreateEnvironment", () => {
     expect(canCreateEnvironment("infra", "engineer")).toBe(true);
   });
   it("denies a maintainer whose org role lacks server:manage", () => {
-    for (const org of ["member", "observer", "Admin", null]) {
+    for (const org of ["engineer", "qa", "member", "observer", "Admin", null]) {
       expect(canCreateEnvironment(org, "engineer")).toBe(false);
     }
   });
   it("denies server:manage holders without environment:create", () => {
     expect(canCreateEnvironment("infra", "qa")).toBe(false);
     expect(canCreateEnvironment("admin", null)).toBe(false);
-  });
-});
-
-describe("canRegisterApp", () => {
-  it("admins may register apps without any project membership", () => {
-    expect(canRegisterApp("admin", [])).toBe(true);
-  });
-  it("infra counts as maintainer through its implicit project role", () => {
-    expect(canRegisterApp("infra", [])).toBe(true);
-  });
-  it("a member who maintains one project may register apps", () => {
-    expect(canRegisterApp("member", ["viewer", "engineer"])).toBe(true);
-  });
-  it("a member with only contributor or viewer roles may not", () => {
-    expect(canRegisterApp("member", ["qa", "viewer"])).toBe(false);
-    expect(canRegisterApp("member", [])).toBe(false);
-  });
-  it("observers and junk org roles need a maintainer membership", () => {
-    expect(canRegisterApp("observer", [])).toBe(false);
-    expect(canRegisterApp("observer", ["engineer"])).toBe(true);
-    for (const r of JUNK_ROLES) expect(canRegisterApp(r, [])).toBe(false);
   });
 });
 
@@ -242,102 +233,73 @@ describe("QA and engineer behaviour", () => {
   it("qa cannot create environments", () => {
     expect(canProject("qa", { environment: ["create"] })).toBe(false);
   });
+});
 
-  it("engineer can create a project", () => {
-    expect(canCreateProject("member", ["engineer"])).toBe(true);
-    expect(canCreateProject("member", ["qa"])).toBe(false);
-    expect(canCreateProject("member", [])).toBe(false);
-    expect(canCreateProject("admin", [])).toBe(true);
-    expect(canCreateProject("infra", [])).toBe(true);
-    expect(canCreateProject("observer", ["viewer"])).toBe(false);
-    expect(canCreateProject("observer", ["engineer"])).toBe(true);
+describe("canOrg for the new roles", () => {
+  it("gives engineer and qa exactly member's old grant", () => {
+    for (const r of ["engineer", "qa"]) {
+      expect(canOrg(r, { knowledge: ["read", "write"] })).toBe(true);
+      expect(canOrg(r, { knowledge: ["manage"] })).toBe(false);
+      expect(canOrg(r, { server: ["read"] })).toBe(false);
+    }
   });
 });
 
 describe("canOrgAccess", () => {
-  const engineer: ProjectRole[] = ["engineer"];
-
-  it("lets an engineer of any project reach servers and storage", () => {
-    const allowed: OrgPermissions[] = [
-      { server: ["read"] },
-      { server: ["terminal"] },
-      { server: ["files"] },
-      { storage: ["read"] },
-      { storage: ["files"] },
-      { server: ["read"], storage: ["read"] },
-    ];
-    for (const perms of allowed) {
-      expect(canOrgAccess("member", engineer, perms)).toBe(true);
-    }
+  const grant = [
+    { server: ["read"] },
+    { server: ["terminal"] },
+    { server: ["files"] },
+    { storage: ["read"] },
+    { storage: ["files"] },
+    { server: ["read"], storage: ["read"] },
+  ] as const;
+  const beyond = [
+    { server: ["manage"] },
+    { storage: ["manage"] },
+    { tunnel: ["read"] },
+    { server: ["read", "manage"] },
+    { audit: ["read"] },
+  ] as const;
+  it("gives engineer the grant from the role alone", () => {
+    for (const p of grant) expect(canOrgAccess("engineer", p)).toBe(true);
+    for (const p of beyond) expect(canOrgAccess("engineer", p)).toBe(false);
   });
-
-  it("keeps management and other areas away from engineers", () => {
-    const denied: OrgPermissions[] = [
-      { server: ["manage"] },
-      { storage: ["manage"] },
-      { tunnel: ["read"] },
-      { server: ["read", "manage"] },
-      { audit: ["read"] },
-    ];
-    for (const perms of denied) {
-      expect(canOrgAccess("member", engineer, perms)).toBe(false);
-    }
+  it("gives qa, member and junk roles no grant", () => {
+    for (const r of ["qa", "member", "toString"])
+      expect(canOrgAccess(r, { server: ["read"] })).toBe(false);
   });
-
-  it("grants nothing to members without an engineer membership", () => {
-    expect(canOrgAccess("member", ["qa", "viewer"], { server: ["read"] })).toBe(
-      false
-    );
-    expect(canOrgAccess("member", [], { server: ["read"] })).toBe(false);
-  });
-
-  it("keeps the observer floor and adds the engineer grant on top", () => {
-    expect(canOrgAccess("observer", [], { server: ["read"] })).toBe(true);
-    expect(canOrgAccess("observer", [], { server: ["terminal"] })).toBe(false);
-    expect(canOrgAccess("observer", engineer, { server: ["terminal"] })).toBe(
-      true
-    );
-  });
-
-  it("keeps infra management through canOrg", () => {
-    expect(canOrgAccess("infra", [], { server: ["manage"] })).toBe(true);
-  });
-
-  it("treats an unknown role string as the floor", () => {
-    expect(canOrgAccess("toString", engineer, { server: ["read"] })).toBe(true);
-    expect(canOrgAccess("toString", engineer, { server: ["manage"] })).toBe(
-      false
-    );
+  it("leaves observer and infra on their org role", () => {
+    expect(canOrgAccess("observer", { server: ["read"] })).toBe(true);
+    expect(canOrgAccess("observer", { server: ["terminal"] })).toBe(false);
+    expect(canOrgAccess("infra", { server: ["manage"] })).toBe(true);
   });
 });
 
 describe("canOrgAccessTarget", () => {
-  const engineer: ProjectRole[] = ["engineer"];
-  // [org role, project roles, perms, restricted, expected]
-  const table: [string, ProjectRole[], OrgPermissions, boolean, boolean][] = [
-    // A normal target: the engineer grant applies.
-    ["member", engineer, { server: ["terminal"] }, false, true],
-    ["member", engineer, { server: ["files"] }, false, true],
-    ["member", engineer, { storage: ["files"] }, false, true],
-    // A restricted target: the org role alone decides.
-    ["member", engineer, { server: ["terminal"] }, true, false],
-    ["member", engineer, { server: ["files"] }, true, false],
-    ["member", engineer, { storage: ["files"] }, true, false],
-    ["observer", engineer, { server: ["terminal"] }, true, false],
-    ["observer", engineer, { server: ["read"] }, true, true],
-    ["member", engineer, { server: ["read"] }, true, false],
-    ["infra", [], { server: ["terminal"] }, true, true],
-    ["infra", [], { storage: ["files"] }, true, true],
-    ["admin", [], { server: ["files"] }, true, true],
-    ["member", [], { server: ["terminal"] }, false, false],
-  ];
-
-  it.each(table)(
-    "%s with %j asking %j (restricted %s) is %s",
-    (orgRole, roles, perms, restricted, expected) => {
-      expect(canOrgAccessTarget(orgRole, roles, perms, restricted)).toBe(
-        expected
-      );
-    }
+  it.each([
+    ["engineer", { server: ["terminal"] }, false, true],
+    ["engineer", { server: ["terminal"] }, true, false],
+    ["engineer", { storage: ["files"] }, true, false],
+    ["infra", { server: ["terminal"] }, true, true],
+    ["admin", { storage: ["files"] }, true, true],
+    ["qa", { server: ["read"] }, false, false],
+  ] as const)("%s %j restricted %s → %s", (org, perms, restricted, expected) =>
+    expect(canOrgAccessTarget(org, perms, restricted)).toBe(expected)
   );
+});
+
+describe("canCreateProject and canRegisterApp", () => {
+  it.each([
+    ["admin", true],
+    ["infra", true],
+    ["engineer", true],
+    ["qa", false],
+    ["observer", false],
+    ["member", false],
+    ["toString", false],
+  ] as const)("%s → %s", (org, expected) => {
+    expect(canCreateProject(org)).toBe(expected);
+    expect(canRegisterApp(org)).toBe(expected);
+  });
 });

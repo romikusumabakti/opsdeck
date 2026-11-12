@@ -26,7 +26,7 @@ import { escrowRefusal } from "@/server/services/environments";
 // text for the code.
 //
 // - Project environment:delete: engineers of the project, and org admins
-//   (their implicit engineer role).
+//   (their job role holds the engineer set on every project).
 // - Production (`kind = 'prod'`): only an org admin (server:manage), who must
 //   also send `confirmProduction: true`.
 // - Escrowed variables: the guard of the row-only delete

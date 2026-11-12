@@ -21,7 +21,7 @@ import { Link } from "@/i18n/navigation";
 import { DATE_ONLY, DATE_TIME } from "@/lib/format-date";
 import { qualifiedEnvName } from "@/lib/nav-path";
 import { teamsChatUrl } from "@/lib/people/links";
-import { canOrg, effectiveProjectRole } from "@/lib/permissions";
+import { canOrg, projectRoleForOrgRole } from "@/lib/permissions";
 import { uuidSchema } from "@/lib/validation";
 import { useMe } from "@/web/api/session";
 import { getPersonQuery } from "@/web/api/users";
@@ -88,9 +88,9 @@ function PersonPage() {
   const isMe = me?.user.id === id;
   const canManage = canOrg(me?.orgRole, { user: ["update"] });
 
-  // A role badge on every project says nothing when the org role already
-  // implies it (an admin is engineer everywhere), so show only exceptions.
-  const impliedRole = effectiveProjectRole(card.role, null);
+  // A role badge on every project says nothing when the job role already
+  // decides it, so show only exceptions (none, since roles became global).
+  const impliedRole = projectRoleForOrgRole(card.role);
   const shownProjects = projects.slice(0, LIST_ROWS);
   const moreProjects = projects.slice(LIST_ROWS);
   const projectItem = (p: (typeof projects)[number]) => (

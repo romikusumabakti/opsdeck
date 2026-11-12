@@ -930,7 +930,7 @@ const post = (path: string, body: unknown = {}) =>
 
 describe("routes", () => {
   it("non-admin gets 403", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     for (const [path, body] of [
       ["move-to-key", {}],
       ["reinstall-key", { password: "pw" }],
@@ -1196,7 +1196,7 @@ describe("a key server installed by hand", () => {
     expect(bad.status).toBe(400);
     expect((await bad.json()).code).toBe("invalidFrom");
 
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     expect(
       (await post(`/api/servers/${SERVER_ID}/check-key-login`, {})).status
     ).toBe(403);

@@ -1,15 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// addProject: who may create a project, and the creator's engineer membership
-// landing in the same transaction as the project row. editProject: only org
+// addProject: who may create a project, and the creator's membership landing
+// in the same transaction as the project row. editProject: only org
 // server:manage may set or clear the project's default server.
 
 const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a9";
 const PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f1";
 
 const state = vi.hoisted(() => ({
-  orgRole: "member" as string,
-  roles: {} as Record<string, string>,
+  orgRole: "engineer" as string,
   inserts: [] as { table: unknown; values: unknown; inTx: boolean }[],
   updates: [] as { table: unknown; values: Record<string, unknown> }[],
   // Each select's rows, in call order (the project before, the server name).
@@ -28,7 +27,6 @@ vi.mock("@/lib/auth-session", () => ({
 }));
 vi.mock("@/lib/authz", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/authz")>()),
-  getProjectAccess: async () => ({ all: false, roles: state.roles }),
   // editProject's gate: an engineer of the project.
   requireProjectPermission: async () => ({
     session: { user: { id: USER_ID, role: state.orgRole } },
@@ -84,8 +82,7 @@ const { addProject, editProject } = await import(
 );
 
 beforeEach(() => {
-  state.orgRole = "member";
-  state.roles = {};
+  state.orgRole = "engineer";
   state.inserts = [];
   state.updates = [];
   state.selects = [];
@@ -96,8 +93,8 @@ beforeEach(() => {
 const input = { key: "NEW", name: "New project" };
 
 describe("addProject", () => {
-  it("makes the creator engineer", async () => {
-    state.roles = { other: "engineer" };
+  it("makes the creator a member", async () => {
+    state.orgRole = "engineer";
     const result = await addProject(input);
     expect(result.success).toBe(true);
     const membership = state.inserts.find(
@@ -121,17 +118,22 @@ describe("addProject", () => {
     ]);
   });
 
-  it("adds no membership for an admin, who is engineer everywhere", async () => {
+  it("adds the admin as a member too", async () => {
     state.orgRole = "admin";
     expect((await addProject(input)).success).toBe(true);
-    expect(state.inserts.some((i) => i.table === schema.projectMembers)).toBe(
-      false
-    );
-    expect(state.activity).toEqual([]);
+    expect(
+      state.inserts.find((i) => i.table === schema.projectMembers)
+    ).toMatchObject({
+      inTx: true,
+      values: { projectId: PROJECT_ID, userId: USER_ID },
+    });
+    expect(state.activity).toEqual([
+      expect.objectContaining({ action: "member.added", entityId: USER_ID }),
+    ]);
   });
 
   it("refuses a member who is only QA, before writing anything", async () => {
-    state.roles = { other: "qa" };
+    state.orgRole = "qa";
     await expect(addProject(input)).rejects.toMatchObject({ status: 403 });
     expect(state.inserts).toEqual([]);
   });
@@ -160,7 +162,7 @@ describe("editProject default server", () => {
   });
 
   it("refuses an engineer without server:manage with a stable code", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     await expect(
       editProject(PROJECT_ID, { name: "Renamed", defaultServerId: SERVER_ID })
     ).rejects.toMatchObject({ status: 403, code: "defaultServerForbidden" });
@@ -171,7 +173,7 @@ describe("editProject default server", () => {
   });
 
   it("still lets an engineer edit the other details", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     expect((await editProject(PROJECT_ID, { name: "Renamed" })).success).toBe(
       true
     );

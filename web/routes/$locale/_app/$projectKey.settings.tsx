@@ -16,10 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { canOrg, canOrgAccess } from "@/lib/permissions";
 import { getJiraConnectionsQuery, getJiraLinkQuery } from "@/web/api/jira";
-import {
-  getMyProjectAccessQuery,
-  getProjectByKeyWithEnvironmentsQuery,
-} from "@/web/api/project-catalog";
+import { getProjectByKeyWithEnvironmentsQuery } from "@/web/api/project-catalog";
 import { getServersQuery } from "@/web/api/servers";
 import { meQuery, useCanOrg, useMe } from "@/web/api/session";
 import { requireProjectRole } from "@/web/project-guard";
@@ -40,10 +37,9 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
     });
   },
   loader: async ({ params: { projectKey }, context: { queryClient } }) => {
-    const [project, me, access] = await Promise.all([
+    const [project, me] = await Promise.all([
       queryClient.query(getProjectByKeyWithEnvironmentsQuery(projectKey)),
       queryClient.query(meQuery()),
-      queryClient.query(getMyProjectAccessQuery()),
     ]);
     if (!project) throw notFound();
     await Promise.all([
@@ -54,9 +50,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
         : null,
       // The Default server field names the servers; listing them needs
       // server:read, changing the default server:manage.
-      canOrgAccess(me?.orgRole, Object.values(access.roles), {
-        server: ["read"],
-      })
+      canOrgAccess(me?.orgRole, { server: ["read"] })
         ? loaderQuery(queryClient, getServersQuery())
         : null,
       loaderQuery(queryClient, getJiraLinkQuery(project.id)),

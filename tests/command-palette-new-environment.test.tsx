@@ -42,7 +42,7 @@ async function openPalette(role: "engineer" | "qa") {
         <CommandPalette
           environments={[]}
           projects={[{ id: PROJECT, key: "KMEM", name: "KMEM" }]}
-          orgRole="member"
+          orgRole={role}
           projectRoles={{ [PROJECT]: role }}
         />
       </IntlProvider>

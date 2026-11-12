@@ -1299,8 +1299,9 @@
     "role": {
       "admin": "مشرف",
       "infra": "البنية التحتية",
-      "observer": "مراقب",
-      "member": "عضو"
+      "engineer": "مهندس",
+      "qa": "QA / BA",
+      "observer": "مراقب"
     },
     "roleChangeTitle": "تغيير الدور",
     "roleChangeDescription": "تغيير دور {name} إلى {role}؟",

@@ -10,8 +10,8 @@ const BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b1";
 const BACKUP_BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b2";
 
 const state = vi.hoisted(() => ({
-  session: { user: { id: "u1", role: "member" } },
-  memberships: [] as { projectId: string; role: string }[],
+  session: { user: { id: "u1", role: "qa" } },
+  memberships: [] as { projectId: string }[],
   backupId: null as string | null,
   activity: [] as Record<string, unknown>[],
 }));
@@ -121,12 +121,9 @@ const { app } = await import("@/server/app");
 const { ForbiddenError } = await import("@/lib/authz");
 const { listEntries } = await import("@/server/services/explorer");
 
-function as(role: string, ...projectRoles: string[]) {
+function as(role: string, ...projectIds: string[]) {
   state.session = { user: { id: "u1", role } };
-  state.memberships = projectRoles.map((r, i) => ({
-    projectId: `p${i + 1}`,
-    role: r,
-  }));
+  state.memberships = projectIds.map((projectId) => ({ projectId }));
 }
 
 const ticket = (serverId: string) =>
@@ -149,7 +146,7 @@ beforeEach(() => {
 
 describe("terminal ticket on an infra-only server", () => {
   it("refuses an engineer member and records the denial", async () => {
-    as("member", "engineer");
+    as("engineer", "p1");
     const res = await ticket(INFRA_ID);
     expect(res.status).toBe(403);
     expect(state.activity).toEqual([
@@ -162,7 +159,7 @@ describe("terminal ticket on an infra-only server", () => {
   });
 
   it("still mints one for an engineer member on a normal server", async () => {
-    as("member", "engineer");
+    as("engineer", "p1");
     const res = await ticket(NORMAL_ID);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ticket: "signed-ticket" });
@@ -178,7 +175,7 @@ describe("terminal ticket on an infra-only server", () => {
 
 describe("file explorer on restricted targets", () => {
   it("denies an engineer member an infra-only server before any backend", async () => {
-    as("member", "engineer");
+    as("engineer", "p1");
     await expect(
       listEntries({ kind: "sftp", serverId: INFRA_ID }, "")
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -189,7 +186,7 @@ describe("file explorer on restricted targets", () => {
   });
 
   it("denies an engineer member the instance backup bucket", async () => {
-    as("member", "engineer");
+    as("engineer", "p1");
     await expect(
       listEntries({ kind: "s3", connectionId: BACKUP_BUCKET_ID }, "")
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -205,7 +202,7 @@ describe("file explorer on restricted targets", () => {
   // z.uuid() accepts uppercase and resolveBackend's uuid lookup matches it,
   // so the restriction must not hinge on the id's case.
   it("denies an engineer member the backup bucket named in uppercase", async () => {
-    as("member", "engineer");
+    as("engineer", "p1");
     await expect(
       listEntries(
         { kind: "s3", connectionId: BACKUP_BUCKET_ID.toUpperCase() },
@@ -224,7 +221,7 @@ describe("file explorer on restricted targets", () => {
   });
 
   it("refuses an engineer member an upload to an infra-only server", async () => {
-    as("member", "engineer");
+    as("engineer", "p1");
     const form = new FormData();
     form.set("file", new File(["x"], "a.txt"));
     form.set("source", JSON.stringify({ kind: "sftp", serverId: INFRA_ID }));
@@ -240,7 +237,7 @@ describe("file explorer on restricted targets", () => {
   });
 
   it("allows an engineer member normal servers and buckets", async () => {
-    as("member", "engineer");
+    as("engineer", "p1");
     expect(
       await listEntries({ kind: "sftp", serverId: NORMAL_ID }, "")
     ).toEqual({ success: true, data: [] });
@@ -260,15 +257,15 @@ describe("file explorer on restricted targets", () => {
   });
 
   it("treats no backup destination as no restricted bucket", async () => {
-    as("member", "engineer");
+    as("engineer", "p1");
     state.backupId = null;
     expect(
       await listEntries({ kind: "s3", connectionId: BACKUP_BUCKET_ID }, "")
     ).toEqual({ success: true, data: [] });
   });
 
-  it("still refuses a member without the grant by the central guard", async () => {
-    as("member", "qa");
+  it("still refuses a QA without the grant by the central guard", async () => {
+    as("qa", "p1");
     await expect(
       listEntries({ kind: "sftp", serverId: NORMAL_ID }, "")
     ).rejects.toBeInstanceOf(ForbiddenError);

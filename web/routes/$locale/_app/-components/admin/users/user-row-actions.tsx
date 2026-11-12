@@ -44,8 +44,8 @@ export function UserRowActions({
     });
   }
   // The only place an org role is edited. A submenu rather than an
-  // admin/member toggle: there are four roles and new sign-ins start at
-  // `member`, so a toggle would skip infra/observer.
+  // admin/non-admin toggle: there are five roles and new sign-ins start at
+  // `qa`, so a toggle would skip the others.
   if (perms.canSetRole && !user.banned) {
     items.push({
       label: t("roleChangeTitle"),

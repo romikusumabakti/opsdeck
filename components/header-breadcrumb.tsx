@@ -316,10 +316,7 @@ export function HeaderBreadcrumb({
       <ProjectSwitcher
         projects={projects}
         activeProject={activeProject}
-        canCreateProject={canCreateProject(
-          orgRole,
-          Object.values(projectRoles)
-        )}
+        canCreateProject={canCreateProject(orgRole)}
         onSelect={(project) =>
           go(
             projectSwitchHref({

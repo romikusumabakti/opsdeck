@@ -127,7 +127,7 @@ describe("removeProject and escrowed variables", () => {
     state.rows = [
       { environmentId: ENV_A, environment: "Dev", name: "KEY", escrow: true },
     ];
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     await expect(
       removeProject(PROJECT_ID, { confirmEscrowedDeletion: true })
     ).rejects.toMatchObject({ status: 409 });

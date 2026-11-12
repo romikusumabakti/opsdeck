@@ -100,12 +100,12 @@ describe.skipIf(!enabled)("opsdeck seed demo on a real Postgres", () => {
       projects: 2,
       environments: 4,
       servers: 2,
-      users: 6,
-      accounts: 6,
-      members: 6,
+      users: 5,
+      accounts: 5,
+      members: 4,
     });
     expect(first.issues).toBeGreaterThan(0);
-    expect(lines).toHaveLength(6);
+    expect(lines).toHaveLength(5);
     expect(
       lines.every((l) => l.startsWith("created") && l.includes("password: "))
     ).toBe(true);
@@ -113,7 +113,7 @@ describe.skipIf(!enabled)("opsdeck seed demo on a real Postgres", () => {
     lines.length = 0;
     await seedDemo(db, options({ printPasswords: true }));
     expect(await counts()).toEqual(first);
-    expect(lines).toHaveLength(6);
+    expect(lines).toHaveLength(5);
     expect(
       lines.every((l) => l.startsWith("exists") && !l.includes("password"))
     ).toBe(true);
@@ -124,12 +124,12 @@ describe.skipIf(!enabled)("opsdeck seed demo on a real Postgres", () => {
     lines.length = 0;
     await seedDemo(db, options());
     expect(lines.filter((l) => l.startsWith("created"))).toEqual([
-      "created demo-qa@example.invalid (member)",
+      "created demo-qa@example.invalid (qa)",
     ]);
   });
 
   it("prints passwords only once the transaction commits", async () => {
-    await sql`delete from users where email in ('demo-qa@example.invalid', 'demo-viewer@example.invalid')`;
+    await sql`delete from users where email in ('demo-engineer@example.invalid', 'demo-qa@example.invalid')`;
     lines.length = 0;
     let hashed = 0;
     await expect(
@@ -149,7 +149,7 @@ describe.skipIf(!enabled)("opsdeck seed demo on a real Postgres", () => {
     // password was never printed, and the account does not exist.
     expect(lines).toEqual([]);
     const [{ n }] =
-      (await sql`select count(*)::int as n from users where email in ('demo-qa@example.invalid', 'demo-viewer@example.invalid')`) as unknown as [
+      (await sql`select count(*)::int as n from users where email in ('demo-engineer@example.invalid', 'demo-qa@example.invalid')`) as unknown as [
         { n: number },
       ];
     expect(n).toBe(0);
@@ -162,24 +162,22 @@ describe.skipIf(!enabled)("opsdeck seed demo on a real Postgres", () => {
       "demo-admin@example.invalid": "admin",
       "demo-infra@example.invalid": "infra",
       "demo-observer@example.invalid": "observer",
-      "demo-engineer@example.invalid": "member",
-      "demo-qa@example.invalid": "member",
-      "demo-viewer@example.invalid": "member",
+      "demo-engineer@example.invalid": "engineer",
+      "demo-qa@example.invalid": "qa",
     });
     const members = await sql`
       select u.email, m.role, p.key from project_members m
       join users u on u.id = m.user_id join projects p on p.id = m.project_id`;
-    expect(members).toHaveLength(6);
+    expect(members).toHaveLength(4);
     for (const [name, role] of [
       ["demo-engineer", "engineer"],
       ["demo-qa", "qa"],
-      ["demo-viewer", "viewer"],
     ]) {
       const mine = members.filter((m) => m.email === `${name}@example.invalid`);
       expect(mine.map((m) => m.key).sort()).toEqual(["DEMO", "DEMOPORTAL"]);
       expect(mine.every((m) => m.role === role)).toBe(true);
     }
-    expect(DEMO_ACCOUNTS).toHaveLength(6);
+    expect(DEMO_ACCOUNTS).toHaveLength(5);
     const credential = await sql`select provider_id from accounts`;
     expect(credential.every((a) => a.provider_id === "credential")).toBe(true);
   });

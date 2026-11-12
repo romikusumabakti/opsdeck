@@ -15,7 +15,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
-    user: { id: USER_ID, role: "member" },
+    user: { id: USER_ID, role: "engineer" },
   })),
 }));
 
@@ -30,7 +30,7 @@ vi.mock("@/lib/authz", async () => {
           throw new HTTPException(403, { message: "Forbidden" });
         }
         return {
-          session: { user: { id: USER_ID, role: "member" } },
+          session: { user: { id: USER_ID, role: "engineer" } },
           role: state.role,
           projectId: "project-1",
         };

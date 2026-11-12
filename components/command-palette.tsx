@@ -217,7 +217,7 @@ export function CommandPalette({
               <UsersRound />
               {tNav("people")}
             </CommandItem>
-            {canOrgAccess(orgRole, Object.values(projectRoles), {
+            {canOrgAccess(orgRole, {
               server: ["read"],
             }) && (
               <CommandItem
@@ -228,7 +228,7 @@ export function CommandPalette({
                 {tUserMenu("servers")}
               </CommandItem>
             )}
-            {canOrgAccess(orgRole, Object.values(projectRoles), {
+            {canOrgAccess(orgRole, {
               storage: ["read"],
             }) && (
               <CommandItem

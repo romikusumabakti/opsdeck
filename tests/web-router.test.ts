@@ -32,7 +32,7 @@ async function load(url: string, me: unknown) {
   return router;
 }
 
-const signedIn = { user: { id: "u1" }, orgRole: "member", timeZone: "UTC" };
+const signedIn = { user: { id: "u1" }, orgRole: "engineer", timeZone: "UTC" };
 
 describe("web route tree", () => {
   it("adds the default locale to a bare path", async () => {

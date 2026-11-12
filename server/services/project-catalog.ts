@@ -3,7 +3,6 @@ import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import {
   ForbiddenError,
-  getProjectAccess,
   getProjectRole,
   projectIdsWhere,
   projectScope,
@@ -26,12 +25,7 @@ import {
 } from "@/lib/db/schema";
 import { pgErrorCode } from "@/lib/domains/errors";
 import { OWNER_COLUMNS } from "@/lib/environments";
-import {
-  canCreateProject,
-  canOrg,
-  implicitProjectRole,
-  normalizeOrgRole,
-} from "@/lib/permissions";
+import { canCreateProject, canOrg } from "@/lib/permissions";
 import { isProjectReleasable } from "@/lib/releases/repository";
 import type { ActionResponse } from "@/lib/types";
 import {
@@ -169,8 +163,7 @@ export async function addProject(
   data: unknown
 ): Promise<ActionResponse<Project>> {
   const session = await requireSession();
-  const access = await getProjectAccess();
-  if (!canCreateProject(session.user.role, Object.values(access.roles))) {
+  if (!canCreateProject(session.user.role)) {
     throw new ForbiddenError();
   }
   const parsed = projectMetaInputSchema.safeParse(data);
@@ -178,39 +171,33 @@ export async function addProject(
     return { success: false, message: "Invalid project data" };
   }
   try {
-    // Admins and infra are engineer on every project already; anyone else
-    // (a member, or an observer who is engineer elsewhere) becomes its
-    // engineer, in the same transaction.
-    const addsMember =
-      implicitProjectRole(normalizeOrgRole(session.user.role)) !== "engineer";
+    // The creator always becomes a member, in the same transaction: it lists
+    // them on the project, and it is what makes the project visible to an
+    // engineer. The role column is written until it is dropped.
     const created = await db.transaction(async (tx) => {
       const project = one(
         await tx.insert(projects).values(parsed.data).returning(),
         "project"
       );
-      if (addsMember) {
-        await tx.insert(projectMembers).values({
-          projectId: project.id,
-          userId: session.user.id,
-          role: "engineer",
-        });
-      }
+      await tx.insert(projectMembers).values({
+        projectId: project.id,
+        userId: session.user.id,
+        role: "engineer",
+      });
       return project;
     });
     // The membership is logged like one added on the Members tab.
-    if (addsMember) {
-      await recordActivity({
-        actorId: session.user.id,
-        action: "member.added",
-        entityType: "member",
-        entityId: session.user.id,
-        data: {
-          user: session.user.name ?? "?",
-          project: created.name,
-          role: "engineer",
-        },
-      });
-    }
+    await recordActivity({
+      actorId: session.user.id,
+      action: "member.added",
+      entityType: "member",
+      entityId: session.user.id,
+      data: {
+        user: session.user.name ?? "?",
+        project: created.name,
+        role: "engineer",
+      },
+    });
     return { success: true, data: created };
   } catch (error) {
     // Unique violation on `key` (pg 23505) → surface a friendly message.

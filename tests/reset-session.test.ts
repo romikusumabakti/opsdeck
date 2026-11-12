@@ -7,7 +7,7 @@ import { createQueryClient } from "@/web/query-client";
 const bootstrap = { appName: "Panel", brand: "default" };
 const oldUser = {
   user: { id: "u1" },
-  orgRole: "member",
+  orgRole: "engineer",
   timeZone: "Europe/Paris",
 };
 

@@ -337,7 +337,7 @@ describe("Releases page", () => {
     expect(hasDelete()).toBe(true);
     act(() => root.unmount());
     container.remove();
-    api.orgRole = "member";
+    api.orgRole = "engineer";
     await mountList([release()], "engineer");
     expect(hasDelete()).toBe(false);
   });

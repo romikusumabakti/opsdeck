@@ -53,7 +53,7 @@ function signedIn(orgRole: string, roles: Record<string, string>) {
 
 describe("requireOrgRole on a restricted target", () => {
   it("lets an engineer member through on a normal target only", async () => {
-    const queryClient = signedIn("member", { p1: "engineer" });
+    const queryClient = signedIn("engineer", { p1: "engineer" });
     await expect(
       requireOrgRole(queryClient, { server: ["terminal"] })
     ).resolves.toBeDefined();

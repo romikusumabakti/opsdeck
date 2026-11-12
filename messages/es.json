@@ -1299,8 +1299,9 @@
     "role": {
       "admin": "Administrador",
       "infra": "Infraestructura",
-      "observer": "Supervisor",
-      "member": "Miembro"
+      "engineer": "Ingeniero",
+      "qa": "QA / BA",
+      "observer": "Supervisor"
     },
     "roleChangeTitle": "Cambiar rol",
     "roleChangeDescription": "¿Cambiar el rol de {name} a {role}?",

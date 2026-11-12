@@ -250,7 +250,7 @@ afterAll(async () => {
 
 describe("permissions", () => {
   it("a non-admin gets 403 forbidden on every route, before validation", async () => {
-    for (const role of ["infra", "observer", "member"]) {
+    for (const role of ["infra", "observer", "engineer", "qa"]) {
       state.role = role;
       const calls: [string, string, unknown?][] = [
         ["GET", "/api/instance/updates"],

@@ -27,8 +27,8 @@ describe("variable statement", () => {
 // requireProjectPermission against a fake database: the environment rows and
 // memberships come from the state, read on every call.
 const state = vi.hoisted(() => ({
-  orgRole: "member" as string,
-  memberships: [] as { projectId: string; role: string }[],
+  orgRole: "qa" as string,
+  memberships: [] as { projectId: string }[],
   environments: {} as Record<
     string,
     { projectId: string; ownerId: string | null }
@@ -89,8 +89,8 @@ const { requireProjectPermission, ForbiddenError } = await import(
 );
 
 beforeEach(() => {
-  state.orgRole = "member";
-  state.memberships = [{ projectId: PROJECT_ID, role: "viewer" }];
+  state.orgRole = "qa";
+  state.memberships = [{ projectId: PROJECT_ID }];
   state.environments = {
     [ENV_A]: { projectId: PROJECT_ID, ownerId: USER_ID },
     [ENV_B]: { projectId: PROJECT_ID, ownerId: OTHER_USER },
@@ -106,9 +106,10 @@ describe("requireProjectPermission and the environment owner", () => {
     { variable: ["write"] },
   ] satisfies ProjectPermissions[];
 
-  for (const role of ["viewer", "qa"] as const) {
-    it(`refuses an owner who is only ${role} (403) on their own environment`, async () => {
-      state.memberships = [{ projectId: PROJECT_ID, role }];
+  for (const orgRole of ["observer", "qa"] as const) {
+    it(`refuses an owner who is only ${orgRole} (403) on their own environment`, async () => {
+      state.orgRole = orgRole;
+      state.memberships = [{ projectId: PROJECT_ID }];
       for (const perms of OWNER_REQUESTS) {
         await expect(
           requireProjectPermission({ environmentId: ENV_A }, perms)
@@ -126,7 +127,8 @@ describe("requireProjectPermission and the environment owner", () => {
   });
 
   it("answers maintainers from their role, owner or not", async () => {
-    state.memberships = [{ projectId: PROJECT_ID, role: "engineer" }];
+    state.orgRole = "engineer";
+    state.memberships = [{ projectId: PROJECT_ID }];
     for (const environmentId of [ENV_A, ENV_B]) {
       const result = await requireProjectPermission(
         { environmentId },

@@ -11,7 +11,6 @@ import {
 } from "@/lib/db/schema";
 import {
   canAnyProject,
-  canOrg,
   canOrgAccess,
   canOrgAccessTarget,
   canProject,
@@ -21,6 +20,7 @@ import {
   type OrgRole,
   type ProjectPermissions,
   type ProjectRole,
+  seesAllProjects,
 } from "@/lib/permissions";
 import { uuidSchema } from "@/lib/validation";
 import { requestCache } from "@/server/context";
@@ -60,21 +60,20 @@ export type ProjectScope =
   | { environmentId: string }
   | { issueId: string };
 
-// Pure: combine the org role and memberships into per-project roles. `all` is
-// true when the org role reaches every project, so list queries can skip the
-// filter.
+// Pure: combine the job role and the caller's memberships into the statement
+// set per visible project. `all` is true when the role sees every project, so
+// list queries can skip the filter.
 export function resolveProjectAccess(
   orgRole: string | null | undefined,
   allProjectIds: string[],
-  memberships: { projectId: string; role: string }[]
+  memberProjectIds: readonly string[]
 ): ProjectAccess {
-  const org = normalizeOrgRole(orgRole);
-  const byProject = new Map(memberships.map((m) => [m.projectId, m.role]));
-  const all = effectiveProjectRole(org, null) !== null;
+  const all = seesAllProjects(orgRole);
+  const memberSet = new Set(memberProjectIds);
   const roles: Record<string, ProjectRole> = {};
-  const candidates = all ? allProjectIds : [...byProject.keys()];
+  const candidates = all ? allProjectIds : memberSet;
   for (const projectId of candidates) {
-    const role = effectiveProjectRole(org, byProject.get(projectId));
+    const role = effectiveProjectRole(orgRole, memberSet.has(projectId));
     if (role) roles[projectId] = role;
   }
   return { all, roles };
@@ -100,17 +99,14 @@ export const getProjectAccess = requestCache(
     const [allProjects, memberships] = await Promise.all([
       db.select({ id: projects.id }).from(projects),
       db
-        .select({
-          projectId: projectMembers.projectId,
-          role: projectMembers.role,
-        })
+        .select({ projectId: projectMembers.projectId })
         .from(projectMembers)
         .where(eq(projectMembers.userId, session.user.id)),
     ]);
     return resolveProjectAccess(
       session.user.role,
       allProjects.map((p) => p.id),
-      memberships
+      memberships.map((m) => m.projectId)
     );
   }
 );
@@ -187,16 +183,13 @@ export async function getProjectRole(
   return access.roles[projectId] ?? null;
 }
 
-// Org permission for the signed-in caller: their org role, or the engineer
-// grant (lib/permissions#canOrgAccess). Memberships are loaded only when the
-// org role alone says no.
+// Org permission for the signed-in caller: their job role, plus the engineer
+// grant (lib/permissions#canOrgAccess).
 async function callerCanOrg(
   session: Session,
   perms: OrgPermissions
 ): Promise<boolean> {
-  if (canOrg(session.user.role, perms)) return true;
-  const access = await getProjectAccess();
-  return canOrgAccess(session.user.role, Object.values(access.roles), perms);
+  return canOrgAccess(session.user.role, perms);
 }
 
 // callerCanOrg for one target: a restricted one (an infra-only server, the
@@ -208,15 +201,7 @@ export async function callerCanOrgTarget(
   perms: OrgPermissions,
   restricted: boolean
 ): Promise<boolean> {
-  if (canOrg(session.user.role, perms)) return true;
-  // Request-cached: the central guard has usually loaded it already.
-  const access = await getProjectAccess();
-  return canOrgAccessTarget(
-    session.user.role,
-    Object.values(access.roles),
-    perms,
-    restricted
-  );
+  return canOrgAccessTarget(session.user.role, perms, restricted);
 }
 
 export async function requireOrgPermission(

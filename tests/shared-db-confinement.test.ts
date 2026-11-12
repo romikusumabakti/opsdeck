@@ -12,7 +12,7 @@ const SOURCE_ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e2";
 const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a9";
 
 const state = vi.hoisted(() => ({
-  orgRole: "member" as string,
+  orgRole: "engineer" as string,
   dbKind: "shared" as string | null,
   // The restore source's binding kind; undefined: same as dbKind.
   sourceDbKind: undefined as string | null | undefined,
@@ -135,7 +135,7 @@ const BACKUPS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  state.orgRole = "member";
+  state.orgRole = "engineer";
   state.dbKind = "shared";
   state.sourceDbKind = undefined;
   jobs.createRun.mockResolvedValue("run-1");

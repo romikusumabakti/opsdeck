@@ -33,7 +33,7 @@ import { ORG_ROLES } from "@/lib/permissions";
 import { inviteUser } from "@/web/api/users";
 import type { InvitationAction } from "./types";
 
-const EMPTY = { name: "", email: "", role: "member" as const };
+const EMPTY = { name: "", email: "", role: "qa" as const };
 
 export function InviteDialog({
   open,

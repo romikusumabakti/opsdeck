@@ -74,23 +74,22 @@ export async function listPeople(
           .select({
             userId: projectMembers.userId,
             projectId: projectMembers.projectId,
-            role: projectMembers.role,
           })
           .from(projectMembers)
           .where(inArray(projectMembers.projectId, visible))
       : Promise.resolve([]),
   ]);
 
-  const byUser = new Map<string, Map<string, string>>();
+  const byUser = new Map<string, Set<string>>();
   for (const m of memberships) {
-    if (!byUser.has(m.userId)) byUser.set(m.userId, new Map());
-    byUser.get(m.userId)?.set(m.projectId, m.role);
+    if (!byUser.has(m.userId)) byUser.set(m.userId, new Set());
+    byUser.get(m.userId)?.add(m.projectId);
   }
 
   return rows.map((u) => {
     const mine = byUser.get(u.id);
     const projectIds = visible.filter(
-      (pid) => effectiveProjectRole(u.role, mine?.get(pid)) !== null
+      (pid) => effectiveProjectRole(u.role, mine?.has(pid) ?? false) !== null
     );
     const status = activeStatus(u);
     return {
@@ -125,10 +124,7 @@ export async function getPersonProjects(
       columns: { role: true },
     }),
     db
-      .select({
-        projectId: projectMembers.projectId,
-        role: projectMembers.role,
-      })
+      .select({ projectId: projectMembers.projectId })
       .from(projectMembers)
       .where(eq(projectMembers.userId, userId)),
     db
@@ -138,10 +134,10 @@ export async function getPersonProjects(
       .orderBy(projects.name),
   ]);
   if (!target) return [];
-  const membership = new Map(memberships.map((m) => [m.projectId, m.role]));
+  const membership = new Set(memberships.map((m) => m.projectId));
   return visibleProjects.flatMap((p) => {
     if (!access.roles[p.id]) return [];
-    const role = effectiveProjectRole(target.role, membership.get(p.id));
+    const role = effectiveProjectRole(target.role, membership.has(p.id));
     return role ? [{ ...p, role }] : [];
   });
 }

@@ -11,7 +11,7 @@ const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
 const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 
 const state = vi.hoisted(() => ({
-  orgRole: "member" as string,
+  orgRole: "engineer" as string,
   variables: [] as { name: string; escrow: boolean }[],
   // Rows the DELETE … RETURNING yields (empty: nothing matched).
   deleted: [] as { name: string }[],
@@ -119,7 +119,7 @@ beforeEach(() => {
 
 describe("deleteEnvironment and escrowed variables", () => {
   it("refuses (403) a caller without org server:manage", async () => {
-    for (const role of ["member", "observer"]) {
+    for (const role of ["engineer", "qa", "observer"]) {
       state.orgRole = role;
       await expect(deleteEnvironment(ENV_ID)).rejects.toMatchObject({
         status: 403,

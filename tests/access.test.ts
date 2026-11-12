@@ -9,10 +9,10 @@ import {
 
 describe("assertNotLastAdmin", () => {
   it("allows demoting an admin when another admin remains", () => {
-    expect(assertNotLastAdmin(["a", "b"], "a", "member")).toBe(true);
+    expect(assertNotLastAdmin(["a", "b"], "a", "engineer")).toBe(true);
   });
   it("refuses demoting the last admin", () => {
-    expect(assertNotLastAdmin(["a"], "a", "member")).toBe(false);
+    expect(assertNotLastAdmin(["a"], "a", "engineer")).toBe(false);
   });
   it("refuses offboarding (null role) the last admin", () => {
     expect(assertNotLastAdmin(["a"], "a", null)).toBe(false);

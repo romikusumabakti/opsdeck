@@ -1299,8 +1299,9 @@
     "role": {
       "admin": "Admin",
       "infra": "Infra",
-      "observer": "Observer",
-      "member": "Member"
+      "engineer": "Engineer",
+      "qa": "QA / BA",
+      "observer": "Observer"
     },
     "roleChangeTitle": "Change role",
     "roleChangeDescription": "Change {name}'s role to {role}?",

@@ -110,7 +110,7 @@ beforeEach(() => {
 
 describe("permissions", () => {
   it("answers 403 on every route without server:manage", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     expect((await send("GET", "/api/remote-tunnels")).status).toBe(403);
     expect((await register()).status).toBe(403);
     expect((await send("DELETE", `/api/remote-tunnels/${ROW_ID}`)).status).toBe(

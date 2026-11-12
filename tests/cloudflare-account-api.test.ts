@@ -100,7 +100,7 @@ beforeEach(() => {
 
 describe("permissions", () => {
   it("answers 403 on every route without server:manage", async () => {
-    state.role = "member";
+    state.role = "engineer";
     const base = "/api/cloudflare-account";
     const body = { accountId: ACCOUNT_ID, name: "x", apiToken: "t" };
     expect((await send("GET", base)).status).toBe(403);

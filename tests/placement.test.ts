@@ -30,9 +30,9 @@ describe("canPlaceEnvironment", () => {
     ["infra", "viewer", false, false],
     ["infra", "qa", false, false],
     ["infra", "engineer", true, true],
-    ["member", "viewer", false, false],
-    ["member", "qa", false, false],
-    ["member", "engineer", false, true],
+    ["observer", "viewer", false, false],
+    ["qa", "qa", false, false],
+    ["engineer", "engineer", false, true],
   ];
   for (const [org, project, restricted, open] of MATRIX) {
     it(`${org} × ${project}: restricted=${restricted}, open=${open}`, () => {
@@ -44,7 +44,7 @@ describe("canPlaceEnvironment", () => {
   }
 
   it("refuses a caller without a project role on either placement", () => {
-    for (const org of ["admin", "infra", "member"]) {
+    for (const org of ["admin", "infra", "engineer", "qa"]) {
       expect(canPlaceEnvironment(org, null, "restricted", false)).toBe(false);
       expect(canPlaceEnvironment(org, null, "open", false)).toBe(false);
       expect(canPlaceEnvironment(org, null, "restricted", true)).toBe(false);
@@ -52,17 +52,17 @@ describe("canPlaceEnvironment", () => {
   });
 
   it("project default server admits engineers", () => {
-    expect(canPlaceEnvironment("member", "engineer", "restricted", true)).toBe(
-      true
-    );
-    expect(canPlaceEnvironment("member", "engineer", "restricted", false)).toBe(
-      false
-    );
+    expect(
+      canPlaceEnvironment("engineer", "engineer", "restricted", true)
+    ).toBe(true);
+    expect(
+      canPlaceEnvironment("engineer", "engineer", "restricted", false)
+    ).toBe(false);
   });
 
   it("the project default server never admits QA or viewers", () => {
-    expect(canPlaceEnvironment("member", "qa", "restricted", true)).toBe(false);
-    expect(canPlaceEnvironment("member", "viewer", "restricted", true)).toBe(
+    expect(canPlaceEnvironment("qa", "qa", "restricted", true)).toBe(false);
+    expect(canPlaceEnvironment("observer", "viewer", "restricted", true)).toBe(
       false
     );
   });
@@ -81,7 +81,7 @@ type Service = {
 };
 
 const state = vi.hoisted(() => ({
-  orgRole: "member" as string,
+  orgRole: "engineer" as string,
   // Role in the environment's (or the created environment's) project.
   projectRole: "engineer" as string | null,
   // Key of the project a placement is checked for (the projects lookup).
@@ -292,7 +292,7 @@ const insertedEnvironment = () =>
     ?.values as { ownerId: string | null } | undefined;
 
 beforeEach(() => {
-  state.orgRole = "member";
+  state.orgRole = "engineer";
   state.projectRole = "engineer";
   state.projectKey = "HRIS";
   state.defaultServerId = null;
@@ -882,7 +882,7 @@ describe("server placement field", () => {
   });
 
   it("can only be changed with org server:manage", async () => {
-    for (const role of ["member", "observer"]) {
+    for (const role of ["engineer", "qa", "observer"]) {
       state.orgRole = role;
       await expect(
         updateServer(SERVER_OPEN, { placement: "open" })

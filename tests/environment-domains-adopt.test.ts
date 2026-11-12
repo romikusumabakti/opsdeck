@@ -435,7 +435,7 @@ describe("POST /domain/adopt", () => {
   });
 
   it("refuses an engineer (no org server:manage)", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     const res = await send(body());
     expect(res.status).toBe(403);
     expect(fetch).not.toHaveBeenCalled();

@@ -41,7 +41,7 @@ vi.mock("@/lib/authz", async () => {
           throw new HTTPException(403, { message: "Forbidden" });
         }
         return {
-          session: { user: { id: "user-1", role: "member" } },
+          session: { user: { id: "user-1", role: "engineer" } },
           role,
           projectId: PROJECT_ID,
         };

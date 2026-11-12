@@ -229,13 +229,8 @@ export function AppSidebar({
   const tNav = useTranslations("nav");
   const pathname = usePathname();
 
-  const projectRoleList = Object.values(projectRoles);
-  const canSeeServers = canOrgAccess(orgRole, projectRoleList, {
-    server: ["read"],
-  });
-  const canSeeStorage = canOrgAccess(orgRole, projectRoleList, {
-    storage: ["read"],
-  });
+  const canSeeServers = canOrgAccess(orgRole, { server: ["read"] });
+  const canSeeStorage = canOrgAccess(orgRole, { storage: ["read"] });
   const canSeeAdmin = canOrg(orgRole, { audit: ["read"] });
   const inAdmin =
     canSeeAdmin && (pathname === "/admin" || pathname.startsWith("/admin/"));

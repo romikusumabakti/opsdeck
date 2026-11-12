@@ -23,7 +23,7 @@ vi.mock("@/lib/activity", () => ({
   }),
 }));
 vi.mock("@/lib/auth-session", () => ({
-  requireSession: async () => ({ user: { id: "u1", role: "member" } }),
+  requireSession: async () => ({ user: { id: "u1", role: "engineer" } }),
 }));
 vi.mock("@/lib/restricted-targets", () => ({
   authorizeExplorerSource: async () => ({ user: { id: "u1" } }),

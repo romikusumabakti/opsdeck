@@ -89,7 +89,7 @@ const get = (path: string) => app.request(path);
 
 describe("server preflight API", () => {
   it("rejects callers without server:manage", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     expect((await post(`/api/servers/${SERVER_ID}/preflight`)).status).toBe(
       403
     );

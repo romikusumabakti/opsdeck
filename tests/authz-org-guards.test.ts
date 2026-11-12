@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  session: { user: { id: "u1", role: "member" } },
-  memberships: [] as { projectId: string; role: string }[],
+  session: { user: { id: "u1", role: "qa" } },
+  memberships: [] as { projectId: string }[],
 }));
 
 vi.mock("@/lib/auth-session", () => ({
@@ -28,19 +28,17 @@ import {
   routeOrgGuard,
 } from "@/lib/authz";
 
-function asMember(...roles: string[]) {
-  mocks.session = { user: { id: "u1", role: "member" } };
-  mocks.memberships = roles.map((role, i) => ({
-    projectId: `p${i + 1}`,
-    role,
-  }));
+// The job role decides the org grant; memberships only decide visibility.
+function as(role: string, ...projectIds: string[]) {
+  mocks.session = { user: { id: "u1", role } };
+  mocks.memberships = projectIds.map((projectId) => ({ projectId }));
 }
 
 describe("org guards apply the engineer grant", () => {
-  beforeEach(() => asMember());
+  beforeEach(() => as("qa"));
 
   it("lets an engineer member read servers and open the terminal", async () => {
-    asMember("engineer");
+    as("engineer", "p1");
     await expect(
       requireOrgPermission({ server: ["read"] })
     ).resolves.toBeDefined();
@@ -49,7 +47,7 @@ describe("org guards apply the engineer grant", () => {
   });
 
   it("still denies an engineer member server management", async () => {
-    asMember("engineer");
+    as("engineer", "p1");
     await expect(
       requireOrgPermission({ server: ["manage"] })
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -58,8 +56,8 @@ describe("org guards apply the engineer grant", () => {
     if (!guard.ok) expect(guard.response.status).toBe(403);
   });
 
-  it("denies a member holding only a qa membership", async () => {
-    asMember("qa");
+  it("denies a QA member", async () => {
+    as("qa", "p1");
     await expect(
       requireOrgPermission({ server: ["read"] })
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -67,7 +65,7 @@ describe("org guards apply the engineer grant", () => {
     expect(guard.ok).toBe(false);
   });
 
-  it("denies a member with no memberships", async () => {
+  it("denies a QA with no memberships", async () => {
     await expect(
       requireOrgPermission({ server: ["read"] })
     ).rejects.toBeInstanceOf(ForbiddenError);

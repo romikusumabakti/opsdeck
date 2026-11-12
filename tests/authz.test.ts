@@ -1,52 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { checkProjectAccess, resolveProjectAccess } from "@/lib/authz";
+import {
+  checkProjectAccess,
+  type ProjectAccess,
+  resolveProjectAccess,
+} from "@/lib/authz";
 
 const ALL = ["p1", "p2", "p3"];
 
 describe("resolveProjectAccess", () => {
-  it("gives a member with no memberships nothing", () => {
-    expect(resolveProjectAccess("member", ALL, [])).toEqual({
+  it("gives an engineer exactly their memberships, at the engineer set", () =>
+    expect(resolveProjectAccess("engineer", ALL, ["p1", "p3"])).toEqual({
+      all: false,
+      roles: { p1: "engineer", p3: "engineer" },
+    }));
+  it("gives qa its memberships at the qa set, and nothing without one", () => {
+    expect(resolveProjectAccess("qa", ALL, ["p2"])).toEqual({
+      all: false,
+      roles: { p2: "qa" },
+    });
+    expect(resolveProjectAccess("qa", ALL, [])).toEqual({
       all: false,
       roles: {},
     });
   });
-
-  it("gives a member exactly their memberships", () => {
-    expect(
-      resolveProjectAccess("member", ALL, [
-        { projectId: "p1", role: "qa" },
-        { projectId: "p3", role: "viewer" },
-      ])
-    ).toEqual({ all: false, roles: { p1: "qa", p3: "viewer" } });
-  });
-
-  it("drops memberships carrying an unknown role", () => {
-    expect(
-      resolveProjectAccess("member", ALL, [{ projectId: "p1", role: "admin" }])
-    ).toEqual({ all: false, roles: {} });
-  });
-
-  it("gives observer every project as viewer, raised by membership", () => {
-    expect(
-      resolveProjectAccess("observer", ALL, [
-        { projectId: "p2", role: "engineer" },
-      ])
-    ).toEqual({
+  it("gives an engineer with no memberships no project", () =>
+    expect(resolveProjectAccess("engineer", ALL, [])).toEqual({
+      all: false,
+      roles: {},
+    }));
+  it("gives observer every project as viewer; a membership does not raise it", () =>
+    expect(resolveProjectAccess("observer", ALL, ["p2"])).toEqual({
       all: true,
-      roles: { p1: "viewer", p2: "engineer", p3: "viewer" },
-    });
-  });
-
-  it("gives infra and admin every project as maintainer", () => {
-    for (const org of ["infra", "admin"]) {
-      expect(resolveProjectAccess(org, ALL, [])).toEqual({
+      roles: { p1: "viewer", p2: "viewer", p3: "viewer" },
+    }));
+  it("gives admin and infra every project as engineer", () => {
+    for (const org of ["admin", "infra"])
+      expect(resolveProjectAccess(org, ALL, ["p1"])).toEqual({
         all: true,
         roles: { p1: "engineer", p2: "engineer", p3: "engineer" },
       });
-    }
   });
-
-  it("treats a legacy/unknown org role as member", () => {
+  it("floors member and junk roles to qa on their memberships", () => {
+    expect(resolveProjectAccess("member", ALL, ["p1"])).toEqual({
+      all: false,
+      roles: { p1: "qa" },
+    });
     expect(resolveProjectAccess("maintainer", ALL, [])).toEqual({
       all: false,
       roles: {},
@@ -55,10 +53,11 @@ describe("resolveProjectAccess", () => {
 });
 
 describe("checkProjectAccess", () => {
-  const access = resolveProjectAccess("member", ALL, [
-    { projectId: "p1", role: "engineer" },
-    { projectId: "p2", role: "qa" },
-  ]);
+  // One org role gives one set everywhere, so a mixed set is built by hand.
+  const access: ProjectAccess = {
+    all: false,
+    roles: { p1: "engineer", p2: "qa" },
+  };
 
   it("passes when every project grants the permission", () => {
     expect(checkProjectAccess(access, ["p1", "p2"], { issue: ["write"] })).toBe(

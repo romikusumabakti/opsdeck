@@ -79,7 +79,7 @@ vi.mock("@/components/ui/sidebar", () => {
 });
 
 import { AppSidebar } from "@/components/app-sidebar";
-import type { OrgRole } from "@/lib/permissions";
+import { ORG_ROLES, type OrgRole } from "@/lib/permissions";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -146,15 +146,12 @@ afterEach(() => {
 });
 
 describe("app sidebar", () => {
-  it.each(["admin", "infra", "observer", "member"] as const)(
-    "has no Apps entry for %s",
-    async (role) => {
-      await renderSidebar(role, "/");
-      expect(
-        hrefs().some((h) => h === "/apps" || h?.startsWith("/apps/"))
-      ).toBe(false);
-    }
-  );
+  it.each(ORG_ROLES)("has no Apps entry for %s", async (role) => {
+    await renderSidebar(role, "/");
+    expect(hrefs().some((h) => h === "/apps" || h?.startsWith("/apps/"))).toBe(
+      false
+    );
+  });
 
   it("admin group: Activity, Users, Repositories, Instance, then Integrations: Jira, CI, Cloudflare; no Tunnels", async () => {
     await renderSidebar("admin", "/admin/activity");
@@ -185,13 +182,13 @@ describe("app sidebar", () => {
     expect(hrefs()).toEqual(expect.arrayContaining(["/servers", "/storage"]));
   });
 
-  it("shows Servers and Storage to a member who is an engineer somewhere", async () => {
-    await renderSidebar("member", "/", { projectRoles: { p1: "engineer" } });
+  it("shows Servers and Storage to an engineer", async () => {
+    await renderSidebar("engineer", "/", { projectRoles: { p1: "engineer" } });
     expect(hrefs()).toEqual(expect.arrayContaining(["/servers", "/storage"]));
   });
 
-  it("hides Servers and Storage from a member who is only QA", async () => {
-    await renderSidebar("member", "/", { projectRoles: { p1: "qa" } });
+  it("hides Servers and Storage from a QA", async () => {
+    await renderSidebar("qa", "/", { projectRoles: { p1: "qa" } });
     expect(hrefs()).not.toContain("/servers");
     expect(hrefs()).not.toContain("/storage");
   });
@@ -237,7 +234,7 @@ describe("project group", () => {
     );
 
   it("shows on a project page with every project item", async () => {
-    await renderSidebar("member", "/CRMB/issues", scope(true));
+    await renderSidebar("engineer", "/CRMB/issues", scope(true));
     expect(groupRows("CAR Membership")).toEqual([
       "Overview",
       "Issues",
@@ -248,7 +245,7 @@ describe("project group", () => {
   });
 
   it("shows above the environment group inside an environment", async () => {
-    await renderSidebar("member", "/CRMB/dev/deploys", scope(true));
+    await renderSidebar("engineer", "/CRMB/dev/deploys", scope(true));
     const headings = [...container.querySelectorAll("h2")].map(
       (h) => h.textContent
     );
@@ -259,25 +256,25 @@ describe("project group", () => {
   });
 
   it("keeps Releases and Issues out of the environment group", async () => {
-    await renderSidebar("member", "/CRMB/dev/deploys", scope(true));
+    await renderSidebar("engineer", "/CRMB/dev/deploys", scope(true));
     expect(groupRows("Dev")).not.toContain("Releases");
     expect(groupRows("Dev")).not.toContain("Issues");
   });
 
   it("the environment group has no Variables entry", async () => {
-    await renderSidebar("member", "/CRMB/dev/deploys", scope(true));
+    await renderSidebar("engineer", "/CRMB/dev/deploys", scope(true));
     expect(groupRows("Dev")).not.toContain("Variables");
     expect(hrefs().some((h) => h?.endsWith("/variables"))).toBe(false);
   });
 
   it("has no Releases entry for a container-only project", async () => {
-    await renderSidebar("member", "/CRMB/dev/deploys", scope(false));
+    await renderSidebar("engineer", "/CRMB/dev/deploys", scope(false));
     expect(groupRows("CAR Membership")).not.toContain("Releases");
     expect(hrefs()).not.toContain("/CRMB/releases");
   });
 
   it("renders for a project without environments", async () => {
-    await renderSidebar("member", "/CRMB", {
+    await renderSidebar("engineer", "/CRMB", {
       environments: [],
       projects,
       projectRoles: { p1: "engineer" },
@@ -287,12 +284,12 @@ describe("project group", () => {
   });
 
   it("renders no group for an unknown project key", async () => {
-    await renderSidebar("member", "/NOPE/issues", scope(true));
+    await renderSidebar("engineer", "/NOPE/issues", scope(true));
     expect(groupRows("CAR Membership")).toEqual([]);
   });
 
   it("marks Issues active on an issue page, not Overview", async () => {
-    await renderSidebar("member", "/CRMB/issues/42", scope(true));
+    await renderSidebar("engineer", "/CRMB/issues/42", scope(true));
     expect(linkByHref("/CRMB/issues")?.getAttribute("data-active")).toBe(
       "true"
     );
@@ -300,7 +297,7 @@ describe("project group", () => {
   });
 
   it("does not mark Issues active on an environment slugged issues-old", async () => {
-    await renderSidebar("member", "/CRMB/issues-old/deploys", {
+    await renderSidebar("engineer", "/CRMB/issues-old/deploys", {
       ...scope(true),
       environments: [{ ...env(true), slug: "issues-old" }],
     });
@@ -308,7 +305,7 @@ describe("project group", () => {
   });
 
   it("marks Overview active on the project page", async () => {
-    await renderSidebar("member", "/CRMB", scope(true));
+    await renderSidebar("engineer", "/CRMB", scope(true));
     expect(linkByHref("/CRMB")?.getAttribute("data-active")).toBe("true");
   });
 });

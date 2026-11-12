@@ -5,11 +5,11 @@ import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
 import {
-  implicitProjectRole,
   isProjectRole,
   normalizeOrgRole,
   type OrgRole,
   type ProjectRole,
+  projectRoleForOrgRole,
 } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import { uuidSchema } from "@/lib/validation";
@@ -79,16 +79,16 @@ export async function listOrgWideAccess(
       )
     )
     .orderBy(userTable.name);
-  return rows.flatMap((r) => {
+  return rows.map((r) => {
     const orgRole = normalizeOrgRole(r.orgRole);
-    const role = implicitProjectRole(orgRole);
-    return role ? [{ ...r, orgRole, role }] : [];
+    const role = projectRoleForOrgRole(orgRole);
+    return { ...r, orgRole, role };
   });
 }
 
 // Everyone who could be added to the project: every non-banned user, by name.
-// The picker drops current members itself. Membership is how an org `member`
-// gains access to a project, so this list deliberately reaches beyond the
+// The picker drops current members itself. Membership is how an engineer or
+// QA gains access to a project, so this list deliberately reaches beyond the
 // project's current members (unlike listAssignableUsers).
 export async function listMemberCandidates(
   projectId: string

@@ -42,7 +42,7 @@ type Template = {
 
 const state = vi.hoisted(() => ({
   role: "engineer" as string | null,
-  orgRole: "member" as string,
+  orgRole: "engineer" as string,
 }));
 
 const store = vi.hoisted(() => ({
@@ -258,7 +258,7 @@ function template(
 beforeEach(() => {
   vi.clearAllMocks();
   state.role = "engineer";
-  state.orgRole = "member";
+  state.orgRole = "engineer";
   store.env.envFileManaged = false;
   store.env.url = "https://dev.example.test";
   store.env.appId = APP_ID;

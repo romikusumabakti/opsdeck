@@ -40,12 +40,8 @@ export async function requireProjectRole(
   const role = await projectRoleOf(queryClient, projectId);
   if (!(role && canProject(role, perms))) throw notFound();
   if (orgPerms) {
-    const [me, access] = await Promise.all([
-      queryClient.query(meQuery()),
-      queryClient.query(getMyProjectAccessQuery()),
-    ]);
-    if (!canOrgAccess(me?.orgRole, Object.values(access.roles), orgPerms))
-      throw notFound();
+    const me = await queryClient.query(meQuery());
+    if (!canOrgAccess(me?.orgRole, orgPerms)) throw notFound();
   }
   return role;
 }
@@ -74,21 +70,8 @@ export async function requireOrgRole(
   perms: OrgPermissions,
   restricted = false
 ) {
-  const [me, access] = await Promise.all([
-    queryClient.query(meQuery()),
-    queryClient.query(getMyProjectAccessQuery()),
-  ]);
-  if (
-    !(
-      me &&
-      canOrgAccessTarget(
-        me.orgRole,
-        Object.values(access.roles),
-        perms,
-        restricted
-      )
-    )
-  )
+  const me = await queryClient.query(meQuery());
+  if (!(me && canOrgAccessTarget(me.orgRole, perms, restricted)))
     throw notFound();
   return me;
 }

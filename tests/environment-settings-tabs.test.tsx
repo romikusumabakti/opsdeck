@@ -432,7 +432,7 @@ describe("environment settings tabs", () => {
   });
 
   it("server locked after first deploy", async () => {
-    api.orgRole = "member";
+    api.orgRole = "engineer";
     await mount({ targets: [target(true)], canManageServers: false });
     await openTab(t.tabSourceDeploy);
     const select = document.querySelector<HTMLElement>("#env-server");
@@ -445,7 +445,7 @@ describe("environment settings tabs", () => {
   });
 
   it("server stays open for engineers before the first deploy", async () => {
-    api.orgRole = "member";
+    api.orgRole = "engineer";
     await mount({ targets: [target(false)], canManageServers: false });
     await openTab(t.tabSourceDeploy);
     const select = document.querySelector<HTMLElement>("#env-server");
@@ -511,7 +511,7 @@ describe("environment settings tabs", () => {
     );
   });
   it("without server:manage a save sends the info fields only", async () => {
-    api.orgRole = "member";
+    api.orgRole = "engineer";
     await mount({ canManageServers: false });
     const name = document.querySelector<HTMLInputElement>(
       "#env-name"
@@ -659,7 +659,7 @@ describe("environment settings tabs", () => {
     expect(api.updateEnvironment).not.toHaveBeenCalled();
   });
   it("an engineer before the first deploy moves the app, its container database and targets", async () => {
-    api.orgRole = "member";
+    api.orgRole = "engineer";
     await mount({ environment: containerEnv, canManageServers: false });
     await openTab(t.tabSourceDeploy);
     await click(document.querySelector<HTMLElement>("#env-server"));
@@ -697,7 +697,7 @@ describe("environment settings tabs", () => {
   });
 
   it("an engineer is not offered a server away from the shared database's host", async () => {
-    api.orgRole = "member";
+    api.orgRole = "engineer";
     await mount({ environment: withFrontend, canManageServers: false });
     await openTab(t.tabSourceDeploy);
     await click(document.querySelector<HTMLElement>("#env-server"));

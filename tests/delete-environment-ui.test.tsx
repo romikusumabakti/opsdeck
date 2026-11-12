@@ -17,7 +17,7 @@ const RUN = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const ENGINEER = "engineer" as const;
 
 const api = vi.hoisted(() => ({
-  orgRole: "member" as string,
+  orgRole: "engineer" as string,
   startTeardown: vi.fn(),
   deleteEnvironment: vi.fn(),
   getTeardown: vi.fn(),
@@ -93,7 +93,7 @@ async function renderWithClient(node: React.ReactNode): Promise<QueryClient> {
 }
 
 beforeEach(() => {
-  api.orgRole = "member";
+  api.orgRole = "engineer";
 });
 
 afterEach(() => {

@@ -8,7 +8,7 @@ vi.mock("@/lib/auth-session", () => ({
       const { HTTPException } = await import("hono/http-exception");
       throw new HTTPException(401, { message: "Unauthorized" });
     }
-    return { user: { id: "user-1", role: "member" } };
+    return { user: { id: "user-1", role: "engineer" } };
   }),
   getServerSession: vi.fn(async () => null),
 }));

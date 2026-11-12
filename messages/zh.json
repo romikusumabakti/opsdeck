@@ -1299,8 +1299,9 @@
     "role": {
       "admin": "管理员",
       "infra": "基础设施",
-      "observer": "观察者",
-      "member": "成员"
+      "engineer": "工程师",
+      "qa": "QA / BA",
+      "observer": "观察者"
     },
     "roleChangeTitle": "更改角色",
     "roleChangeDescription": "将 {name} 的角色更改为 {role}？",

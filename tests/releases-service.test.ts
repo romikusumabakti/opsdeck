@@ -420,7 +420,7 @@ describe("updateReleaseNotes", () => {
 
 describe("deleteRelease", () => {
   it("is forbidden without org server:manage", async () => {
-    state.orgRole = "member";
+    state.orgRole = "engineer";
     expect(await rejection(deleteRelease(RELEASE_ID))).toMatchObject({
       status: 403,
     });

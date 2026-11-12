@@ -94,7 +94,7 @@ export async function createInitialUser(input: {
   const hash = await ctx.password.hash(input.password);
 
   // The bootstrap user owns the panel — promote to admin so they can manage
-  // users/servers. Subsequent users are created as "member" via invitation.
+  // users/servers. Subsequent users get their role from their invitation.
   const created = await ctx.internalAdapter.createUser(
     {
       name,
@@ -242,7 +242,7 @@ export async function inviteUser(input: {
 
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
-  const role: OrgRole = isOrgRole(input.role) ? input.role : "member";
+  const role: OrgRole = isOrgRole(input.role) ? input.role : "qa";
 
   if (!email || !name) {
     return { success: false, message: t("nameAndEmailRequired") };
@@ -343,7 +343,7 @@ export async function updateUserRole(input: {
     .limit(1);
 
   // Direct Drizzle update: the admin plugin's `setRole` API only accepts its
-  // built-in role names in TypeScript types, but our `member` role is custom.
+  // built-in role names in TypeScript types, but our roles are custom.
   // Updating our own users table avoids that mismatch and is what `setRole`
   // does internally anyway.
   const result = await db
