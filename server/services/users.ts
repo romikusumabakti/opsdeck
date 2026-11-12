@@ -125,6 +125,7 @@ export async function createInitialUser(input: {
 }
 
 export type AssignableUserRow = UserRef & {
+  email: string;
   status: { emoji: string | null; text: string | null } | null;
 };
 
@@ -132,6 +133,7 @@ const assignableColumns = {
   id: userTable.id,
   name: userTable.name,
   image: userTable.image,
+  email: userTable.email,
   statusEmoji: userTable.statusEmoji,
   statusText: userTable.statusText,
   statusExpiresAt: userTable.statusExpiresAt,
@@ -146,6 +148,7 @@ function toAssignableUser({
   id: string;
   name: string;
   image: string | null;
+  email: string;
   statusEmoji: string | null;
   statusText: string | null;
   statusExpiresAt: Date | null;

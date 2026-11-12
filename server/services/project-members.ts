@@ -48,10 +48,17 @@ export async function listProjectMembers(
 // current members (unlike listAssignableUsers).
 export async function listMemberCandidates(
   projectId: string
-): Promise<{ id: string; name: string; email: string }[]> {
+): Promise<
+  { id: string; name: string; email: string; image: string | null }[]
+> {
   await requireProjectPermission({ projectId }, { member: ["manage"] });
   return db
-    .select({ id: userTable.id, name: userTable.name, email: userTable.email })
+    .select({
+      id: userTable.id,
+      name: userTable.name,
+      email: userTable.email,
+      image: userTable.image,
+    })
     .from(userTable)
     .where(eq(userTable.banned, false))
     .orderBy(userTable.name);

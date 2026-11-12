@@ -3443,5 +3443,9 @@
       "ready": "Ready",
       "failed": "Failed"
     }
+  },
+  "personPicker": {
+    "search": "ابحث بالاسم أو البريد الإلكتروني…",
+    "empty": "لم يُعثر على أحد"
   }
 }

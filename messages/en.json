@@ -3443,5 +3443,9 @@
       "ready": "Ready",
       "failed": "Failed"
     }
+  },
+  "personPicker": {
+    "search": "Search by name or email…",
+    "empty": "No one found"
   }
 }

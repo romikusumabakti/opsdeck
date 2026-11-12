@@ -3443,5 +3443,9 @@
       "ready": "Ready",
       "failed": "Failed"
     }
+  },
+  "personPicker": {
+    "search": "按姓名或邮箱搜索…",
+    "empty": "未找到匹配的人"
   }
 }

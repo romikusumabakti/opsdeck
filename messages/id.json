@@ -3443,5 +3443,9 @@
       "ready": "Siap",
       "failed": "Gagal"
     }
+  },
+  "personPicker": {
+    "search": "Cari nama atau email…",
+    "empty": "Tidak ada yang cocok"
   }
 }

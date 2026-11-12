@@ -6,6 +6,7 @@ import {
   SquareCheck,
 } from "lucide-react";
 import { useTranslations } from "use-intl";
+import { COMPACT_TRIGGER } from "@/components/compact-trigger";
 import { LabelChips } from "@/components/label-ui";
 import {
   Select,
@@ -76,12 +77,6 @@ export type BoardIssue = {
 export type Swimlane = "none" | "assignee";
 
 export type SelectVariant = "default" | "compact";
-
-// "compact" sizes to content with no resting border, for dense rows and cards;
-// max-w-full only bounds the trigger by its container; in an auto-layout table
-// callers also pass an absolute cap (e.g. max-w-32) so a long value truncates.
-const COMPACT_TRIGGER =
-  "h-7 w-auto max-w-full gap-1.5 border-transparent bg-transparent px-2 hover:bg-muted";
 
 function triggerClass(variant: SelectVariant, className?: string) {
   return cn(variant === "compact" ? COMPACT_TRIGGER : "h-8 w-full", className);
