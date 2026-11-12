@@ -1301,6 +1301,14 @@
       "qa": "QA / BA",
       "observer": "Observer"
     },
+    "rolePlaceholder": "Select a role",
+    "roleDescription": {
+      "admin": "Every project, plus users, integrations and the Panel itself",
+      "infra": "Every project, plus servers, storage and tunnels",
+      "engineer": "Their projects in full, plus server terminals and files",
+      "qa": "Their projects: issues, restarts, backups and restores, mail and clock",
+      "observer": "Read-only access to every project"
+    },
     "roleChangeTitle": "Change role",
     "roleChangeDescription": "Change {name}'s role to {role}?",
     "roleChangeConfirm": "Change role",

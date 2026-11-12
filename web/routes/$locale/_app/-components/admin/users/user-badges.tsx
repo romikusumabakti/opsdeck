@@ -1,13 +1,13 @@
 import { useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import type { UserStatus } from "@/lib/access";
-import { isOrgRole } from "@/lib/permissions";
+import { normalizeOrgRole } from "@/lib/permissions";
 
 export function RoleBadge({ role }: { role: string }) {
   const t = useTranslations("users");
-  // Unknown/legacy role strings render verbatim rather than blowing up on a
-  // missing translation key — an unknown role is treated as `qa` for access.
-  const label = isOrgRole(role) ? t(`role.${role}`) : role;
+  // An unknown or legacy role string (e.g. `member`) is treated as `qa` for
+  // access, so it is shown as `qa` too.
+  const label = t(`role.${normalizeOrgRole(role)}`);
   return (
     <Badge
       variant={role === "admin" ? "default" : "secondary"}

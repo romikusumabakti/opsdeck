@@ -44,8 +44,9 @@ export function UserRowActions({
     });
   }
   // The only place an org role is edited. A submenu rather than an
-  // admin/non-admin toggle: there are five roles and new sign-ins start at
-  // `qa`, so a toggle would skip the others.
+  // admin/non-admin toggle: there are five roles (admin, infra, engineer, qa,
+  // observer) and new sign-ins start at `qa`, so a toggle would skip the
+  // others. Changing a role never touches project memberships.
   if (perms.canSetRole && !user.banned) {
     items.push({
       label: t("roleChangeTitle"),
@@ -54,6 +55,7 @@ export function UserRowActions({
       disabledReason: t("cannotChangeOwnRole"),
       submenu: ORG_ROLES.map((r) => ({
         label: t(`role.${r}`),
+        description: t(`roleDescription.${r}`),
         disabled: r === user.role,
         onSelect: () => actions.onChangeRole(user, r),
       })),

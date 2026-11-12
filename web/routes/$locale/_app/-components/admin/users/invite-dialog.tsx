@@ -29,11 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ORG_ROLES } from "@/lib/permissions";
+import { isOrgRole, ORG_ROLES } from "@/lib/permissions";
 import { inviteUser } from "@/web/api/users";
 import type { InvitationAction } from "./types";
 
-const EMPTY = { name: "", email: "", role: "qa" as const };
+const EMPTY = { name: "", email: "", role: "" };
 
 export function InviteDialog({
   open,
@@ -51,10 +51,19 @@ export function InviteDialog({
   const schema = z.object({
     name: z.string().min(1, tCommon("required")),
     email: z.string().email(tCommon("emailInvalid")),
-    role: z.enum(ORG_ROLES),
+    role: z.string().refine(isOrgRole, { error: tCommon("required") }),
   });
 
-  const form = useForm<z.infer<typeof schema>>({
+  // Bare labels keep the closed trigger short; the items add the description.
+  const roleLabels = Object.fromEntries(
+    ORG_ROLES.map((r) => [r, t(`role.${r}`)])
+  );
+
+  const form = useForm<
+    z.input<typeof schema>,
+    unknown,
+    z.output<typeof schema>
+  >({
     resolver: zodResolver(schema),
     defaultValues: EMPTY,
   });
@@ -69,7 +78,7 @@ export function InviteDialog({
     [form, onOpenChange]
   );
 
-  function onInvite(values: z.infer<typeof schema>) {
+  function onInvite(values: z.output<typeof schema>) {
     startTransition(async () => {
       // Render a placeholder row immediately so the result shows before the
       // server round-trip + revalidatePath completes; React rolls it back when
@@ -147,6 +156,7 @@ export function InviteDialog({
                   </FieldLabel>
                   <Select
                     value={field.value}
+                    items={roleLabels}
                     onValueChange={(v) => field.onChange(v ?? "")}
                   >
                     <SelectTrigger
@@ -154,12 +164,17 @@ export function InviteDialog({
                       className="w-full"
                       aria-invalid={fieldState.invalid}
                     >
-                      <SelectValue />
+                      <SelectValue placeholder={t("rolePlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
                       {ORG_ROLES.map((r) => (
                         <SelectItem key={r} value={r}>
-                          {t(`role.${r}`)}
+                          <span className="flex flex-col gap-0.5">
+                            <span>{t(`role.${r}`)}</span>
+                            <span className="text-xs text-muted-foreground whitespace-normal">
+                              {t(`roleDescription.${r}`)}
+                            </span>
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>

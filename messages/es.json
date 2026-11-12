@@ -1301,6 +1301,14 @@
       "qa": "QA / BA",
       "observer": "Supervisor"
     },
+    "rolePlaceholder": "Selecciona un rol",
+    "roleDescription": {
+      "admin": "Todos los proyectos, además de usuarios, integraciones y el propio Panel",
+      "infra": "Todos los proyectos, además de servidores, almacenamiento y túneles",
+      "engineer": "Acceso completo a sus proyectos, además de terminales y archivos del servidor",
+      "qa": "Sus proyectos: incidencias, reinicios, copias de seguridad y restauraciones, correo y reloj",
+      "observer": "Acceso de solo lectura a todos los proyectos"
+    },
     "roleChangeTitle": "Cambiar rol",
     "roleChangeDescription": "¿Cambiar el rol de {name} a {role}?",
     "roleChangeConfirm": "Cambiar rol",

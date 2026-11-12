@@ -30,6 +30,8 @@ export type RowAction = {
   disabled?: boolean;
   /** Why the action is unavailable; shown as muted text beside the label. */
   disabledReason?: string;
+  /** Muted text under the label; hidden while a `disabledReason` shows. */
+  description?: string;
 };
 
 function ItemContent({ action }: { action: RowAction }) {
@@ -42,6 +44,10 @@ function ItemContent({ action }: { action: RowAction }) {
         {action.disabled && action.disabledReason ? (
           <span className="text-muted-foreground text-xs">
             {action.disabledReason}
+          </span>
+        ) : action.description ? (
+          <span className="text-muted-foreground text-xs">
+            {action.description}
           </span>
         ) : null}
       </span>

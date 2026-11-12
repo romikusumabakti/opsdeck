@@ -1301,6 +1301,14 @@
       "qa": "QA / BA",
       "observer": "观察者"
     },
+    "rolePlaceholder": "选择角色",
+    "roleDescription": {
+      "admin": "所有项目，外加用户、集成和面板本身",
+      "infra": "所有项目，外加服务器、存储和隧道",
+      "engineer": "完全访问其所在项目，外加服务器终端和文件",
+      "qa": "其所在项目：工单、重启、备份与恢复、邮件和时钟",
+      "observer": "对所有项目只读访问"
+    },
     "roleChangeTitle": "更改角色",
     "roleChangeDescription": "将 {name} 的角色更改为 {role}？",
     "roleChangeConfirm": "更改角色",

@@ -1301,6 +1301,14 @@
       "qa": "QA / BA",
       "observer": "Pemantau"
     },
+    "rolePlaceholder": "Pilih peran",
+    "roleDescription": {
+      "admin": "Semua project, ditambah pengguna, integrasi, dan Panel itu sendiri",
+      "infra": "Semua project, ditambah server, storage, dan tunnel",
+      "engineer": "Akses penuh ke project-nya, ditambah terminal dan file server",
+      "qa": "Project-nya: issue, restart, backup dan restore, mail, dan jam",
+      "observer": "Akses baca saja ke semua project"
+    },
     "roleChangeTitle": "Ubah peran",
     "roleChangeDescription": "Ubah peran {name} menjadi {role}?",
     "roleChangeConfirm": "Ubah peran",
