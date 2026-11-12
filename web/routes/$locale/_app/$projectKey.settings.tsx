@@ -15,6 +15,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { canOrg, canOrgAccess, canProject } from "@/lib/permissions";
+import { listAppsQuery } from "@/web/api/apps";
 import { getJiraConnectionsQuery, getJiraLinkQuery } from "@/web/api/jira";
 import {
   getMyProjectAccessQuery,
@@ -24,6 +25,7 @@ import {
   listMemberCandidatesQuery,
   listProjectMembersQuery,
 } from "@/web/api/project-members";
+import { listProjectSourcesQuery } from "@/web/api/project-sources";
 import { getServersQuery } from "@/web/api/servers";
 import { meQuery, useCanOrg, useMe } from "@/web/api/session";
 import { projectRoleOf, requireProjectRole } from "@/web/project-guard";
@@ -34,6 +36,7 @@ import {
   projectSettingsSearch,
   visibleSettingsTab,
 } from "./-components/project/project-settings-search";
+import { ProjectSourcesTab } from "./-components/project/project-sources-tab";
 
 export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
   validateSearch: projectSettingsSearch,
@@ -75,6 +78,8 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
         ? loaderQuery(queryClient, getServersQuery())
         : null,
       loaderQuery(queryClient, getJiraLinkQuery(project.id)),
+      loaderQuery(queryClient, listProjectSourcesQuery(project.id)),
+      loaderQuery(queryClient, listAppsQuery()),
     ]);
   },
   pendingComponent: SettingsPending,
@@ -97,6 +102,9 @@ function ProjectSettingsPage() {
   const roles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
   const canManageMembers = canProject(roles[project.id] ?? null, {
     member: ["manage"],
+  });
+  const canManageApps = canProject(roles[project.id] ?? null, {
+    environment: ["create"],
   });
   const jiraLink = useSuspenseQuery(getJiraLinkQuery(project.id)).data;
   const jiraConnections =
@@ -134,6 +142,7 @@ function ProjectSettingsPage() {
       >
         <TabsList>
           <TabsTrigger value="details">{t("tabDetails")}</TabsTrigger>
+          <TabsTrigger value="sources">{t("tabSources")}</TabsTrigger>
           <TabsTrigger value="jira">{t("tabJira")}</TabsTrigger>
           {canManageMembers && (
             <TabsTrigger value="members">{t("tabMembers")}</TabsTrigger>
@@ -153,6 +162,21 @@ function ProjectSettingsPage() {
               <ProjectForm
                 mode={{ type: "edit", project }}
                 defaultServer={{ servers, canChange: canChangeDefaultServer }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sources">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("sourcesTitle")}</CardTitle>
+              <CardDescription>{t("sourcesDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProjectSourcesTab
+                project={{ id: project.id, key: project.key }}
+                canManageApps={canManageApps}
               />
             </CardContent>
           </Card>

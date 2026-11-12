@@ -129,6 +129,9 @@ describe("project settings tab helpers", () => {
     expect(projectSettingsSearch({ tab: "members" })).toEqual({
       tab: "members",
     });
+    expect(projectSettingsSearch({ tab: "sources" })).toEqual({
+      tab: "sources",
+    });
     expect(projectSettingsSearch({ tab: "bogus" })).toEqual({});
   });
   it("falls back to details for a tab the caller may not open", () => {

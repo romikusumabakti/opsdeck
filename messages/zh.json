@@ -1922,7 +1922,10 @@
     "jiraDescription": "把一个 Jira 项目镜像到本项目的问题跟踪中。",
     "tabMembers": "成员",
     "membersTitle": "成员",
-    "membersDescription": "本项目的成员。每个人的角色只在“管理员 → 用户”中设置一次。"
+    "membersDescription": "本项目的成员。每个人的角色只在“管理员 → 用户”中设置一次。",
+    "tabSources": "来源",
+    "sourcesTitle": "来源",
+    "sourcesDescription": "本项目部署的应用，以及每个组件在新环境中起始使用的分支。每个环境保留各自的分支，在其“Source & Deploy”设置中配置。"
   },
   "homePage": {
     "title": "主页",
@@ -2039,7 +2042,27 @@
   "projectSources": {
     "addedSuccess": "应用已添加到项目来源",
     "removedSuccess": "应用已从项目来源中移除",
-    "branchSaved": "默认分支已保存"
+    "branchSaved": "默认分支已保存",
+    "addApp": "添加应用",
+    "addAppTitle": "向本项目添加应用",
+    "selectApp": "选择应用",
+    "add": "添加",
+    "registerHint": "尚未注册的仓库会在创建其第一个环境时注册。",
+    "openNewEnvironment": "新建环境",
+    "remove": "移除",
+    "removeConfirmTitle": "从 {project} 中移除 {app}？",
+    "removeConfirmDescription": "本项目的新环境将不再提供该应用，其默认分支也会一并移除。",
+    "removeInUse": "本项目有环境正在使用此应用",
+    "defaultBranch": "默认分支",
+    "save": "保存",
+    "invalidBranch": "请使用字母、数字、“/”、“_”、“.”或“-”",
+    "noTarget": "无目标",
+    "differs": "不同",
+    "noEnvironments": "暂无环境",
+    "emptyTitle": "暂无来源",
+    "emptyDescription": "在本项目拥有来源之前，新环境可以选择任何已注册的仓库。第一个环境的应用会自动添加到这里。",
+    "actionFailed": "操作失败",
+    "noAppsToAdd": "没有可添加的应用"
   },
   "activity": {
     "title": "动态",

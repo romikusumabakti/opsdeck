@@ -1922,7 +1922,10 @@
     "jiraDescription": "Replica un proyecto de Jira en el gestor de incidencias de este proyecto.",
     "tabMembers": "Miembros",
     "membersTitle": "Miembros",
-    "membersDescription": "Personas de este proyecto. El rol de cada una se define una sola vez, en Administración → Usuarios."
+    "membersDescription": "Personas de este proyecto. El rol de cada una se define una sola vez, en Administración → Usuarios.",
+    "tabSources": "Fuentes",
+    "sourcesTitle": "Fuentes",
+    "sourcesDescription": "Las aplicaciones que despliega este proyecto y la rama con la que arranca cada componente en un entorno nuevo. Cada entorno conserva su propia rama, definida en sus ajustes de Source & Deploy."
   },
   "homePage": {
     "title": "Inicio",
@@ -2039,7 +2042,27 @@
   "projectSources": {
     "addedSuccess": "Aplicación añadida a las fuentes del proyecto",
     "removedSuccess": "Aplicación quitada de las fuentes del proyecto",
-    "branchSaved": "Rama predeterminada guardada"
+    "branchSaved": "Rama predeterminada guardada",
+    "addApp": "Añadir aplicación",
+    "addAppTitle": "Añadir una aplicación a este proyecto",
+    "selectApp": "Selecciona una aplicación",
+    "add": "Añadir",
+    "registerHint": "Un repositorio que aún no está registrado se registra al crear su primer entorno.",
+    "openNewEnvironment": "Nuevo entorno",
+    "remove": "Quitar",
+    "removeConfirmTitle": "¿Quitar {app} de {project}?",
+    "removeConfirmDescription": "Los entornos nuevos de este proyecto ya no la ofrecerán. Sus ramas predeterminadas también se eliminan.",
+    "removeInUse": "Un entorno de este proyecto usa esta aplicación",
+    "defaultBranch": "Rama predeterminada",
+    "save": "Guardar",
+    "invalidBranch": "Usa letras, dígitos, '/', '_', '.' o '-'",
+    "noTarget": "sin destino",
+    "differs": "difiere",
+    "noEnvironments": "Aún no hay entornos",
+    "emptyTitle": "Aún no hay fuentes",
+    "emptyDescription": "Los entornos nuevos pueden elegir cualquier repositorio registrado hasta que este proyecto tenga uno. La aplicación del primer entorno se añade aquí automáticamente.",
+    "actionFailed": "La acción falló",
+    "noAppsToAdd": "No quedan aplicaciones por añadir"
   },
   "activity": {
     "title": "Actividad",

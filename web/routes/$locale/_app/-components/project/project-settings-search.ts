@@ -1,5 +1,6 @@
 export const PROJECT_SETTINGS_TABS = [
   "details",
+  "sources",
   "jira",
   "members",
   "danger",

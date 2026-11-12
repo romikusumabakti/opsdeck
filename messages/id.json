@@ -1922,7 +1922,10 @@
     "jiraDescription": "Mirror sebuah proyek Jira ke pelacak isu proyek ini.",
     "tabMembers": "Anggota",
     "membersTitle": "Anggota",
-    "membersDescription": "Orang-orang di project ini. Peran setiap orang diatur sekali di Admin → Pengguna."
+    "membersDescription": "Orang-orang di project ini. Peran setiap orang diatur sekali di Admin → Pengguna.",
+    "tabSources": "Sumber",
+    "sourcesTitle": "Sumber",
+    "sourcesDescription": "Aplikasi yang di-deploy proyek ini dan branch awal setiap komponen di environment baru. Setiap environment menyimpan branch-nya sendiri, diatur di pengaturan Source & Deploy-nya."
   },
   "homePage": {
     "title": "Beranda",
@@ -2039,7 +2042,27 @@
   "projectSources": {
     "addedSuccess": "Aplikasi ditambahkan ke sumber proyek",
     "removedSuccess": "Aplikasi dihapus dari sumber proyek",
-    "branchSaved": "Branch default disimpan"
+    "branchSaved": "Branch default disimpan",
+    "addApp": "Tambah aplikasi",
+    "addAppTitle": "Tambah aplikasi ke proyek ini",
+    "selectApp": "Pilih aplikasi",
+    "add": "Tambah",
+    "registerHint": "Repositori yang belum terdaftar didaftarkan lewat pembuatan environment pertamanya.",
+    "openNewEnvironment": "Environment baru",
+    "remove": "Hapus",
+    "removeConfirmTitle": "Hapus {app} dari {project}?",
+    "removeConfirmDescription": "Environment baru di proyek ini tidak akan menawarkannya lagi. Branch defaultnya ikut dihapus.",
+    "removeInUse": "Ada environment proyek ini yang memakai aplikasi ini",
+    "defaultBranch": "Branch default",
+    "save": "Simpan",
+    "invalidBranch": "Gunakan huruf, angka, '/', '_', '.' atau '-'",
+    "noTarget": "tanpa target",
+    "differs": "berbeda",
+    "noEnvironments": "Belum ada environment",
+    "emptyTitle": "Belum ada sumber",
+    "emptyDescription": "Environment baru bisa memilih repositori terdaftar mana pun sampai proyek ini punya sumber. Aplikasi dari environment pertama ditambahkan di sini secara otomatis.",
+    "actionFailed": "Aksi gagal",
+    "noAppsToAdd": "Tidak ada aplikasi lagi untuk ditambahkan"
   },
   "activity": {
     "title": "Aktivitas",

@@ -78,6 +78,18 @@ vi.mock("@/web/api/project-members", () => ({
     queryFn: async () => [],
   }),
 }));
+vi.mock("@/web/api/project-sources", () => ({
+  addProjectSource: vi.fn(),
+  removeProjectSource: vi.fn(),
+  setComponentBranch: vi.fn(),
+  listProjectSourcesQuery: () => ({
+    queryKey: ["sources"],
+    queryFn: async () => [],
+  }),
+}));
+vi.mock("@/web/api/apps", () => ({
+  listAppsQuery: () => ({ queryKey: ["apps"], queryFn: async () => [] }),
+}));
 vi.mock("@/web/project-guard", () => ({
   requireProjectRole: vi.fn(),
   projectRoleOf: vi.fn(),
@@ -167,6 +179,24 @@ afterEach(() => {
 });
 
 describe("Project settings tab wiring", () => {
+  it("tabs read Details, Sources, Jira, Members, Danger", async () => {
+    await renderPage({});
+    expect(tabs()).toEqual([
+      t.tabDetails,
+      t.tabSources,
+      t.tabJira,
+      t.tabMembers,
+      t.tabDanger,
+    ]);
+  });
+
+  it("?tab=sources opens the Sources tab", async () => {
+    await renderPage({ tab: "sources" });
+    expect(selectedTab()).toBe(t.tabSources);
+    expect(body()).toContain(messages.projectSources.emptyTitle);
+    expect(body()).not.toContain("details-form");
+  });
+
   it("opens the Members tab for a caller with member:manage", async () => {
     await renderPage({ tab: "members" });
     expect(tabs()).toContain(t.tabMembers);

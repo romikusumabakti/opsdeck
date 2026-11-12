@@ -1922,7 +1922,10 @@
     "jiraDescription": "Mirror a Jira project into this project's issue tracker.",
     "tabMembers": "Members",
     "membersTitle": "Members",
-    "membersDescription": "People on this project. Each person's role is set once, in Admin → Users."
+    "membersDescription": "People on this project. Each person's role is set once, in Admin → Users.",
+    "tabSources": "Sources",
+    "sourcesTitle": "Sources",
+    "sourcesDescription": "The apps this project deploys and the branch each component starts on in a new environment. Each environment keeps its own branch, set in its Source & Deploy settings."
   },
   "homePage": {
     "title": "Home",
@@ -2039,7 +2042,27 @@
   "projectSources": {
     "addedSuccess": "App added to the project's sources",
     "removedSuccess": "App removed from the project's sources",
-    "branchSaved": "Default branch saved"
+    "branchSaved": "Default branch saved",
+    "addApp": "Add app",
+    "addAppTitle": "Add an app to this project",
+    "selectApp": "Select an app",
+    "add": "Add",
+    "registerHint": "A repository that isn't registered yet is registered by creating its first environment.",
+    "openNewEnvironment": "New environment",
+    "remove": "Remove",
+    "removeConfirmTitle": "Remove {app} from {project}?",
+    "removeConfirmDescription": "New environments of this project will no longer offer it. Its default branches are removed too.",
+    "removeInUse": "An environment of this project uses this app",
+    "defaultBranch": "Default branch",
+    "save": "Save",
+    "invalidBranch": "Use letters, digits, '/', '_', '.' or '-'",
+    "noTarget": "no target",
+    "differs": "differs",
+    "noEnvironments": "No environment yet",
+    "emptyTitle": "No sources yet",
+    "emptyDescription": "New environments can pick any registered repository until this project has one. The first environment's app is added here automatically.",
+    "actionFailed": "Action failed",
+    "noAppsToAdd": "No app left to add"
   },
   "activity": {
     "title": "Activity",
