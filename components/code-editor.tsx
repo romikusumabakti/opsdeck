@@ -73,7 +73,7 @@ const highlightStyle = HighlightStyle.define([
 const baseTheme = EditorView.theme({
   "&": {
     height: "100%",
-    fontSize: "13px",
+    fontSize: "14px",
     color: "var(--foreground)",
     backgroundColor: "transparent",
   },
