@@ -1,20 +1,14 @@
-import { Check, ChevronsUpDown } from "lucide-react";
-import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+} from "@/components/ui/combobox";
 import type { DatabaseEntry } from "@/web/api/databases";
 
 // Shared combobox for picking a target database. Used by backup, restore, and
@@ -41,71 +35,61 @@ export function DatabasePicker({
   searchPlaceholder: string;
   emptyText: string;
 }) {
-  const [open, setOpen] = React.useState(false);
-  const selected = databases.find((d) => d.name === value);
+  const selected = databases.find((d) => d.name === value) ?? null;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
+    <Combobox
+      autoHighlight
+      items={databases}
+      value={selected}
+      onValueChange={(db) => {
+        if (db) onChange(db.name);
+      }}
+      itemToStringLabel={(db) => db.name}
+      itemToStringValue={(db) => db.name}
+      disabled={disabled}
+    >
+      <ComboboxTrigger
         render={
           <Button
             id={id}
             variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            disabled={disabled}
-            className="w-full justify-between"
+            className="w-full justify-between font-normal"
           />
         }
       >
-        {selected ? (
-          <span className="truncate font-mono text-sm">
-            {selected.name}
-            {selected.isDefault ? ` ${defaultSuffix}` : ""}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">{placeholder}</span>
-        )}
-        <ChevronsUpDown className="opacity-50 shrink-0" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-(--anchor-width) p-0">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} className="h-9" />
-          <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {databases.map((d) => (
-                <CommandItem
-                  key={d.name}
-                  value={d.name}
-                  onSelect={(currentValue) => {
-                    onChange(currentValue);
-                    // Defer close past the click so Base UI's dismiss + focus
-                    // restore doesn't race the same tick (reopen flicker).
-                    requestAnimationFrame(() => setOpen(false));
-                  }}
-                >
-                  <span className="truncate font-mono text-sm">
-                    {d.name}
-                    {d.isDefault ? (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        {defaultSuffix}
-                      </span>
-                    ) : null}
+        <ComboboxValue>
+          {(db: DatabaseEntry | null) =>
+            db ? (
+              <span className="truncate font-mono text-sm">
+                {db.name}
+                {db.isDefault ? ` ${defaultSuffix}` : ""}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{placeholder}</span>
+            )
+          }
+        </ComboboxValue>
+      </ComboboxTrigger>
+      <ComboboxContent>
+        <ComboboxInput showTrigger={false} placeholder={searchPlaceholder} />
+        <ComboboxEmpty>{emptyText}</ComboboxEmpty>
+        <ComboboxList>
+          {(db: DatabaseEntry) => (
+            <ComboboxItem key={db.name} value={db}>
+              <span className="truncate font-mono text-sm">
+                {db.name}
+                {db.isDefault ? (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    {defaultSuffix}
                   </span>
-                  <Check
-                    className={cn(
-                      "ml-auto",
-                      value === d.name ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+                ) : null}
+              </span>
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }

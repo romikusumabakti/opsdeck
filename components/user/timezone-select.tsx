@@ -1,19 +1,16 @@
-import { ChevronsUpDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+} from "@/components/ui/combobox";
 
 /** IANA zone picker. `null` means "use the organisation default". */
 export function TimezoneSelect({
@@ -26,17 +23,26 @@ export function TimezoneSelect({
   onChange: (zone: string | null) => void;
 }) {
   const t = useTranslations("profile");
-  const [open, setOpen] = useState(false);
-  const zones = useMemo(() => Intl.supportedValuesOf("timeZone"), []);
-
-  function pick(zone: string | null) {
-    onChange(zone);
-    setOpen(false);
-  }
+  const defaultLabel = t("tzDefault", { zone: defaultZone });
+  // The first item is the organisation default (`null`), then every IANA zone.
+  const zones = useMemo<(string | null)[]>(
+    () => [null, ...Intl.supportedValuesOf("timeZone")],
+    []
+  );
+  const label = (zone: string | null) =>
+    zone === null ? defaultLabel : zone.replaceAll("_", " ");
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
+    <Combobox
+      autoHighlight
+      items={zones}
+      value={value}
+      onValueChange={(zone) => onChange(zone)}
+      itemToStringLabel={(zone) =>
+        zone === null ? `${defaultLabel} ${defaultZone}` : zone
+      }
+    >
+      <ComboboxTrigger
         render={
           <Button
             variant="outline"
@@ -44,28 +50,21 @@ export function TimezoneSelect({
           />
         }
       >
-        {value ?? t("tzDefault", { zone: defaultZone })}
-        <ChevronsUpDown className="opacity-50" />
-      </PopoverTrigger>
-      <PopoverContent className="w-(--anchor-width) p-0">
-        <Command>
-          <CommandInput placeholder={t("tzSearch")} />
-          <CommandList>
-            <CommandEmpty>{t("tzNone")}</CommandEmpty>
-            <CommandItem
-              value={`default ${defaultZone}`}
-              onSelect={() => pick(null)}
-            >
-              {t("tzDefault", { zone: defaultZone })}
-            </CommandItem>
-            {zones.map((zone) => (
-              <CommandItem key={zone} value={zone} onSelect={() => pick(zone)}>
-                {zone.replaceAll("_", " ")}
-              </CommandItem>
-            ))}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        <ComboboxValue>
+          {(zone: string | null) => (zone === null ? defaultLabel : zone)}
+        </ComboboxValue>
+      </ComboboxTrigger>
+      <ComboboxContent>
+        <ComboboxInput showTrigger={false} placeholder={t("tzSearch")} />
+        <ComboboxEmpty>{t("tzNone")}</ComboboxEmpty>
+        <ComboboxList>
+          {(zone: string | null) => (
+            <ComboboxItem key={zone ?? "default"} value={zone}>
+              {label(zone)}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }

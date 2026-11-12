@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronsUpDown, RotateCcw } from "lucide-react";
+import { ChevronDown, RotateCcw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
@@ -9,19 +9,16 @@ import { useProjectCan } from "@/components/project-role";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+} from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { backendService, dbService } from "@/lib/services";
 import type { Backup } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -31,6 +28,8 @@ import type {
   EnvironmentListItem,
   EnvironmentWithServers,
 } from "@/web/api/environments";
+
+type SourceOption = { id: string; name: string; self: boolean };
 
 export function RestoreDatabase({
   environment,
@@ -52,7 +51,6 @@ export function RestoreDatabase({
   const tCommon = useTranslations("common");
   const canRunOps = useProjectCan({ database: ["restore"] });
   const dialog = useDialog();
-  const [open, setOpen] = React.useState(false);
   const [value, setValue] = React.useState(initialBackup);
   const [database, setDatabase] = React.useState(
     dbService(environment).dbName ?? ""
@@ -64,7 +62,6 @@ export function RestoreDatabase({
   // Backup source. Defaults to this environment; the picker (shown only when
   // compatible siblings exist) can switch it. Switching re-fetches the chosen
   // environment's backup list and clears the selected file.
-  const [sourceOpen, setSourceOpen] = React.useState(false);
   // Advanced controls (restore into a non-default DB, or from another environment)
   // stay hidden until opened so the common path is a single backup + Restore.
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
@@ -79,6 +76,12 @@ export function RestoreDatabase({
     (p) => p.id === sourceEnvironmentId
   );
   const sourceName = sourceEnvironment?.name ?? environment.name;
+  const sourceOptions: SourceOption[] = [
+    { id: environment.id, name: environment.name, self: true },
+    ...sourceEnvironments.map((p) => ({ id: p.id, name: p.name, self: false })),
+  ];
+  const sourceOption =
+    sourceOptions.find((o) => o.id === sourceEnvironmentId) ?? null;
 
   function onSourceChange(nextId: string) {
     if (nextId === sourceEnvironmentId) return;
@@ -198,16 +201,23 @@ export function RestoreDatabase({
               <Label htmlFor="restore-source-picker">
                 {t("sourceEnvironmentLabel")}
               </Label>
-              <Popover open={sourceOpen} onOpenChange={setSourceOpen}>
-                <PopoverTrigger
+              <Combobox
+                autoHighlight
+                items={sourceOptions}
+                value={sourceOption}
+                onValueChange={(option) => {
+                  if (option) onSourceChange(option.id);
+                }}
+                itemToStringLabel={(option) => option.name}
+                itemToStringValue={(option) => option.id}
+                disabled={submitting}
+              >
+                <ComboboxTrigger
                   render={
                     <Button
                       id="restore-source-picker"
                       variant="outline"
-                      role="combobox"
-                      aria-expanded={sourceOpen}
-                      disabled={submitting}
-                      className="justify-between"
+                      className="justify-between font-normal"
                     />
                   }
                 >
@@ -220,64 +230,30 @@ export function RestoreDatabase({
                       </span>
                     )}
                   </span>
-                  <ChevronsUpDown className="opacity-50 shrink-0" />
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  className="w-(--anchor-width) p-0"
-                >
-                  <Command>
-                    <CommandInput
-                      placeholder={t("searchEnvironment")}
-                      className="h-9"
-                    />
-                    <CommandList>
-                      <CommandEmpty>{t("noEnvironment")}</CommandEmpty>
-                      <CommandGroup>
-                        {[
-                          {
-                            id: environment.id,
-                            name: environment.name,
-                            self: true,
-                          },
-                          ...sourceEnvironments.map((p) => ({
-                            id: p.id,
-                            name: p.name,
-                            self: false,
-                          })),
-                        ].map((p) => (
-                          <CommandItem
-                            key={p.id}
-                            value={`${p.name} ${p.id}`}
-                            onSelect={() => {
-                              onSourceChange(p.id);
-                              requestAnimationFrame(() => setSourceOpen(false));
-                            }}
-                          >
-                            <span className="truncate">
-                              {p.name}
-                              {p.self && (
-                                <span className="text-muted-foreground">
-                                  {" "}
-                                  {t("sourceSelfSuffix")}
-                                </span>
-                              )}
+                </ComboboxTrigger>
+                <ComboboxContent>
+                  <ComboboxInput
+                    showTrigger={false}
+                    placeholder={t("searchEnvironment")}
+                  />
+                  <ComboboxEmpty>{t("noEnvironment")}</ComboboxEmpty>
+                  <ComboboxList>
+                    {(option: SourceOption) => (
+                      <ComboboxItem key={option.id} value={option}>
+                        <span className="truncate">
+                          {option.name}
+                          {option.self && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              {t("sourceSelfSuffix")}
                             </span>
-                            <Check
-                              className={cn(
-                                "ml-auto",
-                                sourceEnvironmentId === p.id
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                          )}
+                        </span>
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
               <p className="text-xs text-muted-foreground">
                 {t("sourceEnvironmentHint")}
               </p>
@@ -304,64 +280,57 @@ export function RestoreDatabase({
       )}
       <Label htmlFor="restore-backup-picker">{t("selectBackupLabel")}</Label>
       <div className="flex flex-col sm:flex-row gap-2">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger
+        <Combobox
+          autoHighlight
+          items={sourceBackups}
+          value={backup ?? null}
+          onValueChange={(b) => {
+            if (b) setValue(b.name);
+          }}
+          itemToStringLabel={(b) => b.name}
+          itemToStringValue={(b) => b.name}
+          disabled={submitting || loadingBackups}
+        >
+          <ComboboxTrigger
             render={
               <Button
                 id="restore-backup-picker"
                 variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                disabled={submitting || loadingBackups}
-                className="flex-1 justify-between"
+                className="flex-1 justify-between font-normal"
               />
             }
           >
-            {loadingBackups ? (
-              <span className="text-muted-foreground">
-                {t("loadingBackups")}
-              </span>
-            ) : backup ? (
-              <span className="truncate font-mono text-sm">{backup.name}</span>
-            ) : (
-              <span className="text-muted-foreground">{t("selectBackup")}</span>
-            )}
-            <ChevronsUpDown className="opacity-50 shrink-0" />
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-(--anchor-width) p-0">
-            <Command>
-              <CommandInput placeholder={t("searchBackup")} className="h-9" />
-              <CommandList>
-                <CommandEmpty>{t("noBackup")}</CommandEmpty>
-                <CommandGroup>
-                  {sourceBackups.map((b) => (
-                    <CommandItem
-                      key={b.name}
-                      value={b.name}
-                      onSelect={(currentValue) => {
-                        setValue(currentValue === value ? "" : currentValue);
-                        // Defer close past the click event so Base UI Popover's
-                        // dismiss + focus-restore doesn't race the same tick
-                        // (causes a brief reopen flicker on slower envs).
-                        requestAnimationFrame(() => setOpen(false));
-                      }}
-                    >
-                      <span className="truncate font-mono text-sm">
-                        {b.name}
-                      </span>
-                      <Check
-                        className={cn(
-                          "ml-auto",
-                          value === b.name ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+            <ComboboxValue>
+              {(b: Backup | null) =>
+                loadingBackups ? (
+                  <span className="text-muted-foreground">
+                    {t("loadingBackups")}
+                  </span>
+                ) : b ? (
+                  <span className="truncate font-mono text-sm">{b.name}</span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {t("selectBackup")}
+                  </span>
+                )
+              }
+            </ComboboxValue>
+          </ComboboxTrigger>
+          <ComboboxContent>
+            <ComboboxInput
+              showTrigger={false}
+              placeholder={t("searchBackup")}
+            />
+            <ComboboxEmpty>{t("noBackup")}</ComboboxEmpty>
+            <ComboboxList>
+              {(b: Backup) => (
+                <ComboboxItem key={b.name} value={b}>
+                  <span className="truncate font-mono text-sm">{b.name}</span>
+                </ComboboxItem>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
         <Button
           variant="destructive"
           disabled={!backup || submitting || !canRunOps}

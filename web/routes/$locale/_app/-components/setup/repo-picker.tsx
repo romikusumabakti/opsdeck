@@ -4,18 +4,14 @@ import * as React from "react";
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from "@/components/ui/combobox";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { type SetupRepoRow, setupReposQuery } from "@/web/api/setup";
 
@@ -60,8 +56,22 @@ export function RepoPicker({
   const rows = useQuery({ ...setupReposQuery(debounced), enabled: open });
   const loading = rows.isPending || (rows.isFetching && q !== debounced);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
+    <Combobox<SetupRepoRow>
+      autoHighlight
+      items={rows.data ?? []}
+      // Add-only picker: nothing stays selected, and the server filters by query.
+      value={null}
+      onValueChange={(row) => {
+        if (row) onPick(row);
+      }}
+      filter={null}
+      inputValue={q}
+      onInputValueChange={setQ}
+      onOpenChange={setOpen}
+      itemToStringLabel={(row) => row.repoFullName}
+      itemToStringValue={(row) => `${row.ciConnectionId}:${row.repoFullName}`}
+    >
+      <ComboboxTrigger
         render={
           <Button
             id="env-repo-picker"
@@ -73,52 +83,40 @@ export function RepoPicker({
       >
         <Plus data-icon="inline-start" />
         {label}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-96 p-0">
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder={t("searchRepos")}
-            value={q}
-            onValueChange={setQ}
-          />
-          <CommandList aria-busy={loading || undefined}>
-            <CommandEmpty>
-              {rows.isPending ? (
-                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" />
-                  {t("reposLoading")}
+      </ComboboxTrigger>
+      <ComboboxContent className="w-96">
+        <ComboboxInput showTrigger={false} placeholder={t("searchRepos")} />
+        <ComboboxEmpty>
+          {rows.isPending ? (
+            <span className="inline-flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {t("reposLoading")}
+            </span>
+          ) : rows.isError ? (
+            t("reposFailed")
+          ) : (
+            t("noRepos")
+          )}
+        </ComboboxEmpty>
+        <ComboboxList aria-busy={loading || undefined}>
+          {(row: SetupRepoRow) => (
+            <ComboboxItem
+              key={`${row.ciConnectionId}:${row.repoFullName}`}
+              value={row}
+              disabled={!repoPickable(row, picked, currentAppKey)}
+            >
+              <span className="min-w-0 flex-1 truncate font-mono text-sm">
+                {row.repoFullName}
+              </span>
+              {row.appName && (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {row.appName}
                 </span>
-              ) : rows.isError ? (
-                t("reposFailed")
-              ) : (
-                t("noRepos")
               )}
-            </CommandEmpty>
-            <CommandGroup>
-              {(rows.data ?? []).map((row) => (
-                <CommandItem
-                  key={`${row.ciConnectionId}:${row.repoFullName}`}
-                  value={`${row.ciConnectionId}:${row.repoFullName}`}
-                  disabled={!repoPickable(row, picked, currentAppKey)}
-                  onSelect={() => {
-                    onPick(row);
-                    requestAnimationFrame(() => setOpen(false));
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate font-mono text-sm">
-                    {row.repoFullName}
-                  </span>
-                  {row.appName && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {row.appName}
-                    </span>
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }
