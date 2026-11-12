@@ -39,13 +39,32 @@ function toSafe(row: JiraConnection): SafeJiraConnection {
 
 // --- Connections ---
 
-export async function getJiraConnections(): Promise<SafeJiraConnection[]> {
+export type JiraConnectionListRow = SafeJiraConnection & {
+  webhookUrl: string;
+};
+
+/**
+ * The URL to paste into Jira's admin UI. Built on the same env var the auth
+ * layer builds its callback URLs from, so the value matches the origin the app
+ * is actually served on.
+ */
+function webhookUrlFor(secret: string): string {
+  const base = normalizeBaseUrl(
+    process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
+  );
+  return `${base}/api/jira/webhook/${secret}`;
+}
+
+export async function getJiraConnections(): Promise<JiraConnectionListRow[]> {
   await requireOrgPermission({ integration: ["manage"] });
   const rows = await db
     .select()
     .from(jiraConnections)
     .orderBy(jiraConnections.name);
-  return rows.map(toSafe);
+  return rows.map((row) => ({
+    ...toSafe(row),
+    webhookUrl: webhookUrlFor(row.webhookSecret),
+  }));
 }
 
 export async function getJiraConnection(
@@ -77,12 +96,7 @@ export async function getJiraWebhookUrl(
     .where(eq(jiraConnections.id, connectionId))
     .limit(1);
   if (!row) return null;
-  // Same env var the auth layer builds its callback URLs from, so the value an
-  // admin pastes into Jira matches the origin the app is actually served on.
-  const base = normalizeBaseUrl(
-    process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
-  );
-  return `${base}/api/jira/webhook/${row.webhookSecret}`;
+  return webhookUrlFor(row.webhookSecret);
 }
 
 export async function createJiraConnection(
