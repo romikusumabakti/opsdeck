@@ -54,7 +54,10 @@ import {
   canPlaceEnvironment,
   type ProjectRole,
 } from "@/lib/permissions";
-import { ensureProjectSourceIn } from "@/lib/project-sources";
+import {
+  ensureProjectSourceIn,
+  recordTargetSourceIn,
+} from "@/lib/project-sources";
 import { projectReleasableSql } from "@/lib/releases/repository";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import { encryptNullable } from "@/lib/secrets";
@@ -1202,6 +1205,24 @@ export async function updateEnvironment(
               eq(environmentServices.role, role)
             )
           );
+      }
+      // Silent, first-wins, like the auto-add on create: the target project
+      // gets the app as a source and any default branch it is missing.
+      if (
+        targetProjectId !== undefined &&
+        targetProjectId !== stored.projectId
+      ) {
+        if (env.appId) await ensureProjectSourceIn(tx, id, env.appId);
+        const targets = await tx
+          .select({
+            componentKey: deployTargets.componentKey,
+            sourceBranch: deployTargets.sourceBranch,
+          })
+          .from(deployTargets)
+          .where(eq(deployTargets.environmentId, id));
+        for (const target of targets) {
+          await recordTargetSourceIn(tx, { environmentId: id, ...target });
+        }
       }
       return env;
     });

@@ -14,6 +14,8 @@ type Call = {
 const state = vi.hoisted(() => ({
   calls: [] as Call[],
   backupTargets: [] as unknown[],
+  targets: [] as { componentKey: string; sourceBranch: string }[],
+  appId: null as string | null,
   stored: { id: "", projectId: "", ownerId: null, services: [] } as {
     id: string;
     projectId: string;
@@ -85,9 +87,14 @@ vi.mock("@/lib/db", () => {
         call.where = condition;
         return chain;
       },
-      from: () => chain,
+      from: (table: unknown) =>
+        table === schema.deployTargets && call.op === "select"
+          ? query(call, state.targets)
+          : chain,
       limit: async () => rows,
-      returning: async () => [{ id: ENV_ID, projectId: UUID }],
+      returning: async () => [
+        { id: ENV_ID, projectId: UUID, appId: state.appId },
+      ],
     });
     return chain;
   };
@@ -105,7 +112,7 @@ vi.mock("@/lib/db", () => {
   return {
     db: {
       transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
-      select: () => query({ op: "select" }, state.backupTargets),
+      select: () => query({ op: "db-select" }, state.backupTargets),
     },
   };
 });
@@ -113,6 +120,7 @@ vi.mock("@/lib/db", () => {
 const { createEnvironment, updateEnvironment, insertEnvironmentIn } =
   await import("@/server/services/environments");
 const { db } = await import("@/lib/db");
+const schema = await import("@/lib/db/schema");
 
 const backend = {
   backendServerId: UUID,
@@ -141,6 +149,10 @@ const rolesInserted = () =>
 beforeEach(() => {
   state.calls = [];
   state.backupTargets = [];
+  state.targets = [];
+  state.appId = null;
+  projectSources.ensureProjectSourceIn.mockClear();
+  projectSources.recordTargetSourceIn.mockClear();
   state.stored = {
     id: ENV_ID,
     projectId: UUID,
@@ -317,5 +329,45 @@ describe("insertEnvironmentIn project sources", () => {
       })
     );
     expect(projectSources.ensureProjectSourceIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateEnvironment moving to another project", () => {
+  const OTHER = "22222222-2222-4222-8222-222222222222";
+  const APP = "33333333-3333-4333-8333-333333333333";
+
+  it("adds the app and seeds each target's branch in the new project", async () => {
+    state.appId = APP;
+    state.targets = [
+      { componentKey: "api", sourceBranch: "main" },
+      { componentKey: "web", sourceBranch: "develop" },
+    ];
+    const result = await updateEnvironment(ENV_ID, { projectId: OTHER });
+    expect(result.success).toBe(true);
+    expect(projectSources.ensureProjectSourceIn).toHaveBeenCalledWith(
+      expect.anything(),
+      ENV_ID,
+      APP
+    );
+    expect(
+      projectSources.recordTargetSourceIn.mock.calls.map((c) => c[1])
+    ).toEqual([
+      { environmentId: ENV_ID, componentKey: "api", sourceBranch: "main" },
+      { environmentId: ENV_ID, componentKey: "web", sourceBranch: "develop" },
+    ]);
+  });
+
+  it("skips the app when the environment has none", async () => {
+    await updateEnvironment(ENV_ID, { projectId: OTHER });
+    expect(projectSources.ensureProjectSourceIn).not.toHaveBeenCalled();
+  });
+
+  it("calls nothing when the project does not change", async () => {
+    state.appId = APP;
+    state.targets = [{ componentKey: "api", sourceBranch: "main" }];
+    await updateEnvironment(ENV_ID, { name: "Renamed" });
+    await updateEnvironment(ENV_ID, { projectId: UUID });
+    expect(projectSources.ensureProjectSourceIn).not.toHaveBeenCalled();
+    expect(projectSources.recordTargetSourceIn).not.toHaveBeenCalled();
   });
 });
