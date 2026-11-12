@@ -84,12 +84,9 @@ export function AccessMatrix({
       },
       {
         accessorKey: "role",
-        meta: { label: tAccess("colOrgRole") },
+        meta: { label: tAccess("colRole") },
         header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title={tAccess("colOrgRole")}
-          />
+          <DataTableColumnHeader column={column} title={tAccess("colRole")} />
         ),
         cell: ({ row }) => <RoleBadge role={row.original.role} />,
       },

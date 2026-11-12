@@ -2414,7 +2414,7 @@
     "selectAll": "تحديد الكل في هذه الصفحة"
   },
   "access": {
-    "colOrgRole": "دور المؤسسة",
+    "colRole": "الدور",
     "isMember": "عضو",
     "notMember": "ليس عضوًا",
     "inactive": "غير نشط",

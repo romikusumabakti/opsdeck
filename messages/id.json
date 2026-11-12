@@ -2414,7 +2414,7 @@
     "selectAll": "Pilih semua di halaman ini"
   },
   "access": {
-    "colOrgRole": "Role org",
+    "colRole": "Peran",
     "isMember": "Anggota",
     "notMember": "Bukan anggota",
     "inactive": "Tidak aktif",

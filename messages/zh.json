@@ -2414,7 +2414,7 @@
     "selectAll": "全选本页"
   },
   "access": {
-    "colOrgRole": "组织角色",
+    "colRole": "角色",
     "isMember": "成员",
     "notMember": "非成员",
     "inactive": "不活跃",

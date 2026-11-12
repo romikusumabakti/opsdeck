@@ -2414,7 +2414,7 @@
     "selectAll": "Select all on this page"
   },
   "access": {
-    "colOrgRole": "Org role",
+    "colRole": "Role",
     "isMember": "Member",
     "notMember": "Not a member",
     "inactive": "Inactive",
