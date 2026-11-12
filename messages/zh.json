@@ -934,6 +934,7 @@
     "deletedSuccess": "环境 {name} 已删除",
     "tabDanger": "危险区域",
     "tabGeneral": "常规",
+    "tabVariables": "变量",
     "tabSourceDeploy": "源码与部署",
     "tabDatabase": "数据库",
     "tabDomain": "域名",

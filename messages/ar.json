@@ -934,6 +934,7 @@
     "deletedSuccess": "تم حذف البيئة {name}",
     "tabDanger": "منطقة الخطر",
     "tabGeneral": "عام",
+    "tabVariables": "المتغيرات",
     "tabSourceDeploy": "المصدر والنشر",
     "tabDatabase": "قاعدة البيانات",
     "tabDomain": "النطاق",

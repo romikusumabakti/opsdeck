@@ -934,6 +934,7 @@
     "deletedSuccess": "Environment {name} dihapus",
     "tabDanger": "Zona berbahaya",
     "tabGeneral": "Umum",
+    "tabVariables": "Variabel",
     "tabSourceDeploy": "Sumber & Deploy",
     "tabDatabase": "Basis data",
     "tabDomain": "Domain",

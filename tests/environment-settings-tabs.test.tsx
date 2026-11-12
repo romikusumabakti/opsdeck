@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
   updateDeployTarget: vi.fn(),
   createDeployTarget: vi.fn(),
   listApps: vi.fn(),
+  listVariables: vi.fn(),
   orgRole: "admin" as string,
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
@@ -53,8 +54,11 @@ vi.mock("@/web/api/variables", () => ({
   setEnvFileManaged: vi.fn(),
   listVariablesQuery: (id: string) => ({
     queryKey: ["variables", id],
-    queryFn: async () => ({ variables: [] }),
+    queryFn: () => api.listVariables(),
   }),
+}));
+vi.mock("@/components/dialog-provider", () => ({
+  useDialog: () => ({ confirm: vi.fn() }),
 }));
 vi.mock("@/web/api/database-hosts", () => ({
   listDatabaseHostsQuery: () => ({
@@ -97,6 +101,7 @@ import {
 
 type Props = React.ComponentProps<typeof EnvironmentSettingsTabs>;
 const ENGINEER = "engineer" as const;
+type Role = React.ComponentProps<typeof ProjectRoleProvider>["role"];
 
 const server = (id: string, name: string) => ({
   id,
@@ -267,12 +272,12 @@ function defaults(props: Partial<Props>): Props {
 }
 
 // Renders (or re-renders, keeping the form's state) the tabs.
-async function render(props: Partial<Props> = {}) {
+async function render(props: Partial<Props> = {}, role: Role = ENGINEER) {
   await act(async () => {
     root.render(
       <QueryClientProvider client={queryClient}>
         <IntlProvider locale="en" messages={messages}>
-          <ProjectRoleProvider role={ENGINEER}>
+          <ProjectRoleProvider role={role}>
             <EnvironmentSettingsTabs {...defaults(props)} />
           </ProjectRoleProvider>
         </IntlProvider>
@@ -282,14 +287,14 @@ async function render(props: Partial<Props> = {}) {
   await settle();
 }
 
-async function mount(props: Partial<Props> = {}) {
+async function mount(props: Partial<Props> = {}, role: Role = ENGINEER) {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  await render(props);
+  await render(props, role);
 }
 
 const t = messages.environmentSettings;
@@ -328,6 +333,7 @@ const appsWith = (components: typeof COMPONENTS) => [
 ];
 
 beforeEach(() => {
+  api.listVariables.mockResolvedValue({ variables: [], hasApp: false });
   api.listApps.mockImplementation(async () => appsWith(COMPONENTS));
   api.orgRole = "admin";
   api.updateEnvironment.mockResolvedValue({
@@ -344,13 +350,16 @@ afterEach(async () => {
 });
 
 describe("environment settings tabs", () => {
-  it("renders six tabs", async () => {
-    await mount();
-    const tabs = [...document.querySelectorAll('[role="tab"]')].map((el) =>
+  const tabLabels = () =>
+    [...document.querySelectorAll('[role="tab"]')].map((el) =>
       el.textContent?.trim()
     );
-    expect(tabs).toEqual([
+
+  it("renders seven tabs for an engineer, Variables after General", async () => {
+    await mount();
+    expect(tabLabels()).toEqual([
       t.tabGeneral,
+      t.tabVariables,
       t.tabSourceDeploy,
       t.tabDatabase,
       t.tabDomain,
@@ -359,9 +368,37 @@ describe("environment settings tabs", () => {
     ]);
   });
 
+  it("loads variables only when the tab opens", async () => {
+    await mount();
+    expect(api.listVariables).not.toHaveBeenCalled();
+    await openTab(t.tabVariables);
+    expect(api.listVariables).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).toContain(messages.variables.emptyTitle);
+  });
+
+  it("hides the Variables tab without variable:read", async () => {
+    await mount({}, "qa");
+    expect(tabLabels()).not.toContain(t.tabVariables);
+  });
+
+  it("?tab=variables without variable:read opens General and fetches nothing", async () => {
+    await mount({ tab: "variables" }, "qa");
+    expect(
+      document
+        .querySelector('[role="tab"][aria-selected="true"]')
+        ?.textContent?.trim()
+    ).toBe(t.tabGeneral);
+    expect(api.listVariables).not.toHaveBeenCalled();
+  });
+
+  it("the embedded list renders no second page heading", async () => {
+    await mount({ tab: "variables" });
+    expect(document.querySelectorAll("h1").length).toBe(0);
+  });
+
   it("an environment without services still opens Settings", async () => {
     await mount({ environment: { ...environment, services: [] } });
-    expect(document.querySelectorAll('[role="tab"]').length).toBe(6);
+    expect(document.querySelectorAll('[role="tab"]').length).toBe(7);
     await openTab(t.tabMailMockTime);
     expect(document.body.textContent).not.toContain("has no backend service");
   });
@@ -811,6 +848,7 @@ describe("settingsSearch", () => {
       tab: "source",
       add: "target",
     });
+    expect(settingsSearch({ tab: "variables" })).toEqual({ tab: "variables" });
     expect(settingsSearch({ tab: "nope", add: "nope" })).toEqual({});
   });
 });

@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
 import { useDialog } from "@/components/dialog-provider";
-import { PageHeader } from "@/components/page-header";
 import { useProjectCan } from "@/components/project-role";
 import { RelativeTime } from "@/components/relative-time";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -149,51 +148,48 @@ export function VariablesClient({
 
   return (
     <>
-      <PageHeader
-        title={t("title")}
-        subtitle={t("subtitle")}
-        action={
-          <div className="flex flex-wrap justify-end gap-2">
-            {hasMasked && (
-              <Button
-                variant="outline"
-                disabled={busy !== null}
-                onClick={onReveal}
-              >
-                {busy === "reveal" ? (
-                  <Loader2 data-icon="inline-start" className="animate-spin" />
-                ) : revealed ? (
-                  <EyeOff data-icon="inline-start" />
-                ) : (
-                  <Eye data-icon="inline-start" />
-                )}
-                {t(revealed ? "hideValues" : "revealValues")}
-              </Button>
-            )}
-            {canWrite && (
-              <Button
-                variant="outline"
-                disabled={busy !== null || !listing.hasApp}
-                title={listing.hasApp ? undefined : t("noAppHint")}
-                onClick={onApplyTemplate}
-              >
-                {busy === "template" ? (
-                  <Loader2 data-icon="inline-start" className="animate-spin" />
-                ) : (
-                  <ListPlus data-icon="inline-start" />
-                )}
-                {t("applyTemplate")}
-              </Button>
-            )}
-            {canWrite && (
-              <Button onClick={() => setForm({ variable: null })}>
-                <Plus data-icon="inline-start" />
-                {t("add")}
-              </Button>
-            )}
-          </div>
-        }
-      />
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          {hasMasked && (
+            <Button
+              variant="outline"
+              disabled={busy !== null}
+              onClick={onReveal}
+            >
+              {busy === "reveal" ? (
+                <Loader2 data-icon="inline-start" className="animate-spin" />
+              ) : revealed ? (
+                <EyeOff data-icon="inline-start" />
+              ) : (
+                <Eye data-icon="inline-start" />
+              )}
+              {t(revealed ? "hideValues" : "revealValues")}
+            </Button>
+          )}
+          {canWrite && (
+            <Button
+              variant="outline"
+              disabled={busy !== null || !listing.hasApp}
+              title={listing.hasApp ? undefined : t("noAppHint")}
+              onClick={onApplyTemplate}
+            >
+              {busy === "template" ? (
+                <Loader2 data-icon="inline-start" className="animate-spin" />
+              ) : (
+                <ListPlus data-icon="inline-start" />
+              )}
+              {t("applyTemplate")}
+            </Button>
+          )}
+          {canWrite && (
+            <Button onClick={() => setForm({ variable: null })}>
+              <Plus data-icon="inline-start" />
+              {t("add")}
+            </Button>
+          )}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-4">
         {hasEscrow && (

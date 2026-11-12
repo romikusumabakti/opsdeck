@@ -934,6 +934,7 @@
     "deletedSuccess": "Environment {name} deleted",
     "tabDanger": "Danger zone",
     "tabGeneral": "General",
+    "tabVariables": "Variables",
     "tabSourceDeploy": "Source & Deploy",
     "tabDatabase": "Database",
     "tabDomain": "Domain",

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FormProvider } from "react-hook-form";
 import { useTranslations } from "use-intl";
+import { useProjectCan } from "@/components/project-role";
 import {
   Card,
   CardContent,
@@ -26,9 +27,11 @@ import {
   useSettingsForm,
 } from "./settings-form";
 import { SourceDeployTab } from "./source-deploy-tab";
+import { VariablesTab } from "./variables-tab";
 
 export const SETTINGS_TABS = [
   "general",
+  "variables",
   "source",
   "database",
   "domain",
@@ -56,6 +59,7 @@ export function settingsSearch(
 
 const TAB_LABELS = {
   general: "tabGeneral",
+  variables: "tabVariables",
   source: "tabSourceDeploy",
   database: "tabDatabase",
   domain: "tabDomain",
@@ -64,7 +68,7 @@ const TAB_LABELS = {
 } as const satisfies Record<SettingsTabId, string>;
 
 /**
- * The environment's Settings: six tabs over one form state. Each tab saves on
+ * The environment's Settings: seven tabs over one form state. Each tab saves on
  * its own (Domain and Mailpit through their own APIs).
  */
 export function EnvironmentSettingsTabs({
@@ -101,7 +105,15 @@ export function EnvironmentSettingsTabs({
 }) {
   const t = useTranslations("environmentSettings");
   const [ownTab, setOwnTab] = useState<SettingsTabId>("general");
-  const tab = controlledTab ?? ownTab;
+  // Variables include secret values: the tab and its request need
+  // variable:read, like the API. Without it a requested Variables tab
+  // falls back to General.
+  const canReadVariables = useProjectCan({ variable: ["read"] });
+  const requestedTab = controlledTab ?? ownTab;
+  const tab =
+    requestedTab === "variables" && !canReadVariables
+      ? "general"
+      : requestedTab;
   const { form, saveTab } = useSettingsForm(environment, targets, {
     canManageServers,
     hasDomain: domain.domain !== null,
@@ -124,7 +136,9 @@ export function EnvironmentSettingsTabs({
         className="w-full max-w-2xl"
       >
         <TabsList className="h-auto flex-wrap">
-          {SETTINGS_TABS.map((id) => (
+          {SETTINGS_TABS.filter(
+            (id) => id !== "variables" || canReadVariables
+          ).map((id) => (
             <TabsTrigger key={id} value={id}>
               {t(TAB_LABELS[id])}
             </TabsTrigger>
@@ -141,6 +155,12 @@ export function EnvironmentSettingsTabs({
             onSave={() => saveTab("general")}
           />
         </TabsContent>
+
+        {canReadVariables && (
+          <TabsContent value="variables">
+            <VariablesTab environmentId={environment.id} />
+          </TabsContent>
+        )}
 
         <TabsContent value="source">
           <SourceDeployTab
