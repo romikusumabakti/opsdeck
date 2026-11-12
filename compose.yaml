@@ -95,7 +95,7 @@ services:
       IMGPROXY_KEY: ${IMGPROXY_KEY:?IMGPROXY_KEY is required}
       IMGPROXY_SALT: ${IMGPROXY_SALT:?IMGPROXY_SALT is required}
     healthcheck:
-      # Use Bun's built-in fetch — `curl` isn't in oven/bun:alpine, and there is
+      # Use Bun's built-in fetch — `curl` isn't in oven/bun:slim, and there is
       # no `node` binary in the image at all.
       test:
         [
