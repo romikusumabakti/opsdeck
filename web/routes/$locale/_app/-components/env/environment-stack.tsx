@@ -64,17 +64,23 @@ export function EnvironmentStack({
 
   // Updates the rows in place: nothing unmounts while it runs, so an open run
   // dialog survives a refresh.
+  // Only the latest request may write: a slow earlier fetch (a manual Refresh
+  // overlapping the dialog-close refresh, or a previous environment) is dropped.
+  const latestRequest = React.useRef(0);
   const refresh = React.useCallback(async () => {
+    const request = ++latestRequest.current;
     setLoading(true);
     try {
       const results = await getAllServiceStatuses(environment.id);
+      if (request !== latestRequest.current) return;
       const next: StatusMap = {};
       for (const r of results) next[r.role] = r;
       setStatuses(next);
     } catch (err) {
+      if (request !== latestRequest.current) return;
       toast.error(err instanceof Error ? err.message : tCommon("errorGeneric"));
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
   }, [environment, tCommon]);
 

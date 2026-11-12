@@ -164,15 +164,19 @@ describe("EnvironmentStack service actions", () => {
     ]);
   });
 
+  // Clicks the backend Restart, then confirms in the dialog.
+  async function confirmBackendRestart() {
+    await act(async () => button(rows()[1], "Restart").click());
+    const dialog = document.body.querySelector('[role="alertdialog"]');
+    if (!dialog) throw new Error("no confirm dialog");
+    await act(async () => button(dialog, "Restart").click());
+  }
+
   async function restartBackend() {
     controlService.mockResolvedValue({ runId: "r1" });
     await mount("engineer");
     await settle();
-    await act(async () => button(rows()[1], "Restart").click());
-    const confirm = [...document.body.querySelectorAll("button")]
-      .filter((b) => b.textContent?.trim() === "Restart")
-      .at(-1) as HTMLButtonElement;
-    await act(async () => confirm.click());
+    await confirmBackendRestart();
     await settle();
   }
 
@@ -219,5 +223,42 @@ describe("EnvironmentStack service actions", () => {
     );
     expect((button(backend, "Logs") as HTMLButtonElement).disabled).toBe(true);
     expect(container.querySelector('a[href$="/backend/logs"]')).toBeNull();
+  });
+
+  it("one pending action disables every row and spins only its own button", async () => {
+    let resolve: (v: { runId: string }) => void = () => {};
+    controlService.mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      })
+    );
+    await mount("engineer");
+    await settle();
+    await confirmBackendRestart();
+    await settle();
+
+    const [db, backend] = rows();
+    const actionButtons = (row: HTMLElement) =>
+      ["Start", "Stop", "Restart"].flatMap((l) =>
+        controls(row, l)
+      ) as HTMLButtonElement[];
+    expect(actionButtons(db)).toHaveLength(2);
+    expect(actionButtons(backend)).toHaveLength(2);
+    for (const b of [...actionButtons(db), ...actionButtons(backend)])
+      expect(b.disabled).toBe(true);
+    expect(db.querySelector("svg.animate-spin")).toBeNull();
+    expect(
+      button(backend, "Restart").querySelector("svg.animate-spin")
+    ).not.toBeNull();
+    expect(backend.querySelectorAll("svg.animate-spin")).toHaveLength(1);
+    // Logs is not an action on the service, so it stays available.
+    for (const row of [db, backend])
+      expect(row.querySelector('a[href$="/logs"]')).not.toBeNull();
+
+    await act(async () => resolve({ runId: "r1" }));
+    await settle();
+    for (const b of [...actionButtons(db), ...actionButtons(backend)])
+      expect(b.disabled).toBe(false);
+    expect(container.querySelector("svg.animate-spin")).toBeNull();
   });
 });
