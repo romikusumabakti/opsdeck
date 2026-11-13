@@ -52,8 +52,9 @@ export type TicketPayload = {
 // ticket captured from a log or a debugger is worthless by the time it's read.
 export const TICKET_TTL_MS = 30_000;
 
-// Geometry bounds. xterm will never legitimately ask for anything outside this,
-// and unbounded values reach ssh2's window-change packet.
+// Geometry bounds. The browser terminal will never legitimately ask for
+// anything outside this, and unbounded values reach ssh2's window-change
+// packet.
 const MIN_DIMENSION = 1;
 const MAX_DIMENSION = 1000;
 

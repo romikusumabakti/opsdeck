@@ -8,7 +8,7 @@ A self-hosted, whitelabel hub where a delivery team (PM, BA, QA, Dev and DevOps)
 - **Background runs.** Backups, restores, database changes, service control and Jira sync are queued on BullMQ. Their progress streams live to the browser.
 - **Issue tracker.** Issues come with labels, saved views, test runs, attachments and project membership. Optional two-way sync with Jira is available.
 - **Knowledge base.** Rich-text pages (Tiptap) with revision history. Images are stored in S3 (Garage) and served through imgproxy.
-- **Servers.** SSH connections, an SFTP file explorer and a browser terminal (xterm.js).
+- **Servers.** SSH connections, an SFTP file explorer and a browser terminal (wterm on libghostty).
 - **Storage.** Browse S3-compatible buckets.
 - **Cloudflare tunnels and DNS zones**, managed with a scoped API token.
 - **Home.** A "needs attention" feed of recent failures that users can acknowledge.

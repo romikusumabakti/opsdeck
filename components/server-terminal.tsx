@@ -1,29 +1,26 @@
-import "@xterm/xterm/css/xterm.css";
+import "@wterm/dom/src/terminal.css";
 
+import { WTerm } from "@wterm/dom";
+import { GhosttyCore } from "@wterm/ghostty";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import {
   HostKeyReviewLink,
   isHostKeyMismatchFrame,
 } from "@/components/host-key-mismatch";
-import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 
-// The browser half of the terminal. xterm reaches for `window` during
-// construction, so the library is imported inside the effect rather than at
-// module scope — that also keeps it out of the initial bundle for every other
-// page.
+// The browser half of the terminal, on wterm: rows render as DOM text, so
+// native selection, copy and browser find work on them. It runs on the
+// libghostty core rather than wterm's built-in one, because a remote shell
+// needs the full VT emulation (graphemes, OSC 52 clipboard) that only that
+// core has. The route is code-split, so neither the library nor its WASM
+// reaches any other page.
 //
 // Transport: binary frames are tty bytes in both directions, text frames are
 // JSON control messages (see lib/terminal/protocol).
 
 type Status = "connecting" | "connected" | "reconnecting" | "closed";
-
-// Matches Tailwind's neutral scale so the terminal doesn't look pasted in.
-const THEMES = {
-  dark: { background: "#0a0a0a", foreground: "#ededed", cursor: "#ededed" },
-  light: { background: "#ffffff", foreground: "#171717", cursor: "#171717" },
-} as const;
 
 // Must match the `handle /ws/terminal*` route in the Caddyfile. Deliberately a
 // constant and not an env var: it has to agree with the Caddyfile, so a
@@ -32,9 +29,19 @@ const WS_PATH = "/ws/terminal";
 // 1s, 2s, 4s, 8s, then give up and let the user retry by hand — past the 60s
 // grace window there is nothing left to reattach to anyway.
 const RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
-// The UI's body size (text-sm), so terminal output reads at the same size as
-// the page around it.
-const FONT_SIZE = 14;
+const SCROLLBACK_LINES = 10_000;
+
+// Colours and font come from the app's own tokens, so the terminal follows a
+// light/dark switch through CSS alone. Set inline because wterm's stylesheet
+// declares these on the `.wterm` element itself, unlayered, which would beat
+// any Tailwind utility. The size is the UI's body size (text-sm).
+const TERM_STYLE = {
+  "--term-fg": "var(--foreground)",
+  "--term-bg": "var(--background)",
+  "--term-cursor": "var(--foreground)",
+  "--term-font-family": "var(--font-mono)",
+  "--term-font-size": "0.875rem",
+} as React.CSSProperties;
 
 function socketUrl(): string {
   const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -50,7 +57,6 @@ export function ServerTerminal({
 }) {
   const t = useTranslations("terminal");
   const tErrors = useTranslations("actionErrors");
-  const { resolvedTheme } = useTheme();
   const hostRef = React.useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = React.useState<Status>("connecting");
   const [error, setError] = React.useState<string | null>(null);
@@ -62,14 +68,7 @@ export function ServerTerminal({
   // Survives reconnects within the effect's lifetime so a dropped socket
   // reattaches to the same remote shell instead of opening a second one.
   const sessionIdRef = React.useRef<string | null>(null);
-  // The live terminal, so a theme change can restyle it without tearing down
-  // the shell. Typed loosely to avoid importing xterm at module scope — the
-  // library is loaded inside the effect precisely to keep it off other pages.
-  const termRef = React.useRef<{ options: { theme?: unknown } } | null>(null);
 
-  const theme = resolvedTheme === "light" ? THEMES.light : THEMES.dark;
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies(theme): read once for the terminal's initial colours; live changes are applied by the theme effect below, which is the whole point of not re-running this one.
   // biome-ignore lint/correctness/useExhaustiveDependencies(attempt): `attempt` is not read in the body — bumping it is how "Reconnect" forces a full teardown and re-dial, so it must stay in the list.
   React.useEffect(() => {
     const host = hostRef.current;
@@ -87,100 +86,60 @@ export function ServerTerminal({
     const cleanups: (() => void)[] = [];
 
     (async () => {
-      const [
-        { Terminal },
-        { FitAddon },
-        { WebLinksAddon },
-        { ClipboardAddon },
-        { Unicode11Addon },
-      ] = await Promise.all([
-        import("@xterm/xterm"),
-        import("@xterm/addon-fit"),
-        import("@xterm/addon-web-links"),
-        import("@xterm/addon-clipboard"),
-        import("@xterm/addon-unicode11"),
-      ]);
-      // xterm measures the cell size on a canvas, where `var(...)` is not a
-      // valid font — the canvas then silently measures its 10px sans-serif
-      // default and every cell comes out too wide. Hand it the resolved stack
-      // from the host's `font-mono` class, and wait for the webfont so the
-      // first measurement isn't taken against a fallback face.
+      // wterm measures the cell size once the grid mounts; wait for the
+      // webfont so that measurement isn't taken against a fallback face.
       const fontFamily = getComputedStyle(host).fontFamily;
-      await document.fonts.load(`${FONT_SIZE}px ${fontFamily}`).catch(() => {});
-      if (disposed) return;
-
-      const term = new Terminal({
-        allowProposedApi: true,
-        cursorBlink: true,
-        fontFamily,
-        fontSize: FONT_SIZE,
-        scrollback: 10_000,
-        theme,
-      });
-      const fit = new FitAddon();
-      term.loadAddon(fit);
-      term.loadAddon(new WebLinksAddon());
-      term.loadAddon(new ClipboardAddon());
-      const unicode = new Unicode11Addon();
-      term.loadAddon(unicode);
-      term.unicode.activeVersion = "11";
-      term.open(host);
-      // Registered BEFORE the next await: an unmount while the webgl import is
-      // in flight would otherwise run a cleanup list that doesn't yet know
-      // about a terminal that is already open (and already blinking a cursor).
-      termRef.current = term;
-      cleanups.push(() => {
-        termRef.current = null;
-        term.dispose();
-      });
-
-      // WebGL is an optimisation, not a requirement: a machine without a
-      // working context (VM, remote desktop, blocklisted driver) must still
-      // get a terminal, so a failure here is swallowed.
-      try {
-        const { WebglAddon } = await import("@xterm/addon-webgl");
-        const webgl = new WebglAddon();
-        webgl.onContextLoss(() => webgl.dispose());
-        term.loadAddon(webgl);
-      } catch {
-        // Canvas/DOM renderer it is.
+      const fontSize = getComputedStyle(host).fontSize;
+      const [core] = await Promise.all([
+        GhosttyCore.load(),
+        document.fonts.load(`${fontSize} ${fontFamily}`).catch(() => {}),
+      ]);
+      if (disposed) {
+        core.dispose();
+        return;
       }
-      // Second await boundary, second check: nothing below this line should
-      // attach handlers or observers to a component that has gone away.
-      if (disposed) return;
-
-      fit.fit();
+      // The core is ours to dispose: WTerm.destroy() leaves a caller-supplied
+      // core alone.
+      cleanups.push(() => core.dispose());
 
       const encoder = new TextEncoder();
-      term.onData((data) => {
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(encoder.encode(data));
-        }
-      });
-      term.onResize(({ cols, rows }) => {
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ t: "resize", cols, rows }));
-        }
-      });
-
-      // One fit per frame: a drag-resize fires dozens of observer callbacks,
-      // and each fit that changes geometry sends a window-change packet.
-      let frame = 0;
-      const observer = new ResizeObserver(() => {
-        cancelAnimationFrame(frame);
-        frame = requestAnimationFrame(() => {
-          try {
-            fit.fit();
-          } catch {
-            // The element can be mid-teardown.
+      // autoResize (the default) refits the grid from a ResizeObserver;
+      // onResize only fires when the cell grid actually changes, so a drag
+      // doesn't flood the shell with window-change packets.
+      const term = new WTerm(host, {
+        core,
+        cursorBlink: true,
+        scrollbackLines: SCROLLBACK_LINES,
+        onData: (data) => {
+          if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(encoder.encode(data));
           }
-        });
+        },
+        // X10 mouse reports are raw bytes, not UTF-8 text.
+        onBinary: (data) => {
+          if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(new Uint8Array(data));
+          }
+        },
+        onResize: (cols, rows) => {
+          if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ t: "resize", cols, rows }));
+          }
+        },
+        // OSC 52 from the remote shell (tmux, vim). wterm leaves the policy to
+        // the host: writes are honoured, reads are never offered. Without a
+        // user gesture the browser may refuse, which is fine.
+        onClipboardWrite: (text) => {
+          void navigator.clipboard?.writeText(text).catch(() => {});
+        },
       });
-      observer.observe(host);
-      cleanups.push(() => {
-        cancelAnimationFrame(frame);
-        observer.disconnect();
-      });
+      // Registered BEFORE the next await: an unmount while init is in flight
+      // would otherwise run a cleanup list that doesn't know about the grid.
+      cleanups.unshift(() => term.destroy());
+      await term.init();
+      // Second await boundary, second check: nothing below this line should
+      // attach handlers to a component that has gone away.
+      if (disposed) return;
 
       const connect = async (): Promise<void> => {
         if (disposed) return;
@@ -291,27 +250,20 @@ export function ServerTerminal({
     };
   }, [serverId, cwd, attempt, t]);
 
-  // Restyle in place on a theme switch. xterm applies a new theme object to a
-  // running terminal, so this costs a repaint rather than a reconnect.
-  React.useEffect(() => {
-    if (termRef.current) termRef.current.options.theme = theme;
-  }, [theme]);
-
   return (
     <div className="flex flex-col gap-2">
-      {/* The frame carries the padding and border; xterm opens in the bare
-          inner div. The fit addon sizes rows from its parent's computed
-          height, which under border-box includes padding and border — padding
-          the host itself made it ask for one row too many and clip the
-          prompt. */}
-      <div className="h-[70vh] w-full overflow-hidden rounded-lg border bg-background p-2">
+      {/* The frame carries the border; wterm mounts on the inner div and
+          sizes the grid from its content box, so the padding lives there.
+          `!` because wterm's own padding, radius and shadow sit in an
+          unlayered stylesheet that beats Tailwind's utilities layer. */}
+      <div className="h-[70vh] w-full overflow-hidden rounded-lg border">
         <div
           ref={hostRef}
-          // xterm's rows are absolutely positioned and don't survive RTL —
-          // force the host LTR regardless of the page's own direction under
-          // /ar.
+          // Terminal rows are laid out left to right — force the host LTR
+          // regardless of the page's own direction under /ar.
           dir="ltr"
-          className="size-full font-mono"
+          style={TERM_STYLE}
+          className="size-full rounded-none! p-2! font-mono shadow-none!"
         />
       </div>
       <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
