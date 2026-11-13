@@ -11,7 +11,7 @@ import {
 import { assertNotLastAdmin } from "@/lib/access";
 import { recordActivity } from "@/lib/activity";
 import { listActiveAdminIds } from "@/lib/admins";
-import { assignableUsersWhere } from "@/lib/assignees";
+import { assignableUsersWhere, ORG_WIDE_ASSIGNEE_ROLES } from "@/lib/assignees";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
 import { requireSession } from "@/lib/auth-session";
 import {
@@ -175,21 +175,58 @@ export async function listAssignableUsers(
 }
 
 /**
+ * An assignee on the global issues list: who it is and where they may be
+ * assigned. `projectIds` is null for org admin/infra (every project), otherwise
+ * their memberships among the projects the caller can see.
+ */
+export type CrossProjectAssignableUser = AssignableUserRow & {
+  projectIds: string[] | null;
+};
+
+/**
  * The cross-project variant for the global issues list, which has no single
  * project in scope: org admin/infra, or a member of any project the caller can
  * see. Deliberately never wider than that, so the picker can't enumerate users
- * from projects the caller can't reach.
+ * or memberships from projects the caller can't reach.
  */
 export async function listAssignableUsersAcrossProjects(): Promise<
-  AssignableUserRow[]
+  CrossProjectAssignableUser[]
 > {
   await requireSession();
+  const scope = await projectScope(projectMembers.projectId);
   const rows = await db
-    .select(assignableColumns)
+    .select({ ...assignableColumns, role: userTable.role })
     .from(userTable)
-    .where(assignableUsersWhere(await projectScope(projectMembers.projectId)))
+    .where(assignableUsersWhere(scope))
     .orderBy(userTable.name);
-  return rows.map(toAssignableUser);
+  const memberships =
+    rows.length === 0
+      ? []
+      : await db
+          .select({
+            userId: projectMembers.userId,
+            projectId: projectMembers.projectId,
+          })
+          .from(projectMembers)
+          .where(
+            and(
+              inArray(
+                projectMembers.userId,
+                rows.map((r) => r.id)
+              ),
+              scope
+            )
+          );
+  const byUser = new Map<string, string[]>();
+  for (const m of memberships) {
+    byUser.set(m.userId, [...(byUser.get(m.userId) ?? []), m.projectId]);
+  }
+  return rows.map(({ role, ...row }) => ({
+    ...toAssignableUser(row),
+    projectIds: ORG_WIDE_ASSIGNEE_ROLES.includes(role)
+      ? null
+      : (byUser.get(row.id) ?? []),
+  }));
 }
 
 export async function listUsers() {

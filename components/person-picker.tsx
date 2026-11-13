@@ -138,7 +138,9 @@ export function PersonPicker({
       >
         {triggerContent()}
       </ComboboxTrigger>
-      <ComboboxContent className={compact ? "w-72" : undefined}>
+      <ComboboxContent
+        className={compact || actionLabel !== undefined ? "w-72" : undefined}
+      >
         <ComboboxInput showTrigger={false} placeholder={t("search")} />
         <ComboboxEmpty>{t("empty")}</ComboboxEmpty>
         <ComboboxList>

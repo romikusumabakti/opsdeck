@@ -71,6 +71,24 @@ type OptimisticAction =
  */
 const DEFAULT_SORTING = [{ id: "updatedAt", desc: true }];
 
+/** An assignee plus where they may be assigned; `null` = every project. */
+type GlobalAssignee = AssignableUser & { projectIds: string[] | null };
+
+/**
+ * The people who can take issues from all of `projectIds`. The server rejects
+ * anyone else, so the pickers never offer them.
+ */
+export function assignableIn(
+  users: GlobalAssignee[],
+  projectIds: Iterable<string>
+) {
+  const wanted = [...new Set(projectIds)];
+  return users.filter(
+    (u) =>
+      u.projectIds === null || wanted.every((id) => u.projectIds?.includes(id))
+  );
+}
+
 /** Issue detail lives under the project key, not under the global list. */
 const issueHref = (issue: GlobalIssue) =>
   `/${issue.project.key}/issues/${issue.number}`;
@@ -89,7 +107,7 @@ export function GlobalIssuesClient({
   issues: GlobalIssue[];
   /** Rows matching the filter across all pages — drives the pager. */
   total: number;
-  users: AssignableUser[];
+  users: GlobalAssignee[];
   allLabels: FilterOption[];
   projects: FilterOption[];
   savedViews: SavedViewItem[];
@@ -377,7 +395,7 @@ export function GlobalIssuesClient({
           <AssigneeSelect
             variant="compact"
             className="max-w-32"
-            users={users}
+            users={assignableIn(users, [row.original.project.id])}
             value={row.original.assignee?.id ?? null}
             onChange={(a) => onAssigneeChange(row.original.id, a)}
           />
@@ -542,7 +560,7 @@ export function GlobalIssuesClient({
                 <AssigneeSelect
                   variant="compact"
                   className="max-w-40"
-                  users={users}
+                  users={assignableIn(users, [issue.project.id])}
                   value={issue.assignee?.id ?? null}
                   onChange={(a) => onAssigneeChange(issue.id, a)}
                 />
@@ -569,7 +587,12 @@ export function GlobalIssuesClient({
                 </DropdownMenuContent>
               </DropdownMenu>
               <PersonPicker
-                people={users}
+                people={assignableIn(
+                  users,
+                  rows
+                    .filter((i) => ids.includes(i.id))
+                    .map((i) => i.project.id)
+                )}
                 actionLabel={t("bulkAssignee")}
                 noneLabel={t("unassigned")}
                 onChange={(a) => onBulkAssignee(ids, a, clearSelection)}
