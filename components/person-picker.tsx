@@ -26,13 +26,21 @@ export type Person = {
 // UserAvatar's optional email is `string | undefined`, not nullable.
 const avatarUser = ({ id, name, image }: Person) => ({ id, name, image });
 
+// The combobox value in action mode: matches no item, so every pick (the same
+// person twice included) is a change that reaches `onChange`.
+const NO_SELECTION = "";
+
 /**
  * Searchable single-person picker (name or email). `null` means "nobody"; it
  * is only offered, as the first item, when `noneLabel` is set.
+ *
+ * With `actionLabel` instead of `value` it is an action menu (e.g. bulk "Set
+ * assignee"): the trigger always shows the label and nothing stays selected.
  */
 export function PersonPicker({
   people,
   value,
+  actionLabel,
   onChange,
   noneLabel,
   placeholder,
@@ -42,9 +50,11 @@ export function PersonPicker({
   "aria-invalid": ariaInvalid,
   disabled,
   className,
-}: {
+}: (
+  | { value: string | null; actionLabel?: undefined }
+  | { actionLabel: string; value?: undefined }
+) & {
   people: readonly Person[];
-  value: string | null;
   onChange: (id: string | null) => void;
   noneLabel?: string;
   placeholder?: string;
@@ -68,7 +78,8 @@ export function PersonPicker({
   const compact = variant === "compact";
 
   function triggerContent() {
-    if (value === null) {
+    if (actionLabel !== undefined) return actionLabel;
+    if (value === null || value === undefined) {
       return noneLabel !== undefined ? (
         <span className="truncate">{noneLabel}</span>
       ) : (
@@ -98,7 +109,7 @@ export function PersonPicker({
     <Combobox
       autoHighlight
       items={items}
-      value={value}
+      value={actionLabel === undefined ? value : NO_SELECTION}
       onValueChange={(next) => onChange(next)}
       itemToStringLabel={(item: string | null) => {
         if (item === null) return noneLabel ?? "";
@@ -110,10 +121,13 @@ export function PersonPicker({
         render={
           <Button
             variant={compact ? "ghost" : "outline"}
+            size={actionLabel !== undefined ? "sm" : undefined}
             className={
-              compact
-                ? cn(COMPACT_TRIGGER, className)
-                : cn("h-8 w-full justify-between font-normal", className)
+              actionLabel !== undefined
+                ? className
+                : compact
+                  ? cn(COMPACT_TRIGGER, className)
+                  : cn("h-8 w-full justify-between font-normal", className)
             }
             id={id}
             aria-label={ariaLabel}

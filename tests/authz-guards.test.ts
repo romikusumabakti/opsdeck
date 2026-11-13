@@ -89,6 +89,8 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     // setIssueStatus delegates to updateIssue, which owns the guard.
     setIssueStatus: /return updateIssue\(/,
     bulkSetStatus: /requireProjectPermissionForAll\([\s\S]*issue: \["write"\]/,
+    bulkSetAssignee:
+      /requireProjectPermissionForAll\([\s\S]*issue: \["write"\]/,
     bulkDeleteIssues:
       /requireProjectPermissionForAll\([\s\S]*issue: \["delete"\]/,
     deleteIssue: /issue: \["delete"\]/,

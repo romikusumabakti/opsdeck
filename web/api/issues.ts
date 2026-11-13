@@ -161,6 +161,19 @@ export async function bulkSetStatus(
   );
 }
 
+export async function bulkSetAssignee(
+  ids: Body<"bulk-set-assignee">["ids"],
+  assigneeId: Body<"bulk-set-assignee">["assigneeId"]
+) {
+  return orFailure(
+    () =>
+      parseResponse(
+        routes["bulk-set-assignee"].$post({ json: { ids, assigneeId } })
+      ),
+    (message) => ({ success: false, message }) as const
+  );
+}
+
 export async function bulkDeleteIssues(ids: Body<"bulk-delete-issues">["ids"]) {
   return orFailure(
     () => parseResponse(routes["bulk-delete-issues"].$post({ json: { ids } })),

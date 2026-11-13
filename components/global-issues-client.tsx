@@ -25,6 +25,7 @@ import {
   type SavedViewItem,
 } from "@/components/issues-saved-views";
 import { LabelChips } from "@/components/label-ui";
+import { PersonPicker } from "@/components/person-picker";
 import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +51,7 @@ import type { UserRef } from "@/lib/types";
 import type { GlobalIssue } from "@/web/api/issues";
 import {
   bulkDeleteIssues,
+  bulkSetAssignee,
   bulkSetStatus,
   setIssueStatus,
   updateIssue,
@@ -211,26 +213,35 @@ export function GlobalIssuesClient({
     [mutate]
   );
 
+  const assigneeChanges = React.useCallback(
+    (assigneeId: string | null): Partial<GlobalIssue> => ({
+      assigneeId,
+      assignee: assigneeId
+        ? (usersById[assigneeId] ?? { id: assigneeId, name: "", image: null })
+        : null,
+    }),
+    [usersById]
+  );
+
   const onAssigneeChange = React.useCallback(
     (id: string, assigneeId: string | null) =>
       mutate(
-        {
-          type: "patch",
-          ids: [id],
-          changes: {
-            assigneeId,
-            assignee: assigneeId
-              ? (usersById[assigneeId] ?? {
-                  id: assigneeId,
-                  name: "",
-                  image: null,
-                })
-              : null,
-          },
-        },
+        { type: "patch", ids: [id], changes: assigneeChanges(assigneeId) },
         () => updateIssue(id, { assigneeId })
       ),
-    [mutate, usersById]
+    [mutate, assigneeChanges]
+  );
+
+  const onBulkAssignee = React.useCallback(
+    (ids: string[], assigneeId: string | null, clearSelection: () => void) => {
+      clearSelection();
+      mutate(
+        { type: "patch", ids, changes: assigneeChanges(assigneeId) },
+        () => bulkSetAssignee(ids, assigneeId),
+        t("assigneeUpdated")
+      );
+    },
+    [mutate, assigneeChanges, t]
   );
 
   const onBulkStatus = React.useCallback(
@@ -557,6 +568,12 @@ export function GlobalIssuesClient({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              <PersonPicker
+                people={users}
+                actionLabel={t("bulkAssignee")}
+                noneLabel={t("unassigned")}
+                onChange={(a) => onBulkAssignee(ids, a, clearSelection)}
+              />
               <Button
                 variant="outline"
                 size="sm"

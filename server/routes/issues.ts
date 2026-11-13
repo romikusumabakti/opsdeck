@@ -10,6 +10,7 @@ import { sessionRouter } from "@/server/router";
 import {
   addComment,
   bulkDeleteIssues,
+  bulkSetAssignee,
   bulkSetStatus,
   createIssue,
   deleteIssue,
@@ -130,6 +131,14 @@ export const issuesRouter = sessionRouter()
     async (c) => {
       const { ids, status } = c.req.valid("json");
       return c.json(await bulkSetStatus(ids, status));
+    }
+  )
+  .post(
+    "/bulk-set-assignee",
+    json(z.object({ ids: issueIds, assigneeId: uuidSchema.nullable() })),
+    async (c) => {
+      const { ids, assigneeId } = c.req.valid("json");
+      return c.json(await bulkSetAssignee(ids, assigneeId));
     }
   )
   .post("/bulk-delete-issues", json(z.object({ ids: issueIds })), async (c) =>

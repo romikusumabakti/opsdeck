@@ -21,6 +21,7 @@ import {
   TypeIcon,
 } from "@/components/issues-board";
 import { LabelChips } from "@/components/label-ui";
+import { PersonPicker } from "@/components/person-picker";
 import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -54,6 +55,7 @@ import type { UserRef } from "@/lib/types";
 import type { IssueWithMeta } from "@/web/api/issues";
 import {
   bulkDeleteIssues,
+  bulkSetAssignee,
   bulkSetStatus,
   setIssueStatus,
   updateIssue,
@@ -262,6 +264,14 @@ export function IssuesClient({
     setSelected(new Set());
   }
 
+  async function onBulkAssignee(assigneeId: string | null) {
+    const ids = [...selected];
+    const result = await bulkSetAssignee(ids, assigneeId);
+    if (!result.success) toast.error(t("updateFailed"));
+    else toast.success(t("assigneeUpdated"));
+    setSelected(new Set());
+  }
+
   async function onBulkDelete() {
     const ids = [...selected];
     const ok = await dialog.confirm({
@@ -448,6 +458,12 @@ export function IssuesClient({
                   ))}
                 </SelectContent>
               </Select>
+              <PersonPicker
+                people={users}
+                actionLabel={t("bulkAssignee")}
+                noneLabel={t("unassigned")}
+                onChange={onBulkAssignee}
+              />
               <Button
                 size="sm"
                 variant="outline"

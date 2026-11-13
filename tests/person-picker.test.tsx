@@ -66,16 +66,16 @@ async function type(text: string) {
   await settle();
 }
 
-async function render(props: Partial<Parameters<typeof PersonPicker>[0]> = {}) {
+type Props = Parameters<typeof PersonPicker>[0];
+
+// Props are loose here: a test may switch to action mode by passing
+// `actionLabel` together with `value: undefined`.
+async function render(props: Record<string, unknown> = {}) {
+  const all = { people: PEOPLE, value: null, onChange: vi.fn(), ...props };
   await act(async () =>
     root.render(
       <IntlProvider locale="en" messages={messages}>
-        <PersonPicker
-          people={PEOPLE}
-          value={null}
-          onChange={vi.fn()}
-          {...props}
-        />
+        <PersonPicker {...(all as Props)} />
       </IntlProvider>
     )
   );
@@ -162,6 +162,25 @@ describe("PersonPicker", () => {
     await act(async () => rina?.click());
     await settle();
     expect(onChange).toHaveBeenLastCalledWith("u1");
+  });
+
+  it("action mode keeps its label and reports every pick, repeats included", async () => {
+    const onChange = vi.fn();
+    await render({
+      value: undefined,
+      actionLabel: "Set assignee",
+      noneLabel: "Unassigned",
+      onChange,
+    });
+    expect(trigger()?.textContent?.trim()).toBe("Set assignee");
+    for (const name of ["Rina", "Rina", "Unassigned"]) {
+      await open();
+      const item = itemEls().find((el) => el.textContent?.includes(name));
+      await act(async () => item?.click());
+      await settle();
+      expect(trigger()?.textContent?.trim()).toBe("Set assignee");
+    }
+    expect(onChange.mock.calls).toEqual([["u1"], ["u1"], [null]]);
   });
 
   it("compact variant uses the compact trigger", async () => {

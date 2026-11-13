@@ -854,6 +854,74 @@ export async function bulkSetStatus(
   }
 }
 
+/**
+ * Assign many issues to one person (or unassign them) at once. The assignee
+ * must be assignable in every project the issues belong to. Issues that already
+ * have that assignee are left untouched, so only real changes bump `updatedAt`,
+ * notify the assignee and push to Jira.
+ */
+export async function bulkSetAssignee(
+  ids: string[],
+  assigneeId: string | null
+): Promise<{ success: boolean; message?: string }> {
+  if (ids.length === 0) return { success: true };
+  if (!ids.every(isUuid) || (assigneeId !== null && !isUuid(assigneeId)))
+    return { success: false, message: "Invalid issue data" };
+  const projectIds = [...new Set(await owningProjectIds(ids))];
+  const session = await requireProjectPermissionForAll(projectIds, {
+    issue: ["write"],
+  });
+  if (assigneeId !== null) {
+    const allowed = await Promise.all(
+      projectIds.map((projectId) => canAssignTo(assigneeId, projectId))
+    );
+    if (!allowed.every(Boolean))
+      return { success: false, message: "Invalid issue data" };
+  }
+  try {
+    const updated = await db
+      .update(issues)
+      .set({ assigneeId, updatedAt: new Date() })
+      .where(
+        and(
+          inArray(issues.id, ids),
+          sql`${issues.assigneeId} is distinct from ${assigneeId}`
+        )
+      )
+      .returning({
+        id: issues.id,
+        projectId: issues.projectId,
+        number: issues.number,
+        title: issues.title,
+        jiraIssueId: issues.jiraIssueId,
+      });
+    const keys = new Map<string, string>();
+    for (const projectId of new Set(updated.map((i) => i.projectId))) {
+      keys.set(projectId, await projectKeyOf(projectId));
+    }
+    for (const issue of updated) {
+      await notifyIssueAssigned({
+        assigneeId,
+        actorId: session.user.id,
+        projectKey: keys.get(issue.projectId) ?? "",
+        number: issue.number,
+        title: issue.title,
+      });
+      if (issue.jiraIssueId) {
+        await enqueueJiraPush("jira/push.issue", {
+          issueId: issue.id,
+          fields: ["assignee"],
+          actorId: session.user.id,
+        });
+      }
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to bulk-assign issues:", error);
+    return { success: false, message: "Failed to update issues" };
+  }
+}
+
 /** Delete many issues at once. */
 export async function bulkDeleteIssues(
   ids: string[]
