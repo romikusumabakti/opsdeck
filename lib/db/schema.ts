@@ -1527,6 +1527,8 @@ export const users = pgTable(
     banned: boolean("banned").notNull().default(false),
     banReason: text("ban_reason"),
     banExpires: timestamp("ban_expires"),
+    // Set by the two-factor plugin once the user has verified a TOTP secret.
+    twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
     // Atlassian account id, so a Jira assignee resolves to an OpsDeck user. Seeded
     // by email match on first sync; an admin can correct it. Not unique — a stale
     // duplicate must not be able to block a user row from saving.
@@ -1574,6 +1576,9 @@ export const sessions = pgTable(
     impersonatedBy: uuid("impersonated_by").references(() => users.id, {
       onDelete: "set null",
     }),
+    // How the session was established (lib/sign-in-method). Null = weak; set by
+    // the session hook in lib/auth.
+    signInMethod: text("sign_in_method"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -1581,6 +1586,26 @@ export const sessions = pgTable(
     // better-auth resolves the session by userId on every authenticated request.
     index("sessions_user_idx").on(t.userId),
   ]
+);
+
+// TOTP secret and backup codes for the two-factor plugin. Both columns hold
+// ciphertext (encrypted with BETTER_AUTH_SECRET by the plugin).
+export const twoFactors = pgTable(
+  "two_factors",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    verified: boolean("verified").notNull().default(true),
+    failedVerificationCount: integer("failed_verification_count")
+      .notNull()
+      .default(0),
+    lockedUntil: timestamp("locked_until"),
+  },
+  (t) => [index("two_factors_user_idx").on(t.userId)]
 );
 
 export const accounts = pgTable(
