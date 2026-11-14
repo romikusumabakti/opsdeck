@@ -1026,6 +1026,31 @@
       "revokedSuccess": "会话已撤销",
       "emptyTitle": "没有活跃会话",
       "emptyDescription": "没有其他设备登录您的账户。"
+    },
+    "twoFactor": {
+      "title": "验证器应用",
+      "description": "除密码外，还需要验证器应用生成的 6 位验证码。",
+      "on": "已开启",
+      "offDescription": "两步验证已关闭。开启后，将使用手机上的验证码保护你的账户。",
+      "onDescription": "两步验证已开启。每次使用密码登录时都需要输入验证码。",
+      "turnOn": "开启",
+      "turnOff": "关闭",
+      "regenerate": "重新生成备用码",
+      "passwordLabel": "确认你的密码",
+      "enableConfirm": "继续",
+      "disableConfirm": "关闭",
+      "regenerateConfirm": "生成备用码",
+      "scanHint": "用验证器应用扫描此二维码，或手动输入密钥，然后输入应用显示的 6 位验证码。",
+      "secretLabel": "密钥",
+      "copySecret": "复制密钥",
+      "code": "验证码",
+      "verify": "验证并开启",
+      "errorCode": "验证码无效，请重试。",
+      "enabledSuccess": "两步验证已开启",
+      "disabledSuccess": "两步验证已关闭",
+      "backupCodesHint": "请将这些备用码保存在安全的地方。手机丢失时每个备用码可使用一次，且之后不会再显示。",
+      "copyBackupCodes": "复制备用码",
+      "done": "我已保存"
     }
   },
   "servers": {
@@ -1228,7 +1253,16 @@
     "passkeySubmit": "使用通行密钥登录",
     "passkeySubmitting": "正在等待通行密钥…",
     "errorPasskey": "通行密钥登录失败，请重试。",
-    "errorPasskeyNotFound": "该通行密钥未在此账户注册。请用其他方式登录，然后在账户页面中添加。"
+    "errorPasskeyNotFound": "该通行密钥未在此账户注册。请用其他方式登录，然后在账户页面中添加。",
+    "code": "验证码",
+    "backupCode": "备用码",
+    "codeHint": "请输入验证器应用中的 6 位验证码。",
+    "backupCodeHint": "请输入一个备用码。每个备用码只能使用一次。",
+    "verify": "验证",
+    "useBackupCode": "使用备用码",
+    "useAuthenticator": "使用验证器验证码",
+    "backToSignIn": "返回登录",
+    "errorCode": "验证码无效，请重试。"
   },
   "forgotPassword": {
     "title": "忘记密码",

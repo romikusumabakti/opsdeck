@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert, Fingerprint, Loader2 } from "lucide-react";
+import type { FormEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useLocale, useTranslations } from "use-intl";
@@ -81,6 +82,108 @@ const PASSKEY_CANCELLED_CODES = new Set([
   "ERROR_CEREMONY_ABORTED",
 ]);
 
+/**
+ * The second step of a password sign-in: an authenticator code, or a backup
+ * code when the phone is gone. Never asks the server to trust the device, so
+ * the next sign-in asks again.
+ */
+function TwoFactorStep({
+  onVerified,
+  onCancel,
+}: {
+  onVerified: () => Promise<void>;
+  onCancel: () => void;
+}) {
+  const t = useTranslations("signIn");
+  const [useBackup, setUseBackup] = useState(false);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    const value = code.trim();
+    if (!value) return;
+    setError(null);
+    setPending(true);
+    const { error: failure } = useBackup
+      ? await authClient.twoFactor.verifyBackupCode({ code: value })
+      : await authClient.twoFactor.verifyTotp({ code: value });
+    if (failure) {
+      setPending(false);
+      setError(failure.message ?? t("errorCode"));
+      return;
+    }
+    await onVerified();
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <div aria-live="polite" aria-atomic="true" className="empty:hidden">
+        {error && (
+          <Alert variant="destructive">
+            <CircleAlert />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {useBackup ? t("backupCodeHint") : t("codeHint")}
+      </p>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="sign-in-code">
+            {useBackup ? t("backupCode") : t("code")}
+          </FieldLabel>
+          <Input
+            id="sign-in-code"
+            key={useBackup ? "backup" : "totp"}
+            value={code}
+            onChange={(e) => {
+              setError(null);
+              setCode(e.target.value);
+            }}
+            autoComplete="one-time-code"
+            inputMode={useBackup ? "text" : "numeric"}
+            maxLength={useBackup ? undefined : 6}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoFocus
+            aria-invalid={error ? true : undefined}
+          />
+        </Field>
+        <Button type="submit" disabled={pending} aria-busy={pending}>
+          {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
+          {t("verify")}
+        </Button>
+      </FieldGroup>
+      <Button
+        type="button"
+        variant="ghost"
+        className="w-full text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          setUseBackup((v) => !v);
+          setCode("");
+          setError(null);
+        }}
+        disabled={pending}
+      >
+        {useBackup ? t("useAuthenticator") : t("useBackupCode")}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        className="w-full text-muted-foreground hover:text-foreground"
+        onClick={onCancel}
+        disabled={pending}
+      >
+        {t("backToSignIn")}
+      </Button>
+    </form>
+  );
+}
+
 export function SignInForm({
   redirectTo,
   microsoftEnabled,
@@ -95,6 +198,11 @@ export function SignInForm({
   const router = useRouter();
   const [microsoftPending, setMicrosoftPending] = useState(false);
   const [passkeyPending, setPasskeyPending] = useState(false);
+
+  // Set once the password was accepted but the account needs a second factor.
+  // The session does not exist yet at that point, only a pending-verification
+  // cookie, so the code step replaces the whole form.
+  const [needsCode, setNeedsCode] = useState(false);
 
   // Whether this browser does WebAuthn at all.
   const [passkeySupported] = useState(isPasskeySupported);
@@ -174,10 +282,15 @@ export function SignInForm({
 
   async function onSubmit(values: z.infer<typeof schema>) {
     setSubmitError(null);
-    const { error } = await authClient.signIn.email(values);
+    const { data, error } = await authClient.signIn.email(values);
 
     if (error) {
       setSubmitError(error.message ?? t("errorInvalid"));
+      return;
+    }
+
+    if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
+      setNeedsCode(true);
       return;
     }
 
@@ -228,6 +341,18 @@ export function SignInForm({
       setSubmitError(error.message ?? t("errorMicrosoft"));
       setMicrosoftPending(false);
     }
+  }
+
+  if (needsCode) {
+    return (
+      <TwoFactorStep
+        onVerified={enterApp}
+        onCancel={() => {
+          setNeedsCode(false);
+          form.resetField("password");
+        }}
+      />
+    );
   }
 
   return (

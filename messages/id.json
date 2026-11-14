@@ -1026,6 +1026,31 @@
       "revokedSuccess": "Sesi dicabut",
       "emptyTitle": "Tidak ada sesi aktif",
       "emptyDescription": "Tidak ada perangkat lain yang sedang masuk ke akun Anda."
+    },
+    "twoFactor": {
+      "title": "Aplikasi autentikator",
+      "description": "Wajibkan kode 6 digit dari aplikasi autentikator selain kata sandi Anda.",
+      "on": "Aktif",
+      "offDescription": "Verifikasi dua langkah nonaktif. Aktifkan untuk melindungi akun Anda dengan kode dari ponsel.",
+      "onDescription": "Verifikasi dua langkah aktif. Anda akan diminta kode setiap kali masuk dengan kata sandi.",
+      "turnOn": "Aktifkan",
+      "turnOff": "Nonaktifkan",
+      "regenerate": "Kode cadangan baru",
+      "passwordLabel": "Konfirmasi kata sandi Anda",
+      "enableConfirm": "Lanjutkan",
+      "disableConfirm": "Nonaktifkan",
+      "regenerateConfirm": "Buat kode",
+      "scanHint": "Pindai kode QR ini dengan aplikasi autentikator Anda, atau masukkan kuncinya secara manual. Lalu ketik kode 6 digit yang ditampilkan.",
+      "secretLabel": "Kunci rahasia",
+      "copySecret": "Salin kunci rahasia",
+      "code": "Kode autentikasi",
+      "verify": "Verifikasi dan aktifkan",
+      "errorCode": "Kode tidak valid. Silakan coba lagi.",
+      "enabledSuccess": "Verifikasi dua langkah aktif",
+      "disabledSuccess": "Verifikasi dua langkah nonaktif",
+      "backupCodesHint": "Simpan kode cadangan ini di tempat aman. Setiap kode hanya berlaku sekali jika ponsel Anda hilang, dan tidak akan ditampilkan lagi.",
+      "copyBackupCodes": "Salin kode cadangan",
+      "done": "Sudah saya simpan"
     }
   },
   "servers": {
@@ -1228,7 +1253,16 @@
     "passkeySubmit": "Masuk dengan passkey",
     "passkeySubmitting": "Menunggu passkey Anda…",
     "errorPasskey": "Masuk dengan passkey gagal. Silakan coba lagi.",
-    "errorPasskeyNotFound": "Passkey itu belum terdaftar untuk akun ini. Masuk dengan cara lain, lalu tambahkan dari halaman akun Anda."
+    "errorPasskeyNotFound": "Passkey itu belum terdaftar untuk akun ini. Masuk dengan cara lain, lalu tambahkan dari halaman akun Anda.",
+    "code": "Kode autentikasi",
+    "backupCode": "Kode cadangan",
+    "codeHint": "Masukkan kode 6 digit dari aplikasi autentikator Anda.",
+    "backupCodeHint": "Masukkan salah satu kode cadangan Anda. Setiap kode hanya berlaku sekali.",
+    "verify": "Verifikasi",
+    "useBackupCode": "Gunakan kode cadangan",
+    "useAuthenticator": "Gunakan kode autentikator",
+    "backToSignIn": "Kembali ke halaman masuk",
+    "errorCode": "Kode tidak valid. Silakan coba lagi."
   },
   "forgotPassword": {
     "title": "Lupa kata sandi",

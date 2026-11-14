@@ -1,11 +1,14 @@
 "use client";
 
 import { passkeyClient } from "@better-auth/passkey/client";
-import { adminClient } from "better-auth/client/plugins";
+import { adminClient, twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
-  plugins: [adminClient(), passkeyClient()],
+  // No `onTwoFactorRedirect`: the sign-in form reads `twoFactorRedirect` from
+  // the `signIn.email` result and shows the code step itself, so there is
+  // nothing for a global callback to do.
+  plugins: [adminClient(), passkeyClient(), twoFactorClient()],
 });
 
 export const {

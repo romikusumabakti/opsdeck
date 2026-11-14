@@ -75,6 +75,7 @@
     "lowlight": "^3.3.0",
     "lucide-react": "^1.72.0",
     "postgres": "^4.1.1",
+    "qrcode.react": "4.2.0",
     "react": "19.3.1",
     "react-day-picker": "^10.0.2",
     "react-dom": "19.3.1",
@@ -95,6 +96,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@better-auth/utils": "0.5.1",
     "@biomejs/biome": "2.6.7",
     "@playwright/test": "^1.65.0",
     "@tailwindcss/vite": "^4.3.5",

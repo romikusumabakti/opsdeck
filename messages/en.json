@@ -1026,6 +1026,31 @@
       "revokedSuccess": "Session revoked",
       "emptyTitle": "No active sessions",
       "emptyDescription": "There are no other devices signed in to your account."
+    },
+    "twoFactor": {
+      "title": "Authenticator app",
+      "description": "Require a 6-digit code from an authenticator app in addition to your password.",
+      "on": "On",
+      "offDescription": "Two-step verification is off. Turn it on to protect your account with a code from your phone.",
+      "onDescription": "Two-step verification is on. You'll be asked for a code each time you sign in with your password.",
+      "turnOn": "Turn on",
+      "turnOff": "Turn off",
+      "regenerate": "New backup codes",
+      "passwordLabel": "Confirm your password",
+      "enableConfirm": "Continue",
+      "disableConfirm": "Turn off",
+      "regenerateConfirm": "Generate codes",
+      "scanHint": "Scan this QR code with your authenticator app, or enter the secret by hand. Then type the 6-digit code it shows.",
+      "secretLabel": "Secret",
+      "copySecret": "Copy secret",
+      "code": "Authentication code",
+      "verify": "Verify and turn on",
+      "errorCode": "That code didn't work. Please try again.",
+      "enabledSuccess": "Two-step verification is on",
+      "disabledSuccess": "Two-step verification is off",
+      "backupCodesHint": "Save these backup codes somewhere safe. Each one works once if you lose your phone, and they won't be shown again.",
+      "copyBackupCodes": "Copy backup codes",
+      "done": "I've saved them"
     }
   },
   "servers": {
@@ -1228,7 +1253,16 @@
     "passkeySubmit": "Sign in with a passkey",
     "passkeySubmitting": "Waiting for your passkey…",
     "errorPasskey": "Passkey sign-in failed. Please try again.",
-    "errorPasskeyNotFound": "That passkey is not registered for this account. Sign in another way, then add it from your account page."
+    "errorPasskeyNotFound": "That passkey is not registered for this account. Sign in another way, then add it from your account page.",
+    "code": "Authentication code",
+    "backupCode": "Backup code",
+    "codeHint": "Enter the 6-digit code from your authenticator app.",
+    "backupCodeHint": "Enter one of your backup codes. Each code works once.",
+    "verify": "Verify",
+    "useBackupCode": "Use a backup code",
+    "useAuthenticator": "Use authenticator code",
+    "backToSignIn": "Back to sign in",
+    "errorCode": "That code didn't work. Please try again."
   },
   "forgotPassword": {
     "title": "Forgot password",

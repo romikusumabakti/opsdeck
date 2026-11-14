@@ -21,6 +21,7 @@ import { ChangePasswordForm } from "./-components/account/change-password-form";
 import { PasskeysList } from "./-components/account/passkeys-list";
 import { ProfileForm } from "./-components/account/profile-form";
 import { SessionsList } from "./-components/account/sessions-list";
+import { TwoFactorCard } from "./-components/account/two-factor-card";
 
 type AccountTab = "profile" | "security" | "sessions";
 
@@ -109,6 +110,7 @@ function AccountPage() {
         </TabsContent>
 
         <TabsContent value="security" className="flex flex-col gap-6">
+          <TwoFactorCard />
           <Card>
             <CardHeader>
               <CardTitle>{tPasskeys("title")}</CardTitle>
