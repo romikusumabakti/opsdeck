@@ -1,8 +1,9 @@
 name: Release
 
 # A tag vX.Y.Z (stable) or vX.Y.Z-beta.N (beta, a prerelease) builds the
-# multi-arch image to GHCR, attests its provenance and publishes the GitHub
-# Release that install.sh and the host updater read (release.json).
+# multi-arch image to GHCR, attests the provenance of the image and the
+# release assets, and publishes the GitHub Release that install.sh and the
+# host updater read (release.json).
 on:
   push:
     tags:
@@ -149,6 +150,21 @@ jobs:
             --min-from release/min-from.txt \
             --assets ops/install \
             --out release.json
+
+      # release.json pins every asset's sha256, but it comes from the same
+      # origin as the assets. Provenance signed by this workflow lets an
+      # operator check both against the repo with `gh attestation verify`.
+      - name: Attest the release assets
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            release.json
+            ops/install/install.sh
+            ops/install/update.sh
+            ops/install/compose.yaml
+            ops/install/env.example
+            ops/install/opsdeck-updater@.path
+            ops/install/opsdeck-updater@.service
 
       # The names update.sh downloads (by sha256 from release.json): each file
       # is uploaded under its base name.

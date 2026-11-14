@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { hostTools, lintToolAvailable } from "../support/host-tools";
 
 // ops/install/install.sh runs as root on a systemd Linux host. Here only its
@@ -1460,5 +1461,20 @@ describe("lint", () => {
     ]) {
       expect(workflow).toContain(asset);
     }
+  });
+
+  it("release.yml attests exactly the assets it uploads", () => {
+    type Step = { name?: string; with?: Record<string, string> };
+    const workflow = parseYaml(readFileSync(WORKFLOW, "utf8")) as {
+      jobs: { release: { steps: Step[] } };
+    };
+    const steps = workflow.jobs.release.steps;
+    const list = (name: string, key: string) => {
+      const step = steps.find((s) => s.name === name);
+      return (step?.with?.[key] ?? "").split("\n").filter(Boolean).sort();
+    };
+    const uploaded = list("Publish the GitHub Release", "files");
+    expect(uploaded.length).toBeGreaterThan(0);
+    expect(list("Attest the release assets", "subject-path")).toEqual(uploaded);
   });
 });
