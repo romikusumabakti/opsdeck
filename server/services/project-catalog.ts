@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth-session";
 import {
   ForbiddenError,
   getProjectRole,
+  orgGrantAllows,
   projectIdsWhere,
   projectScope,
   requireOrgPermission,
@@ -25,7 +26,7 @@ import {
 } from "@/lib/db/schema";
 import { pgErrorCode } from "@/lib/domains/errors";
 import { OWNER_COLUMNS } from "@/lib/environments";
-import { canCreateProject, canOrg } from "@/lib/permissions";
+import { canCreateProject } from "@/lib/permissions";
 import { isProjectReleasable } from "@/lib/releases/repository";
 import type { ActionResponse } from "@/lib/types";
 import {
@@ -220,7 +221,7 @@ export async function editProject(
   // clears it.
   if (
     parsed.data.defaultServerId !== undefined &&
-    !canOrg(session.user.role, { server: ["manage"] })
+    !orgGrantAllows(session, { server: ["manage"] })
   ) {
     const t = await getServerTranslator("actionErrors");
     throw new ForbiddenError(
@@ -336,7 +337,7 @@ export async function removeProject(
     .orderBy(asc(environments.name), asc(environmentVariables.name));
   const confirmed =
     confirmEscrowedDeletion &&
-    canOrg(session.user.role, { integration: ["manage"] });
+    orgGrantAllows(session, { integration: ["manage"] });
   if (!confirmed && variables.some((v) => v.escrow)) {
     await refuse("projectHasEscrowedVariables");
   }

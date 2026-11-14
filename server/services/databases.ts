@@ -1,4 +1,4 @@
-import { requireProjectPermission } from "@/lib/authz";
+import { orgGrantRole, requireProjectPermission } from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
@@ -166,7 +166,7 @@ export async function getDatabaseList(
     // the caller may act on.
     const data = filterAllowedDatabaseNames(
       environment,
-      session.user.role,
+      orgGrantRole(session),
       await probeDatabaseList(environment)
     );
     return { success: true, data };
@@ -206,7 +206,7 @@ export async function createDatabase(
   const database = parsed.data;
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
-  await requireUnconfined(environment, session.user.role);
+  await requireUnconfined(environment, orgGrantRole(session));
 
   const runId = await createRunOrRefuse({
     environmentId: environment.id,
@@ -239,7 +239,7 @@ export async function dropDatabase(
   const database = parsed.data;
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
-  await requireUnconfined(environment, session.user.role);
+  await requireUnconfined(environment, orgGrantRole(session));
 
   // Guard the environment's configured database — dropping it would break the panel
   // and every other operation that targets it. The worker re-checks too.
@@ -286,7 +286,7 @@ export async function renameDatabase(
   }
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment) throw new Error("Environment not found");
-  await requireUnconfined(environment, session.user.role);
+  await requireUnconfined(environment, orgGrantRole(session));
 
   // Guard the environment's configured database — renaming it would orphan the
   // panel's configured dbName. The worker re-checks too.

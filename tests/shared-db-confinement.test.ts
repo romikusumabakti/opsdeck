@@ -22,15 +22,22 @@ vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession: async () => null }, handler: vi.fn() },
 }));
 vi.mock("@/lib/auth-session", () => ({
-  requireSession: async () => ({ user: { id: USER_ID, role: state.orgRole } }),
+  requireSession: async () => ({
+    user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: "passkey" },
+  }),
   getServerSession: async () => ({
     user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: "passkey" },
   }),
 }));
 // The project guards pass (a maintainer); confinement is what is under test.
 vi.mock("@/lib/authz", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/authz")>();
-  const session = () => ({ user: { id: USER_ID, role: state.orgRole } });
+  const session = () => ({
+    user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: "passkey" },
+  });
   return {
     ...real,
     requireProjectPermission: async () => ({

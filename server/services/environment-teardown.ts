@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { requireProjectPermission } from "@/lib/authz";
+import {
+  orgGrantAllows,
+  orgGrantRole,
+  requireProjectPermission,
+} from "@/lib/authz";
 import { canOrg } from "@/lib/permissions";
 import { enqueue } from "@/lib/queue";
 import { failRun } from "@/lib/run-progress";
@@ -102,7 +106,7 @@ export async function startTeardown(
     { environmentId },
     { environment: ["delete"] }
   );
-  const orgRole = session.user.role;
+  const orgRole = orgGrantRole(session);
   const { subject, production } = await subjectFor(environmentId, orgRole);
   if (input.confirmName !== subject.name) {
     refusal(422, "confirmNameMismatch");
@@ -152,12 +156,9 @@ export async function retryTeardown(
     { environmentId },
     { environment: ["delete"] }
   );
-  await subjectFor(environmentId, session.user.role);
+  await subjectFor(environmentId, orgGrantRole(session));
   const confirmEscrow = input.confirmEscrowedDeletion === true;
-  if (
-    confirmEscrow &&
-    !canOrg(session.user.role, { integration: ["manage"] })
-  ) {
+  if (confirmEscrow && !orgGrantAllows(session, { integration: ["manage"] })) {
     throw await escrowRefusal();
   }
   const state = await teardownState(environmentId);
@@ -187,7 +188,7 @@ export async function cancelTeardown(
     { environmentId },
     { environment: ["delete"] }
   );
-  await subjectFor(environmentId, session.user.role);
+  await subjectFor(environmentId, orgGrantRole(session));
   const result = await cancelTeardownSteps(environmentId);
   if ("nothing" in result) notFound();
   if ("refusal" in result) refusal(409, result.refusal);

@@ -29,15 +29,20 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth-session", () => ({
-  requireSession: async () => ({ user: { id: USER_ID, role: state.orgRole } }),
+  requireSession: async () => ({
+    user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: "passkey" },
+  }),
 }));
-vi.mock("@/lib/authz", () => ({
+vi.mock("@/lib/authz", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/authz")>()),
   projectIdsWhere: () => undefined,
   projectScope: () => undefined,
   getProjectRole: async () => "engineer",
   requireProjectPermission: async () => undefined,
   requireOrgPermission: async () => ({
     user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: "passkey" },
   }),
 }));
 vi.mock("@/lib/activity", () => ({

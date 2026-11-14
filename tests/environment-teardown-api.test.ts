@@ -22,9 +22,13 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth-session", () => ({
-  requireSession: async () => ({ user: { id: USER_ID, role: state.orgRole } }),
+  requireSession: async () => ({
+    user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: "passkey" },
+  }),
   getServerSession: async () => ({
     user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: "passkey" },
   }),
 }));
 
@@ -43,7 +47,10 @@ vi.mock("@/lib/authz", async (importOriginal) => {
       if (!role) throw new HTTPException(404, { message: "Not Found" });
       if (!canProject(role, perms)) throw new real.ForbiddenError();
       return {
-        session: { user: { id: USER_ID, role: state.orgRole } },
+        session: {
+          user: { id: USER_ID, role: state.orgRole },
+          session: { signInMethod: "passkey" },
+        },
         role,
         projectId: "0197f3a0-1b2c-7def-8000-0123456789f1",
       };

@@ -1,4 +1,5 @@
 import {
+  orgGrantRole,
   requireAnyProjectPermission,
   requireProjectPermission,
 } from "@/lib/authz";
@@ -87,7 +88,7 @@ export async function getBackupList(
     // only the caller's own.
     const data = filterAllowedBackups(
       environment,
-      session.user.role,
+      orgGrantRole(session),
       await probeBackupList(environment)
     );
     return { success: true, data };
@@ -122,7 +123,9 @@ export async function createDatabaseBackup(
     dbConfig(environment),
     options.database
   );
-  await requireAllowedDatabaseNames(environment, session.user.role, [database]);
+  await requireAllowedDatabaseNames(environment, orgGrantRole(session), [
+    database,
+  ]);
 
   const compress = options.compress ?? true;
   const runId = await createRunOrRefuse({
@@ -169,7 +172,9 @@ export async function restoreDatabaseBackup(
   if (!environment) throw new Error("Environment not found");
   const dbSvc = dbConfig(environment);
   const database = resolveTargetDatabase(dbSvc, options.database);
-  await requireAllowedDatabaseNames(environment, session.user.role, [database]);
+  await requireAllowedDatabaseNames(environment, orgGrantRole(session), [
+    database,
+  ]);
 
   // Resolve an optional cross-environment source. A source equal to (or omitting)
   // the target reads the backup from the target's own dir as before. Any other
@@ -187,7 +192,7 @@ export async function restoreDatabaseBackup(
     }
     // A confined caller restores a shared database only from its own
     // backups.
-    await requireUnconfined(environment, session.user.role);
+    await requireUnconfined(environment, orgGrantRole(session));
     // Reading another environment's backup is a read of that project's data.
     await requireProjectPermission(
       { environmentId: options.sourceEnvironmentId },
@@ -205,12 +210,12 @@ export async function restoreDatabaseBackup(
     // caller planted in their shared sandbox would run with superuser rights.
     // (A shared target was already refused above, so this covers every
     // source binding that differs from the target's.)
-    await requireUnconfined(source, session.user.role);
+    await requireUnconfined(source, orgGrantRole(session));
     // The file comes from the source's backup directory.
-    await requireAllowedBackup(source, session.user.role, filename);
+    await requireAllowedBackup(source, orgGrantRole(session), filename);
     sourceEnvironmentId = source.id;
   } else {
-    await requireAllowedBackup(environment, session.user.role, filename);
+    await requireAllowedBackup(environment, orgGrantRole(session), filename);
   }
 
   const isDefault = database === dbSvc.dbName;

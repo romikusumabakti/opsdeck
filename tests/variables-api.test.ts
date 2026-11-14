@@ -43,6 +43,7 @@ type Template = {
 const state = vi.hoisted(() => ({
   role: "engineer" as string | null,
   orgRole: "engineer" as string,
+  signInMethod: "passkey" as string,
 }));
 
 const store = vi.hoisted(() => ({
@@ -63,20 +64,20 @@ const store = vi.hoisted(() => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-0123456789a1", role: state.orgRole },
-    session: { signInMethod: "passkey" },
+    session: { signInMethod: state.signInMethod },
   })),
 }));
 
-vi.mock("@/lib/authz", async () => {
+vi.mock("@/lib/authz", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/authz")>();
   const { canOrg, canProject } = await import("@/lib/permissions");
   const { HTTPException } = await import("hono/http-exception");
   const session = () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-0123456789a1", role: state.orgRole },
-    session: { signInMethod: "passkey" },
+    session: { signInMethod: state.signInMethod },
   });
   return {
-    // The real strength rule is covered by tests/variables-reveal-strong.test.ts.
-    assertStrongSession: vi.fn(),
+    ...real,
     requireProjectPermission: vi.fn(
       async (_scope: unknown, perms: Parameters<typeof canProject>[1]) => {
         if (!state.role) throw new HTTPException(404, { message: "Not Found" });
@@ -263,6 +264,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.role = "engineer";
   state.orgRole = "engineer";
+  state.signInMethod = "passkey";
   store.env.envFileManaged = false;
   store.env.url = "https://dev.example.test";
   store.env.appId = APP_ID;
@@ -622,6 +624,21 @@ describe("escrow", () => {
     const stored = store.vars.get("DATA_ENCRYPTION_KEY");
     expect(stored?.escrow).toBe(false);
     expect(decryptSecret(stored?.value ?? "")).toBe(ESCROW_PLAIN);
+  });
+
+  it("refuses clearing escrow for a password-only admin with the strong sign-in code", async () => {
+    state.orgRole = "admin";
+    state.signInMethod = "password";
+    const res = await send("PUT", `${base}/variables/DATA_ENCRYPTION_KEY`, {
+      kind: "generated",
+      escrow: false,
+      confirmEscrowRemoval: true,
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({
+      code: "strong_sign_in_required",
+    });
+    expect(store.vars.get("DATA_ENCRYPTION_KEY")?.escrow).toBe(true);
   });
 
   // The row became escrowed between the service's read and its write: the

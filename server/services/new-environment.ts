@@ -1,7 +1,11 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { listApps } from "@/lib/apps";
-import { requireProjectPermission } from "@/lib/authz";
+import {
+  orgGrantAllows,
+  orgGrantRole,
+  requireProjectPermission,
+} from "@/lib/authz";
 import {
   bundleImageFor,
   type RegisterComponentInput,
@@ -114,7 +118,7 @@ async function authorize(input: NewEnvironmentInput): Promise<Caller> {
   );
   if (
     (input.advanced?.pipelines?.length ?? 0) > 0 &&
-    !canOrg(session.user.role, { integration: ["manage"] })
+    !orgGrantAllows(session, { integration: ["manage"] })
   ) {
     throw new CodedHTTPException(
       403,
@@ -122,7 +126,7 @@ async function authorize(input: NewEnvironmentInput): Promise<Caller> {
       "Choosing a pipeline needs integration:manage"
     );
   }
-  return { orgRole: session.user.role, projectRole: role };
+  return { orgRole: orgGrantRole(session), projectRole: role };
 }
 
 /** Runs a CI server call, turning its failure into a 502. */

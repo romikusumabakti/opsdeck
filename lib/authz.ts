@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/schema";
 import {
   canAnyProject,
+  canOrg,
   canOrgAccess,
   canOrgAccessTarget,
   canProject,
@@ -23,7 +24,11 @@ import {
   requiresStrongSignIn,
   seesAllProjects,
 } from "@/lib/permissions";
-import { isStrongSignIn } from "@/lib/sign-in-method";
+import {
+  isStrongSignIn,
+  STRONG_SIGN_IN_CODE,
+  STRONG_SIGN_IN_MESSAGE,
+} from "@/lib/sign-in-method";
 import { uuidSchema } from "@/lib/validation";
 import { requestCache } from "@/server/context";
 import { notFound } from "@/server/errors";
@@ -52,16 +57,39 @@ export class ForbiddenError extends HTTPException {
   }
 }
 
-const STRONG_SIGN_IN_MESSAGE =
-  "Sign in with a passkey, Microsoft, or a password and an authenticator code to do this.";
-const STRONG_SIGN_IN_CODE = "strong_sign_in_required";
-
 // Risky actions (terminal, files, secrets, admin) refuse a session that was
 // not created by a passkey, Microsoft or password + TOTP.
 export function assertStrongSession(session: Session): void {
   if (!isStrongSignIn(session.session.signInMethod)) {
     throw new ForbiddenError(STRONG_SIGN_IN_MESSAGE, STRONG_SIGN_IN_CODE);
   }
+}
+
+// For org-level rights checked on their own (an admin-only bypass or
+// confirmation inside a project action) instead of through requireOrgPermission:
+// canOrg, plus the strong sign-in any strong-only action needs.
+export function orgGrantAllows(session: Session, perms: OrgPermissions) {
+  return (
+    canOrg(session.user.role, perms) &&
+    (!requiresStrongSignIn(perms) ||
+      isStrongSignIn(session.session.signInMethod))
+  );
+}
+
+// The throwing form: the plain 403 when the role lacks the right, the coded
+// one when only the sign-in is too weak (permission first, strength second).
+export function requireOrgGrant(session: Session, perms: OrgPermissions): void {
+  if (!canOrg(session.user.role, perms)) throw new ForbiddenError();
+  if (requiresStrongSignIn(perms)) assertStrongSession(session);
+}
+
+// The org role to hand to helpers that decide an org grant from a role alone
+// (canPlaceEnvironment, the shared-database confinement, the domain publish
+// rule): a weak session holds none, so it gets the floor role.
+export function orgGrantRole(session: Session): string | null | undefined {
+  return isStrongSignIn(session.session.signInMethod)
+    ? session.user.role
+    : null;
 }
 
 export type ProjectAccess = {

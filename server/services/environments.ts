@@ -15,7 +15,10 @@ import { getServerSession, requireSession } from "@/lib/auth-session";
 import {
   ForbiddenError,
   getProjectRole,
+  orgGrantAllows,
+  orgGrantRole,
   projectScope,
+  requireOrgGrant,
   requireOrgPermission,
   requireProjectPermission,
 } from "@/lib/authz";
@@ -954,7 +957,7 @@ export async function createEnvironment(
     { project: ["read"] }
   );
   const input = await validateNewEnvironment(parsed.data, {
-    orgRole: session.user.role,
+    orgRole: orgGrantRole(session),
     projectRole: role,
   });
   try {
@@ -1035,7 +1038,7 @@ export async function updateEnvironment(
   if (
     input.kind !== undefined &&
     (input.kind === "prod") !== (stored.kind === "prod") &&
-    !canOrg(session.user.role, { server: ["manage"] })
+    !orgGrantAllows(session, { server: ["manage"] })
   ) {
     const t = await getServerTranslator("actionErrors");
     throw new CodedHTTPException(
@@ -1087,7 +1090,7 @@ export async function updateEnvironment(
       { project: ["read"] }
     );
     await requireEnvironmentPlacement(
-      session.user.role,
+      orgGrantRole(session),
       targetProjectId,
       targetRole,
       updatedBindings(input, stored),
@@ -1095,7 +1098,7 @@ export async function updateEnvironment(
     );
   } else if (changesBindings(input, stored)) {
     await requireEnvironmentPlacement(
-      session.user.role,
+      orgGrantRole(session),
       stored.projectId,
       role,
       updatedBindings(input, stored),
@@ -1283,9 +1286,7 @@ export async function deleteEnvironment(
     { environmentId: id },
     { environment: ["delete"] }
   );
-  if (!canOrg(session.user.role, { server: ["manage"] })) {
-    throw new ForbiddenError();
-  }
+  requireOrgGrant(session, { server: ["manage"] });
   const variables = await db
     .select({
       name: environmentVariables.name,
@@ -1296,7 +1297,7 @@ export async function deleteEnvironment(
     .orderBy(asc(environmentVariables.name));
   const confirmed =
     confirmEscrowedDeletion &&
-    canOrg(session.user.role, { integration: ["manage"] });
+    orgGrantAllows(session, { integration: ["manage"] });
   const refuseEscrowed = async (): Promise<never> => {
     throw await escrowRefusal();
   };

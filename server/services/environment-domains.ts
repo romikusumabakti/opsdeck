@@ -1,6 +1,10 @@
 import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
-import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
+import {
+  orgGrantRole,
+  requireOrgPermission,
+  requireProjectPermission,
+} from "@/lib/authz";
 import {
   accessAppHostnames,
   CloudflareConflictError,
@@ -172,7 +176,7 @@ export async function listDomainAccessPolicies(environmentId: string) {
     { environmentId },
     CONFIGURE
   );
-  return visibleAccessPolicies(session.user.role);
+  return visibleAccessPolicies(orgGrantRole(session));
 }
 
 /**
@@ -181,7 +185,7 @@ export async function listDomainAccessPolicies(environmentId: string) {
  */
 export async function listProjectAccessPolicies(projectId: string) {
   const { session } = await requireProjectPermission({ projectId }, CONFIGURE);
-  return visibleAccessPolicies(session.user.role);
+  return visibleAccessPolicies(orgGrantRole(session));
 }
 
 /**

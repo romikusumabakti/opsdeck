@@ -36,13 +36,16 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
     user: { id: "user-1", role: state.orgRole },
+    session: { signInMethod: "passkey" },
   })),
 }));
 
-vi.mock("@/lib/authz", async () => {
+vi.mock("@/lib/authz", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/authz")>();
   const { canProject } = await import("@/lib/permissions");
   const { HTTPException } = await import("hono/http-exception");
   return {
+    ...real,
     getProjectAccess: vi.fn(async () => ({
       all: false,
       roles: { [PROJECT_ID]: state.projectRole },
@@ -55,7 +58,10 @@ vi.mock("@/lib/authz", async () => {
           throw new HTTPException(403, { message: "Forbidden" });
         }
         return {
-          session: { user: { id: "user-1", role: state.orgRole } },
+          session: {
+            user: { id: "user-1", role: state.orgRole },
+            session: { signInMethod: "passkey" },
+          },
           role,
           projectId: PROJECT_ID,
         };

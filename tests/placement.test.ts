@@ -120,9 +120,11 @@ const state = vi.hoisted(() => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: async () => ({
     user: { id: state.userId, role: state.orgRole },
+    session: { signInMethod: "passkey" },
   }),
   getServerSession: async () => ({
     user: { id: state.userId, role: state.orgRole },
+    session: { signInMethod: "passkey" },
   }),
 }));
 
@@ -133,11 +135,17 @@ vi.mock("@/lib/authz", async (importOriginal) => {
   const { canOrg, canProject } = await import("@/lib/permissions");
   return {
     ForbiddenError: real.ForbiddenError,
+    orgGrantAllows: real.orgGrantAllows,
+    orgGrantRole: real.orgGrantRole,
+    requireOrgGrant: real.requireOrgGrant,
     getProjectRole: async () => state.projectRole,
     projectScope: () => undefined,
     requireOrgPermission: async (perms: OrgPermissions) => {
       if (!canOrg(state.orgRole, perms)) throw new real.ForbiddenError();
-      return { user: { id: state.userId, role: state.orgRole } };
+      return {
+        user: { id: state.userId, role: state.orgRole },
+        session: { signInMethod: "passkey" },
+      };
     },
     requireProjectPermission: async (
       scope: Record<string, string>,
@@ -156,7 +164,10 @@ vi.mock("@/lib/authz", async (importOriginal) => {
         throw new real.ForbiddenError();
       }
       return {
-        session: { user: { id: state.userId, role: state.orgRole } },
+        session: {
+          user: { id: state.userId, role: state.orgRole },
+          session: { signInMethod: "passkey" },
+        },
         role,
         projectId: scope.projectId ?? PROJECT_ID,
       };

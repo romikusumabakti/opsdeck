@@ -1,4 +1,5 @@
 import {
+  orgGrantRole,
   requireAnyProjectPermission,
   requireProjectPermission,
 } from "@/lib/authz";
@@ -107,7 +108,7 @@ export async function controlService(
   }
   await requireSharedDbServiceAccess(
     environment,
-    session.user.role,
+    orgGrantRole(session),
     parsedRole.data
   );
   const cfg = getServiceConfig(environment, parsedRole.data);

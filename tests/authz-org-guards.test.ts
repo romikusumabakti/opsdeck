@@ -136,7 +136,9 @@ describe("org guards require a strong sign-in for risky actions", () => {
     expect(error).toBeInstanceOf(ForbiddenError);
     expect(error.code).toBeUndefined();
     const guard = await routeOrgGuard({ server: ["terminal"] });
-    if (!guard.ok)
+    expect(guard.ok).toBe(false);
+    if (!guard.ok) {
       expect(await guard.response.json()).toEqual({ error: "Forbidden" });
+    }
   });
 });
