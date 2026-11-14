@@ -1400,7 +1400,8 @@
     "resetTwoFactorTitle": "¿Restablecer la verificación en dos pasos?",
     "resetTwoFactorDescription": "Esto elimina la app de autenticación y los códigos de respaldo de {name} y cierra todas sus sesiones. Podrá configurar la verificación en dos pasos de nuevo tras iniciar sesión.",
     "resetTwoFactorConfirm": "Restablecer verificación en dos pasos",
-    "resetTwoFactorSuccess": "Verificación en dos pasos restablecida para {name}."
+    "resetTwoFactorSuccess": "Verificación en dos pasos restablecida para {name}.",
+    "cannotResetOwnTwoFactor": "No puedes restablecer tu propia verificación en dos pasos. Desactívala desde Cuenta > Seguridad."
   },
   "setup": {
     "title": "Configuración inicial",
@@ -1575,7 +1576,8 @@
     "keyServerNoPassword": "Este servidor inicia sesión con la clave SSH, así que no guarda contraseña.",
     "keyLineNotFound": "La clave inicia sesión, pero la línea del Panel no está en ~/.ssh/authorized_keys del servidor. Ejecuta el comando de instalación que se muestra aquí.",
     "sourceInUse": "Un entorno de este proyecto todavía usa esta aplicación, por lo que no se puede quitar.",
-    "componentNotInSources": "La aplicación de este componente no es una fuente de este proyecto. Añade primero la aplicación."
+    "componentNotInSources": "La aplicación de este componente no es una fuente de este proyecto. Añade primero la aplicación.",
+    "cannotResetOwnTwoFactor": "No puedes restablecer tu propia verificación en dos pasos. Desactívala desde Cuenta > Seguridad."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",

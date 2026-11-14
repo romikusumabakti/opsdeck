@@ -115,6 +115,14 @@ describe("resetTwoFactor", () => {
     ]);
   });
 
+  it("refuses to reset your own two-factor", async () => {
+    await expect(resetTwoFactor("admin1")).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(mocks.writes).toEqual([]);
+    expect(mocks.activity).toEqual([]);
+  });
+
   it("is a silent no-op when the user has no two-factor", async () => {
     mocks.target = { name: "Dana", twoFactorEnabled: false };
     await resetTwoFactor("u2");

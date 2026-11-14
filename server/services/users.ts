@@ -32,6 +32,7 @@ import { isOrgRole, normalizeOrgRole, type OrgRole } from "@/lib/permissions";
 import type { ActionResponse, UserRef } from "@/lib/types";
 import { activeStatus } from "@/lib/user-display";
 import { getLocale } from "@/server/context";
+import { badRequest } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
 const INVITE_EXPIRES_HOURS = 48;
@@ -421,6 +422,10 @@ export async function updateUserRole(input: {
 // is logged.
 export async function resetTwoFactor(userId: string): Promise<void> {
   const session = await requireOrgPermission({ user: ["update"] });
+  if (session.user.id === userId) {
+    const t = await getServerTranslator("actionErrors");
+    badRequest(t("cannotResetOwnTwoFactor"), "cannotResetOwnTwoFactor");
+  }
   const [target] = await db
     .select({
       name: userTable.name,

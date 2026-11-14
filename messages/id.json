@@ -1400,7 +1400,8 @@
     "resetTwoFactorTitle": "Reset autentikasi dua faktor?",
     "resetTwoFactorDescription": "Ini menghapus aplikasi autentikator dan kode cadangan {name}, lalu mengeluarkannya dari semua perangkat. Setelah masuk, mereka dapat menyiapkan autentikasi dua faktor lagi.",
     "resetTwoFactorConfirm": "Reset autentikasi dua faktor",
-    "resetTwoFactorSuccess": "Autentikasi dua faktor {name} telah direset."
+    "resetTwoFactorSuccess": "Autentikasi dua faktor {name} telah direset.",
+    "cannotResetOwnTwoFactor": "Anda tidak dapat mereset autentikasi dua faktor sendiri. Matikan dari Akun > Keamanan."
   },
   "setup": {
     "title": "Pengaturan awal",
@@ -1575,7 +1576,8 @@
     "keyServerNoPassword": "Server ini masuk dengan SSH key, jadi tidak menyimpan password.",
     "keyLineNotFound": "Key bisa masuk, tetapi baris Panel tidak ada di ~/.ssh/authorized_keys server. Jalankan perintah pemasangan yang tampil di sini.",
     "sourceInUse": "Sebuah environment proyek ini masih memakai aplikasi ini, sehingga tidak dapat dihapus.",
-    "componentNotInSources": "Aplikasi komponen ini bukan sumber proyek ini. Tambahkan aplikasinya terlebih dahulu."
+    "componentNotInSources": "Aplikasi komponen ini bukan sumber proyek ini. Tambahkan aplikasinya terlebih dahulu.",
+    "cannotResetOwnTwoFactor": "Anda tidak dapat mereset autentikasi dua faktor sendiri. Matikan dari Akun > Keamanan."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
