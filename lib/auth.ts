@@ -31,6 +31,7 @@ import {
   STRONG_SIGN_IN_CODE,
   STRONG_SIGN_IN_MESSAGE,
   signInMethodFor,
+  signInMethodForRotation,
 } from "./sign-in-method";
 import { uuidSchema } from "./validation";
 
@@ -277,12 +278,18 @@ export const auth = betterAuth({
       create: {
         // Record how this session was established. A password change that
         // revokes other sessions mints a new one, which inherits the current
-        // session's method instead of resetting it.
+        // session's method instead of resetting it. So do the two-factor
+        // endpoints that rotate a signed-in session (see
+        // signInMethodForRotation).
         before: async (session, ctx) => {
+          const path = ctx?.path ?? "";
+          const previous = ctx?.context.session?.session.signInMethod ?? null;
           const signInMethod =
-            ctx?.path === "/change-password"
-              ? (ctx.context.session?.session.signInMethod ?? null)
-              : signInMethodFor(ctx?.path ?? "", ctx?.params);
+            path === "/change-password"
+              ? previous
+              : ((ctx?.context.session
+                  ? signInMethodForRotation(path, previous)
+                  : undefined) ?? signInMethodFor(path, ctx?.params));
           return { data: { ...session, signInMethod } };
         },
       },

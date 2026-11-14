@@ -35,6 +35,29 @@ export function signInMethodFor(
   return null;
 }
 
+// The method of the session a plugin endpoint rotates, when the request is
+// not a sign-in but swaps the session row. `previous` is the method of the
+// session the request ran under. Returns undefined when `path` is not such an
+// endpoint (the caller then uses signInMethodFor).
+//  - Confirming a new authenticator (verify-totp with a session) keeps a
+//    strong method, so a passkey or Microsoft session is not relabelled; a
+//    weak one becomes password+totp, as the user just proved the code.
+//  - Disabling two-factor keeps the method, except password+totp, which falls
+//    back to password: the second factor is gone.
+export function signInMethodForRotation(
+  path: string,
+  previous: string | null | undefined
+): SignInMethod | null | undefined {
+  const prev = (previous ?? null) as SignInMethod | null;
+  if (path === "/two-factor/verify-totp") {
+    return isStrongSignIn(prev) ? prev : "password+totp";
+  }
+  if (path === "/two-factor/disable") {
+    return prev === "password+totp" ? "password" : prev;
+  }
+  return undefined;
+}
+
 export function isStrongSignIn(method: string | null | undefined): boolean {
   return method != null && STRONG.has(method);
 }
