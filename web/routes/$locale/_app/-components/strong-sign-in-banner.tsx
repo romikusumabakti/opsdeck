@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslations } from "use-intl";
@@ -11,6 +12,7 @@ import {
   requiresStrongSignIn,
 } from "@/lib/permissions";
 import { isStrongSignIn } from "@/lib/sign-in-method";
+import { getAccountQuery } from "@/web/api/profile";
 import { resetSession, useMe } from "@/web/api/session";
 
 // Representative strong-only org actions. A role that can do any of them
@@ -37,6 +39,9 @@ export function StrongSignInBanner() {
   const me = useMe();
   const sessionId = me?.session.id;
   const [dismissed, setDismissed] = useState(true);
+  const weak = me != null && !isStrongSignIn(me.session.signInMethod);
+  // Only a weak session needs to know whether the user has a password.
+  const account = useQuery({ ...getAccountQuery(), enabled: weak }).data;
 
   useEffect(() => {
     if (sessionId) {
@@ -49,7 +54,10 @@ export function StrongSignInBanner() {
   const affected = STRONG_ONLY_SAMPLES.some(
     (perms) => requiresStrongSignIn(perms) && canOrgAccess(me.orgRole, perms)
   );
-  if (!affected) return null;
+  if (!affected || !account) return null;
+  // Entra-only users have no password, so an authenticator is not an option
+  // for them: they sign in again with Microsoft or a passkey.
+  const canSetUpAuthenticator = account.hasPassword;
 
   const dismiss = () => {
     sessionStorage.setItem(dismissKey(me.session.id), "1");
@@ -66,17 +74,27 @@ export function StrongSignInBanner() {
       role="status"
       className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
     >
-      <span className="flex-1">{t("banner")}</span>
-      <Button
-        size="sm"
-        nativeButton={false}
-        render={<Link href="/account?tab=security" />}
-      >
-        {t("setUp")}
-      </Button>
-      <Button size="sm" variant="outline" onClick={onSignOut}>
-        {t("signOut")}
-      </Button>
+      <span className="flex-1">
+        {t(canSetUpAuthenticator ? "banner" : "bannerNoPassword")}
+      </span>
+      {canSetUpAuthenticator ? (
+        <>
+          <Button
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/account?tab=security" />}
+          >
+            {t("setUp")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={onSignOut}>
+            {t("signOut")}
+          </Button>
+        </>
+      ) : (
+        <Button size="sm" onClick={onSignOut}>
+          {t("signInAgain")}
+        </Button>
+      )}
       <TooltipHint label={t("dismiss")}>
         <Button
           size="icon"

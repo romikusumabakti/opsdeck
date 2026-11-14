@@ -110,7 +110,7 @@ function AccountPage() {
         </TabsContent>
 
         <TabsContent value="security" className="flex flex-col gap-6">
-          <TwoFactorCard />
+          <TwoFactorCard hasPassword={account.hasPassword} />
           <Card>
             <CardHeader>
               <CardTitle>{tPasskeys("title")}</CardTitle>

@@ -29,15 +29,24 @@ import {
 import { json } from "@/server/validation";
 
 export const profileRouter = sessionRouter()
-  // Page data (account page): whether a Microsoft account is linked, which
-  // decides the "Use Microsoft photo" control. The caller's own row only.
+  // Page data (account page): whether a Microsoft account is linked (the
+  // "Use Microsoft photo" control) and whether the user has a password. The caller's own row only.
   .get("/account", async (c) => {
     const session = await requireSession();
     const microsoftAccount = await db.query.accounts.findFirst({
       where: { userId: session.user.id, providerId: "microsoft" },
       columns: { id: true },
     });
-    return c.json({ hasMicrosoftAccount: Boolean(microsoftAccount) });
+    // Entra-only users have no credential account, so no password: two-factor
+    // (which asks for the password) does not apply to them.
+    const passwordAccount = await db.query.accounts.findFirst({
+      where: { userId: session.user.id, providerId: "credential" },
+      columns: { id: true },
+    });
+    return c.json({
+      hasMicrosoftAccount: Boolean(microsoftAccount),
+      hasPassword: Boolean(passwordAccount),
+    });
   })
   .post(
     "/update-profile",
