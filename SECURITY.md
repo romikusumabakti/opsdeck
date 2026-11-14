@@ -39,8 +39,26 @@ What the design defends against:
   accepts only a single-use ticket minted by the app and valid for 30 seconds,
   checks the WebSocket `Origin`, and caps sessions per user, idle time (30 min)
   and total lifetime (8 h).
+- **A stolen password.** Risky actions need a strong sign-in: a passkey,
+  Microsoft Entra ID, or email + password plus a TOTP code. The session
+  records how it was created. Without a strong sign-in the server refuses
+  (403 `strong_sign_in_required`) the terminal, the file explorers, revealing
+  secret variables, and every org action outside a short allowlist, as well as
+  better-auth's `/admin/*` endpoints. These stay available with a password
+  alone: reading servers, storage and tunnels, listing users, the knowledge
+  base, reading the activity log, and creating projects. Org actions added
+  later need a strong sign-in by default. Sessions that existed before the
+  upgrade have no recorded method and count as weak, so users sign in again
+  once. A banner tells a weak session that it is limited. Entra is trusted as
+  is: the tenant's Conditional Access must enforce MFA, and OpsDeck does not
+  check the `amr` claim. TOTP secrets and backup codes are encrypted with
+  `BETTER_AUTH_SECRET`. An admin can reset another user's two-factor (never
+  their own); this revokes that user's sessions and is logged.
 - **Cross-site attacks.** Cookie sessions with an `Origin` check on mutating
-  requests, `frame-ancestors 'none'`, `nosniff` and a strict referrer policy.
+  requests, `nosniff`, a strict referrer policy and a Content-Security-Policy
+  (`script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none';
+  frame-ancestors 'none'`). Inline scripts don't run, so the theme script is
+  a static file (`public/theme-init.js`) and the client runs Zod without JIT.
 
 What it does not defend against:
 
@@ -82,11 +100,9 @@ with least-privilege `permissions`.
 
 ## Known gaps
 
-- No TOTP second factor yet. Passkeys and Microsoft Entra ID (with its own
-  MFA policy) are available, but no role is required to use them.
-- Sign-ins are not written to the activity log.
+- A password-only session can turn on TOTP for its own account, so a stolen
+  password plus an account that has not enrolled is still enough. The
+  enrollment is logged.
 - Microsoft OAuth tokens are stored as better-auth stores them, unencrypted.
-- The Content-Security-Policy covers framing only; `script-src` is not locked
-  down yet.
 - Knowledge-base pages are stored as written. Don't paste credentials into
   them; put them in secret variables, which are encrypted.
