@@ -1,231 +1,254 @@
 # OpsDeck
 
-A self-hosted, whitelabel hub where a delivery team (PM, BA, QA, Dev and DevOps) does its work. It brings together project environments, database operations, an issue tracker, a knowledge base and server access, so nobody has to jump between half a dozen tools.
+A self-hosted operations panel for teams that run many projects across many
+servers. Each project has environments (Dev, QA, …), and the panel ties together
+what those environments need day to day:
 
-## Features
+- **Deploys** of container apps and legacy artifacts, triggered by CI build
+  notifications (Woodpecker, Bitbucket), with deploy locks, health checks and
+  rollback. See [`docs/deploy.md`](docs/deploy.md).
+- **Environments**: services and their logs, variables, databases (backup,
+  restore, provisioning), mail capture (Mailpit), mock time
+  ([`docs/time-mocking-api.md`](docs/time-mocking-api.md)), history, releases.
+- **Issues and milestones**, a knowledge base with image attachments, and
+  Jira integration.
+- **Infrastructure**: servers, SSH keys, a browser terminal, S3 connections,
+  Cloudflare zones and tunnels, CI connections.
+- **Instance management**: access roles, activity log, scheduled backups and
+  self-update from GitHub Releases.
 
-- **Projects and environments.** Each project has environments (dev, staging, prod, and so on). For each environment you can manage services and stream their logs, and manage databases (Postgres, MSSQL, MySQL/MariaDB on Docker or Kubernetes). You can also run backups and restores, mock the system clock, view Mailpit mail and see the run history.
-- **Background runs.** Backups, restores, database changes, service control and Jira sync are queued on BullMQ. Their progress streams live to the browser.
-- **Issue tracker.** Issues come with labels, saved views, test runs, attachments and project membership. Optional two-way sync with Jira is available.
-- **Knowledge base.** Rich-text pages (Tiptap) with revision history. Images are stored in S3 (Garage) and served through imgproxy.
-- **Servers.** SSH connections, an SFTP file explorer and a browser terminal (wterm on libghostty).
-- **Storage.** Browse S3-compatible buckets.
-- **Cloudflare tunnels and DNS zones**, managed with a scoped API token.
-- **Home.** A "needs attention" feed of recent failures that users can acknowledge.
-- **Access control.** Roles, per-environment access, project members and an activity log.
-- **Auth.** Built on better-auth: email/password, passkeys, invites, password reset and optional Microsoft Entra ID sign-in.
-- **i18n.** English, Bahasa Indonesia, Español, 中文 and العربية (RTL).
+Sign-in is email + password, passkeys, or Microsoft Entra ID
+([`docs/microsoft-sign-in.md`](docs/microsoft-sign-in.md)). The UI ships in
+English, Indonesian, Spanish, Chinese and Arabic.
 
 ## Stack
 
-Vite + React 19 (TanStack Router) · Hono on Bun · Drizzle ORM + PostgreSQL 18 · BullMQ + Valkey · better-auth · Tailwind CSS 4 + shadcn/ui · use-intl · Garage (S3) + imgproxy · Biome
+| Layer      | Tech                                                                  |
+| ---------- | --------------------------------------------------------------------- |
+| Runtime    | Bun (version pinned in `mise.toml` and `packageManager`)              |
+| Frontend   | Vite SPA, React 19, TanStack Router + Query, Tailwind 4, shadcn/ui (Base UI), use-intl |
+| Backend    | Hono (`server/`), better-auth, BullMQ worker in-process               |
+| Data       | PostgreSQL 18 via Drizzle ORM (`lib/db/schema.ts`, `drizzle/`)        |
+| Services   | Valkey 8 (queue), Garage (S3 for attachments), imgproxy, Caddy        |
+| Terminal   | Separate WebSocket sidecar (`lib/terminal/`), ssh2 + wterm            |
+| Tooling    | Biome, TypeScript, Vitest, Playwright                                 |
 
-## Architecture
+## Repository layout
 
 ```
-            cloudflared / browser
-                    │
-                 Caddy :80
-          ┌─────────┴──────────┐
-   /ws/terminal*           everything else
-          │                    │
- terminal :3001             app :3000 ── BullMQ worker (in-process)
- (WebSocket sidecar)           │
-          │        ┌───────────┼───────────┬──────────┐
-          └──── postgres     valkey      garage ─── imgproxy
+web/            SPA: routes (web/routes, file-based), API client, components
+server/         Hono app: routes, middleware, static serving of dist/client
+components/     Shared React components (shadcn/ui under components/ui)
+lib/            Domain logic shared by server, CLI and terminal sidecar
+lib/db/         Drizzle schema
+drizzle/        Migrations (baseline + newer), run by `opsdeck migrate`
+messages/       i18n catalogs: ar, en, es, id, zh
+i18n/           Locale list and labels
+scripts/        `opsdeck` CLI (scripts/cli.ts) and other ops scripts
+ops/install/    Installer, production compose file and host updater
+ops/backup/     Interim off-host backup timer (see ops/backup/README.md)
+tests/          Vitest suites
+e2e/            Playwright suites
+docs/           Feature docs; docs/superpowers holds design specs and plans
 ```
 
-`compose.yaml` is the development stack, built from this checkout (production installs use `ops/install/install.sh`, see below). It defines the services:
+## Installing an instance
 
-| Service    | Purpose                                                                 |
-| ---------- | ----------------------------------------------------------------------- |
-| `app`      | Hono server on Bun (`dist/server/index.js`). It serves the API and the built SPA, and the BullMQ worker starts inside it. |
-| `terminal` | Same image, running `bun dist/terminal-server.js`. It holds the WebSocket terminal sessions; keeping the sockets in their own process means a redeploy of the app can't kill a live shell. |
-| `caddy`    | Public edge on `127.0.0.1:80`, plain HTTP. TLS is expected to end upstream (for example at cloudflared). |
-| `postgres` | Main database, published on `127.0.0.1:5432` for host `bun run dev` and psql. |
-| `valkey`   | Redis-compatible queue backend for BullMQ.                              |
-| `garage`   | Single-node S3 store for knowledge-base attachments.                    |
-| `imgproxy` | Resizes images and converts their format on read. Internal only.        |
-
-## Configuration
-
-Copy `.env.example` to `.env` (Compose) or `.env.local` (host `bun run dev`) and fill it in. Each variable is documented inline. At startup the app validates its environment (`lib/env.ts`):
-
-- It refuses to boot if a core variable is missing, a value is malformed or a feature is only half configured.
-- Optional features (Microsoft sign-in, Resend email, S3 keys) that are left blank are disabled, and the app logs an `[env]` warning.
-
-Generate the secrets once:
-
-```sh
-openssl rand -base64 32   # SECRETS_KEY, BETTER_AUTH_SECRET, GARAGE_ADMIN_TOKEN
-openssl rand -hex 32      # GARAGE_RPC_SECRET, IMGPROXY_KEY, IMGPROXY_SALT
-```
-
-> [!WARNING]
-> - `SECRETS_KEY` encrypts stored credentials (SSH and database passwords, S3 keys). If you rotate it, the existing secrets can no longer be decrypted and have to be re-entered.
-> - `BETTER_AUTH_URL` must be the exact origin users visit. Passkeys are bound to it, and the terminal rejects WebSocket upgrades from any other origin.
-> - The branding variables (`APP_NAME`, `COMPANY_NAME`, `ALLOWED_EMAIL_DOMAIN`) are read at runtime, so changing them takes a restart, not a rebuild.
-
-### Brand and accent colour
-
-`BRAND` picks the deployment's brand: its logo shape and the default accent colour. It can be `default` (a plain grid logo, neutral accent) or `dss` (the DSS Panel "D" logo, blue accent). The server reads it at runtime, so switching brands takes a `docker compose up -d app`, not a rebuild.
-
-Each user can pick their own accent colour from the user menu (**Accent color**) or the command palette. The choices are `neutral` plus shadcn/ui's seven colour themes: blue, green, orange, red, rose, violet and yellow. The choice is stored on the user's account (`users.accent_color`), so it follows them across devices; until they pick one, they get the brand's default. The root layout sets `data-accent` on `<html>`.
-
-The theme is the stock shadcn/ui token set in `web/styles.css`. Each accent binds its Tailwind palette steps to `--tint-*` variables, and two role blocks map those onto the shadcn tokens:
-- light mode uses step 900 for buttons and step 100 for the active sidebar item;
-- dark mode uses step 300 for buttons and step 950 for the active sidebar item;
-- the focus ring uses step 500 in light mode and 400 in dark mode, or a darker step where 500 falls below 3:1 (green and orange use 600, yellow 700).
-
-Neutral greys, status colours and charts are never tinted. Components never name accent colours directly. `tests/accent-theme.test.ts` checks that every accent keeps text at WCAG AA (4.5:1) and its focus ring at 3:1 in both modes.
-
-Logos are code, not image files, so that they can take the accent's colours and animate. In the app, the tiles assemble on load and part on hover, and the status tile pulses while runs are in progress. All of this is skipped for users who prefer reduced motion. The favicon at `/brand/icon.svg?accent=…` is drawn from the same shape in the user's accent, and follows the browser's light or dark scheme. Its colours live in `lib/accent-palette.ts`, which `tests/accent-palette.test.ts` pins to Tailwind's palette.
-
-To add an accent colour:
-1. Add its name to `ACCENTS` in `lib/accents.ts`.
-2. Add a `[data-accent="…"]` binding block in `web/styles.css`.
-3. Add its steps and values to `ACCENT_STEPS` and `ACCENT_PALETTE` in `lib/accent-palette.ts`.
-4. Add its swatch classes in `components/accent-dot.tsx`.
-5. Add its name to `accentSwitcher` in all five `messages/*.json` files.
-
-The tests then check contrast and palette agreement.
-
-To add a brand:
-1. Add its name to `BRANDS` in `lib/branding.ts` and its default accent to `BRAND_DEFAULT_ACCENT` in `lib/accents.ts`.
-2. Give it a logo shape in `lib/brand-logos.ts`.
-
-### Background motifs
-
-Faint Nusantara ornaments sit in the corners of the pages outside the app (sign-in, setup, password reset, invitations, errors) and at the bottom of the sidebar. There are eleven, one per major region, ordered west to east: Pintu Aceh, Gorga, Pucuk Rebung, Megamendung, Kawung, Batang Garing, Patra Punggel, Pa' Barre Allo, Mamuli, Tenun Tanimbar and Ukiran Asmat. Everyone sees the same motif each day (it changes at midnight `APP_TIMEZONE`); each user can pin one or turn them off from the user menu (**Motif**) or the command palette, stored in `users.motif`. The ⓘ button outside the app and **About …** in the menu show a short cultural note.
-
-The images are masks: `components/motif-watermark.tsx` paints `--ring` (the accent's saturated step) through them, so they follow the theme and accent. The source art in `design/motifs/` was generated with `gpt-image-2.5-sunburst` (templates and per-motif subjects in `design/motifs/prompts.json`).
-
-To add or replace a motif:
-1. Put a black-on-transparent PNG at `design/motifs/<slug>.png` and run `uv run scripts/build-motifs.py`. Generate a new motif with the `v2` template in `prompts.json`: its uniform line weight keeps every ornament at a similar density.
-2. For a new motif, add it to `MOTIFS` in `lib/motifs.ts` at its place by longitude.
-3. Add its `items.<slug>` caption to `motifs` in all five `messages/*.json` files.
-
-## Installing a release
-
-Production instances run a published release, not this checkout. `ops/install/install.sh` (attached to every GitHub release) installs one instance per `/opt/<name>` with digest-pinned images, generated secrets and a host updater; its header documents every flag (`--channel`, `--adopt`, `--restore`, `--dry-run`).
+Production instances are installed from a GitHub Release, not from this
+checkout. On a Linux host with systemd (amd64 or arm64):
 
 ```sh
 curl -fsSL https://github.com/romikusumabakti/opsdeck/releases/latest/download/install.sh | sh -s -- --hostname panel.example.com
 ```
 
-## Running with Docker Compose
+The installer creates `/opt/<name>` with a digest-pinned `compose.yaml`, a
+`.env` (mode 0600) with generated secrets, and a host updater unit
+(`opsdeck-updater@<name>.path`), then starts the stack. Useful flags:
 
-```sh
-cp .env.example .env              # fill in; leave S3_ACCESS_KEY / S3_SECRET_KEY blank for now
-docker compose up -d --build
-```
+- `--channel stable|beta`, `--version vX.Y.Z`
+- `--dir /opt/<name>`, `--http-port N`
+- `--adopt <old .env>` to take over a stack started from the repo-root
+  `compose.yaml` (keeps its volumes)
+- `--restore <backup> --secrets-key-file <file>` for disaster recovery
+- `--dry-run` to print every action without changing anything
 
-The one-shot `migrate` service applies pending migrations before `app` and `terminal` start.
+Run `sh install.sh --help` or read the header of `ops/install/install.sh` for
+the full contract. After the first start, create the first admin at
+`<url>/setup`, and store `SECRETS_KEY` offline: backups never contain it and a
+restore needs it.
 
-Open the site and go to `/en/setup` to create the first admin account. The setup page closes once any user exists.
-
-### Object storage setup
-
-You only need Garage credentials for knowledge-base image uploads. Do this once after the first boot:
-
-```sh
-alias garage='docker compose exec garage /garage'
-
-garage status                                   # note the node ID
-garage layout assign -z dc1 -c 10G <node-id>
-garage layout apply --version 1
-garage bucket create knowledge
-garage key create opsdeck-app                   # prints Key ID + Secret key
-garage bucket allow --read --write --owner knowledge --key opsdeck-app
-```
-
-Put the key ID and secret into `S3_ACCESS_KEY` and `S3_SECRET_KEY` in `.env`, then recreate the services that use them:
-
-```sh
-docker compose up -d app imgproxy
-```
-
-#### User profiles
-
-User avatars share the same bucket under the `avatars/` prefix and are served through imgproxy, so nothing extra needs configuring. No env or compose changes are needed.
+Caddy listens on `127.0.0.1` only and serves plain HTTP. Put a tunnel
+(e.g. cloudflared) or a TLS-terminating proxy in front of it.
 
 ## Local development
 
-Requirements: Bun ≥ 1.4.4, uv (only for `scripts/build-motifs.py`), and a PostgreSQL instance.
+Requirements: [mise](https://mise.jdx.dev) (installs the pinned Bun) and Docker
+or Podman with Compose.
 
 ```sh
+mise install
 bun install
-cp .env.example .env.local        # set DATABASE_URL host to localhost
+cp .env.example .env.local     # host dev; use .env for the Compose stack
+```
+
+Fill in `.env.local`. For host dev, `DATABASE_URL` points at `localhost`, and
+`SECRETS_KEY` / `BETTER_AUTH_SECRET` come from `openssl rand -base64 32`. The
+app validates the environment at startup (`lib/env.ts`): a missing core
+variable or a half-configured optional feature stops the boot, while an
+optional feature left fully blank only logs an `[env]` warning.
+
+Start Postgres from the Compose stack, apply migrations, then run the dev
+servers:
+
+```sh
+docker compose up -d postgres
 bun run db:migrate
-bun run dev                       # http://localhost:5173
-bun run terminal                  # web-terminal sidecar on :3001 (optional)
+bun run dev          # Hono on PORT (default 3000) + Vite, which proxies /api
+bun run terminal     # optional: the terminal sidecar on 3001
 ```
 
-`bun run dev` starts two processes: Vite on 5173 (the SPA, with hot reload) and the Hono API on 3000. Vite proxies `/api`, `/brand` and `/ws/terminal` to the API and the terminal sidecar, so open http://localhost:5173. If port 3000 is taken, set `PORT` (for example `PORT=3100 bun run dev`): the server listens on it, and Vite reads the same variable for its proxy target, so both stay in step.
+Open the Vite URL and create the first admin at `/<locale>/setup`. Port 3000
+may already be taken on your machine; set `PORT` (Vite reads it for its proxy).
 
-Set `BETTER_AUTH_URL=http://localhost:5173` in `.env.local` for dev, because that is the origin your browser is on. Email/password sign-in works with either value, since outside production better-auth also trusts `http://localhost:5173` (`lib/auth.ts`). Three things only work when `BETTER_AUTH_URL` is `http://localhost:5173`:
+Valkey publishes no host port, so background jobs only run in the full Compose
+stack. Without `REDIS_URL` the app still boots, with the worker disabled.
 
-- Passkeys are bound to that URL's origin and hostname.
-- Microsoft sign-in redirects to `<BETTER_AUTH_URL>/api/auth/callback/microsoft`. Register `http://localhost:5173/api/auth/callback/microsoft` in Entra; Vite proxies it to the API.
-- The terminal sidecar accepts WebSocket upgrades only from that origin.
+For sample data on a scratch instance, `bun scripts/cli.ts seed demo
+--print-passwords` creates demo projects and one account per role.
 
-Valkey publishes no host port, so background jobs only run in host dev if `REDIS_URL` points at a Redis/Valkey instance you can reach. When `REDIS_URL` is unset, the worker is disabled and the rest of the app still works.
+### Full stack with Compose
 
-### Scripts
+The repo-root `compose.yaml` builds the image from this checkout and runs
+`postgres`, `migrate` (one-shot), `app`, `terminal`, `caddy`, `garage`,
+`imgproxy` and `valkey`:
 
-| Command                      | Description                                        |
-| ---------------------------- | -------------------------------------------------- |
-| `bun run dev`                | Vite (5173) and the Hono API (3000) in parallel   |
-| `bun run build` / `start`    | Production build into `dist/`, and run it         |
-| `bun run terminal`           | Run the web-terminal WebSocket sidecar            |
-| `bun run test`               | Unit tests (Vitest; no database needed)           |
-| `bun run typecheck`          | `tsc --noEmit`                                    |
-| `bun run lint` / `format` / `check` | Biome                                       |
-| `bun run db:generate`        | Generate a migration from `lib/db/schema.ts`      |
-| `bun run db:migrate`         | Apply pending migrations in `drizzle/` (`opsdeck migrate`) |
-| `bun run db:studio`          | Drizzle Studio                                    |
-
-CI (`.github/workflows/ci.yml`) runs `biome ci`, the typecheck, the tests and a production build on every push and pull request.
-
-### Database migrations
-
-Migrations live in `drizzle/<timestamp>_<name>/migration.sql` and run only through Drizzle's migrator: `opsdeck migrate` in the image (`bun dist/cli.js migrate`), `bun run db:migrate` locally. It applies every folder not yet recorded in `drizzle.__drizzle_migrations`, in folder-name order, all in one transaction.
-
-- `drizzle/00000000000000_baseline` equals the production schema as of 2026-11-09, plus the default labels. A fresh database starts from it. `tests/fixtures/prod-schema-20261109.sql` is that production schema, and the scratch test `tests/baseline-schema-scratch.test.ts` checks the baseline against it.
-- The 53 migrations the baseline replaced (formerly `drizzle-legacy/`) are only in git history: `git log --diff-filter=D -- drizzle-legacy` finds the commit that removed them. Production evolved partly outside these files, so replaying them does not give the production schema.
-- A database that was built by the legacy migrations is taken over with `opsdeck migrate --adopt`. It builds the baseline in a throwaway database, compares both `pg_dump --schema-only` outputs, and then records the baseline as applied without running it. If the schemas differ, it exits with code 2 and prints the first 20 differing statements. It needs `pg_dump` and permission to create databases.
-
-Rules for every new migration:
-
-- Write the schema change in `lib/db/schema.ts` and run `bun run db:generate`. It diffs against the latest `snapshot.json`. Then edit the SQL as needed.
-- Start the file with `SET LOCAL lock_timeout = '5s';`. Never put `BEGIN`/`COMMIT` in a file, because the migrator already wraps the run in a transaction.
-- Expand/contract only: never drop or rename anything the previous release still reads. Drop it in a later release.
-
-### Translations
-
-Each user-facing string must be added to all five files in `messages/`: `ar`, `en`, `es`, `id` and `zh`.
-
-## Project layout
-
-```
-web/              The SPA: TanStack Router file routes (web/routes), API client, providers
-server/           The Hono API: routes, services, middleware, static serving
-components/       UI components (shadcn/ui in components/ui)
-lib/              Domain logic: db schema, auth, jobs, jira, terminal, tunnels, mailpit, explorer
-drizzle/          SQL migrations (baseline + newer), run by `opsdeck migrate`
-scripts/          The opsdeck CLI (scripts/cli.ts) and one-off ops scripts
-messages/         i18n message catalogs
-tests/            Vitest suites + fixtures
-docs/             Design docs and guides
+```sh
+cp .env.example .env    # fill in every CHANGE_ME
+docker compose up -d --build
 ```
 
-## Further docs
+The panel is then at `http://localhost` (Caddy on `127.0.0.1:80`).
 
-- [`docs/microsoft-sign-in.md`](docs/microsoft-sign-in.md): Microsoft Entra ID sign-in setup
-- [`docs/time-mocking-api.md`](docs/time-mocking-api.md): the time-mocking API that environments have to implement
-- [`docs/jira-integration-plan.md`](docs/jira-integration-plan.md): design of the Jira two-way sync
-- [`docs/rework-plan.md`](docs/rework-plan.md): roadmap for the multi-role hub
+### Object storage setup
+
+Knowledge-base image uploads need a Garage bucket and key. The stack boots
+without them; only uploads fail until they exist. In the dev stack, provision
+Garage once after the first `docker compose up`:
+
+```sh
+docker exec opsdeck-garage /garage status                 # note the node ID
+docker exec opsdeck-garage /garage layout assign -z dc1 -c 1G <node-id>
+docker exec opsdeck-garage /garage layout apply --version 1
+docker exec opsdeck-garage /garage bucket create knowledge
+docker exec opsdeck-garage /garage key create opsdeck-app
+docker exec opsdeck-garage /garage bucket allow --read --write --owner knowledge --key opsdeck-app
+```
+
+Put the key ID and secret from `key create` into `S3_ACCESS_KEY` and
+`S3_SECRET_KEY`, then `docker compose up -d app imgproxy`. Installed instances
+don't need this step: their Garage runs with `--single-node --default-bucket`
+and creates the key and bucket itself.
+
+## Scripts
+
+| Command                | What it does                                              |
+| ---------------------- | --------------------------------------------------------- |
+| `bun run dev`          | Hono server (watch) and Vite dev server in parallel       |
+| `bun run build`        | SPA, server bundle, terminal sidecar and ops CLIs → `dist/` |
+| `bun run start`        | Runs the production server bundle                         |
+| `bun run terminal`     | Runs the terminal sidecar from source                     |
+| `bun run check`        | Biome lint + format, with fixes                           |
+| `bun run typecheck`    | `tsc --noEmit`                                            |
+| `bun run test`         | Vitest                                                    |
+| `bun run test:e2e`     | Playwright                                                |
+| `bun run db:generate`  | drizzle-kit: generate a migration from `lib/db/schema.ts` |
+| `bun run db:migrate`   | Apply pending migrations (`opsdeck migrate`)              |
+| `bun run db:studio`    | drizzle-kit Studio                                        |
+
+Run other scripts as plain `bun scripts/<name>.ts`. Scripts that import
+better-auth must `import "reflect-metadata"` first.
+
+### The `opsdeck` CLI
+
+`scripts/cli.ts` is bundled to `dist/cli.js`; in the image it is on `PATH` as
+`opsdeck`:
+
+```
+opsdeck migrate [--adopt]       Apply pending migrations
+opsdeck backup run [--trigger …] Back up the instance (S3 destination or local)
+opsdeck restore <objectKey>     Restore an instance backup (run by the updater)
+opsdeck seed demo [--print-passwords] [--force]
+```
+
+In production: `docker exec <app container> opsdeck <command>`. Locally:
+`bun scripts/cli.ts <command>`.
+
+## Database migrations
+
+Migrations live in `drizzle/`, one folder per migration named
+`<YYYYMMDDHHMMSS>_<name>/` with `migration.sql` and `snapshot.json`.
+`00000000000000_baseline` is the schema squashed as of 2026-11-09; everything
+after it is incremental.
+
+They run only through Drizzle's migrator: the `migrate` service in Compose, or
+`opsdeck migrate`. Never apply SQL by hand.
+
+Writing one:
+
+1. Change `lib/db/schema.ts`, then `bun run db:generate`. Rename the folder so
+   its timestamp sorts after the newest existing one.
+2. Start `migration.sql` with `SET LOCAL lock_timeout = '5s';--> statement-breakpoint`.
+3. Separate statements with `--> statement-breakpoint`. Don't add
+   `BEGIN`/`COMMIT`: the migrator wraps the file in a transaction.
+4. Add any backfill by hand after the generated statements.
+5. Keep it expand/contract: add only, and drop or rename in a later release.
+   The updater migrates first and rolls the images back on failure, so the
+   previous build must still work against the new schema.
+6. Never edit a released migration, including the baseline's comments. Add a
+   new one.
+
+`opsdeck migrate --adopt` is for a database built before the baseline existed:
+it checks that the live schema equals the baseline and records the baseline as
+applied without running it (exit 2 when the schemas differ).
+
+## Testing
+
+```sh
+bun run test                 # unit and integration suites
+bun run test:e2e             # Playwright, production build
+```
+
+- Vitest workers run with `--no-env-file`, so your `.env` never leaks into
+  tests and local runs match CI.
+- Scratch-DB suites (`*-scratch.test.ts` and a few others) are opt-in: the
+  header of each file names its env var (e.g. `BASELINE_SCRATCH_DB`). Point
+  them at a database created with `opsdeck migrate`.
+- Playwright builds and starts the app itself and resets the database first.
+  `DATABASE_URL` must name a loopback database ending in `_e2e`; the reset
+  refuses anything else. The server listens on `E2E_PORT` (default 3000), so
+  pick a free port (`ss -ltnp`). `E2E_REUSE_SERVER=1` reuses a running server
+  and skips the reset.
+
+CI (`.github/workflows/ci.yml`) runs `biome ci`, typecheck, Vitest, the build
+and Playwright on every push and pull request.
+
+## i18n
+
+UI strings use `use-intl`, with catalogs in `messages/{ar,en,es,id,zh}.json`.
+Add every new key to all five files in the same change: the catalogs are not
+type-checked against each other, so a missing key only breaks that language at
+runtime. A new locale also needs `i18n/locales.ts`, `lib/date-fns-locale.ts`
+and a `commandPalette.locale.<code>` label in every catalog.
+
+## Releases
+
+Pushing a tag `vX.Y.Z` (stable) or `vX.Y.Z-beta.N` (beta) runs
+`.github/workflows/release.yml`. It publishes
+`ghcr.io/romikusumabakti/opsdeck:<version>`, moves `:stable` or `:beta`, and
+attaches the installer assets and `release.json` to the GitHub Release.
+Installed instances update from that `release.json`. The version is baked into
+the image as `OPSDECK_VERSION`; `package.json` stays at `0.0.0`.
 
 ## License
 
-[MIT](LICENSE) © 2026 Romi Kusuma Bakti
+[MIT](LICENSE)
