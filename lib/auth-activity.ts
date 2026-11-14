@@ -3,7 +3,9 @@ import { signInMethodFor } from "@/lib/sign-in-method";
 
 type ActivityInput = Parameters<typeof recordActivity>[0];
 
-type SessionUser = { user: { id: string; email: string } };
+type SessionUser = {
+  user: { id: string; email: string; twoFactorEnabled?: boolean | null };
+};
 
 // Sign-in attempts that are worth a "failed" row: the password step and the
 // two second-factor checks. Failed passkey and Microsoft sign-ins are not
@@ -31,7 +33,8 @@ export function authActivityFor(input: {
         };
       })
     | null;
-  // The session the request ran under, for endpoints on a signed-in user.
+  // The session the request ran under (better-auth's `ctx.context.session`,
+  // which stays the pre-request session), for endpoints on a signed-in user.
   session?: SessionUser | null;
   error: { status: number; code?: string } | null;
   ip: string | null;
@@ -40,6 +43,23 @@ export function authActivityFor(input: {
   const { path, newSession, error } = input;
   const ip = input.ip ?? "";
   const userAgent = input.userAgent ?? "";
+
+  // Confirming a new authenticator: verify-totp from a signed-in user who has
+  // not enabled two-factor yet. That is the step that turns it on (and swaps
+  // the session), not a sign-in; a wrong code here is a typo, not an attempt.
+  const enrolling =
+    path === "/two-factor/verify-totp" &&
+    input.session != null &&
+    input.session.user.twoFactorEnabled === false;
+  if (enrolling) {
+    if (error || !input.session) return null;
+    return twoFactorRow(
+      "auth.two_factor_enabled",
+      input.session,
+      ip,
+      userAgent
+    );
+  }
 
   const failedMethod = FAILED_SIGN_IN_METHODS[path];
   if (failedMethod && error) {
@@ -58,18 +78,14 @@ export function authActivityFor(input: {
   }
   if (error) return null;
 
-  if (path === "/two-factor/enable" || path === "/two-factor/disable") {
+  if (path === "/two-factor/disable") {
     if (!input.session) return null;
-    return {
-      actorId: input.session.user.id,
-      action:
-        path === "/two-factor/enable"
-          ? "auth.two_factor_enabled"
-          : "auth.two_factor_disabled",
-      entityType: "user",
-      entityId: input.session.user.id,
-      data: { ip, userAgent },
-    };
+    return twoFactorRow(
+      "auth.two_factor_disabled",
+      input.session,
+      ip,
+      userAgent
+    );
   }
 
   const method = signInMethodFor(path, input.params);
@@ -83,6 +99,21 @@ export function authActivityFor(input: {
     };
   }
   return null;
+}
+
+function twoFactorRow(
+  action: string,
+  session: SessionUser,
+  ip: string,
+  userAgent: string
+): ActivityInput {
+  return {
+    actorId: session.user.id,
+    action,
+    entityType: "user",
+    entityId: session.user.id,
+    data: { ip, userAgent },
+  };
 }
 
 // First hop of x-forwarded-for, then cf-connecting-ip (the panel sits behind

@@ -120,20 +120,77 @@ describe("authActivityFor", () => {
     }
   });
 
-  test("logs two-factor enable and disable under the session user", () => {
-    const session = { user };
+  test("logs two-factor disable under the session user", () => {
     expect(
-      authActivityFor({ ...base, path: "/two-factor/enable", session })
+      authActivityFor({
+        ...base,
+        path: "/two-factor/disable",
+        session: { user },
+      })
     ).toEqual({
       actorId: "u1",
-      action: "auth.two_factor_enabled",
+      action: "auth.two_factor_disabled",
       entityType: "user",
       entityId: "u1",
       data: { ip: "203.0.113.7", userAgent: "UA/1" },
     });
+  });
+
+  test("does not log /two-factor/enable, which only issues the secret", () => {
     expect(
-      authActivityFor({ ...base, path: "/two-factor/disable", session })?.action
-    ).toBe("auth.two_factor_disabled");
+      authActivityFor({
+        ...base,
+        path: "/two-factor/enable",
+        session: { user },
+      })
+    ).toBeNull();
+  });
+
+  describe("enrolment confirm (verify-totp with a session, not yet enabled)", () => {
+    const session = { user: { ...user, twoFactorEnabled: false } };
+
+    test("logs two_factor_enabled and no sign-in", () => {
+      expect(
+        authActivityFor({
+          ...base,
+          path: "/two-factor/verify-totp",
+          session,
+          newSession: { ...newSession, session: { signInMethod: "password" } },
+        })
+      ).toEqual({
+        actorId: "u1",
+        action: "auth.two_factor_enabled",
+        entityType: "user",
+        entityId: "u1",
+        data: { ip: "203.0.113.7", userAgent: "UA/1" },
+      });
+    });
+
+    test("logs nothing for a wrong code", () => {
+      expect(
+        authActivityFor({
+          ...base,
+          path: "/two-factor/verify-totp",
+          session,
+          error: { status: 401, code: "INVALID_CODE" },
+        })
+      ).toBeNull();
+    });
+  });
+
+  test("a sign-in verify-totp (no session) is unchanged", () => {
+    expect(
+      authActivityFor({ ...base, path: "/two-factor/verify-totp", newSession })
+        ?.action
+    ).toBe("auth.signed_in");
+    expect(
+      authActivityFor({
+        ...base,
+        path: "/two-factor/verify-totp",
+        session: null,
+        error: { status: 401, code: "INVALID_CODE" },
+      })?.action
+    ).toBe("auth.sign_in_failed");
   });
 
   test("does not log a failed two-factor change or one without a session", () => {

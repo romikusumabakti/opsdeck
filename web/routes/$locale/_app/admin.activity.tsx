@@ -5,6 +5,7 @@ import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { RelativeTime } from "@/components/relative-time";
 import { UserAvatar } from "@/components/user/user-avatar";
+import type { SignInMethod } from "@/lib/sign-in-method";
 import { type listActivity, listActivityQuery } from "@/web/api/activity";
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
@@ -34,14 +35,19 @@ const VARIABLE_MESSAGES = {
   "variable.escrowRemoved": "variableEscrowRemoved",
 } as const;
 
-const AUTH_METHODS = ["password", "password+totp", "passkey", "microsoft"];
+const AUTH_METHODS: readonly SignInMethod[] = [
+  "password",
+  "password+totp",
+  "passkey",
+  "microsoft",
+];
 
 function authMethod(
   t: ReturnType<typeof useTranslations<"activity">>,
   method: string | number | undefined
 ): string {
   const value = String(method);
-  return AUTH_METHODS.includes(value)
+  return AUTH_METHODS.includes(value as SignInMethod)
     ? t(`authMethod.${value}` as "authMethod.password")
     : value;
 }
@@ -519,7 +525,7 @@ function message(
     case "auth.two_factor_disabled":
       return t("authTwoFactorDisabled", { actor });
     case "auth.two_factor_reset":
-      return t("authTwoFactorReset", { actor, target: String(d.user) });
+      return t("authTwoFactorReset", { actor, target: String(d.target) });
     default:
       return t("unknown", { actor });
   }
