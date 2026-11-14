@@ -66,6 +66,34 @@ test("a wrong authenticator code shows an error and does not sign in", async ({
   await context.close();
 });
 
+test("a used-up code challenge sends the user back to the password step", async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  await page.goto("/en/sign-in");
+  await submitCredentials(page, "Sign in");
+
+  // better-auth allows 5 wrong codes per challenge; the 6th finds it consumed.
+  const valid = await totpCode();
+  const wrong = valid === "000000" ? "000001" : "000000";
+  const field = page.locator('input[autocomplete="one-time-code"]');
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await paceTotpVerification();
+    await field.fill(wrong);
+    await field.press("Enter");
+    await expect(page.getByRole("alert")).toBeVisible();
+  }
+  await submitCode(page, wrong);
+
+  await expect(page.locator('input[type="password"]')).toBeVisible();
+  await expect(
+    page.getByText("Your sign-in timed out. Enter your password again.")
+  ).toBeVisible();
+  await context.close();
+});
+
 test("a signed-out deep link round-trips through sign-in", async ({
   page,
   context,

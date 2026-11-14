@@ -82,6 +82,12 @@ const PASSKEY_CANCELLED_CODES = new Set([
   "ERROR_CEREMONY_ABORTED",
 ]);
 
+/** better-auth codes meaning the pending two-factor challenge can no longer be answered. */
+const CHALLENGE_ENDED_CODES = new Set([
+  "INVALID_TWO_FACTOR_COOKIE",
+  "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE",
+]);
+
 /**
  * The second step of a password sign-in: an authenticator code, or a backup
  * code when the phone is gone. Never asks the server to trust the device, so
@@ -90,9 +96,11 @@ const PASSKEY_CANCELLED_CODES = new Set([
 function TwoFactorStep({
   onVerified,
   onCancel,
+  onExpired,
 }: {
   onVerified: () => Promise<void>;
   onCancel: () => void;
+  onExpired: () => void;
 }) {
   const t = useTranslations("signIn");
   const [useBackup, setUseBackup] = useState(false);
@@ -110,6 +118,12 @@ function TwoFactorStep({
       ? await authClient.twoFactor.verifyBackupCode({ code: value })
       : await authClient.twoFactor.verifyTotp({ code: value });
     if (failure) {
+      // The challenge is gone (its cookie expired, or the attempt limit used
+      // it up), so no code can work any more: start over from the password.
+      if (CHALLENGE_ENDED_CODES.has(failure.code ?? "")) {
+        onExpired();
+        return;
+      }
       setPending(false);
       setError(failure.message ?? t("errorCode"));
       return;
@@ -350,6 +364,11 @@ export function SignInForm({
         onCancel={() => {
           setNeedsCode(false);
           form.resetField("password");
+        }}
+        onExpired={() => {
+          setNeedsCode(false);
+          form.resetField("password");
+          setSubmitError(t("errorCodeExpired"));
         }}
       />
     );
