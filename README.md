@@ -56,8 +56,10 @@ Each project has environments (Dev, QA, …), and the panel ties together:
 
 ![Issues in a project](docs/images/issues.png)
 
-Sign-in is email + password, passkeys, or Microsoft Entra ID
-([`docs/microsoft-sign-in.md`](docs/microsoft-sign-in.md)). The UI ships in
+Sign-in is email + password with an authenticator app, passkeys, or Microsoft
+Entra ID ([`docs/microsoft-sign-in.md`](docs/microsoft-sign-in.md)); the
+terminal, file explorers, secrets and admin settings require one of the strong
+methods ([`SECURITY.md`](SECURITY.md)). The UI ships in
 English, Indonesian, Spanish, Chinese and Arabic.
 
 ## Installing an instance
