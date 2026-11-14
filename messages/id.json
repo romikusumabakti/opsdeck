@@ -1465,7 +1465,6 @@
     "keyTypeUnsupported": "OpenSSH di server terlalu lama untuk SSH key (ed25519 butuh OpenSSH 6.5 atau lebih baru). Tidak ada yang diubah; password-nya tetap disimpan.",
     "unreachable": "Server tidak dapat dihubungi lewat SSH.",
     "sudoNeedsPassword": "Login ini butuh password untuk sudo, jadi tidak bisa pindah ke SSH key. Gunakan root atau aturan sudo NOPASSWD.",
-    "noPassword": "Tidak ada password tersimpan untuk server ini. Pasang ulang key dengan password.",
     "passwordRejected": "Server menolak password tersebut.",
     "keyJobRunning": "Operasi SSH key lain sedang berjalan. Coba lagi setelah selesai.",
     "keyJobInterrupted": "Job SSH key berhenti sebelum selesai, misalnya karena Panel di-restart. Jalankan lagi.",
@@ -2154,6 +2153,8 @@
     "authTwoFactorEnabled": "{actor} mengaktifkan autentikasi dua faktor",
     "authTwoFactorDisabled": "{actor} menonaktifkan autentikasi dua faktor",
     "authTwoFactorReset": "{actor} mereset autentikasi dua faktor untuk {target}",
+    "authPasskeyAdded": "{actor} menambahkan passkey",
+    "authPasskeyRemoved": "{actor} menghapus passkey",
     "authMethod": {
       "password": "Kata sandi",
       "password+totp": "Kata sandi dan kode authenticator",

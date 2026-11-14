@@ -53,12 +53,7 @@ export function authActivityFor(input: {
     input.session.user.twoFactorEnabled === false;
   if (enrolling) {
     if (error || !input.session) return null;
-    return twoFactorRow(
-      "auth.two_factor_enabled",
-      input.session,
-      ip,
-      userAgent
-    );
+    return userRow("auth.two_factor_enabled", input.session, ip, userAgent);
   }
 
   const failedMethod = FAILED_SIGN_IN_METHODS[path];
@@ -80,12 +75,16 @@ export function authActivityFor(input: {
 
   if (path === "/two-factor/disable") {
     if (!input.session) return null;
-    return twoFactorRow(
-      "auth.two_factor_disabled",
-      input.session,
-      ip,
-      userAgent
-    );
+    return userRow("auth.two_factor_disabled", input.session, ip, userAgent);
+  }
+
+  // A passkey registered from any session is a way to sign in strongly later,
+  // so adding and removing one is logged under the session user.
+  if (path === "/passkey/verify-registration" && input.session) {
+    return userRow("auth.passkey_added", input.session, ip, userAgent);
+  }
+  if (path === "/passkey/delete-passkey" && input.session) {
+    return userRow("auth.passkey_removed", input.session, ip, userAgent);
   }
 
   const method = signInMethodFor(path, input.params);
@@ -101,7 +100,7 @@ export function authActivityFor(input: {
   return null;
 }
 
-function twoFactorRow(
+function userRow(
   action: string,
   session: SessionUser,
   ip: string,

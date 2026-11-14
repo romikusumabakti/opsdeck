@@ -1465,7 +1465,6 @@
     "keyTypeUnsupported": "The server's OpenSSH is too old for the SSH key (ed25519 needs OpenSSH 6.5 or later). Nothing was changed; it keeps its password.",
     "unreachable": "The server could not be reached over SSH.",
     "sudoNeedsPassword": "This login needs a password for sudo, so it cannot move to the SSH key. Use root or a NOPASSWD sudo rule.",
-    "noPassword": "No password is stored for this server. Reinstall the key with the password.",
     "passwordRejected": "The server rejected the password.",
     "keyJobRunning": "Another SSH key operation is running. Try again when it has finished.",
     "keyJobInterrupted": "The SSH key job stopped before it finished, for example because the Panel restarted. Run it again.",
@@ -2154,6 +2153,8 @@
     "authTwoFactorEnabled": "{actor} turned on two-factor authentication",
     "authTwoFactorDisabled": "{actor} turned off two-factor authentication",
     "authTwoFactorReset": "{actor} reset two-factor authentication for {target}",
+    "authPasskeyAdded": "{actor} added a passkey",
+    "authPasskeyRemoved": "{actor} removed a passkey",
     "authMethod": {
       "password": "Password",
       "password+totp": "Password and authenticator code",

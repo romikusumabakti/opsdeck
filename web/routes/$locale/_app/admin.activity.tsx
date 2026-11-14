@@ -524,6 +524,10 @@ function message(
       return t("authTwoFactorEnabled", { actor });
     case "auth.two_factor_disabled":
       return t("authTwoFactorDisabled", { actor });
+    case "auth.passkey_added":
+      return t("authPasskeyAdded", { actor });
+    case "auth.passkey_removed":
+      return t("authPasskeyRemoved", { actor });
     case "auth.two_factor_reset":
       return t("authTwoFactorReset", { actor, target: String(d.target) });
     default:
