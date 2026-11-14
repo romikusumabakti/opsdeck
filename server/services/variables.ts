@@ -1,7 +1,11 @@
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
-import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
+import {
+  assertStrongSession,
+  requireOrgPermission,
+  requireProjectPermission,
+} from "@/lib/authz";
 import type { DbTransaction } from "@/lib/db";
 import {
   type AppVariableTemplate,
@@ -200,6 +204,7 @@ export async function listVariables(
     { environmentId },
     { variable: ["read"] }
   );
+  if (reveal) assertStrongSession(session);
   const env = await requireEnvironment(environmentId);
   const rows = await listVariableRows(environmentId);
   if (reveal) {

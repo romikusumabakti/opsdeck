@@ -40,9 +40,11 @@ const state = vi.hoisted(() => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-00000000a001", role: state.role },
+    session: { signInMethod: "passkey" },
   })),
   getServerSession: vi.fn(async () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-00000000a001", role: state.role },
+    session: { signInMethod: "passkey" },
   })),
 }));
 

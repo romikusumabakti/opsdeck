@@ -10,7 +10,10 @@ const BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b1";
 const BACKUP_BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b2";
 
 const state = vi.hoisted(() => ({
-  session: { user: { id: "u1", role: "qa" } },
+  session: {
+    user: { id: "u1", role: "qa" },
+    session: { signInMethod: "passkey" },
+  },
   memberships: [] as { projectId: string }[],
   backupId: null as string | null,
   activity: [] as Record<string, unknown>[],
@@ -122,7 +125,10 @@ const { ForbiddenError } = await import("@/lib/authz");
 const { listEntries } = await import("@/server/services/explorer");
 
 function as(role: string, ...projectIds: string[]) {
-  state.session = { user: { id: "u1", role } };
+  state.session = {
+    user: { id: "u1", role },
+    session: { signInMethod: "passkey" },
+  };
   state.memberships = projectIds.map((projectId) => ({ projectId }));
 }
 

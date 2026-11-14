@@ -293,6 +293,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
     user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: "passkey" },
   })),
 }));
 // The real requireOrgPermission, over the session above.

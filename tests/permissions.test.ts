@@ -15,6 +15,7 @@ import {
   PROJECT_ROLES,
   type ProjectRole,
   projectRoleForOrgRole,
+  requiresStrongSignIn,
   seesAllProjects,
 } from "@/lib/permissions";
 
@@ -327,5 +328,34 @@ describe("canCreateProject and canRegisterApp", () => {
   ] as const)("%s → %s", (org, expected) => {
     expect(canCreateProject(org)).toBe(expected);
     expect(canRegisterApp(org)).toBe(expected);
+  });
+});
+
+describe("requiresStrongSignIn", () => {
+  it.each([
+    { server: ["read"] },
+    { storage: ["read"] },
+    { tunnel: ["read"] },
+    { user: ["list"] },
+    { knowledge: ["read"] },
+    { knowledge: ["write"] },
+    { knowledge: ["manage"] },
+    { audit: ["read"] },
+    { project: ["create"] },
+  ] as const)("is false for %j", (perms) => {
+    expect(requiresStrongSignIn(perms)).toBe(false);
+  });
+
+  it.each([
+    { server: ["terminal"] },
+    { server: ["files"] },
+    { storage: ["files"] },
+    { server: ["manage"] },
+    { integration: ["manage"] },
+    { instance: ["manage"] },
+    { user: ["set-role"] },
+    { server: ["read", "terminal"] },
+  ] as const)("is true for %j", (perms) => {
+    expect(requiresStrongSignIn(perms)).toBe(true);
   });
 });

@@ -48,8 +48,14 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth-session", () => ({
-  requireSession: async () => ({ user: { id: "user-1", role: state.role } }),
-  getServerSession: async () => ({ user: { id: "user-1", role: state.role } }),
+  requireSession: async () => ({
+    user: { id: "user-1", role: state.role },
+    session: { signInMethod: "passkey" },
+  }),
+  getServerSession: async () => ({
+    user: { id: "user-1", role: state.role },
+    session: { signInMethod: "passkey" },
+  }),
 }));
 
 // The org guards read projects and memberships for a caller the org role denies.
