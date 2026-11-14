@@ -63,7 +63,7 @@ describe("production static serving", () => {
     expect(res.headers.get("cache-control")).toBe("no-cache");
     expect(res.headers.get("x-frame-options")).toBe("DENY");
     expect(res.headers.get("content-security-policy")).toBe(
-      "frame-ancestors 'none'"
+      "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     );
     expect(await res.text()).toBe(BRANDED_HTML);
   });

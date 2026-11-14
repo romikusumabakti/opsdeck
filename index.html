@@ -5,20 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
     <title>OpsDeck</title>
-    <script>
-      // The saved theme (the storage key and values of ThemeProvider), applied
-      // before the app loads so a dark page doesn't open white. ThemeProvider
-      // takes over once it mounts.
-      try {
-        const theme = localStorage.getItem("theme");
-        const dark =
-          theme === "dark" ||
-          (theme !== "light" &&
-            matchMedia("(prefers-color-scheme: dark)").matches);
-        if (dark) document.documentElement.classList.add("dark");
-        document.documentElement.style.colorScheme = dark ? "dark" : "light";
-      } catch (_) {}
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
