@@ -104,7 +104,7 @@ If there is no other admin, reset it in the database. Find the user id, then
 run the three statements in the Postgres container, from the install directory:
 
 ```sh
-docker compose exec postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB"
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
 ```
 
 ```sql
