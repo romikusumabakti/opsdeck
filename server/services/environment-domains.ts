@@ -311,7 +311,7 @@ export async function putEnvironmentDomain(
   }
 
   const { write, entryPort } = await validateDomainBinding(
-    session.user.role,
+    orgGrantRole(session),
     input,
     {
       environmentId,

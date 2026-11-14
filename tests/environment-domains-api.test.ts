@@ -13,6 +13,7 @@ type Existing = {
 const state = vi.hoisted(() => ({
   projectRole: "engineer" as string | null,
   orgRole: "engineer" as string,
+  signInMethod: "passkey" as string,
   serverIds: ["srv-1"] as string[],
   tunnel: { id: "rt-1", name: "dss-113" } as {
     id: string;
@@ -61,7 +62,7 @@ vi.mock("@/server/services/preflight-repository", () => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
     user: { id: "user-1", role: state.orgRole },
-    session: { signInMethod: "passkey" },
+    session: { signInMethod: state.signInMethod },
   })),
 }));
 
@@ -82,7 +83,7 @@ vi.mock("@/lib/authz", async (importOriginal) => {
         return {
           session: {
             user: { id: "user-1", role: state.orgRole },
-            session: { signInMethod: "passkey" },
+            session: { signInMethod: state.signInMethod },
           },
           role: state.projectRole,
           projectId: "project-1",
@@ -180,6 +181,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.projectRole = "engineer";
   state.orgRole = "engineer";
+  state.signInMethod = "passkey";
   state.serverIds = ["srv-1"];
   state.tunnel = { id: "rt-1", name: "dss-113" };
   state.zone = { id: "zone-row", name: "example.net" };
@@ -226,6 +228,18 @@ describe("PUT tunnel binding", () => {
     expect(state.saved).toBeNull();
 
     state.orgRole = "admin";
+    expect((await send("PUT", url, body)).status).toBe(200);
+    expect(state.saved?.write).toMatchObject({ accessPolicyId: null });
+  });
+
+  it("refuses a public binding from a password-only admin, accepts it from a passkey admin", async () => {
+    const body = tunnelBody({ accessPolicyId: null });
+    state.orgRole = "admin";
+    state.signInMethod = "password";
+    expect((await send("PUT", url, body)).status).toBe(403);
+    expect(state.saved).toBeNull();
+
+    state.signInMethod = "passkey";
     expect((await send("PUT", url, body)).status).toBe(200);
     expect(state.saved?.write).toMatchObject({ accessPolicyId: null });
   });
