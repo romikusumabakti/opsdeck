@@ -1026,6 +1026,31 @@
       "revokedSuccess": "Sesión revocada",
       "emptyTitle": "No hay sesiones activas",
       "emptyDescription": "No hay ningún otro dispositivo con la sesión iniciada en tu cuenta."
+    },
+    "twoFactor": {
+      "title": "Aplicación de autenticación",
+      "description": "Exige un código de 6 dígitos de una aplicación de autenticación además de tu contraseña.",
+      "on": "Activada",
+      "offDescription": "La verificación en dos pasos está desactivada. Actívala para proteger tu cuenta con un código de tu teléfono.",
+      "onDescription": "La verificación en dos pasos está activada. Se te pedirá un código cada vez que inicies sesión con tu contraseña.",
+      "turnOn": "Activar",
+      "turnOff": "Desactivar",
+      "regenerate": "Nuevos códigos de respaldo",
+      "passwordLabel": "Confirma tu contraseña",
+      "enableConfirm": "Continuar",
+      "disableConfirm": "Desactivar",
+      "regenerateConfirm": "Generar códigos",
+      "scanHint": "Escanea este código QR con tu aplicación de autenticación o introduce la clave a mano. Luego escribe el código de 6 dígitos que muestre.",
+      "secretLabel": "Clave secreta",
+      "copySecret": "Copiar clave secreta",
+      "code": "Código de autenticación",
+      "verify": "Verificar y activar",
+      "errorCode": "Ese código no funcionó. Inténtalo de nuevo.",
+      "enabledSuccess": "La verificación en dos pasos está activada",
+      "disabledSuccess": "La verificación en dos pasos está desactivada",
+      "backupCodesHint": "Guarda estos códigos de respaldo en un lugar seguro. Cada uno sirve una sola vez si pierdes el teléfono y no volverán a mostrarse.",
+      "copyBackupCodes": "Copiar códigos de respaldo",
+      "done": "Ya los guardé"
     }
   },
   "servers": {
@@ -1228,7 +1253,16 @@
     "passkeySubmit": "Iniciar sesión con una clave de acceso",
     "passkeySubmitting": "Esperando tu clave de acceso…",
     "errorPasskey": "Falló el inicio de sesión con la clave de acceso. Inténtalo de nuevo.",
-    "errorPasskeyNotFound": "Esa clave de acceso no está registrada en esta cuenta. Inicia sesión de otra forma y luego añádela desde la página de tu cuenta."
+    "errorPasskeyNotFound": "Esa clave de acceso no está registrada en esta cuenta. Inicia sesión de otra forma y luego añádela desde la página de tu cuenta.",
+    "code": "Código de autenticación",
+    "backupCode": "Código de respaldo",
+    "codeHint": "Introduce el código de 6 dígitos de tu aplicación de autenticación.",
+    "backupCodeHint": "Introduce uno de tus códigos de respaldo. Cada código sirve una sola vez.",
+    "verify": "Verificar",
+    "useBackupCode": "Usar un código de respaldo",
+    "useAuthenticator": "Usar el código del autenticador",
+    "backToSignIn": "Volver a iniciar sesión",
+    "errorCode": "Ese código no funcionó. Inténtalo de nuevo."
   },
   "forgotPassword": {
     "title": "Olvidé mi contraseña",
