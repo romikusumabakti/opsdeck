@@ -60,4 +60,4 @@ steps:
         if [ -n "$${CI_PIPELINE_URL:-}" ]; then URL=",\"pipelineUrl\":\"$${CI_PIPELINE_URL}\""; fi
         printf '{"app":"backoffice","branch":"%s","tag":"%s","commit":"%s"%s}' "$${CI_COMMIT_BRANCH}" "$${TAG}" "$${CI_COMMIT_SHA}" "$${URL}" > body.json
         SIG=$(openssl dgst -sha256 -hmac "$${OPSDECK_NOTIFY_SECRET}" -r body.json | cut -d' ' -f1)
-        curl -sS --fail-with-body --retry 3 --retry-all-errors --max-time 30 -H 'Content-Type: application/json' -H "X-Opsdeck-Signature: sha256=$${SIG}" --data-binary @body.json https://panel.example.net/api/deploy-hooks/builds
+        curl -sS --fail-with-body --retry 3 --retry-all-errors --max-time 30 -H 'Content-Type: application/json' -H "X-Opsdeck-Signature: sha256=$${SIG}" --data-binary @body.json https://panel.example.com/api/deploy-hooks/builds

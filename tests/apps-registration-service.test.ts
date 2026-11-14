@@ -80,6 +80,7 @@ const SPEC = buildSpecSchema.parse({
 });
 const GENERATED = generateWoodpeckerPipeline("hris", SPEC, {
   registry: "registry.example.com",
+  panelUrl: "https://panel.example.com",
 });
 
 const COMPONENT = {
@@ -92,6 +93,7 @@ const COMPONENT = {
 
 beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "registry.example.com");
+  vi.stubEnv("BETTER_AUTH_URL", "https://panel.example.com");
   vi.clearAllMocks();
   mocks.requireSession.mockResolvedValue({ user: { role: "engineer" } });
   mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "engineer" } });
@@ -263,6 +265,7 @@ describe("generated registration checks", () => {
     mocks.readRepoFile.mockResolvedValue(
       generateWoodpeckerPipeline("other", SPEC, {
         registry: "registry.example.com",
+        panelUrl: "https://panel.example.com",
       })
     );
     await expect(registerApp(REGISTER)).rejects.toMatchObject({

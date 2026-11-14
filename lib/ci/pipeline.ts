@@ -41,7 +41,7 @@ export const PANEL_PIPELINE_MARKER =
 const BUILD_IMAGE = "docker:29-cli";
 const NOTIFY_IMAGE = "alpine:3";
 const BUILDKIT_ADDR = "tcp://buildkitd:1234";
-const NOTIFY_URL = "https://panel.example.net/api/deploy-hooks/builds";
+const NOTIFY_PATH = "/api/deploy-hooks/builds";
 
 const STRINGIFY_OPTIONS = {
   lineWidth: 0,
@@ -56,7 +56,29 @@ export type PipelineOptions = {
   registry?: string;
   // Woodpecker secret holding the Panel's build-notification HMAC key.
   notifySecretName?: string;
+  // Public URL of this Panel, which the notify step posts to. Defaults to
+  // BETTER_AUTH_URL, the URL the instance is served at.
+  panelUrl?: string;
 };
+
+/**
+ * The build-notification endpoint for a Panel URL. Only the origin is kept: it
+ * lands unquoted in a shell line, and an origin holds no shell metacharacters.
+ */
+function notifyUrlFor(panelUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(panelUrl);
+  } catch {
+    throw new Error(`Cannot generate a pipeline: ${panelUrl} is not a URL`);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(
+      "Cannot generate a pipeline: the Panel URL must be http(s)"
+    );
+  }
+  return `${url.origin}${NOTIFY_PATH}`;
+}
 
 /** Escape a shell command for Woodpecker's variable substitution. */
 function escapeForWoodpecker(command: string): string {
@@ -240,7 +262,8 @@ function notifyStep(
   doc: Document,
   componentKey: string,
   dag: boolean,
-  secretName: string
+  secretName: string,
+  notifyUrl: string
 ) {
   return step(doc, {
     name: "notify-panel",
@@ -260,7 +283,7 @@ function notifyStep(
           'if [ -n "$${CI_PIPELINE_URL:-}" ]; then URL=",\\"pipelineUrl\\":\\"$${CI_PIPELINE_URL}\\""; fi',
           `printf '{"app":"${componentKey}","branch":"%s","tag":"%s","commit":"%s"%s}' "$\${CI_COMMIT_BRANCH}" "$\${TAG}" "$\${CI_COMMIT_SHA}" "$\${URL}" > body.json`,
           `SIG=$(openssl dgst -sha256 -hmac "$\${OPSDECK_NOTIFY_SECRET}" -r body.json | cut -d' ' -f1)`,
-          `curl -sS --fail-with-body --retry 3 --retry-all-errors --max-time 30 -H 'Content-Type: application/json' -H "X-Opsdeck-Signature: sha256=$\${SIG}" --data-binary @body.json ${NOTIFY_URL}`
+          `curl -sS --fail-with-body --retry 3 --retry-all-errors --max-time 30 -H 'Content-Type: application/json' -H "X-Opsdeck-Signature: sha256=$\${SIG}" --data-binary @body.json ${notifyUrl}`
         ),
       },
     ],
@@ -286,6 +309,13 @@ export function generateWoodpeckerPipeline(
     );
   }
   deployRegistrySchema.parse(registry);
+  const panelUrl = options.panelUrl ?? process.env.BETTER_AUTH_URL;
+  if (!panelUrl) {
+    throw new Error(
+      "Cannot generate a pipeline: BETTER_AUTH_URL is not set and no Panel URL was given"
+    );
+  }
+  const notifyUrl = notifyUrlFor(panelUrl);
 
   const doc = new Document();
 
@@ -305,7 +335,8 @@ export function generateWoodpeckerPipeline(
       doc,
       key,
       parsed.checks.length > 0,
-      options.notifySecretName ?? "opsdeck_notify"
+      options.notifySecretName ?? "opsdeck_notify",
+      notifyUrl
     ),
   ];
   // Blank line between steps, as in the hand-written files.

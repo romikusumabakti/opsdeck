@@ -207,6 +207,7 @@ describe("pipeline detection", () => {
     });
     const yaml = generateWoodpeckerPipeline("demo", spec, {
       registry: "192.168.10.113:5000",
+      panelUrl: "https://panel.example.com",
     });
     expect(PANEL_PIPELINE_MARKER.exec(yaml)?.[1]).toBe("demo");
   });

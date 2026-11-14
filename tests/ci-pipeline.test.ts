@@ -16,6 +16,7 @@ const readFixture = (name: string) =>
   readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
 const REGISTRY = "192.168.10.113:5000";
+const PANEL_URL = "https://panel.example.com";
 
 const JAR_SPEC: BuildSpec = buildSpecSchema.parse({
   branches: ["kestrel/development"],
@@ -73,7 +74,10 @@ const SPEC: BuildSpec = buildSpecSchema.parse({
 });
 
 const render = (spec: BuildSpec = SPEC, key = "dplk-membership") =>
-  generateWoodpeckerPipeline(key, spec, { registry: REGISTRY });
+  generateWoodpeckerPipeline(key, spec, {
+    registry: REGISTRY,
+    panelUrl: PANEL_URL,
+  });
 
 function allCommands(source: string): string[] {
   const doc = parseDocument(source);
@@ -254,6 +258,7 @@ describe("generateWoodpeckerPipeline", () => {
     it("uses the given notify secret name", () => {
       const yaml = generateWoodpeckerPipeline("core", JAR_SPEC, {
         registry: REGISTRY,
+        panelUrl: PANEL_URL,
         notifySecretName: "opsdeck_notify_core",
       });
       expect(yaml).toContain("from_secret: opsdeck_notify_core");
@@ -309,6 +314,7 @@ describe("generateWoodpeckerPipeline", () => {
 
     it("defaults to DEPLOY_REGISTRY", () => {
       vi.stubEnv("DEPLOY_REGISTRY", "registry.example.test:5000");
+      vi.stubEnv("BETTER_AUTH_URL", PANEL_URL);
       expect(generateWoodpeckerPipeline("hris", SPEC)).toContain(
         "REGISTRY: registry.example.test:5000"
       );
@@ -319,6 +325,51 @@ describe("generateWoodpeckerPipeline", () => {
       expect(() => generateWoodpeckerPipeline("hris", SPEC)).toThrow(
         /DEPLOY_REGISTRY/
       );
+    });
+  });
+
+  describe("panel URL", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    const notifyTarget = (yaml: string) =>
+      /--data-binary @body\.json (\S+)/.exec(yaml)?.[1];
+
+    it("defaults to BETTER_AUTH_URL", () => {
+      vi.stubEnv("BETTER_AUTH_URL", "https://ops.example.org");
+      expect(
+        notifyTarget(
+          generateWoodpeckerPipeline("hris", SPEC, { registry: REGISTRY })
+        )
+      ).toBe("https://ops.example.org/api/deploy-hooks/builds");
+    });
+
+    it("fails without a Panel URL", () => {
+      vi.stubEnv("BETTER_AUTH_URL", "");
+      expect(() =>
+        generateWoodpeckerPipeline("hris", SPEC, { registry: REGISTRY })
+      ).toThrow(/BETTER_AUTH_URL/);
+    });
+
+    it("keeps only the origin, so nothing but a host reaches the shell", () => {
+      expect(
+        notifyTarget(
+          generateWoodpeckerPipeline("hris", SPEC, {
+            registry: REGISTRY,
+            panelUrl: "https://ops.example.org:8443/sub/path?x=';rm -rf /'#y",
+          })
+        )
+      ).toBe("https://ops.example.org:8443/api/deploy-hooks/builds");
+    });
+
+    it("rejects a non-http(s) URL", () => {
+      expect(() =>
+        generateWoodpeckerPipeline("hris", SPEC, {
+          registry: REGISTRY,
+          panelUrl: "file:///etc/passwd",
+        })
+      ).toThrow(/http\(s\)/);
     });
   });
 });
