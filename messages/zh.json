@@ -2107,6 +2107,17 @@
     "profileUpdated": "{actor} 更新了 {user} 的资料",
     "runAcknowledged": "{actor} 确认了 {environment} 中的 {count, plural, other {# 次失败运行}}",
     "runUnacknowledged": "{actor} 重新打开了 {environment} 中的 {count, plural, other {# 次失败运行}}",
+    "authSignedIn": "{actor} 已登录（{method}），来自 {ip}",
+    "authSignInFailed": "{email} 登录失败（{method}），来自 {ip}",
+    "authTwoFactorEnabled": "{actor} 开启了双重身份验证",
+    "authTwoFactorDisabled": "{actor} 关闭了双重身份验证",
+    "authTwoFactorReset": "{actor} 重置了 {target} 的双重身份验证",
+    "authMethod": {
+      "password": "密码",
+      "password+totp": "密码和验证器代码",
+      "passkey": "通行密钥",
+      "microsoft": "Microsoft"
+    },
     "variablesRevealed": "{actor} 显示了 {environment} 的机密值（{names}）",
     "environmentDeletedWithVariables": "{actor} 删除了 {environment} 及其 {count} 个变量（{names}）",
     "environmentProvisioned": "{actor} 配置了 {environment}",

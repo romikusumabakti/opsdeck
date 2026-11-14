@@ -2107,6 +2107,17 @@
     "profileUpdated": "{actor} memperbarui profil {user}",
     "runAcknowledged": "{actor} menandai {count, plural, other {# run gagal}} di {environment} sudah ditangani",
     "runUnacknowledged": "{actor} membuka kembali {count, plural, other {# run gagal}} di {environment}",
+    "authSignedIn": "{actor} masuk ({method}) dari {ip}",
+    "authSignInFailed": "Gagal masuk untuk {email} ({method}) dari {ip}",
+    "authTwoFactorEnabled": "{actor} mengaktifkan autentikasi dua faktor",
+    "authTwoFactorDisabled": "{actor} menonaktifkan autentikasi dua faktor",
+    "authTwoFactorReset": "{actor} mereset autentikasi dua faktor untuk {target}",
+    "authMethod": {
+      "password": "Kata sandi",
+      "password+totp": "Kata sandi dan kode authenticator",
+      "passkey": "Passkey",
+      "microsoft": "Microsoft"
+    },
     "variablesRevealed": "{actor} menampilkan nilai rahasia {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} menghapus {environment} beserta {count, plural, other {# variabelnya}} ({names})",
     "environmentProvisioned": "{actor} melakukan provisioning {environment}",

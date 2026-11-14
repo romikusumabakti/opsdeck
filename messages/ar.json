@@ -2107,6 +2107,17 @@
     "profileUpdated": "{actor} حدّث الملف الشخصي لـ {user}",
     "runAcknowledged": "أقرّ {actor} بـ {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
     "runUnacknowledged": "أعاد {actor} فتح {count, plural, one {تشغيل فاشل واحد} other {# عمليات تشغيل فاشلة}} في {environment}",
+    "authSignedIn": "سجّل {actor} الدخول ({method}) من {ip}",
+    "authSignInFailed": "فشل تسجيل الدخول لـ {email} ({method}) من {ip}",
+    "authTwoFactorEnabled": "فعّل {actor} المصادقة الثنائية",
+    "authTwoFactorDisabled": "عطّل {actor} المصادقة الثنائية",
+    "authTwoFactorReset": "أعاد {actor} تعيين المصادقة الثنائية لـ {target}",
+    "authMethod": {
+      "password": "كلمة المرور",
+      "password+totp": "كلمة المرور ورمز تطبيق المصادقة",
+      "passkey": "مفتاح المرور",
+      "microsoft": "Microsoft"
+    },
     "variablesRevealed": "كشف {actor} القيم السرية لـ {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} حذف {environment} و{count, plural, one {متغيرًا واحدًا} other {# من المتغيرات}} ({names})",
     "environmentProvisioned": "{actor} هيّأ {environment}",

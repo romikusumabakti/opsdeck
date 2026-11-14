@@ -34,6 +34,18 @@ const VARIABLE_MESSAGES = {
   "variable.escrowRemoved": "variableEscrowRemoved",
 } as const;
 
+const AUTH_METHODS = ["password", "password+totp", "passkey", "microsoft"];
+
+function authMethod(
+  t: ReturnType<typeof useTranslations<"activity">>,
+  method: string | number | undefined
+): string {
+  const value = String(method);
+  return AUTH_METHODS.includes(value)
+    ? t(`authMethod.${value}` as "authMethod.password")
+    : value;
+}
+
 // Render one event to a localized sentence. `data` is the denormalized params
 // snapshotted at write time (see lib/activity.ts).
 function message(
@@ -488,6 +500,26 @@ function message(
         count: Number(d.count),
         environment: String(d.environment),
       });
+    // Sign-in events. A failed attempt has no actor, so its sentence names the
+    // email that was tried (empty for a failed second-factor check).
+    case "auth.signed_in":
+      return t("authSignedIn", {
+        actor,
+        method: authMethod(t, d.method),
+        ip: String(d.ip || "—"),
+      });
+    case "auth.sign_in_failed":
+      return t("authSignInFailed", {
+        email: String(d.email || "—"),
+        method: authMethod(t, d.method),
+        ip: String(d.ip || "—"),
+      });
+    case "auth.two_factor_enabled":
+      return t("authTwoFactorEnabled", { actor });
+    case "auth.two_factor_disabled":
+      return t("authTwoFactorDisabled", { actor });
+    case "auth.two_factor_reset":
+      return t("authTwoFactorReset", { actor, target: String(d.user) });
     default:
       return t("unknown", { actor });
   }
