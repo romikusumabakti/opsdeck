@@ -744,6 +744,7 @@ EOF
   say ""
   if [ "$dry_run" = 1 ]; then say "dry run: nothing was changed. After a real run:"; fi
   say "opsdeck $version is running at $url (Caddy on 127.0.0.1:$port; point the tunnel or proxy there)."
+  say "Caddy serves plain HTTP: put a TLS tunnel or proxy in front, and never publish 127.0.0.1:$port directly, or passwords and session cookies travel in cleartext."
   if [ -z "$adopt" ] && [ -z "$restore" ]; then
     say "Create the first admin at $url/setup."
   fi
