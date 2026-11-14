@@ -63,6 +63,7 @@ const store = vi.hoisted(() => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-0123456789a1", role: state.orgRole },
+    session: { signInMethod: "passkey" },
   })),
 }));
 
@@ -71,8 +72,11 @@ vi.mock("@/lib/authz", async () => {
   const { HTTPException } = await import("hono/http-exception");
   const session = () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-0123456789a1", role: state.orgRole },
+    session: { signInMethod: "passkey" },
   });
   return {
+    // The real strength rule is covered by tests/variables-reveal-strong.test.ts.
+    assertStrongSession: vi.fn(),
     requireProjectPermission: vi.fn(
       async (_scope: unknown, perms: Parameters<typeof canProject>[1]) => {
         if (!state.role) throw new HTTPException(404, { message: "Not Found" });

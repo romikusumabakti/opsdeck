@@ -1,7 +1,11 @@
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { eq } from "drizzle-orm";
@@ -19,7 +23,7 @@ import { sendResetPasswordEmail } from "./email/send";
 import { MICROSOFT_AUTH_ENABLED } from "./env";
 import { nameTaken, pickFreeName } from "./people/names";
 import { orgAc, orgRoles } from "./permissions";
-import { signInMethodFor } from "./sign-in-method";
+import { isStrongSignIn, signInMethodFor } from "./sign-in-method";
 import { uuidSchema } from "./validation";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
@@ -186,6 +190,18 @@ export const auth = betterAuth({
           message: "Profile changes go through the account page.",
           code: "profile_update_forbidden",
         });
+      }
+      // The admin endpoints (roles, bans, impersonation, session control)
+      // need a strong sign-in. With no session the endpoint's own auth answers.
+      if (ctx.path.startsWith("/admin/")) {
+        const session = await getSessionFromCtx(ctx);
+        if (session && !isStrongSignIn(session.session.signInMethod)) {
+          throw APIError.from("FORBIDDEN", {
+            message:
+              "Sign in with a passkey, Microsoft, or a password and an authenticator code to do this.",
+            code: "strong_sign_in_required",
+          });
+        }
       }
       // Names are unique among active users only, so a deactivated user's
       // name may have been reused since. Reactivating them would trip the

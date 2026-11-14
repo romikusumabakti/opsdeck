@@ -213,6 +213,31 @@ export function effectiveProjectRole(
     : null;
 }
 
+// Org actions a session may perform however it signed in (a password alone
+// included). Everything else, including any statement added later, needs a
+// strong sign-in (lib/sign-in-method#isStrongSignIn): the terminal, file
+// explorers, management and instance settings.
+const WEAK_ALLOWED_ORG_ACTIONS: ReadonlySet<string> = new Set([
+  "server:read",
+  "storage:read",
+  "tunnel:read",
+  "user:list",
+  "knowledge:read",
+  "knowledge:write",
+  "knowledge:manage",
+  "audit:read",
+  "project:create",
+]);
+
+// True when any requested resource:action is outside the weak-allowed set.
+export function requiresStrongSignIn(perms: OrgPermissions): boolean {
+  return Object.entries(perms).some(([resource, actions]) =>
+    (actions ?? []).some(
+      (action) => !WEAK_ALLOWED_ORG_ACTIONS.has(`${resource}:${action}`)
+    )
+  );
+}
+
 export function canOrg(
   role: string | null | undefined,
   perms: OrgPermissions

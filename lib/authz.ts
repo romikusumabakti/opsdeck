@@ -20,8 +20,10 @@ import {
   type OrgRole,
   type ProjectPermissions,
   type ProjectRole,
+  requiresStrongSignIn,
   seesAllProjects,
 } from "@/lib/permissions";
+import { isStrongSignIn } from "@/lib/sign-in-method";
 import { uuidSchema } from "@/lib/validation";
 import { requestCache } from "@/server/context";
 import { notFound } from "@/server/errors";
@@ -47,6 +49,18 @@ export class ForbiddenError extends HTTPException {
   ) {
     super(403, { message });
     this.name = "ForbiddenError";
+  }
+}
+
+const STRONG_SIGN_IN_MESSAGE =
+  "Sign in with a passkey, Microsoft, or a password and an authenticator code to do this.";
+const STRONG_SIGN_IN_CODE = "strong_sign_in_required";
+
+// Risky actions (terminal, files, secrets, admin) refuse a session that was
+// not created by a passkey, Microsoft or password + TOTP.
+export function assertStrongSession(session: Session): void {
+  if (!isStrongSignIn(session.session.signInMethod)) {
+    throw new ForbiddenError(STRONG_SIGN_IN_MESSAGE, STRONG_SIGN_IN_CODE);
   }
 }
 
@@ -209,6 +223,7 @@ export async function requireOrgPermission(
 ): Promise<Session> {
   const session = await requireSession();
   if (!(await callerCanOrg(session, perms))) throw new ForbiddenError();
+  if (requiresStrongSignIn(perms)) assertStrongSession(session);
   return session;
 }
 
@@ -302,6 +317,18 @@ export async function routeOrgGuard(
   if (!session) return { ok: false, response: denial("Unauthorized", 401) };
   if (!(await callerCanOrg(session, perms))) {
     return { ok: false, response: denial("Forbidden", 403) };
+  }
+  if (
+    requiresStrongSignIn(perms) &&
+    !isStrongSignIn(session.session.signInMethod)
+  ) {
+    return {
+      ok: false,
+      response: Response.json(
+        { error: STRONG_SIGN_IN_MESSAGE, code: STRONG_SIGN_IN_CODE },
+        { status: 403 }
+      ),
+    };
   }
   return { ok: true, session };
 }

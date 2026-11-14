@@ -94,6 +94,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-0123456789b1", role: state.role },
+    session: { signInMethod: "passkey" },
   })),
 }));
 vi.mock("@/server/i18n", () => ({
