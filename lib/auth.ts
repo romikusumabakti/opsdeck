@@ -241,20 +241,25 @@ export const auth = betterAuth({
     // failure only logs. Dynamic import: lib/avatars-microsoft imports this
     // module.
     after: createAuthMiddleware(async (ctx) => {
-      const returned = ctx.context.returned;
-      const row = authActivityFor({
-        path: ctx.path,
-        params: ctx.params,
-        body: ctx.body,
-        newSession: ctx.context.newSession,
-        session: ctx.context.session,
-        error: isAPIError(returned)
-          ? { status: returned.statusCode, code: returned.body?.code }
-          : null,
-        ip: clientIpFrom(ctx.request?.headers),
-        userAgent: ctx.request?.headers.get("user-agent") ?? null,
-      });
-      if (row) void recordActivity(row);
+      // Building the row must never fail the auth response.
+      try {
+        const returned = ctx.context.returned;
+        const row = authActivityFor({
+          path: ctx.path,
+          params: ctx.params,
+          body: ctx.body,
+          newSession: ctx.context.newSession,
+          session: ctx.context.session,
+          error: isAPIError(returned)
+            ? { status: returned.statusCode, code: returned.body?.code }
+            : null,
+          ip: clientIpFrom(ctx.request?.headers),
+          userAgent: ctx.request?.headers.get("user-agent") ?? null,
+        });
+        if (row) void recordActivity(row);
+      } catch (error) {
+        console.error("Auth activity logging failed:", error);
+      }
 
       if (!ctx.path.startsWith("/callback") || ctx.params?.id !== "microsoft")
         return;
