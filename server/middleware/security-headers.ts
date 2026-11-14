@@ -11,18 +11,28 @@ import { createMiddleware } from "hono/factory";
 //   - Strict-Transport-Security. The edge serves plain HTTP by design (see the
 //     Caddyfile); browsers ignore HSTS over HTTP anyway, and shipping it would
 //     be a foot-gun the day someone terminates TLS with a private CA.
-//   - A full Content-Security-Policy. Locking down `script-src` needs a
-//     per-request nonce or hash for every inline script the client ships; done
-//     blind it silently breaks the app. `frame-ancestors` is the part that
-//     needs no nonce, so that ships now and the rest is a separate, testable
-//     change.
 //   - X-Powered-By. Hono never sends it; don't advertise the framework.
 const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
   // Clickjacking. No part of the app frames itself, so deny outright.
   // frame-ancestors is the modern control; X-Frame-Options covers browsers
   // that predate it. Both, because they disagree on nothing here.
-  ["Content-Security-Policy", "frame-ancestors 'none'"],
   ["X-Frame-Options", "DENY"],
+  // Content-Security-Policy, scoped to what it can enforce without breaking
+  // the app:
+  //   - script-src 'self': only scripts served from this origin run, with no
+  //     inline scripts and no `unsafe-eval`. The client ships none: the theme
+  //     bootstrap is /theme-init.js (public/), not an inline <script>. This
+  //     does not restrict styles, images, fonts or fetch/WebSocket targets.
+  //   - 'wasm-unsafe-eval': lets WebAssembly compile (the terminal and the
+  //     file editor use it) without allowing eval() or new Function().
+  //   - object-src 'none', base-uri 'none': no plugins, and no injected <base>
+  //     rewriting relative script URLs.
+  //   - frame-ancestors 'none': clickjacking (see X-Frame-Options above).
+  // worker-src falls back to script-src, so workers must come from 'self' too.
+  [
+    "Content-Security-Policy",
+    "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  ],
   // Stop MIME sniffing. Matters most on the file-explorer and knowledge-asset
   // routes, which stream user-supplied bytes back out.
   ["X-Content-Type-Options", "nosniff"],

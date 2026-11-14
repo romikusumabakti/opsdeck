@@ -4,7 +4,8 @@ import { app, createBaseApp } from "@/server/app";
 import { getLocale } from "@/server/context";
 
 const SECURITY_HEADERS: Record<string, string> = {
-  "content-security-policy": "frame-ancestors 'none'",
+  "content-security-policy":
+    "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   "x-frame-options": "DENY",
   "x-content-type-options": "nosniff",
   "referrer-policy": "strict-origin-when-cross-origin",
