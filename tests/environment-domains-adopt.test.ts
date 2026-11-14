@@ -273,9 +273,7 @@ describe("POST /domain/adopt", () => {
   });
 
   it("records no Access app when none covers the hostname, without creating one", async () => {
-    cf.apps = [
-      { id: "app-9", name: "Other", domain: "other.example.net" },
-    ];
+    cf.apps = [{ id: "app-9", name: "Other", domain: "other.example.net" }];
     const res = await send(body());
     expect(res.status).toBe(200);
     expect(state.adopted?.row).toMatchObject({ accessAppId: null });

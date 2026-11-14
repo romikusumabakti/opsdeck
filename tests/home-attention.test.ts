@@ -144,7 +144,11 @@ describe("failurePrefill", () => {
   };
 
   it("builds a bug with the error in a code block and a history link", () => {
-    const p = failurePrefill(group, "Restore failed: Kestrel Dev", "Run history");
+    const p = failurePrefill(
+      group,
+      "Restore failed: Kestrel Dev",
+      "Run history"
+    );
     expect(p.type).toBe("bug");
     expect(p.title).toBe("Restore failed: Kestrel Dev");
     expect(p.description).toBe(

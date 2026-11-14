@@ -6,7 +6,6 @@ import { z } from "zod";
  * Names are proper nouns and stay the same in every locale; captions live in
  * the `motifs` messages namespace. Masks are public/motifs/<slug>.webp, built
  * from design/motifs by scripts/build-motifs.py.
- * See docs/superpowers/specs/2026-10-14-nusantara-motifs-design.md.
  */
 type MotifEntry = {
   slug: string;

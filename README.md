@@ -49,7 +49,7 @@ ops/install/    Installer, production compose file and host updater
 ops/backup/     Interim off-host backup timer (see ops/backup/README.md)
 tests/          Vitest suites
 e2e/            Playwright suites
-docs/           Feature docs; docs/superpowers holds design specs and plans
+docs/           Feature docs
 ```
 
 ## Installing an instance

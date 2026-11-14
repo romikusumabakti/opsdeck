@@ -374,10 +374,7 @@ describe("tunnel_route", () => {
       },
     ];
     await expect(
-      tunnelRoute(
-        ctx(),
-        route("panel.example.net", "http://localhost:8000")
-      )
+      tunnelRoute(ctx(), route("panel.example.net", "http://localhost:8000"))
     ).rejects.toThrow(
       `DNS record CNAME ${CF_TUNNEL}.cfargotunnel.com already exists for panel.example.net`
     );

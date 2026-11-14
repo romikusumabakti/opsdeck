@@ -404,10 +404,7 @@ describe("parsePipelineNumber", () => {
       parsePipelineNumber("https://ci.example.net/repos/3/pipeline/7", "2")
     ).toBeNull();
     expect(
-      parsePipelineNumber(
-        "https://ci.example.net/repos/22/pipeline/7",
-        "2"
-      )
+      parsePipelineNumber("https://ci.example.net/repos/22/pipeline/7", "2")
     ).toBeNull();
   });
 
@@ -415,10 +412,7 @@ describe("parsePipelineNumber", () => {
     expect(parsePipelineNumber(null, "2")).toBeNull();
     expect(parsePipelineNumber(undefined, "2")).toBeNull();
     expect(
-      parsePipelineNumber(
-        "https://ci.example.net/repos/2/pipeline/7",
-        null
-      )
+      parsePipelineNumber("https://ci.example.net/repos/2/pipeline/7", null)
     ).toBeNull();
     expect(
       parsePipelineNumber("https://ci.example.net/repos/2/pipeline/7", "")

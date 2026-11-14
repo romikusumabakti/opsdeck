@@ -207,7 +207,11 @@ describe("stripProjectPrefix", () => {
 describe("qualifiedEnvName", () => {
   it.each([
     ["Dev 1", "Kestrel Membership", "Kestrel Membership · Dev 1"],
-    ["Kestrel Membership Dev 1", "Kestrel Membership", "Kestrel Membership · Dev 1"],
+    [
+      "Kestrel Membership Dev 1",
+      "Kestrel Membership",
+      "Kestrel Membership · Dev 1",
+    ],
     [
       "Kestrel Membership",
       "Kestrel Membership",
@@ -523,17 +527,18 @@ describe("projectSwitchHref within a session", () => {
 describe("projectSwitchHref for the active project", () => {
   // Picking the project you're already in is the way back to its overview,
   // like the plain project crumb it replaced.
-  it.each(["/KESTREL/latest/services", "/KESTREL/settings", "/KESTREL/issues/7"])(
-    "goes from %s to the overview",
-    (path) => {
-      expect(
-        projectSwitchHref({
-          projectKey: "KESTREL",
-          environments: [target("latest", "2026-10-08T00:00:00Z")],
-          role: "engineer",
-          from: parseNavPath(path),
-        })
-      ).toBe("/KESTREL");
-    }
-  );
+  it.each([
+    "/KESTREL/latest/services",
+    "/KESTREL/settings",
+    "/KESTREL/issues/7",
+  ])("goes from %s to the overview", (path) => {
+    expect(
+      projectSwitchHref({
+        projectKey: "KESTREL",
+        environments: [target("latest", "2026-10-08T00:00:00Z")],
+        role: "engineer",
+        from: parseNavPath(path),
+      })
+    ).toBe("/KESTREL");
+  });
 });

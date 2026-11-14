@@ -377,13 +377,10 @@ images and bundle.
 
 ## Release checklist
 
-1. Apply the migrations by the hand procedure in the opsdeck memory
-   `db-migrations.md`: `pg_dump` first, a `ROLLBACK` dry run, then apply
-   `20261104000000` and then `20261104000100`, and add rows for both to that
-   memory's table.
-2. Set `DEPLOY_REGISTRY` in `/deployments/dss-panel/.env`.
-3. Deploy the Panel.
+1. Set `DEPLOY_REGISTRY` (and `DEPLOY_REGISTRY_USERNAME`/`PASSWORD`/`SCHEME`
+   for an authenticated plain-HTTP registry) in the instance `.env`
+   (`/opt/<name>/.env`).
+2. Update the Panel to a release that contains the deploy feature. The
+   `migrate` service applies pending migrations before the app starts.
 
-Stop here: applying migrations to production and deploying the Panel need
-Romi's go-ahead, and the prerequisites of Plan B (CI bundle images, server
-`.env` files, registered apps) must be done first.
+Updating production needs Romi's go-ahead.

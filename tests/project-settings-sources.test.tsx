@@ -29,7 +29,12 @@ function sourceFixture(inUse = true) {
             slug: "dev-1",
             sourceBranch: "kestrel/development",
           },
-          { id: "e2", name: "Demo", slug: "demo", sourceBranch: "kestrel/demo" },
+          {
+            id: "e2",
+            name: "Demo",
+            slug: "demo",
+            sourceBranch: "kestrel/demo",
+          },
           { id: "e3", name: "QA", slug: "qa", sourceBranch: null },
         ],
       },

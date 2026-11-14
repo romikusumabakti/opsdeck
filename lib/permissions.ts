@@ -10,8 +10,6 @@
 // projects they are members of. pm holds exactly the qa set (it only carries
 // a different label). Roles are defined in code on purpose; admins
 // only assign them.
-// See docs/superpowers/specs/2026-11-12-global-roles-design.md (and, for the
-// statements themselves, 2026-10-03-access-control-design.md).
 
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/admin/access";

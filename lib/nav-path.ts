@@ -2,7 +2,6 @@
 // locale-stripped pathname, plus the ordering rules every project/environment
 // picker shares. Pure and client-safe: the header switchers, the sidebar and
 // the command palette all read the same rules.
-// See docs/superpowers/specs/2026-10-09-project-environment-switcher-design.md.
 
 import {
   canProject,

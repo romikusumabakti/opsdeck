@@ -206,11 +206,8 @@ describe("withIngressRoute", () => {
 
   it("matches the hostname case-insensitively", () => {
     expect(
-      withIngressRoute(
-        live113(),
-        "CI.example.net",
-        "http://localhost:8000"
-      ).changed
+      withIngressRoute(live113(), "CI.example.net", "http://localhost:8000")
+        .changed
     ).toBe(false);
     expect(() =>
       withIngressRoute(live113(), "CI.EXAMPLE.net", "http://localhost:1")
