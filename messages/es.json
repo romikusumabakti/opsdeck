@@ -1262,7 +1262,8 @@
     "useBackupCode": "Usar un código de respaldo",
     "useAuthenticator": "Usar el código del autenticador",
     "backToSignIn": "Volver a iniciar sesión",
-    "errorCode": "Ese código no funcionó. Inténtalo de nuevo."
+    "errorCode": "Ese código no funcionó. Inténtalo de nuevo.",
+    "errorCodeExpired": "Se agotó el tiempo de tu inicio de sesión. Introduce tu contraseña de nuevo."
   },
   "forgotPassword": {
     "title": "Olvidé mi contraseña",

@@ -1262,7 +1262,8 @@
     "useBackupCode": "Gunakan kode cadangan",
     "useAuthenticator": "Gunakan kode autentikator",
     "backToSignIn": "Kembali ke halaman masuk",
-    "errorCode": "Kode tidak valid. Silakan coba lagi."
+    "errorCode": "Kode tidak valid. Silakan coba lagi.",
+    "errorCodeExpired": "Waktu masuk habis. Masukkan kata sandi lagi."
   },
   "forgotPassword": {
     "title": "Lupa kata sandi",

@@ -1262,7 +1262,8 @@
     "useBackupCode": "使用备用码",
     "useAuthenticator": "使用验证器验证码",
     "backToSignIn": "返回登录",
-    "errorCode": "验证码无效，请重试。"
+    "errorCode": "验证码无效，请重试。",
+    "errorCodeExpired": "登录已超时，请重新输入密码。"
   },
   "forgotPassword": {
     "title": "忘记密码",

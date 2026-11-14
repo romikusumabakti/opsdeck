@@ -1262,7 +1262,8 @@
     "useBackupCode": "Use a backup code",
     "useAuthenticator": "Use authenticator code",
     "backToSignIn": "Back to sign in",
-    "errorCode": "That code didn't work. Please try again."
+    "errorCode": "That code didn't work. Please try again.",
+    "errorCodeExpired": "Your sign-in timed out. Enter your password again."
   },
   "forgotPassword": {
     "title": "Forgot password",
