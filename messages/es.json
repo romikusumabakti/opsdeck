@@ -1465,7 +1465,6 @@
     "keyTypeUnsupported": "El OpenSSH del servidor es demasiado antiguo para la clave SSH (ed25519 requiere OpenSSH 6.5 o posterior). No se cambió nada; conserva su contraseña.",
     "unreachable": "No se pudo conectar con el servidor por SSH.",
     "sudoNeedsPassword": "Este usuario necesita contraseña para sudo, así que no puede pasar a la clave SSH. Usa root o una regla sudo NOPASSWD.",
-    "noPassword": "No hay contraseña guardada para este servidor. Reinstala la clave con la contraseña.",
     "passwordRejected": "El servidor rechazó la contraseña.",
     "keyJobRunning": "Hay otra operación de clave SSH en curso. Inténtalo de nuevo cuando termine.",
     "keyJobInterrupted": "El trabajo de clave SSH se detuvo antes de terminar, por ejemplo porque el Panel se reinició. Vuelve a ejecutarlo.",
@@ -2154,6 +2153,8 @@
     "authTwoFactorEnabled": "{actor} activó la autenticación en dos pasos",
     "authTwoFactorDisabled": "{actor} desactivó la autenticación en dos pasos",
     "authTwoFactorReset": "{actor} restableció la autenticación en dos pasos de {target}",
+    "authPasskeyAdded": "{actor} añadió una passkey",
+    "authPasskeyRemoved": "{actor} eliminó una passkey",
     "authMethod": {
       "password": "Contraseña",
       "password+totp": "Contraseña y código del autenticador",

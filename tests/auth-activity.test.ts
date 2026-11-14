@@ -136,6 +136,38 @@ describe("authActivityFor", () => {
     });
   });
 
+  test("logs passkey registration and removal under the session user", () => {
+    for (const [path, action] of [
+      ["/passkey/verify-registration", "auth.passkey_added"],
+      ["/passkey/delete-passkey", "auth.passkey_removed"],
+    ] as const) {
+      expect(authActivityFor({ ...base, path, session: { user } })).toEqual({
+        actorId: "u1",
+        action,
+        entityType: "user",
+        entityId: "u1",
+        data: { ip: "203.0.113.7", userAgent: "UA/1" },
+      });
+    }
+  });
+
+  test("does not log a failed passkey change or one without a session", () => {
+    for (const path of [
+      "/passkey/verify-registration",
+      "/passkey/delete-passkey",
+    ]) {
+      expect(
+        authActivityFor({
+          ...base,
+          path,
+          session: { user },
+          error: { status: 400 },
+        })
+      ).toBeNull();
+      expect(authActivityFor({ ...base, path })).toBeNull();
+    }
+  });
+
   test("does not log /two-factor/enable, which only issues the secret", () => {
     expect(
       authActivityFor({

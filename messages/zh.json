@@ -1465,7 +1465,6 @@
     "keyTypeUnsupported": "服务器的 OpenSSH 版本过旧，无法使用 SSH 密钥（ed25519 需要 OpenSSH 6.5 或更高版本）。未做任何更改，已保留其密码。",
     "unreachable": "无法通过 SSH 连接到服务器。",
     "sudoNeedsPassword": "该登录用户执行 sudo 需要密码，因此无法切换到 SSH 密钥。请使用 root 或 NOPASSWD sudo 规则。",
-    "noPassword": "此服务器没有保存密码。请使用密码重新安装密钥。",
     "passwordRejected": "服务器拒绝了该密码。",
     "keyJobRunning": "另一个 SSH 密钥操作正在进行。请在其完成后重试。",
     "keyJobInterrupted": "SSH 密钥任务在完成前已停止，例如因为面板重启。请重新运行。",
@@ -2154,6 +2153,8 @@
     "authTwoFactorEnabled": "{actor} 开启了双重身份验证",
     "authTwoFactorDisabled": "{actor} 关闭了双重身份验证",
     "authTwoFactorReset": "{actor} 重置了 {target} 的双重身份验证",
+    "authPasskeyAdded": "{actor} 添加了通行密钥",
+    "authPasskeyRemoved": "{actor} 删除了通行密钥",
     "authMethod": {
       "password": "密码",
       "password+totp": "密码和验证器代码",
