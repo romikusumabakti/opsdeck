@@ -3,6 +3,7 @@ import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import {
   assertStrongSession,
+  requireOrgGrant,
   requireOrgPermission,
   requireProjectPermission,
 } from "@/lib/authz";
@@ -13,7 +14,6 @@ import {
   type VariableKind,
   variableKindEnum,
 } from "@/lib/db/schema";
-import { canOrg } from "@/lib/permissions";
 import { encryptSecret } from "@/lib/secrets";
 import {
   ESCROW_REMOVAL_MESSAGE,
@@ -257,9 +257,7 @@ export async function putVariable(
   if (existing?.escrow) {
     if (input.escrow === false) {
       if (!input.confirmEscrowRemoval) fail(409, ESCROW_REMOVAL_MESSAGE);
-      if (!canOrg(session.user.role, INTEGRATION_MANAGE)) {
-        fail(403, "Forbidden");
-      }
+      requireOrgGrant(session, INTEGRATION_MANAGE);
       escrow = false;
       escrowRemoved = true;
     } else if (

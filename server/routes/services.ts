@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { routeProjectGuard } from "@/lib/authz";
+import { orgGrantRole, routeProjectGuard } from "@/lib/authz";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import {
   buildFollowLogsCommand,
@@ -92,7 +92,7 @@ export const serviceLogsRouter = sessionRouter().get(
     // A shared database container's logs show every environment on its host.
     await requireSharedDbServiceAccess(
       environment,
-      guard.session.user.role,
+      orgGrantRole(guard.session),
       role as ServiceRole
     );
 

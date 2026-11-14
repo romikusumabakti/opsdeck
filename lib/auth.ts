@@ -23,7 +23,12 @@ import { sendResetPasswordEmail } from "./email/send";
 import { MICROSOFT_AUTH_ENABLED } from "./env";
 import { nameTaken, pickFreeName } from "./people/names";
 import { orgAc, orgRoles } from "./permissions";
-import { isStrongSignIn, signInMethodFor } from "./sign-in-method";
+import {
+  isStrongSignIn,
+  STRONG_SIGN_IN_CODE,
+  STRONG_SIGN_IN_MESSAGE,
+  signInMethodFor,
+} from "./sign-in-method";
 import { uuidSchema } from "./validation";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
@@ -197,9 +202,8 @@ export const auth = betterAuth({
         const session = await getSessionFromCtx(ctx);
         if (session && !isStrongSignIn(session.session.signInMethod)) {
           throw APIError.from("FORBIDDEN", {
-            message:
-              "Sign in with a passkey, Microsoft, or a password and an authenticator code to do this.",
-            code: "strong_sign_in_required",
+            message: STRONG_SIGN_IN_MESSAGE,
+            code: STRONG_SIGN_IN_CODE,
           });
         }
       }

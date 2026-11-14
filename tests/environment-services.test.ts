@@ -28,12 +28,16 @@ vi.mock("@/lib/auth-session", () => ({
   requireSession: async () => ({}),
   getServerSession: async () => ({}),
 }));
-vi.mock("@/lib/authz", () => ({
+vi.mock("@/lib/authz", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/authz")>()),
   getProjectRole: async () => null,
   projectScope: () => undefined,
   requireOrgPermission: async () => undefined,
   requireProjectPermission: async () => ({
-    session: { user: { id: "user-1", role: "admin" } },
+    session: {
+      user: { id: "user-1", role: "admin" },
+      session: { signInMethod: "passkey" },
+    },
     role: "engineer",
   }),
 }));

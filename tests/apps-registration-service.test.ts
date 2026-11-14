@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth-session", () => ({ requireSession: mocks.requireSession }));
-vi.mock("@/lib/authz", () => ({
+vi.mock("@/lib/authz", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/authz")>()),
   getProjectAccess: mocks.getProjectAccess,
   requireOrgPermission: vi.fn(),
   requireProjectPermission: mocks.requireProjectPermission,
@@ -95,7 +96,10 @@ beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "registry.example.com");
   vi.stubEnv("BETTER_AUTH_URL", "https://panel.example.com");
   vi.clearAllMocks();
-  mocks.requireSession.mockResolvedValue({ user: { role: "engineer" } });
+  mocks.requireSession.mockResolvedValue({
+    user: { role: "engineer" },
+    session: { signInMethod: "passkey" },
+  });
   mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "engineer" } });
   mocks.getForgeCredentials.mockResolvedValue({
     forge: "bitbucket",
@@ -154,7 +158,10 @@ const CUSTOM = {
 };
 const BRANCHES = { hris: ["main"] };
 const asAdmin = () =>
-  mocks.requireSession.mockResolvedValue({ user: { role: "admin" } });
+  mocks.requireSession.mockResolvedValue({
+    user: { role: "admin" },
+    session: { signInMethod: "passkey" },
+  });
 
 describe("registerApp and addComponentsToApp choose generated for admins only", () => {
   it("refuses an engineer a generated component (403 pipelineForbidden)", async () => {
@@ -237,7 +244,10 @@ describe("registerSetupApp (New environment, server-derived spec)", () => {
   });
 
   it("is refused for a user who may not register repos (403)", async () => {
-    mocks.requireSession.mockResolvedValue({ user: { role: "qa" } });
+    mocks.requireSession.mockResolvedValue({
+      user: { role: "qa" },
+      session: { signInMethod: "passkey" },
+    });
     mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
     await expect(registerSetupApp(REGISTER, BRANCHES)).rejects.toMatchObject({
       status: 403,
@@ -379,7 +389,10 @@ describe("addComponentsToApp", () => {
   });
 
   it("is refused for a user who may not register repos (403)", async () => {
-    mocks.requireSession.mockResolvedValue({ user: { role: "qa" } });
+    mocks.requireSession.mockResolvedValue({
+      user: { role: "qa" },
+      session: { signInMethod: "passkey" },
+    });
     mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
     await expect(
       addComponentsToApp("hris", CUSTOM.components)

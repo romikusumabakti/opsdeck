@@ -22,6 +22,7 @@ import {
 import { requireSession } from "@/lib/auth-session";
 import {
   getProjectAccess,
+  orgGrantAllows,
   requireOrgPermission,
   requireProjectPermission,
 } from "@/lib/authz";
@@ -49,7 +50,7 @@ import {
 import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
 import { branchSchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
-import { canOrg, canProject, canRegisterApp } from "@/lib/permissions";
+import { canProject, canRegisterApp } from "@/lib/permissions";
 import { encryptSecret } from "@/lib/secrets";
 import {
   badRequest,
@@ -372,7 +373,7 @@ async function requirePipelineChoice(
 ): Promise<void> {
   if (components.every((c) => c.pipelineMode === "custom")) return;
   const session = await requireSession();
-  if (!canOrg(session.user.role, { ...INTEGRATION_MANAGE })) {
+  if (!orgGrantAllows(session, { ...INTEGRATION_MANAGE })) {
     fail(
       403,
       "A generated pipeline needs integration:manage",
@@ -801,7 +802,7 @@ export async function triggerComponentBuild(
 ): Promise<{ number: number }> {
   const session = await requireSession();
   const component = await requireAppComponent(appKey, componentKey);
-  if (!canOrg(session.user.role, { ...INTEGRATION_MANAGE })) {
+  if (!orgGrantAllows(session, { ...INTEGRATION_MANAGE })) {
     const projectIds = await projectIdsWithAppEnvironment(component.appId);
     if (projectIds.length === 0) {
       // Only the first build of a fresh app: later, admins only.
@@ -873,7 +874,7 @@ export async function getActiveComponentBuild(
 ): Promise<{ number: number; url: string | null } | null> {
   const session = await requireSession();
   const component = await requireAppComponent(appKey, componentKey);
-  if (!canOrg(session.user.role, { ...INTEGRATION_MANAGE })) {
+  if (!orgGrantAllows(session, { ...INTEGRATION_MANAGE })) {
     const [access, targets] = await Promise.all([
       getProjectAccess(),
       componentTargetBranches(component.componentKey),

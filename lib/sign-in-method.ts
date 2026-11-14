@@ -38,3 +38,9 @@ export function signInMethodFor(
 export function isStrongSignIn(method: string | null | undefined): boolean {
   return method != null && STRONG.has(method);
 }
+
+// The refusal for a weak session on a risky action: one message and one code
+// for the org guards, the secret reveal and the better-auth admin hook.
+export const STRONG_SIGN_IN_MESSAGE =
+  "Sign in with a passkey, Microsoft, or a password and an authenticator code to do this.";
+export const STRONG_SIGN_IN_CODE = "strong_sign_in_required";

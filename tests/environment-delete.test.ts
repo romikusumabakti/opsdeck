@@ -12,6 +12,7 @@ const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 
 const state = vi.hoisted(() => ({
   orgRole: "engineer" as string,
+  signInMethod: "passkey" as string,
   variables: [] as { name: string; escrow: boolean }[],
   // Rows the DELETE … RETURNING yields (empty: nothing matched).
   deleted: [] as { name: string }[],
@@ -20,20 +21,30 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth-session", () => ({
-  requireSession: async () => ({ user: { id: USER_ID, role: state.orgRole } }),
+  requireSession: async () => ({
+    user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: state.signInMethod },
+  }),
   getServerSession: async () => ({
     user: { id: USER_ID, role: state.orgRole },
+    session: { signInMethod: state.signInMethod },
   }),
 }));
 vi.mock("@/lib/authz", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/authz")>();
   return {
     ForbiddenError: real.ForbiddenError,
+    orgGrantAllows: real.orgGrantAllows,
+    orgGrantRole: real.orgGrantRole,
+    requireOrgGrant: real.requireOrgGrant,
     getProjectRole: async () => "engineer",
     projectScope: () => undefined,
     requireOrgPermission: async () => undefined,
     requireProjectPermission: async () => ({
-      session: { user: { id: USER_ID, role: state.orgRole } },
+      session: {
+        user: { id: USER_ID, role: state.orgRole },
+        session: { signInMethod: state.signInMethod },
+      },
       role: "engineer",
       projectId: "0197f3a0-1b2c-7def-8000-0123456789f1",
     }),
@@ -111,6 +122,7 @@ const { deleteEnvironment } = await import("@/server/services/environments");
 beforeEach(() => {
   // server:manage, but not integration:manage.
   state.orgRole = "infra";
+  state.signInMethod = "passkey";
   state.variables = [];
   state.deleted = [{ name: "HRIS Dev" }];
   state.deletes = 0;
@@ -125,6 +137,32 @@ describe("deleteEnvironment and escrowed variables", () => {
         status: 403,
       });
     }
+    expect(state.deletes).toBe(0);
+  });
+
+  it("refuses a password-only admin with the strong sign-in code, deleting nothing", async () => {
+    state.orgRole = "admin";
+    state.signInMethod = "password";
+    await expect(deleteEnvironment(ENV_ID)).rejects.toMatchObject({
+      status: 403,
+      code: "strong_sign_in_required",
+    });
+    expect(state.deletes).toBe(0);
+  });
+
+  it("lets a passkey admin delete it", async () => {
+    state.orgRole = "admin";
+    expect(await deleteEnvironment(ENV_ID)).toMatchObject({ success: true });
+    expect(state.deletes).toBe(1);
+  });
+
+  it("does not take the escrow confirmation from a password-only admin", async () => {
+    state.orgRole = "admin";
+    state.signInMethod = "password";
+    state.variables = [{ name: "DATA_ENCRYPTION_KEY", escrow: true }];
+    await expect(
+      deleteEnvironment(ENV_ID, { confirmEscrowedDeletion: true })
+    ).rejects.toMatchObject({ status: 403 });
     expect(state.deletes).toBe(0);
   });
 

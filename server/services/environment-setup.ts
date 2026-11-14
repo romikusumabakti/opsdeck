@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
-import { requireProjectPermission } from "@/lib/authz";
+import { orgGrantRole, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
   appComponents,
@@ -215,7 +215,7 @@ async function authorize(
   );
   const caller = {
     userId: session.user.id,
-    orgRole: session.user.role,
+    orgRole: orgGrantRole(session),
     projectRole: role,
   };
   if (!input.copyFromEnvironmentId) return { caller, source: null };
@@ -1166,7 +1166,7 @@ export async function getSetupOptions(
     servers: serverRows
       .filter((s) =>
         canPlaceEnvironment(
-          session.user.role,
+          orgGrantRole(session),
           role,
           s.placement,
           project?.defaultServerId === s.id
