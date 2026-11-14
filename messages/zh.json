@@ -1395,7 +1395,12 @@
     "removeAvatarTitle": "移除照片？",
     "removeAvatarDescription": "{name} 的头像将被移除，改为显示姓名缩写。对方可以随时重新上传。",
     "removeAvatarConfirm": "移除",
-    "noAvatar": "没有可移除的照片"
+    "noAvatar": "没有可移除的照片",
+    "resetTwoFactor": "重置双重验证",
+    "resetTwoFactorTitle": "重置双重验证？",
+    "resetTwoFactorDescription": "这将移除 {name} 的身份验证器应用和备用代码，并使其在所有设备上退出登录。登录后可以重新设置双重验证。",
+    "resetTwoFactorConfirm": "重置双重验证",
+    "resetTwoFactorSuccess": "已重置 {name} 的双重验证。"
   },
   "setup": {
     "title": "初始设置",
@@ -3529,5 +3534,12 @@
   "personPicker": {
     "search": "按姓名或邮箱搜索…",
     "empty": "未找到匹配的人"
+  },
+  "strongSignIn": {
+    "banner": "当前会话无法打开终端、文件、密钥或管理设置。请设置身份验证器应用，或使用通行密钥或 Microsoft 重新登录。",
+    "refusal": "当前会话无法执行此操作。请在“账户 > 安全”中设置身份验证器应用，或使用通行密钥或 Microsoft 重新登录。",
+    "setUp": "设置身份验证器",
+    "signOut": "退出登录",
+    "dismiss": "关闭"
   }
 }

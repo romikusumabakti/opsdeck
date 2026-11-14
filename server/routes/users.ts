@@ -25,6 +25,7 @@ import {
   listPendingInvitations,
   listUsers,
   resendInvitation,
+  resetTwoFactor,
   revokeInvitation,
   updateUserRole,
 } from "@/server/services/users";
@@ -110,6 +111,14 @@ export const usersRouter = sessionRouter()
   )
   .post("/delete-user", json(z.object({ userId: uuidSchema })), async (c) =>
     c.json(await deleteUser(c.req.valid("json").userId))
+  )
+  .post(
+    "/reset-two-factor",
+    json(z.object({ userId: uuidSchema })),
+    async (c) => {
+      await resetTwoFactor(c.req.valid("json").userId);
+      return c.body(null, 204);
+    }
   )
   .post(
     "/revoke-invitation",

@@ -38,6 +38,7 @@ import {
 import { useBootstrap, useMe } from "@/web/api/session";
 import { LocaleNotFoundContent } from "@/web/components/locale-fallbacks";
 import { loaderQuery } from "@/web/query-client";
+import { StrongSignInBanner } from "./-components/strong-sign-in-banner";
 
 // The signed-in app shell (the port of the signed-in branch of
 // app/[locale]/layout.tsx). Pathless: every authenticated page is a child,
@@ -179,6 +180,7 @@ function SignedInShell({
                 data-scroll-restoration-id="main-content"
                 className="flex-1 min-h-0 overflow-y-auto scroll-pt-6 flex flex-col gap-6 px-4 sm:px-6 lg:px-8 py-6 focus:outline-none"
               >
+                <StrongSignInBanner />
                 {!user.timezone && (
                   <TimezoneHint appTimeZone={bootstrap.appTimeZone} />
                 )}

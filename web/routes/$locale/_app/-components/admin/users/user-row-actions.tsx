@@ -1,4 +1,11 @@
-import { ImageOff, Pencil, Trash2, UserCog, UserX } from "lucide-react";
+import {
+  ImageOff,
+  Pencil,
+  ShieldOff,
+  Trash2,
+  UserCog,
+  UserX,
+} from "lucide-react";
 import { useTranslations } from "use-intl";
 import { type RowAction, RowActions } from "@/components/ui/row-actions";
 import { ORG_ROLES } from "@/lib/permissions";
@@ -59,6 +66,13 @@ export function UserRowActions({
         disabled: r === user.role,
         onSelect: () => actions.onChangeRole(user, r),
       })),
+    });
+  }
+  if (perms.canRename && user.twoFactorEnabled) {
+    items.push({
+      label: t("resetTwoFactor"),
+      icon: ShieldOff,
+      onSelect: () => actions.onResetTwoFactor(user),
     });
   }
   if (perms.canOffboard && !user.banned) {

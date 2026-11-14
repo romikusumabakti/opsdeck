@@ -1395,7 +1395,12 @@
     "removeAvatarTitle": "Remove photo?",
     "removeAvatarDescription": "{name}'s profile photo will be removed and their initials shown instead. They can upload a new one at any time.",
     "removeAvatarConfirm": "Remove",
-    "noAvatar": "No photo to remove"
+    "noAvatar": "No photo to remove",
+    "resetTwoFactor": "Reset two-factor",
+    "resetTwoFactorTitle": "Reset two-factor?",
+    "resetTwoFactorDescription": "This removes {name}'s authenticator app and backup codes and signs them out everywhere. They can set up two-factor again after signing in.",
+    "resetTwoFactorConfirm": "Reset two-factor",
+    "resetTwoFactorSuccess": "Two-factor reset for {name}."
   },
   "setup": {
     "title": "Initial setup",
@@ -3529,5 +3534,12 @@
   "personPicker": {
     "search": "Search by name or email…",
     "empty": "No one found"
+  },
+  "strongSignIn": {
+    "banner": "Your session can't open terminals, files, secrets or admin settings. Set up an authenticator app, or sign in again with a passkey or Microsoft.",
+    "refusal": "Your session can't do this. Set up an authenticator app in Account > Security, or sign in again with a passkey or Microsoft.",
+    "setUp": "Set up authenticator",
+    "signOut": "Sign out",
+    "dismiss": "Dismiss"
   }
 }

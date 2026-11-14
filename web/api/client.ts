@@ -3,6 +3,7 @@ import { hc, type InferRequestType } from "hono/client";
 import type { JSONParsed } from "hono/utils/types";
 import { hasLocale } from "use-intl";
 import { defaultLocale, locales } from "@/i18n/locales";
+import { STRONG_SIGN_IN_CODE } from "@/lib/sign-in-method";
 import type { AppType } from "@/server/app";
 import {
   invalidateAfterMutation,
@@ -95,6 +96,16 @@ export type ApiFetchDeps = {
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 };
 
+// The guidance for a `strong_sign_in_required` refusal, in the page's
+// language. The server's message is English; whoever owns the intl context
+// registers the translation (web/routes/$locale/route.tsx), and every caller
+// that toasts `error.message` then shows it.
+let strongSignInMessage: string | undefined;
+
+export function setStrongSignInMessage(message: string | undefined): void {
+  strongSignInMessage = message;
+}
+
 async function errorBody(
   response: Response
 ): Promise<{ message: string; code?: string }> {
@@ -171,7 +182,11 @@ export function createApiFetch(deps: ApiFetchDeps): typeof fetch {
       }
     }
     const { message, code } = await errorBody(response);
-    throw new ApiError(response.status, message, code);
+    const shown =
+      code === STRONG_SIGN_IN_CODE && strongSignInMessage
+        ? strongSignInMessage
+        : message;
+    throw new ApiError(response.status, shown, code);
   };
   return apiFetch as typeof fetch;
 }

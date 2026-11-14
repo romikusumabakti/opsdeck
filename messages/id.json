@@ -1395,7 +1395,12 @@
     "removeAvatarTitle": "Hapus foto?",
     "removeAvatarDescription": "Foto profil {name} akan dihapus dan diganti dengan inisialnya. Ia bisa mengunggah foto baru kapan saja.",
     "removeAvatarConfirm": "Hapus",
-    "noAvatar": "Tidak ada foto untuk dihapus"
+    "noAvatar": "Tidak ada foto untuk dihapus",
+    "resetTwoFactor": "Reset autentikasi dua faktor",
+    "resetTwoFactorTitle": "Reset autentikasi dua faktor?",
+    "resetTwoFactorDescription": "Ini menghapus aplikasi autentikator dan kode cadangan {name}, lalu mengeluarkannya dari semua perangkat. Setelah masuk, mereka dapat menyiapkan autentikasi dua faktor lagi.",
+    "resetTwoFactorConfirm": "Reset autentikasi dua faktor",
+    "resetTwoFactorSuccess": "Autentikasi dua faktor {name} telah direset."
   },
   "setup": {
     "title": "Pengaturan awal",
@@ -3529,5 +3534,12 @@
   "personPicker": {
     "search": "Cari nama atau email…",
     "empty": "Tidak ada yang cocok"
+  },
+  "strongSignIn": {
+    "banner": "Sesi Anda tidak dapat membuka terminal, berkas, rahasia, atau pengaturan admin. Siapkan aplikasi autentikator, atau masuk lagi dengan passkey atau Microsoft.",
+    "refusal": "Sesi Anda tidak dapat melakukan ini. Siapkan aplikasi autentikator di Akun > Keamanan, atau masuk lagi dengan passkey atau Microsoft.",
+    "setUp": "Siapkan autentikator",
+    "signOut": "Keluar",
+    "dismiss": "Tutup"
   }
 }

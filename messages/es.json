@@ -1395,7 +1395,12 @@
     "removeAvatarTitle": "¿Quitar la foto?",
     "removeAvatarDescription": "Se quitará la foto de perfil de {name} y se mostrarán sus iniciales. Puede subir una nueva cuando quiera.",
     "removeAvatarConfirm": "Quitar",
-    "noAvatar": "No hay foto que quitar"
+    "noAvatar": "No hay foto que quitar",
+    "resetTwoFactor": "Restablecer verificación en dos pasos",
+    "resetTwoFactorTitle": "¿Restablecer la verificación en dos pasos?",
+    "resetTwoFactorDescription": "Esto elimina la app de autenticación y los códigos de respaldo de {name} y cierra todas sus sesiones. Podrá configurar la verificación en dos pasos de nuevo tras iniciar sesión.",
+    "resetTwoFactorConfirm": "Restablecer verificación en dos pasos",
+    "resetTwoFactorSuccess": "Verificación en dos pasos restablecida para {name}."
   },
   "setup": {
     "title": "Configuración inicial",
@@ -3529,5 +3534,12 @@
   "personPicker": {
     "search": "Buscar por nombre o correo…",
     "empty": "No se encontró a nadie"
+  },
+  "strongSignIn": {
+    "banner": "Tu sesión no puede abrir terminales, archivos, secretos ni la configuración de administración. Configura una app de autenticación o vuelve a iniciar sesión con una passkey o Microsoft.",
+    "refusal": "Tu sesión no puede hacer esto. Configura una app de autenticación en Cuenta > Seguridad, o vuelve a iniciar sesión con una passkey o Microsoft.",
+    "setUp": "Configurar autenticador",
+    "signOut": "Cerrar sesión",
+    "dismiss": "Descartar"
   }
 }
