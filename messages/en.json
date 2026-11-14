@@ -1400,7 +1400,8 @@
     "resetTwoFactorTitle": "Reset two-factor?",
     "resetTwoFactorDescription": "This removes {name}'s authenticator app and backup codes and signs them out everywhere. They can set up two-factor again after signing in.",
     "resetTwoFactorConfirm": "Reset two-factor",
-    "resetTwoFactorSuccess": "Two-factor reset for {name}."
+    "resetTwoFactorSuccess": "Two-factor reset for {name}.",
+    "cannotResetOwnTwoFactor": "You can't reset your own two-factor. Turn it off from Account > Security."
   },
   "setup": {
     "title": "Initial setup",
@@ -1575,7 +1576,8 @@
     "keyServerNoPassword": "This server signs in with the SSH key, so it stores no password.",
     "keyLineNotFound": "The key signs in, but the Panel's line is not in the server's ~/.ssh/authorized_keys. Run the install command shown here.",
     "sourceInUse": "An environment of this project still uses this app, so it can't be removed.",
-    "componentNotInSources": "This component's app isn't a source of this project. Add the app first."
+    "componentNotInSources": "This component's app isn't a source of this project. Add the app first.",
+    "cannotResetOwnTwoFactor": "You can't reset your own two-factor. Turn it off from Account > Security."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",

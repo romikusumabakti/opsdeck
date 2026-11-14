@@ -1400,7 +1400,8 @@
     "resetTwoFactorTitle": "重置双重验证？",
     "resetTwoFactorDescription": "这将移除 {name} 的身份验证器应用和备用代码，并使其在所有设备上退出登录。登录后可以重新设置双重验证。",
     "resetTwoFactorConfirm": "重置双重验证",
-    "resetTwoFactorSuccess": "已重置 {name} 的双重验证。"
+    "resetTwoFactorSuccess": "已重置 {name} 的双重验证。",
+    "cannotResetOwnTwoFactor": "不能重置自己的双重验证。请在“账户 > 安全”中关闭。"
   },
   "setup": {
     "title": "初始设置",
@@ -1575,7 +1576,8 @@
     "keyServerNoPassword": "此服务器使用 SSH 密钥登录，因此不保存密码。",
     "keyLineNotFound": "密钥可以登录，但服务器的 ~/.ssh/authorized_keys 中没有面板的那一行。请运行此处显示的安装命令。",
     "sourceInUse": "此项目的某个环境仍在使用该应用，因此无法移除。",
-    "componentNotInSources": "该组件所属的应用不是此项目的来源。请先添加该应用。"
+    "componentNotInSources": "该组件所属的应用不是此项目的来源。请先添加该应用。",
+    "cannotResetOwnTwoFactor": "不能重置自己的双重验证。请在“账户 > 安全”中关闭。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",

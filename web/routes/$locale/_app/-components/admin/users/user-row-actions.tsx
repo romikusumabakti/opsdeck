@@ -72,6 +72,8 @@ export function UserRowActions({
     items.push({
       label: t("resetTwoFactor"),
       icon: ShieldOff,
+      disabled: isSelf,
+      disabledReason: t("cannotResetOwnTwoFactor"),
       onSelect: () => actions.onResetTwoFactor(user),
     });
   }
