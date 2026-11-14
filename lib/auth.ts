@@ -5,10 +5,13 @@ import {
   APIError,
   createAuthMiddleware,
   getSessionFromCtx,
+  isAPIError,
 } from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { eq } from "drizzle-orm";
+import { recordActivity } from "./activity";
+import { authActivityFor, clientIpFrom } from "./auth-activity";
 import { APP_NAME, isAllowedEmail } from "./branding";
 import { db } from "./db";
 import {
@@ -231,11 +234,28 @@ export const auth = betterAuth({
         }
       }
     }),
-    // After a Microsoft sign-in, pull the M365 photo in the background.
-    // Fire-and-forget: not awaited, so sign-in never waits on Graph, and a
+    // After a request: record sign-ins, failed sign-ins and two-factor changes
+    // in the activity log (lib/auth-activity decides what is logged), and after
+    // a Microsoft sign-in pull the M365 photo in the background. Both are
+    // fire-and-forget: not awaited, so sign-in never waits on them, and a
     // failure only logs. Dynamic import: lib/avatars-microsoft imports this
     // module.
     after: createAuthMiddleware(async (ctx) => {
+      const returned = ctx.context.returned;
+      const row = authActivityFor({
+        path: ctx.path,
+        params: ctx.params,
+        body: ctx.body,
+        newSession: ctx.context.newSession,
+        session: ctx.context.session,
+        error: isAPIError(returned)
+          ? { status: returned.statusCode, code: returned.body?.code }
+          : null,
+        ip: clientIpFrom(ctx.request?.headers),
+        userAgent: ctx.request?.headers.get("user-agent") ?? null,
+      });
+      if (row) void recordActivity(row);
+
       if (!ctx.path.startsWith("/callback") || ctx.params?.id !== "microsoft")
         return;
       const userId = ctx.context.newSession?.user.id;

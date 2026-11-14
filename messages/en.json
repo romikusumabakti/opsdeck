@@ -2107,6 +2107,17 @@
     "profileUpdated": "{actor} updated the profile of {user}",
     "runAcknowledged": "{actor} acknowledged {count, plural, one {# failed run} other {# failed runs}} in {environment}",
     "runUnacknowledged": "{actor} reopened {count, plural, one {# failed run} other {# failed runs}} in {environment}",
+    "authSignedIn": "{actor} signed in ({method}) from {ip}",
+    "authSignInFailed": "Failed sign-in for {email} ({method}) from {ip}",
+    "authTwoFactorEnabled": "{actor} turned on two-factor authentication",
+    "authTwoFactorDisabled": "{actor} turned off two-factor authentication",
+    "authTwoFactorReset": "{actor} reset two-factor authentication for {target}",
+    "authMethod": {
+      "password": "Password",
+      "password+totp": "Password and authenticator code",
+      "passkey": "Passkey",
+      "microsoft": "Microsoft"
+    },
     "variablesRevealed": "{actor} revealed the secret values of {environment} ({names})",
     "environmentDeletedWithVariables": "{actor} deleted {environment} and its {count, plural, one {# variable} other {# variables}} ({names})",
     "environmentProvisioned": "{actor} provisioned {environment}",
