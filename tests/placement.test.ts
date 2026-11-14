@@ -82,6 +82,7 @@ type Service = {
 
 const state = vi.hoisted(() => ({
   orgRole: "engineer" as string,
+  signInMethod: "passkey" as string,
   // Role in the environment's (or the created environment's) project.
   projectRole: "engineer" as string | null,
   // Key of the project a placement is checked for (the projects lookup).
@@ -120,11 +121,11 @@ const state = vi.hoisted(() => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: async () => ({
     user: { id: state.userId, role: state.orgRole },
-    session: { signInMethod: "passkey" },
+    session: { signInMethod: state.signInMethod },
   }),
   getServerSession: async () => ({
     user: { id: state.userId, role: state.orgRole },
-    session: { signInMethod: "passkey" },
+    session: { signInMethod: state.signInMethod },
   }),
 }));
 
@@ -144,7 +145,7 @@ vi.mock("@/lib/authz", async (importOriginal) => {
       if (!canOrg(state.orgRole, perms)) throw new real.ForbiddenError();
       return {
         user: { id: state.userId, role: state.orgRole },
-        session: { signInMethod: "passkey" },
+        session: { signInMethod: state.signInMethod },
       };
     },
     requireProjectPermission: async (
@@ -166,7 +167,7 @@ vi.mock("@/lib/authz", async (importOriginal) => {
       return {
         session: {
           user: { id: state.userId, role: state.orgRole },
-          session: { signInMethod: "passkey" },
+          session: { signInMethod: state.signInMethod },
         },
         role,
         projectId: scope.projectId ?? PROJECT_ID,
@@ -304,6 +305,7 @@ const insertedEnvironment = () =>
 
 beforeEach(() => {
   state.orgRole = "engineer";
+  state.signInMethod = "passkey";
   state.projectRole = "engineer";
   state.projectKey = "HRIS";
   state.defaultServerId = null;
@@ -607,6 +609,27 @@ describe("updateEnvironment kind and production", () => {
     });
     state.stored.kind = "dev";
     expect(await updateEnvironment(ENV_ID, { kind: "qa" })).toMatchObject({
+      success: true,
+    });
+  });
+
+  it("refuses a password-only admin a change to or from prod, with the project-admin code", async () => {
+    state.orgRole = "admin";
+    state.signInMethod = "password";
+    state.stored.kind = "dev";
+    await expect(
+      updateEnvironment(ENV_ID, { kind: "prod" })
+    ).rejects.toMatchObject({
+      status: 403,
+      code: "environmentKindProductionAdminOnly",
+    });
+    expect(updates()).toEqual([]);
+  });
+
+  it("lets a passkey admin mark an environment as production", async () => {
+    state.orgRole = "admin";
+    state.stored.kind = "dev";
+    expect(await updateEnvironment(ENV_ID, { kind: "prod" })).toMatchObject({
       success: true,
     });
   });
