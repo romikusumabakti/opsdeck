@@ -41,5 +41,11 @@ export const sessionInfoRouter = publicRouter()
       user: session.user,
       orgRole: normalizeOrgRole(session.user.role),
       timeZone: effectiveTimeZone(session.user),
+      // For the weak-session banner: which session this is and how it was
+      // established. The id is not the token.
+      session: {
+        id: session.session.id,
+        signInMethod: session.session.signInMethod ?? null,
+      },
     });
   });

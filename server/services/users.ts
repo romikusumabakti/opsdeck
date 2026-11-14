@@ -24,6 +24,7 @@ import {
   invitations,
   projectMembers,
   sessions,
+  twoFactors,
   users as userTable,
 } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email/send";
@@ -248,6 +249,7 @@ export async function listUsers() {
       title: userTable.title,
       role: userTable.role,
       banned: userTable.banned,
+      twoFactorEnabled: userTable.twoFactorEnabled,
       createdAt: userTable.createdAt,
       lastActiveAt: max(sessions.updatedAt),
       projectCount: countDistinct(projectMembers.projectId),
@@ -411,6 +413,40 @@ export async function updateUserRole(input: {
   });
 
   return { success: true, message: t("roleUpdated") };
+}
+
+// Admin recovery for a user who lost their authenticator: remove the TOTP
+// secret and backup codes, clear the flag and drop their sessions, so the next
+// sign-in is a fresh one. A user without two-factor is left alone and nothing
+// is logged.
+export async function resetTwoFactor(userId: string): Promise<void> {
+  const session = await requireOrgPermission({ user: ["update"] });
+  const [target] = await db
+    .select({
+      name: userTable.name,
+      twoFactorEnabled: userTable.twoFactorEnabled,
+    })
+    .from(userTable)
+    .where(eq(userTable.id, userId))
+    .limit(1);
+  if (!target?.twoFactorEnabled) return;
+
+  await db.transaction(async (tx) => {
+    await tx.delete(twoFactors).where(eq(twoFactors.userId, userId));
+    await tx
+      .update(userTable)
+      .set({ twoFactorEnabled: false, updatedAt: new Date() })
+      .where(eq(userTable.id, userId));
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
+  });
+
+  await recordActivity({
+    actorId: session.user.id,
+    action: "auth.two_factor_reset",
+    entityType: "access",
+    entityId: userId,
+    data: { target: target.name },
+  });
 }
 
 export async function deleteUser(userId: string): Promise<ActionResponse> {

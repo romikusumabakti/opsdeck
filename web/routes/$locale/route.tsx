@@ -6,7 +6,7 @@ import {
   useMatch,
 } from "@tanstack/react-router";
 import * as React from "react";
-import { hasLocale } from "use-intl";
+import { hasLocale, useTranslations } from "use-intl";
 import { DialogProvider } from "@/components/dialog-provider";
 import { NavigationGuardProvider } from "@/components/navigation-guard";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -15,6 +15,7 @@ import { applyBranding } from "@/i18n/branding";
 import { persistLocale } from "@/i18n/locale-preference";
 import { type Locale, locales } from "@/i18n/locales";
 import { effectiveAccent } from "@/lib/accents";
+import { setStrongSignInMessage } from "@/web/api/client";
 import {
   bootstrapQuery,
   meQuery,
@@ -90,6 +91,7 @@ function LocaleLayout() {
   return (
     <IntlShell locale={locale} messages={messages}>
       <DocumentBrand />
+      <StrongSignInMessage />
       <ThemeProvider>
         <DialogProvider>
           <NavigationGuardProvider>
@@ -103,6 +105,17 @@ function LocaleLayout() {
       </ThemeProvider>
     </IntlShell>
   );
+}
+
+// Hands the API client the guidance text for a weak-session refusal.
+function StrongSignInMessage() {
+  const t = useTranslations("strongSignIn");
+  const message = t("refusal");
+  React.useEffect(() => {
+    setStrongSignInMessage(message);
+    return () => setStrongSignInMessage(undefined);
+  }, [message]);
+  return null;
 }
 
 // Logo shape and accent colour select CSS in web/styles.css through

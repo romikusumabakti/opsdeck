@@ -124,6 +124,13 @@ export async function deleteUser(userId: Body<"delete-user">["userId"]) {
   );
 }
 
+/** Rejects with an ApiError (e.g. the coded 403 of a weak session). */
+export async function resetTwoFactor(
+  userId: Body<"reset-two-factor">["userId"]
+) {
+  await parseResponse(routes["reset-two-factor"].$post({ json: { userId } }));
+}
+
 export async function revokeInvitation(
   invitationId: Body<"revoke-invitation">["invitationId"]
 ) {

@@ -5,8 +5,14 @@ import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
 import type { OrgRole } from "@/lib/permissions";
 import { offboardUser } from "@/web/api/access";
+import { ApiError } from "@/web/api/client";
 import { adminRemoveAvatar, adminUpdateProfile } from "@/web/api/profile";
-import { bulkDeleteUsers, deleteUser, updateUserRole } from "@/web/api/users";
+import {
+  bulkDeleteUsers,
+  deleteUser,
+  resetTwoFactor,
+  updateUserRole,
+} from "@/web/api/users";
 import type { UserAction, UserRow } from "./types";
 
 // Confirm-then-act handlers for the Users tab. Each applies its optimistic
@@ -156,6 +162,32 @@ export function useUserActions({
     [dialog, tAccess, tCommon, applyOptimistic]
   );
 
+  const onResetTwoFactor = React.useCallback(
+    async (user: UserRow) => {
+      const ok = await dialog.confirm({
+        title: t("resetTwoFactorTitle"),
+        description: t("resetTwoFactorDescription", { name: user.name }),
+        confirmText: t("resetTwoFactorConfirm"),
+        cancelText: tCommon("cancel"),
+        destructive: true,
+      });
+      if (!ok) return;
+      startTransition(async () => {
+        try {
+          await resetTwoFactor(user.id);
+        } catch (error) {
+          if (error instanceof ApiError && error.status !== 401) {
+            toast.error(error.message);
+            return;
+          }
+          throw error;
+        }
+        toast.success(t("resetTwoFactorSuccess", { name: user.name }));
+      });
+    },
+    [dialog, t, tCommon]
+  );
+
   const onBulkDelete = React.useCallback(
     async (ids: string[], clearSelection: () => void) => {
       const targets = ids.filter((id) => id !== currentUserId);
@@ -208,6 +240,7 @@ export function useUserActions({
       onRemoveAvatar,
       onChangeRole,
       onOffboard,
+      onResetTwoFactor,
       onBulkDelete,
     }),
     [
@@ -217,6 +250,7 @@ export function useUserActions({
       onRemoveAvatar,
       onChangeRole,
       onOffboard,
+      onResetTwoFactor,
       onBulkDelete,
     ]
   );
