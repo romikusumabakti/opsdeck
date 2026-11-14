@@ -1029,6 +1029,7 @@
     },
     "twoFactor": {
       "title": "验证器应用",
+      "noPassword": "双重身份验证适用于密码登录。你没有密码，使用 Microsoft 或通行密钥登录已被视为强验证。",
       "description": "除密码外，还需要验证器应用生成的 6 位验证码。",
       "on": "已开启",
       "offDescription": "两步验证已关闭。开启后，将使用手机上的验证码保护你的账户。",
@@ -1465,6 +1466,7 @@
     "keyTypeUnsupported": "服务器的 OpenSSH 版本过旧，无法使用 SSH 密钥（ed25519 需要 OpenSSH 6.5 或更高版本）。未做任何更改，已保留其密码。",
     "unreachable": "无法通过 SSH 连接到服务器。",
     "sudoNeedsPassword": "该登录用户执行 sudo 需要密码，因此无法切换到 SSH 密钥。请使用 root 或 NOPASSWD sudo 规则。",
+    "noPassword": "此服务器没有保存密码。请使用密码重新安装密钥。",
     "passwordRejected": "服务器拒绝了该密码。",
     "keyJobRunning": "另一个 SSH 密钥操作正在进行。请在其完成后重试。",
     "keyJobInterrupted": "SSH 密钥任务在完成前已停止，例如因为面板重启。请重新运行。",
@@ -3540,6 +3542,8 @@
   },
   "strongSignIn": {
     "banner": "当前会话无法打开终端、文件、密钥或管理设置。请设置身份验证器应用，或使用通行密钥或 Microsoft 重新登录。",
+    "bannerNoPassword": "你的会话无法打开终端、文件、机密或管理设置。你没有密码，请使用 Microsoft 或通行密钥重新登录。",
+    "signInAgain": "重新登录",
     "refusal": "当前会话无法执行此操作。请在“账户 > 安全”中设置身份验证器应用，或使用通行密钥或 Microsoft 重新登录。",
     "setUp": "设置身份验证器",
     "signOut": "退出登录",

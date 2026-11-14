@@ -1029,6 +1029,7 @@
     },
     "twoFactor": {
       "title": "Authenticator app",
+      "noPassword": "Two-factor authentication applies to password sign-in. You have no password, and your Microsoft or passkey sign-in already counts as strong.",
       "description": "Require a 6-digit code from an authenticator app in addition to your password.",
       "on": "On",
       "offDescription": "Two-step verification is off. Turn it on to protect your account with a code from your phone.",
@@ -1465,6 +1466,7 @@
     "keyTypeUnsupported": "The server's OpenSSH is too old for the SSH key (ed25519 needs OpenSSH 6.5 or later). Nothing was changed; it keeps its password.",
     "unreachable": "The server could not be reached over SSH.",
     "sudoNeedsPassword": "This login needs a password for sudo, so it cannot move to the SSH key. Use root or a NOPASSWD sudo rule.",
+    "noPassword": "No password is stored for this server. Reinstall the key with the password.",
     "passwordRejected": "The server rejected the password.",
     "keyJobRunning": "Another SSH key operation is running. Try again when it has finished.",
     "keyJobInterrupted": "The SSH key job stopped before it finished, for example because the Panel restarted. Run it again.",
@@ -3540,6 +3542,8 @@
   },
   "strongSignIn": {
     "banner": "Your session can't open terminals, files, secrets or admin settings. Set up an authenticator app, or sign in again with a passkey or Microsoft.",
+    "bannerNoPassword": "Your session can't open terminals, files, secrets or admin settings. You have no password, so sign in again with Microsoft or a passkey.",
+    "signInAgain": "Sign in again",
     "refusal": "Your session can't do this. Set up an authenticator app in Account > Security, or sign in again with a passkey or Microsoft.",
     "setUp": "Set up authenticator",
     "signOut": "Sign out",

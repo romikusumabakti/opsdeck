@@ -36,7 +36,7 @@ function secretFromUri(uri: string) {
   }
 }
 
-export function TwoFactorCard() {
+export function TwoFactorCard({ hasPassword }: { hasPassword: boolean }) {
   const t = useTranslations("account.twoFactor");
   const tCommon = useTranslations("common");
   const { data: session } = useSession();
@@ -297,6 +297,11 @@ export function TwoFactorCard() {
               </Button>
             </div>
           </div>
+        ) : !hasPassword ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ShieldCheck className="size-4" aria-hidden="true" />
+            {t("noPassword")}
+          </p>
         ) : (
           <div className="flex flex-col gap-3">
             <p className="flex items-center gap-2 text-sm text-muted-foreground">

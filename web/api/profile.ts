@@ -70,7 +70,7 @@ export async function setMotif(input: Body<"set-motif">["input"]) {
   );
 }
 
-/** Page data for the account page: `{ hasMicrosoftAccount }`. */
+/** Page data for the account page: `{ hasMicrosoftAccount, hasPassword }`. */
 export async function getAccount() {
   return parseResponse(routes.account.$get());
 }
