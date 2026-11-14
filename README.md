@@ -1,8 +1,32 @@
 # OpsDeck
 
-A self-hosted operations panel for teams that run many projects across many
-servers. Each project has environments (Dev, QA, …), and the panel ties together
-what those environments need day to day:
+A self-hosted operations panel for software houses and consultancies that run
+the same products for many clients, each with its own Dev, QA and UAT
+environments on its own servers.
+
+It was built for one such team, where it replaced Jenkins as the deploy tool.
+Two things set it apart from general PaaS panels:
+
+- **Mixed fleets.** Container apps (Compose) and legacy artifacts (a JAR run
+  by a systemd unit, or a static site served by nginx) deploy from the same CI
+  notification, with the same locks, health checks and rollback.
+- **Testing support for date-driven systems.** Each environment can move its
+  application clock forward or back through a small HTTP contract
+  ([`docs/time-mocking-api.md`](docs/time-mocking-api.md)), so QA can test
+  month-end, interest and expiry rules without waiting for the calendar.
+
+![Issues in a project](docs/images/issues.png)
+
+### How it compares
+
+Coolify, Dokploy and similar panels build your apps from source and own how they
+run. OpsDeck starts later: your CI builds the images or artifacts, and OpsDeck
+deploys them onto the servers you already run, into a Compose project or in
+place of a JAR or a static web root. Next to deploys it holds what an
+environment needs day to day: its databases, variables, mail, clock and
+history, plus issues and a knowledge base per project.
+
+Each project has environments (Dev, QA, …), and the panel ties together:
 
 - **Deploys** of container apps and legacy artifacts, triggered by CI build
   notifications (Woodpecker, Bitbucket), with deploy locks, health checks and
@@ -20,6 +44,9 @@ what those environments need day to day:
 Sign-in is email + password, passkeys, or Microsoft Entra ID
 ([`docs/microsoft-sign-in.md`](docs/microsoft-sign-in.md)). The UI ships in
 English, Indonesian, Spanish, Chinese and Arabic.
+
+The panel holds SSH keys and credentials for every server it manages; read
+[`SECURITY.md`](SECURITY.md) for the threat model before installing it.
 
 ## Stack
 
