@@ -255,7 +255,12 @@ export function ServerTerminal({
       {/* The frame carries the border; wterm mounts on the inner div and
           sizes the grid from its content box, so the padding lives there.
           `!` because wterm's own padding, radius and shadow sit in an
-          unlayered stylesheet that beats Tailwind's utilities layer. */}
+          unlayered stylesheet that beats Tailwind's utilities layer.
+          The height is rounded down to whole pixels: on input wterm scrolls
+          to the native bottom, then the render scrolls to its own rounded
+          bottom. With a fractional height (70vh) Firefox keeps fractional
+          scroll offsets, so the two differ and the text jitters on every
+          keystroke once there is scrollback. */}
       <div className="h-[70vh] w-full overflow-hidden rounded-lg border">
         <div
           ref={hostRef}
@@ -263,7 +268,7 @@ export function ServerTerminal({
           // regardless of the page's own direction under /ar.
           dir="ltr"
           style={TERM_STYLE}
-          className="size-full rounded-none! p-2! font-mono shadow-none!"
+          className="h-[round(down,100%,1px)] w-full rounded-none! p-2! font-mono shadow-none!"
         />
       </div>
       <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
