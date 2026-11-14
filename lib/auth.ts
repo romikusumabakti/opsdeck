@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { admin } from "better-auth/plugins/admin";
+import { twoFactor } from "better-auth/plugins/two-factor";
 import { eq } from "drizzle-orm";
 import { APP_NAME, isAllowedEmail } from "./branding";
 import { db } from "./db";
@@ -10,6 +11,7 @@ import {
   accounts,
   passkeys,
   sessions,
+  twoFactors,
   users,
   verifications,
 } from "./db/schema";
@@ -17,6 +19,7 @@ import { sendResetPasswordEmail } from "./email/send";
 import { MICROSOFT_AUTH_ENABLED } from "./env";
 import { nameTaken, pickFreeName } from "./people/names";
 import { orgAc, orgRoles } from "./permissions";
+import { signInMethodFor } from "./sign-in-method";
 import { uuidSchema } from "./validation";
 
 const RESET_PASSWORD_TOKEN_TTL_SECONDS = 60 * 60;
@@ -63,6 +66,7 @@ export const auth = betterAuth({
       accounts,
       verifications,
       passkeys,
+      twoFactors,
     },
   }),
   emailAndPassword: {
@@ -141,6 +145,9 @@ export const auth = betterAuth({
     },
   },
   session: {
+    additionalFields: {
+      signInMethod: { type: "string", required: false, input: false },
+    },
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
@@ -221,6 +228,20 @@ export const auth = betterAuth({
     }),
   },
   databaseHooks: {
+    session: {
+      create: {
+        // Record how this session was established. A password change that
+        // revokes other sessions mints a new one, which inherits the current
+        // session's method instead of resetting it.
+        before: async (session, ctx) => {
+          const signInMethod =
+            ctx?.path === "/change-password"
+              ? (ctx.context.session?.session.signInMethod ?? null)
+              : signInMethodFor(ctx?.path ?? "", ctx?.params);
+          return { data: { ...session, signInMethod } };
+        },
+      },
+    },
     user: {
       create: {
         // Last line of defence on who may exist at all. Runs for every user
@@ -272,6 +293,9 @@ export const auth = betterAuth({
     // already exists, and the domain and ban rules above therefore still hold:
     // the admin plugin's `session.create` hook rejects a banned user on the
     // passkey sign-in path exactly as it does on the password one.
+    // TOTP as a second factor after the password. The issuer is what
+    // authenticator apps show next to the account.
+    twoFactor({ issuer: APP_NAME }),
     passkey({
       rpID: RP_ID,
       rpName: APP_NAME,

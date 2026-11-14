@@ -55,8 +55,9 @@ describe("project sources migration", () => {
   });
 
   it("sorts after the global roles migration", () => {
-    expect(readdirSync("drizzle").sort().at(-1)).toBe(
-      "20261118000000_project_sources"
+    const folders = readdirSync("drizzle").sort();
+    expect(folders.indexOf("20261118000000_project_sources")).toBe(
+      folders.indexOf("20261117000000_global_roles") + 1
     );
   });
 });
