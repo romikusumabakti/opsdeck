@@ -384,3 +384,20 @@ images and bundle.
    `migrate` service applies pending migrations before the app starts.
 
 Updating production needs Romi's go-ahead.
+
+## Upgrading to strong sign-in
+
+- Sessions created before the upgrade have no recorded sign-in method and count
+  as weak, so privileged users sign in again once. Microsoft and passkey users
+  just sign in again; password users set up an authenticator (Account →
+  Security) or sign in with a passkey or Microsoft.
+- Rolling back to an older image makes users who enrolled TOTP sign in with the
+  password alone, because the old build ignores the second factor. Roll forward
+  again to enforce it.
+- After the deploy, check that Microsoft sign-ins are recorded as such, not as
+  null:
+
+  ```sql
+  select sign_in_method, count(*) from sessions
+  where created_at > '<deploy time>' group by 1;
+  ```

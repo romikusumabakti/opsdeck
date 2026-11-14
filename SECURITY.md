@@ -40,7 +40,7 @@ What the design defends against:
   checks the WebSocket `Origin`, and caps sessions per user, idle time (30 min)
   and total lifetime (8 h).
 - **A stolen password.** Risky actions need a strong sign-in: a passkey,
-  Microsoft Entra ID, or email + password plus a TOTP code. The session
+  Microsoft Entra ID, or email + password plus a TOTP or backup code. The session
   records how it was created. Without a strong sign-in the server refuses
   (403 `strong_sign_in_required`) the terminal, the file explorers, revealing
   secret variables, and every org action outside a short allowlist, as well as
@@ -75,8 +75,48 @@ The activity log (Admin → Activity) records changes to environments,
 variables (including every reveal of a secret value), deploys and deploy
 locks, project members and users, servers, tunnels and connections, file
 explorer actions, and terminal sessions (`terminal.open`, `terminal.close`
-with duration and reason, and `terminal.denied` for rejected tickets). It
-records neither sign-ins nor what is typed in a terminal session.
+with duration and reason, and `terminal.denied` for rejected tickets). Terminal
+input (what is typed in a session) is not recorded.
+
+It also records authentication events:
+
+- `auth.signed_in`: a successful sign-in, with the method, IP address and user
+  agent.
+- `auth.sign_in_failed`: a failed email + password attempt, or a failed
+  second-factor attempt (TOTP or backup code).
+- `auth.two_factor_enabled`, `auth.two_factor_disabled` and
+  `auth.two_factor_reset` (an admin resetting another user's two-factor).
+- `auth.passkey_added` and `auth.passkey_removed`.
+
+Failed passkey and Microsoft sign-ins are not logged. Attempts answered with a
+429 by the rate limiter are not logged either, because the limiter answers
+before the sign-in endpoint runs. The recorded IP address comes from
+`X-Forwarded-For` (then `CF-Connecting-IP`), so it is only as accurate as the
+proxies in front of the app.
+
+## Locked out of two-factor
+
+A user who lost both their authenticator and their backup codes needs their
+two-factor reset. Another admin can do it from Admin → Users (an admin cannot
+reset their own); this revokes the user's sessions and is logged.
+
+If there is no other admin, reset it in the database. Find the user id, then
+run the three statements in the Postgres container, from the install directory:
+
+```sh
+docker compose exec postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB"
+```
+
+```sql
+select id, email from users where email = '<email>';
+delete from two_factors where user_id = '<id>';
+update users set two_factor_enabled = false where id = '<id>';
+delete from sessions where user_id = '<id>';
+```
+
+`POSTGRES_USER` and `POSTGRES_DB` are in the instance `.env` (defaults
+`postgres` and `opsdeck`). The user can then sign in with their password and
+set up an authenticator again. This path is not logged in the activity log.
 
 ## Supply chain
 
@@ -100,9 +140,9 @@ with least-privilege `permissions`.
 
 ## Known gaps
 
-- A password-only session can turn on TOTP for its own account, so a stolen
-  password plus an account that has not enrolled is still enough. The
-  enrollment is logged.
+- A password-only session can turn on TOTP or register a passkey for its own
+  account, so a stolen password plus an account that has not enrolled is still
+  enough. Both are logged (`auth.two_factor_enabled`, `auth.passkey_added`).
 - Microsoft OAuth tokens are stored as better-auth stores them, unencrypted.
 - Knowledge-base pages are stored as written. Don't paste credentials into
   them; put them in secret variables, which are encrypted.
