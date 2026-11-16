@@ -178,7 +178,9 @@ export async function loadTreeNodes(
  * treats a hidden draft exactly like a missing doc (notFound) — no title leak.
  */
 export async function loadDocumentBySlug(
-  slug: string
+  slug: string,
+  // Session-free callers (the assistant worker) pass the viewer explicitly.
+  viewerOverride?: KnowledgeViewer
 ): Promise<KnowledgeDocumentWithMeta | null> {
   const doc = await db.query.knowledgeDocuments.findFirst({
     where: { slug },
@@ -189,7 +191,7 @@ export async function loadDocumentBySlug(
     },
   });
   if (!doc) return null;
-  const viewer = await currentViewer();
+  const viewer = viewerOverride ?? (await currentViewer());
   if (!canViewDoc(doc, viewer)) return null;
   return doc as KnowledgeDocumentWithMeta;
 }
@@ -268,8 +270,12 @@ export const HL_STOP = String.fromCharCode(2);
  * websearch_to_tsquery (Google-style operators, never throws on bad syntax) and
  * ts_headline for a highlighted snippet. Ranked by ts_rank, capped at 20.
  */
-export async function searchDocuments(query: string): Promise<SearchHit[]> {
-  const viewer = await currentViewer();
+export async function searchDocuments(
+  query: string,
+  // Session-free callers (the assistant worker) pass the viewer explicitly.
+  viewerOverride?: KnowledgeViewer
+): Promise<SearchHit[]> {
+  const viewer = viewerOverride ?? (await currentViewer());
   // Keep drafts the viewer may not see out of results.
   const draftFilter = viewer.canManage
     ? sql``

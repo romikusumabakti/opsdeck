@@ -70,6 +70,7 @@
     "codemirror": "^6.0.2",
     "date-fns": "^4.4.0",
     "drizzle-orm": "1.0.0-rc.5",
+    "exceljs": "^4.4.0",
     "fractional-indexing": "^4.0.0",
     "hono": "^4.13.18",
     "ioredis": "^6.0.0",

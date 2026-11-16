@@ -25,6 +25,8 @@ export type ToolMeta = {
   ranges?: string[];
   issueKeys?: string[];
   docSlugs?: string[];
+  /** Jira attachment ids whose content was sent (audit). */
+  attachmentIds?: string[];
   withheld?: number;
 };
 

@@ -181,3 +181,35 @@ export const ISSUE_FIELDS = [
   "labels",
   "parent",
 ] as const;
+
+/**
+ * One entry of an issue's `attachment` field. Cloud and Data Center return the
+ * same shape; `id` is a numeric string on both, coerced in case a version
+ * returns a number.
+ */
+export const jiraAttachmentSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).transform(String),
+    filename: z.string(),
+    mimeType: z.string().nullish(),
+    size: z.number().nullish(),
+    created: z.string().nullish(),
+  })
+  .loose();
+
+export const jiraIssueAttachmentsSchema = z
+  .object({
+    fields: z
+      .object({ attachment: z.array(jiraAttachmentSchema).nullish() })
+      .loose()
+      .default({}),
+  })
+  .loose();
+
+export type JiraAttachmentMeta = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  created: string | null;
+};
