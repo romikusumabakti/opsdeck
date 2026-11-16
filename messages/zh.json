@@ -3606,6 +3606,7 @@
     "title": "助手",
     "subtitle": "询问在 {name} 中运行的代码和 Jira 问题。",
     "remaining": "今日剩余：${amount}",
+    "remainingUnderCent": "今日剩余：< $0.01",
     "remainingHint": "你今天的助手使用额度。",
     "notEnabledTitle": "助手尚未启用",
     "conversations": "对话",

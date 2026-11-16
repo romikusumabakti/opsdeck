@@ -44,10 +44,16 @@ export function useMessageStream(
       onTerminalRef.current();
     };
     source.addEventListener("snapshot", (event) => {
-      const data = JSON.parse((event as MessageEvent<string>).data) as
-        | StreamSnapshot
-        | undefined;
-      if (!data) return;
+      let data: StreamSnapshot | null = null;
+      try {
+        data = JSON.parse((event as MessageEvent<string>).data);
+      } catch {
+        // A malformed frame: stop following and show the stored state.
+      }
+      if (!data || typeof data.status !== "string") {
+        finish();
+        return;
+      }
       setState({ messageId, snapshot: data });
       if (isTerminal(data.status)) finish();
     });

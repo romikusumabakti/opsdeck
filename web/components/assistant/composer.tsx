@@ -140,7 +140,8 @@ export function Composer({
         environmentId={environmentId}
         open={pickerOpen}
         onOpenChange={setPickerOpen}
-        limit={MAX_ATTACHMENTS - attachments.length}
+        max={MAX_ATTACHMENTS}
+        picked={new Set(attachments.map((a) => a.id))}
         onAdd={add}
       />
     </div>

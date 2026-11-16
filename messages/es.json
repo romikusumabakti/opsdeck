@@ -3606,6 +3606,7 @@
     "title": "Asistente",
     "subtitle": "Pregunta sobre el código y las incidencias de Jira que se ejecutan en {name}.",
     "remaining": "Restante hoy: ${amount}",
+    "remainingUnderCent": "Restante hoy: < $0.01",
     "remainingHint": "Tu asignación del asistente para hoy.",
     "notEnabledTitle": "El asistente no está activado",
     "conversations": "Conversaciones",

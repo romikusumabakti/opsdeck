@@ -27,20 +27,26 @@ export type PickedAttachment = {
 
 /**
  * Pick Jira attachments for the next question: enter an issue key, tick
- * attachments (at most `limit`), confirm after the participant-data warning.
+ * attachments (at most `max` per message, counting the ones already
+ * `picked`, which show ticked and locked), confirm after the participant-data
+ * warning.
  * Nothing is read until the question is sent with the ticked ids.
  */
 export function AttachmentPicker({
   environmentId,
   open,
   onOpenChange,
-  limit,
+  max,
+  picked,
   onAdd,
 }: {
   environmentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  limit: number;
+  /** Attachments per message. */
+  max: number;
+  /** Ids already chosen for this message. */
+  picked: ReadonlySet<string>;
   onAdd: (attachments: PickedAttachment[]) => void;
 }) {
   const t = useTranslations("assistant");
@@ -77,7 +83,7 @@ export function AttachmentPicker({
     if (!data) return;
     onAdd(
       data.attachments
-        .filter((a) => ticked.has(a.id))
+        .filter((a) => ticked.has(a.id) && !picked.has(a.id))
         .map((a) => ({ id: a.id, filename: a.filename, issueKey: data.key }))
     );
     setTicked(new Set());
@@ -85,7 +91,7 @@ export function AttachmentPicker({
   };
 
   const attachments = list.data?.attachments ?? [];
-  const full = ticked.size >= limit;
+  const full = picked.size + ticked.size >= max;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,7 +99,7 @@ export function AttachmentPicker({
         <DialogHeader>
           <DialogTitle>{t("pickerTitle")}</DialogTitle>
           <DialogDescription>
-            {t("pickerDescription", { max: limit })}
+            {t("pickerDescription", { max })}
           </DialogDescription>
         </DialogHeader>
 
@@ -131,14 +137,15 @@ export function AttachmentPicker({
         {attachments.length > 0 && (
           <ul className="flex max-h-64 flex-col gap-2 overflow-y-auto">
             {attachments.map((a) => {
-              const checked = ticked.has(a.id);
+              const already = picked.has(a.id);
+              const checked = already || ticked.has(a.id);
               const id = `assistant-attachment-${a.id}`;
               return (
                 <li key={a.id} className="flex items-start gap-2">
                   <Checkbox
                     id={id}
                     checked={checked}
-                    disabled={!checked && full}
+                    disabled={already || (!checked && full)}
                     onCheckedChange={(value) => toggle(a.id, value)}
                   />
                   <Label
@@ -157,7 +164,7 @@ export function AttachmentPicker({
         )}
         {full && attachments.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            {t("attachmentLimit", { max: limit })}
+            {t("attachmentLimit", { max })}
           </p>
         )}
 

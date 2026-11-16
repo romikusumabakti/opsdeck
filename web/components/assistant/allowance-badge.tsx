@@ -25,7 +25,9 @@ export function AllowanceBadge({ allowance }: { allowance: Allowance }) {
   }
   return (
     <Badge variant="outline" title={t("remainingHint")}>
-      {t("remaining", { amount: allowance.remainingUsd.toFixed(2) })}
+      {allowance.remainingUsd < 0.005
+        ? t("remainingUnderCent")
+        : t("remaining", { amount: allowance.remainingUsd.toFixed(2) })}
     </Badge>
   );
 }

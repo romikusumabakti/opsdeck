@@ -8,8 +8,10 @@ import { useAssistantErrorText } from "./error-text";
 import { MessageSources } from "./message-sources";
 
 /**
- * An answer's markdown, read-only: embedded HTML is dropped (`skipHtml`) and
- * links open in a new tab without access to this page.
+ * An answer's markdown, read-only: embedded HTML is dropped (`skipHtml`),
+ * images are never loaded (an injected `![](https://…?d=<data>)` would leak
+ * data without a click; only the alt text stays), and links open in a new
+ * tab without access to this page.
  */
 function AnswerMarkdown({ content }: { content: string }) {
   return (
@@ -18,6 +20,8 @@ function AnswerMarkdown({ content }: { content: string }) {
         remarkPlugins={[remarkGfm]}
         skipHtml
         components={{
+          // Never an <img> (nor React's preload of one): the alt text only.
+          img: ({ alt }) => (alt ? <span>{alt}</span> : null),
           a: ({ href, children }) => (
             <a
               href={href}

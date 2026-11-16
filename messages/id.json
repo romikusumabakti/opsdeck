@@ -3606,6 +3606,7 @@
     "title": "Asisten",
     "subtitle": "Tanyakan tentang kode dan issue Jira yang berjalan di {name}.",
     "remaining": "Sisa hari ini: ${amount}",
+    "remainingUnderCent": "Sisa hari ini: < $0.01",
     "remainingHint": "Jatah pemakaian asisten Anda untuk hari ini.",
     "notEnabledTitle": "Asisten belum aktif",
     "conversations": "Percakapan",

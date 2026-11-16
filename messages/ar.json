@@ -3606,6 +3606,7 @@
     "title": "المساعد",
     "subtitle": "اسأل عن الشيفرة ومشكلات Jira التي تعمل في {name}.",
     "remaining": "المتبقي اليوم: ${amount}",
+    "remainingUnderCent": "المتبقي اليوم: < $0.01",
     "remainingHint": "حصتك من المساعد لهذا اليوم.",
     "notEnabledTitle": "المساعد غير مفعّل",
     "conversations": "المحادثات",

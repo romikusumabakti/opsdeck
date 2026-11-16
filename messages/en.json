@@ -3606,6 +3606,7 @@
     "title": "Assistant",
     "subtitle": "Ask about the code and Jira issues running in {name}.",
     "remaining": "Left today: ${amount}",
+    "remainingUnderCent": "Left today: < $0.01",
     "remainingHint": "Your assistant allowance for today.",
     "notEnabledTitle": "The assistant is not on",
     "conversations": "Conversations",
