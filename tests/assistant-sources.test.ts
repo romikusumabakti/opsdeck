@@ -86,9 +86,9 @@ describe("pickRunningCommit", () => {
     expect(pickRunningCommit([], [])).toBeNull();
   });
 
-  it("returns null when the newest succeeded deployment has no matching build", () => {
+  it("keeps deployedAt with a null commit when the newest success has no matching build", () => {
     expect(
       pickRunningCommit([d({ tag: "gone" })], [b("b1", "t", "a")])
-    ).toBeNull();
+    ).toEqual({ commitSha: null, deployedAt: "2026-11-01T00:00:00.000Z" });
   });
 });

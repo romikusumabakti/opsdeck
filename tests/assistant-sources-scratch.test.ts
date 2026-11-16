@@ -131,7 +131,7 @@ describe.skipIf(!enabled)(
           .values({ appKey: "app", name: "App" })
           .returning()
       );
-      for (const key of ["comp-a", "comp-b", "comp-c"]) {
+      for (const key of ["comp-a", "comp-b", "comp-c", "comp-d"]) {
         await d.insert(schema.appComponents).values({
           componentKey: key,
           appId: app.id,
@@ -158,6 +158,7 @@ describe.skipIf(!enabled)(
       const tA = await target("comp-a", "main");
       const tB = await target("comp-b", "develop");
       const tC = await target("comp-c", "release");
+      const tD = await target("comp-d", "legacy");
 
       const build = async (componentKey: string, tag: string, sha: string) =>
         one(
@@ -191,6 +192,7 @@ describe.skipIf(!enabled)(
       await deploy(tA.id, "v1", "success", bOld.id, "2026-11-01T10:00:00Z");
       await deploy(tA.id, "v2", "success", bNew.id, "2026-11-02T10:00:00Z");
       await deploy(tA.id, "v3", "failed", null, "2026-11-03T10:00:00Z");
+      await deploy(tD.id, "v9", "success", null, "2026-11-04T10:00:00Z");
       await deploy(tB.id, "v7", "success", null, "2026-11-02T11:00:00Z");
 
       const sources = await resolveEnvironmentSources(env.id);
@@ -216,7 +218,13 @@ describe.skipIf(!enabled)(
         deployed: false,
         deployedAt: null,
       });
-      expect(sources).toHaveLength(3);
+      expect(byKey["comp-d"]).toMatchObject({
+        commitSha: null,
+        ref: "legacy",
+        deployed: true,
+        deployedAt: "2026-11-04T10:00:00.000Z",
+      });
+      expect(sources).toHaveLength(4);
     });
   }
 );

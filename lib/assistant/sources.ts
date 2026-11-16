@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   appComponents,
@@ -9,9 +9,13 @@ import {
 
 /**
  * One code source the assistant may read for an environment: a component's
- * repository at the commit actually running there. `commitSha` is null (and
- * `deployed` false) when nothing has been deployed yet; the caller then
- * resolves `ref` (the target's source branch) to its head.
+ * repository at the commit actually running there. Three states:
+ * - deployed, `commitSha` set: `ref` is that commit.
+ * - deployed, `commitSha` null: a deployment succeeded but its build (and so
+ *   its commit) cannot be resolved, e.g. legacy artifact targets; `ref` is the
+ *   source branch, to be resolved to its head by the caller.
+ * - not deployed (`deployed` false): no deployment ever succeeded; `ref` is the
+ *   source branch, to be resolved to its head by the caller.
  */
 export type AssistantSource = {
   componentKey: string;
@@ -43,13 +47,14 @@ const deployedAtOf = (d: DeploymentRow) => d.finishedAt ?? d.createdAt;
 /**
  * The commit a target runs: its newest successful deployment, through the
  * linked build or, when the link is gone, the newest build of that tag.
- * Null when nothing succeeded or the build cannot be found (the older
- * deployments are not what runs, so they are not a fallback).
+ * Null when nothing succeeded. When the newest success has no findable build
+ * the commit is null but deployedAt is still set (older deployments are not
+ * what runs, so they are not a fallback).
  */
 export function pickRunningCommit(
   deploymentRows: DeploymentRow[],
   buildRows: BuildRow[]
-): { commitSha: string; deployedAt: string } | null {
+): { commitSha: string | null; deployedAt: string } | null {
   const newest = deploymentRows
     .filter((d) => d.status === "success")
     .sort((a, b) => deployedAtOf(b).getTime() - deployedAtOf(a).getTime())[0];
@@ -60,10 +65,9 @@ export function pickRunningCommit(
     : buildRows
         .filter((b) => b.tag === newest.tag)
         .sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime())[0];
-  if (!build) return null;
 
   return {
-    commitSha: build.commitSha,
+    commitSha: build?.commitSha ?? null,
     deployedAt: deployedAtOf(newest).toISOString(),
   };
 }
@@ -100,8 +104,7 @@ export async function resolveEnvironmentSources(
         ),
         eq(deployments.status, "success")
       )
-    )
-    .orderBy(desc(deployments.createdAt));
+    );
   const componentKeys = [...new Set(targets.map((t) => t.componentKey))];
   const buildRows = await db
     .select()
