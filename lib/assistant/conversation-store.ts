@@ -171,6 +171,8 @@ export type ConversationDraft = {
   issueId: string | null;
   /** The created issue's Jira key; null before creation or once unlinked. */
   jiraKey: string | null;
+  /** The created Panel issue's number (`/<KEY>/issues/<n>`); null before. */
+  issueNumber: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -248,6 +250,7 @@ export async function loadConversationDetail(
         content: assistantDrafts.content,
         issueId: assistantDrafts.issueId,
         jiraKey: issues.jiraKey,
+        issueNumber: issues.number,
         createdAt: assistantDrafts.createdAt,
         updatedAt: assistantDrafts.updatedAt,
       })

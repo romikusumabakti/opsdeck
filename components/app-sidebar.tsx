@@ -102,6 +102,12 @@ const environmentItems: EnvironmentItem[] = [
     perm: SECTION_PERMS["mock-time"],
   },
   { key: "mail", url: "/mail", icon: Mail, perm: SECTION_PERMS.mail },
+  {
+    key: "assistant",
+    url: "/assistant",
+    icon: Bot,
+    perm: SECTION_PERMS.assistant,
+  },
   { key: "history", url: "/history", icon: History },
   {
     key: "settings",
@@ -218,6 +224,7 @@ export function AppSidebar({
   user,
   logo,
   side = "left",
+  assistantEnabled = false,
 }: {
   environments: EnvironmentListItem[];
   projects: NavProject[];
@@ -228,6 +235,8 @@ export function AppSidebar({
   user: UserSummary;
   logo: BrandName;
   side?: "left" | "right";
+  /** The code assistant is on (and has a key): show the Assistant entry. */
+  assistantEnabled?: boolean;
 }) {
   const tApp = useTranslations("app");
   const tNav = useTranslations("nav");
@@ -516,6 +525,10 @@ export function AppSidebar({
                     // Mail only exists once a Mailpit is connected.
                     .filter(
                       (item) => item.key !== "mail" || activeEnv.hasMailpit
+                    )
+                    // Assistant only while an admin has it switched on.
+                    .filter(
+                      (item) => item.key !== "assistant" || assistantEnabled
                     )
                     .map((item) => {
                       const itemPath = `/${activeEnv.key}/${activeEnv.slug}${item.url}`;

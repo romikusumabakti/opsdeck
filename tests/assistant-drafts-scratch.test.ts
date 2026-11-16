@@ -313,6 +313,7 @@ describe.skipIf(!enabled)(
             kind: "jira",
             issueId: created.issueId,
             jiraKey: "KST-901",
+            issueNumber: 3,
             content,
           }),
         ]);

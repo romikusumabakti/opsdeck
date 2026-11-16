@@ -49,6 +49,7 @@ import { Route as LocaleAppServersNewRouteImport } from './routes/$locale/_app/s
 import { Route as LocaleAppStorageIndexRouteImport } from './routes/$locale/_app/storage.index'
 import { Route as LocaleAppStorageNewRouteImport } from './routes/$locale/_app/storage.new'
 import { Route as LocaleAppProjectKeyEnvSlugIndexRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.index'
+import { Route as LocaleAppProjectKeyEnvSlugAssistantRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.assistant'
 import { Route as LocaleAppProjectKeyEnvSlugBackupDatabaseRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-database'
 import { Route as LocaleAppProjectKeyEnvSlugBackupRestoreRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-restore'
 import { Route as LocaleAppProjectKeyEnvSlugDatabasesRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.databases'
@@ -306,6 +307,12 @@ const LocaleAppProjectKeyEnvSlugIndexRoute =
   LocaleAppProjectKeyEnvSlugIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
+  } as any)
+const LocaleAppProjectKeyEnvSlugAssistantRoute =
+  LocaleAppProjectKeyEnvSlugAssistantRouteImport.update({
+    id: '/assistant',
+    path: '/assistant',
     getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
   } as any)
 const LocaleAppProjectKeyEnvSlugBackupDatabaseRoute =
@@ -639,6 +646,7 @@ export interface FileRoutesByFullPath {
   '/$locale/projects/': typeof LocaleAppProjectsIndexRoute
   '/$locale/servers/': typeof LocaleAppServersIndexRoute
   '/$locale/storage/': typeof LocaleAppStorageIndexRoute
+  '/$locale/$projectKey/$envSlug/assistant': typeof LocaleAppProjectKeyEnvSlugAssistantRoute
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -726,6 +734,7 @@ export interface FileRoutesByTo {
   '/$locale/projects': typeof LocaleAppProjectsIndexRoute
   '/$locale/servers': typeof LocaleAppServersIndexRoute
   '/$locale/storage': typeof LocaleAppStorageIndexRoute
+  '/$locale/$projectKey/$envSlug/assistant': typeof LocaleAppProjectKeyEnvSlugAssistantRoute
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -819,6 +828,7 @@ export interface FileRoutesById {
   '/$locale/_app/projects/': typeof LocaleAppProjectsIndexRoute
   '/$locale/_app/servers/': typeof LocaleAppServersIndexRoute
   '/$locale/_app/storage/': typeof LocaleAppStorageIndexRoute
+  '/$locale/_app/$projectKey/$envSlug/assistant': typeof LocaleAppProjectKeyEnvSlugAssistantRoute
   '/$locale/_app/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/_app/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/_app/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -912,6 +922,7 @@ export interface FileRouteTypes {
     | '/$locale/projects/'
     | '/$locale/servers/'
     | '/$locale/storage/'
+    | '/$locale/$projectKey/$envSlug/assistant'
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
     | '/$locale/$projectKey/$envSlug/databases'
@@ -999,6 +1010,7 @@ export interface FileRouteTypes {
     | '/$locale/projects'
     | '/$locale/servers'
     | '/$locale/storage'
+    | '/$locale/$projectKey/$envSlug/assistant'
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
     | '/$locale/$projectKey/$envSlug/databases'
@@ -1091,6 +1103,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/projects/'
     | '/$locale/_app/servers/'
     | '/$locale/_app/storage/'
+    | '/$locale/_app/$projectKey/$envSlug/assistant'
     | '/$locale/_app/$projectKey/$envSlug/backup-database'
     | '/$locale/_app/$projectKey/$envSlug/backup-restore'
     | '/$locale/_app/$projectKey/$envSlug/databases'
@@ -1429,6 +1442,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/$locale/$projectKey/$envSlug/'
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugIndexRouteImport
+      parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
+    }
+    '/$locale/_app/$projectKey/$envSlug/assistant': {
+      id: '/$locale/_app/$projectKey/$envSlug/assistant'
+      path: '/assistant'
+      fullPath: '/$locale/$projectKey/$envSlug/assistant'
+      preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugAssistantRouteImport
       parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
     }
     '/$locale/_app/$projectKey/$envSlug/backup-database': {
@@ -1875,6 +1895,7 @@ const LocaleAppKnowledgeRouteRouteWithChildren =
   )
 
 interface LocaleAppProjectKeyEnvSlugRouteRouteChildren {
+  LocaleAppProjectKeyEnvSlugAssistantRoute: typeof LocaleAppProjectKeyEnvSlugAssistantRoute
   LocaleAppProjectKeyEnvSlugBackupDatabaseRoute: typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   LocaleAppProjectKeyEnvSlugBackupRestoreRoute: typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   LocaleAppProjectKeyEnvSlugDatabasesRoute: typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -1893,6 +1914,8 @@ interface LocaleAppProjectKeyEnvSlugRouteRouteChildren {
 
 const LocaleAppProjectKeyEnvSlugRouteRouteChildren: LocaleAppProjectKeyEnvSlugRouteRouteChildren =
   {
+    LocaleAppProjectKeyEnvSlugAssistantRoute:
+      LocaleAppProjectKeyEnvSlugAssistantRoute,
     LocaleAppProjectKeyEnvSlugBackupDatabaseRoute:
       LocaleAppProjectKeyEnvSlugBackupDatabaseRoute,
     LocaleAppProjectKeyEnvSlugBackupRestoreRoute:

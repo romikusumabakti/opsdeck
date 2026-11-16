@@ -1,4 +1,4 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
@@ -22,6 +22,7 @@ import { isRtlLocale } from "@/i18n/locales";
 import { effectiveAccent } from "@/lib/accents";
 import { dailyMotif, effectiveMotifPreference } from "@/lib/motifs";
 import { activeStatus } from "@/lib/user-display";
+import { getAllowanceQuery } from "@/web/api/assistant";
 import { listEnvironmentsQuery } from "@/web/api/environments";
 import {
   getAssignedIssueCountsQuery,
@@ -97,6 +98,8 @@ function SignedInShell({
   const issueCounts = useSuspenseQuery(getAssignedIssueCountsQuery()).data;
   const openCounts = useSuspenseQuery(getOpenIssueCountsQuery()).data;
   const projectRoles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
+  // Not awaited by the loader: the Assistant entry appears once this is in.
+  const assistantEnabled = useQuery(getAllowanceQuery()).data?.enabled ?? false;
 
   const { user, orgRole, timeZone } = me;
   const rtl = isRtlLocale(locale);
@@ -131,6 +134,7 @@ function SignedInShell({
               openCounts={openCounts}
               logo={bootstrap.brand}
               side={rtl ? "right" : "left"}
+              assistantEnabled={assistantEnabled}
               user={{
                 id: user.id,
                 name: user.name,
