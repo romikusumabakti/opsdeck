@@ -1,0 +1,550 @@
+import Anthropic from "@anthropic-ai/sdk";
+import type {
+  BetaContentBlock,
+  BetaContentBlockParam,
+  BetaMessage,
+  BetaMessageParam,
+  BetaToolResultBlockParam,
+  BetaToolUnion,
+  BetaToolUseBlock,
+} from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import { type AssistantRuntime, loadAssistantRuntime } from "./client";
+import {
+  ensureSnapshot as defaultEnsureSnapshot,
+  type Snapshot,
+  SnapshotUnavailableError,
+} from "./snapshot";
+import {
+  type AssistantSource,
+  resolveEnvironmentSources as defaultResolveSources,
+} from "./sources";
+import {
+  buildSystemPrompt,
+  buildVolatileSystemNote,
+  type PromptSource,
+} from "./system-prompt";
+import {
+  executeTool as defaultExecuteTool,
+  TOOL_DEFS,
+  type ToolContext,
+} from "./tool-defs";
+import type { SnapshotRef, ToolResult } from "./tools/code";
+import {
+  claimMessage,
+  finishMessage,
+  loadTurn,
+  recordToolCall,
+  saveContent,
+  saveSources,
+  type TurnContext,
+} from "./turn-store";
+import { recordUsage } from "./usage";
+import { type AssistantViewer, loadAssistantViewer } from "./viewer";
+
+export const MAX_TOKENS = 32_000;
+/** Messages API requests per turn; the last one may not ask for more tools. */
+export const MAX_ITERATIONS = 25;
+/** Streamed text is written to Postgres at most this often. */
+export const FLUSH_INTERVAL_MS = 400;
+export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+
+export type AssistantErrorCode =
+  | "assistant.not_configured"
+  | "assistant.credit_exhausted"
+  | "assistant.unavailable"
+  | "assistant.refused"
+  | "assistant.too_many_steps"
+  | "assistant.interrupted"
+  | "assistant.failed";
+
+export type RunTurnDeps = {
+  client?: Anthropic;
+  now?: () => Date;
+  loadRuntime?: () => Promise<AssistantRuntime | null>;
+  resolveSources?: (environmentId: string) => Promise<AssistantSource[]>;
+  ensureSnapshot?: (source: AssistantSource) => Promise<Snapshot>;
+  loadViewer?: (userId: string) => Promise<AssistantViewer>;
+  executeTool?: (
+    name: string,
+    input: unknown,
+    ctx: ToolContext
+  ) => Promise<ToolResult<unknown>>;
+};
+
+class TurnError extends Error {
+  constructor(readonly code: AssistantErrorCode) {
+    super(code);
+    this.name = "TurnError";
+  }
+}
+
+/** Maps an error thrown by the SDK (or the loop) to the message's error code. */
+export function classifyError(error: unknown): AssistantErrorCode {
+  if (error instanceof TurnError) return error.code;
+  // Connection failures and timeouts are APIError subclasses without a status.
+  if (error instanceof Anthropic.APIConnectionError) {
+    return "assistant.unavailable";
+  }
+  if (error instanceof Anthropic.APIError) {
+    const message = `${error.apiMessage ?? ""} ${error.message}`;
+    if (
+      error.type === "billing_error" ||
+      error.status === 402 ||
+      ((error.status === 400 || error.type === "invalid_request_error") &&
+        /credit balance/i.test(message))
+    ) {
+      return "assistant.credit_exhausted";
+    }
+    if (
+      error.status === 401 ||
+      error.status === 403 ||
+      error.type === "authentication_error" ||
+      error.type === "permission_error"
+    ) {
+      return "assistant.not_configured";
+    }
+    // Mid-stream SSE errors carry a type but no HTTP status.
+    if (
+      error.status === 429 ||
+      (error.status !== undefined && error.status >= 500) ||
+      error.type === "rate_limit_error" ||
+      error.type === "overloaded_error" ||
+      error.type === "api_error" ||
+      error.type === "timeout_error"
+    ) {
+      return "assistant.unavailable";
+    }
+  }
+  return "assistant.failed";
+}
+
+/** Tool definitions with the prompt-cache breakpoint on the last one. */
+function cachedTools(): BetaToolUnion[] {
+  return TOOL_DEFS.map((tool, index) =>
+    index === TOOL_DEFS.length - 1
+      ? { ...tool, cache_control: { type: "ephemeral" } }
+      : tool
+  );
+}
+
+/**
+ * Prior messages as plain text turns. Failed assistant messages without any
+ * text and unfinished ones are skipped; consecutive same-role turns are fine
+ * (the API merges them).
+ */
+export function buildHistory(turn: TurnContext): BetaMessageParam[] {
+  const messages: BetaMessageParam[] = [];
+  const lastUserIndex = turn.history.findLastIndex((m) => m.role === "user");
+  turn.history.forEach((m, index) => {
+    if (m.role === "assistant") {
+      if (m.status !== "done" && m.status !== "failed") return;
+      if (m.content.trim() === "") return;
+      messages.push({ role: "assistant", content: m.content });
+      return;
+    }
+    let text = m.content;
+    if (index === lastUserIndex && turn.attachmentIds.length > 0) {
+      text += `\n\n(Attachments ticked for this question, readable with read_attachment: ${turn.attachmentIds.join(", ")})`;
+    }
+    messages.push({ role: "user", content: text });
+  });
+  return messages;
+}
+
+/**
+ * The assistant content to send back within the tool loop. Thinking blocks go
+ * back unchanged. After a mid-output refusal fallback, the thinking and
+ * tool_use blocks of the declined attempt (before the last fallback block) are
+ * dropped, the fallback block itself stays where it was.
+ */
+export function echoContent(
+  content: BetaContentBlock[]
+): BetaContentBlockParam[] {
+  const boundary = content.findLastIndex((b) => b.type === "fallback");
+  if (boundary === -1) return content as BetaContentBlockParam[];
+  return content.filter(
+    (b, index) => index >= boundary || b.type === "text"
+  ) as BetaContentBlockParam[];
+}
+
+/** One tool's result as a tool_result block. */
+export function toToolResult(
+  toolUseId: string,
+  result: ToolResult<unknown>
+): BetaToolResultBlockParam {
+  if (!result.ok) {
+    return {
+      type: "tool_result",
+      tool_use_id: toolUseId,
+      is_error: true,
+      content: result.error,
+    };
+  }
+  const data = result.data as
+    | { kind?: unknown; mediaType?: unknown; base64?: unknown; text?: unknown }
+    | null
+    | undefined;
+  if (data && typeof data === "object") {
+    if (data.kind === "document" && typeof data.base64 === "string") {
+      return {
+        type: "tool_result",
+        tool_use_id: toolUseId,
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: data.base64,
+            },
+          },
+        ],
+      };
+    }
+    if (data.kind === "image" && typeof data.base64 === "string") {
+      return {
+        type: "tool_result",
+        tool_use_id: toolUseId,
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: data.mediaType as
+                | "image/png"
+                | "image/jpeg"
+                | "image/gif"
+                | "image/webp",
+              data: data.base64,
+            },
+          },
+        ],
+      };
+    }
+    if (data.kind === "text" && typeof data.text === "string") {
+      return {
+        type: "tool_result",
+        tool_use_id: toolUseId,
+        content: [{ type: "text", text: data.text }],
+      };
+    }
+  }
+  return {
+    type: "tool_result",
+    tool_use_id: toolUseId,
+    content: JSON.stringify(result.data),
+  };
+}
+
+type ResolvedSources = { prompt: PromptSource[]; snaps: SnapshotRef[] };
+
+async function resolveSnapshots(
+  environmentId: string | null,
+  deps: Required<Pick<RunTurnDeps, "resolveSources" | "ensureSnapshot">>
+): Promise<ResolvedSources> {
+  if (!environmentId) return { prompt: [], snaps: [] };
+  const sources = await deps.resolveSources(environmentId);
+  // Downloads run in parallel; the order of the sources is kept.
+  type Outcome =
+    | { source: AssistantSource; snap: Snapshot }
+    | { source: AssistantSource; reason: string };
+  const outcomes = await Promise.all(
+    sources.map(async (source): Promise<Outcome> => {
+      try {
+        return { source, snap: await deps.ensureSnapshot(source) };
+      } catch (error) {
+        if (error instanceof SnapshotUnavailableError) {
+          return { source, reason: error.reason };
+        }
+        console.error(
+          `[assistant] snapshot of ${source.repoFullName}@${source.ref} failed`,
+          error
+        );
+        return { source, reason: "download-failed" };
+      }
+    })
+  );
+  const prompt: PromptSource[] = [];
+  const snaps: SnapshotRef[] = [];
+  for (const outcome of outcomes) {
+    const { source } = outcome;
+    if ("snap" in outcome) {
+      prompt.push({ ...source, commitSha: outcome.snap.commitSha });
+      snaps.push({
+        componentKey: source.componentKey,
+        dir: outcome.snap.dir,
+        commitSha: outcome.snap.commitSha,
+      });
+    } else {
+      prompt.push({ ...source, unavailableReason: outcome.reason });
+    }
+  }
+  return { prompt, snaps };
+}
+
+/** The final text of the turn, flushed to Postgres at most every 400 ms. */
+class ContentWriter {
+  private committed = "";
+  private current = "";
+  private lastFlush = 0;
+  private pending: Promise<void> = Promise.resolve();
+
+  constructor(
+    private readonly messageId: string,
+    private readonly now: () => Date
+  ) {}
+
+  get text(): string {
+    if (!this.current) return this.committed;
+    return this.committed
+      ? `${this.committed}\n\n${this.current}`
+      : this.current;
+  }
+
+  append(delta: string): void {
+    this.current += delta;
+    const at = this.now().getTime();
+    if (at - this.lastFlush >= FLUSH_INTERVAL_MS) {
+      this.lastFlush = at;
+      const snapshot = this.text;
+      // Writes are chained so an older snapshot never lands after a newer one.
+      this.pending = this.pending.then(() =>
+        saveContent(this.messageId, snapshot).catch((error) => {
+          console.error("[assistant] failed to save streamed content", error);
+        })
+      );
+    }
+  }
+
+  /** Ends one API response: its text stays, the next starts a new paragraph. */
+  commit(): void {
+    if (this.current.trim() === "") {
+      this.current = "";
+      return;
+    }
+    this.committed = this.text;
+    this.current = "";
+  }
+
+  async settle(): Promise<void> {
+    await this.pending;
+  }
+}
+
+/**
+ * Runs one assistant turn: the message row (status queued) was created with
+ * the user's question. Streams Claude's answer into the row, runs the tools
+ * it asks for, meters every response, and ends the row done or failed with a
+ * stable error code. Never throws for a turn-level failure.
+ */
+export async function runTurn(
+  messageId: string,
+  deps: RunTurnDeps = {}
+): Promise<void> {
+  const now = deps.now ?? (() => new Date());
+  const turn = await loadTurn(messageId);
+  if (!turn) {
+    console.warn(`[assistant] message ${messageId} not found; job dropped`);
+    return;
+  }
+  if (turn.status === "streaming") {
+    // A job redelivered after its worker died mid-turn: the first run's
+    // partial state cannot be resumed.
+    await finishMessage(
+      messageId,
+      {
+        status: "failed",
+        content: turn.content,
+        errorCode: "assistant.interrupted",
+      },
+      now()
+    ).catch(() => {});
+    return;
+  }
+  if (turn.status !== "queued" || !(await claimMessage(messageId))) return;
+
+  const writer = new ContentWriter(messageId, now);
+  try {
+    await runClaimedTurn(turn, writer, deps, now);
+    await writer.settle();
+    await finishMessage(
+      messageId,
+      { status: "done", content: writer.text },
+      now()
+    );
+  } catch (error) {
+    const code = classifyError(error);
+    if (code === "assistant.failed") {
+      console.error(`[assistant] turn ${messageId} failed`, error);
+    }
+    await writer.settle();
+    await finishMessage(
+      messageId,
+      { status: "failed", content: writer.text, errorCode: code },
+      now()
+    );
+  }
+}
+
+async function loadRuntimeOrFail(deps: RunTurnDeps): Promise<AssistantRuntime> {
+  let runtime: AssistantRuntime | null;
+  try {
+    runtime = await (deps.loadRuntime ?? loadAssistantRuntime)();
+  } catch (error) {
+    // Typically a stored key that no longer decrypts (rotated SECRETS_KEY).
+    console.error("[assistant] could not load the assistant settings", error);
+    throw new TurnError("assistant.not_configured");
+  }
+  if (!runtime) throw new TurnError("assistant.not_configured");
+  return deps.client ? { ...runtime, client: deps.client } : runtime;
+}
+
+async function runClaimedTurn(
+  turn: TurnContext,
+  writer: ContentWriter,
+  deps: RunTurnDeps,
+  now: () => Date
+): Promise<void> {
+  const runtime = await loadRuntimeOrFail(deps);
+  const viewer = await (deps.loadViewer ?? loadAssistantViewer)(turn.userId);
+  const resolved = await resolveSnapshots(turn.environmentId, {
+    resolveSources: deps.resolveSources ?? defaultResolveSources,
+    ensureSnapshot:
+      deps.ensureSnapshot ?? ((source) => defaultEnsureSnapshot(source)),
+  });
+  // Stored without the turn-only unavailableReason; unavailable components
+  // keep a null commit.
+  await saveSources(
+    turn.messageId,
+    resolved.prompt.map(({ unavailableReason, ...source }) =>
+      unavailableReason ? { ...source, commitSha: null } : source
+    )
+  );
+
+  const system = [
+    {
+      type: "text" as const,
+      text: buildSystemPrompt({
+        projectName: turn.projectName,
+        environmentName: turn.environmentName,
+        sources: resolved.prompt,
+        userName: turn.userName,
+      }),
+      cache_control: { type: "ephemeral" as const },
+    },
+    { type: "text" as const, text: buildVolatileSystemNote(now()) },
+  ];
+  const tools = cachedTools();
+  const messages = buildHistory(turn);
+  const toolContext: ToolContext = {
+    snaps: resolved.snaps,
+    viewer,
+    attachmentIds: turn.attachmentIds,
+  };
+  const execute = deps.executeTool ?? defaultExecuteTool;
+
+  for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    const message = await streamOnce(runtime, system, tools, messages, writer);
+    await recordUsage({
+      messageId: turn.messageId,
+      userId: turn.userId,
+      model: message.model,
+      usage: message.usage,
+      priceModel: runtime.model,
+      now: now(),
+    });
+    writer.commit();
+
+    switch (message.stop_reason) {
+      case "end_turn":
+      case "stop_sequence":
+        return;
+      case "refusal":
+        throw new TurnError("assistant.refused");
+      case "pause_turn":
+        messages.push({
+          role: "assistant",
+          content: echoContent(message.content),
+        });
+        continue;
+      case "tool_use":
+        break;
+      default:
+        // max_tokens (a truncated answer or tool input), context overflow.
+        console.error(
+          `[assistant] turn ${turn.messageId} stopped: ${message.stop_reason}`
+        );
+        throw new TurnError("assistant.failed");
+    }
+
+    const toolUses = message.content
+      .slice(
+        Math.max(
+          0,
+          message.content.findLastIndex((b) => b.type === "fallback")
+        )
+      )
+      .filter((b): b is BetaToolUseBlock => b.type === "tool_use");
+    if (toolUses.length === 0) return;
+    if (iteration === MAX_ITERATIONS) break;
+
+    messages.push({ role: "assistant", content: echoContent(message.content) });
+    const results = await Promise.all(
+      toolUses.map(async (use) => {
+        const result = await execute(use.name, use.input, toolContext);
+        await recordToolCall(
+          turn.messageId,
+          use.name,
+          (use.input ?? {}) as Record<string, unknown>,
+          result.meta as Record<string, unknown>
+        );
+        return toToolResult(use.id, result);
+      })
+    );
+    // All results of one response go back in a single user message.
+    messages.push({ role: "user", content: results });
+  }
+  throw new TurnError("assistant.too_many_steps");
+}
+
+async function streamOnce(
+  runtime: AssistantRuntime,
+  system: Array<{
+    type: "text";
+    text: string;
+    cache_control?: { type: "ephemeral" };
+  }>,
+  tools: BetaToolUnion[],
+  messages: BetaMessageParam[],
+  writer: ContentWriter
+): Promise<BetaMessage> {
+  const stream = runtime.client.beta.messages.stream({
+    model: runtime.model,
+    max_tokens: MAX_TOKENS,
+    betas: [FALLBACK_BETA],
+    fallbacks: "default",
+    thinking: { type: "adaptive" },
+    output_config: {
+      effort: runtime.effort as "low" | "medium" | "high",
+    },
+    system,
+    tools,
+    tool_choice: { type: "auto" },
+    // Caches the growing conversation, so each tool-loop request re-reads
+    // the previous one's prefix instead of paying for it again.
+    cache_control: { type: "ephemeral" },
+    // A copy: the loop appends to `messages` after this request.
+    messages: [...messages],
+  });
+  // After a mid-output refusal fallback the fallback model continues the
+  // partial text, so streamed text is never discarded.
+  for await (const event of stream) {
+    if (
+      event.type === "content_block_delta" &&
+      event.delta.type === "text_delta"
+    ) {
+      writer.append(event.delta.text);
+    }
+  }
+  return stream.finalMessage();
+}

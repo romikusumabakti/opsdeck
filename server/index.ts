@@ -4,6 +4,7 @@
 // evaluates that CommonJS side-effect import after the ES modules beside it,
 // so the bundled server (dist/server/index.js) died at boot without this.
 import "reflect-metadata";
+import { startAssistantWorker } from "@/lib/assistant/queue";
 import { validateEnv } from "@/lib/env";
 import { startWorker } from "@/lib/jobs/worker";
 import { app } from "@/server/app";
@@ -21,6 +22,8 @@ import { mountStatic } from "@/server/static";
 //     separate worker service).
 validateEnv();
 startWorker();
+// Assistant turns on their own queue, so they never take deploy worker slots.
+startAssistantWorker();
 // Store the SECRETS_KEY fingerprint once and register the daily backup.
 syncInstanceBackupOnBoot().catch((error) => {
   console.error("Failed to set up the instance backup:", error);
