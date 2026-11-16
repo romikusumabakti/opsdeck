@@ -1,9 +1,11 @@
-import { and, asc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  activityLog,
   assistantConversations,
   assistantDrafts,
   assistantMessages,
+  issues,
   projects,
   users,
 } from "@/lib/db/schema";
@@ -186,4 +188,74 @@ export async function loadCreateContext(
       .limit(1),
   ]);
   return { actorName: user?.name ?? null, projectKey: project?.key ?? null };
+}
+
+/** The local issue mirroring a Jira issue, if one exists (committed or ours). */
+export async function findIssueByJiraId(
+  tx: Tx,
+  jiraIssueId: string
+): Promise<{ id: string; number: number } | null> {
+  const [row] = await tx
+    .select({ id: issues.id, number: issues.number })
+    .from(issues)
+    .where(eq(issues.jiraIssueId, jiraIssueId))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Names the actor as creator of an adopted mirror the sync left without one. */
+export async function claimIssueCreator(
+  tx: Tx,
+  issueId: string,
+  actorId: string
+): Promise<void> {
+  await tx
+    .update(issues)
+    .set({ createdById: actorId })
+    .where(and(eq(issues.id, issueId), isNull(issues.createdById)));
+}
+
+/**
+ * The activity action that records a Jira issue created for a draft whose
+ * local write then failed. It is also the record a retry reads back, so the
+ * retry links that issue instead of creating a second one.
+ */
+export const UNLINKED_CREATE_ACTION = "issue.jira_create_unlinked";
+
+export type UnlinkedRemote = { jiraIssueId: string; jiraKey: string };
+
+export async function recordUnlinkedRemote(
+  draftId: string,
+  actorId: string,
+  remote: UnlinkedRemote
+): Promise<void> {
+  await db.insert(activityLog).values({
+    actorId,
+    action: UNLINKED_CREATE_ACTION,
+    entityType: "assistant_draft",
+    entityId: draftId,
+    data: { jiraIssueId: remote.jiraIssueId, jiraKey: remote.jiraKey },
+  });
+}
+
+/** The Jira issue an earlier, failed create of this draft left behind. */
+export async function findUnlinkedRemote(
+  tx: Tx,
+  draftId: string
+): Promise<UnlinkedRemote | null> {
+  const [row] = await tx
+    .select({ data: activityLog.data })
+    .from(activityLog)
+    .where(
+      and(
+        eq(activityLog.action, UNLINKED_CREATE_ACTION),
+        eq(activityLog.entityType, "assistant_draft"),
+        eq(activityLog.entityId, draftId)
+      )
+    )
+    .orderBy(desc(activityLog.createdAt))
+    .limit(1);
+  const id = row?.data.jiraIssueId;
+  const key = row?.data.jiraKey;
+  return id && key ? { jiraIssueId: String(id), jiraKey: String(key) } : null;
 }

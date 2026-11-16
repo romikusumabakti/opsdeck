@@ -17,7 +17,8 @@ import * as schema from "@/lib/db/schema";
 const enabled = process.env.ASSISTANT_SCRATCH_DB === "1";
 
 const link = vi.hoisted(() => ({ projectId: "" }));
-vi.mock("@/lib/jira/sync", () => ({
+vi.mock("@/lib/jira/sync", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/jira/sync")>()),
   resolveLink: async (projectId: string) =>
     projectId === link.projectId
       ? {
@@ -318,6 +319,108 @@ describe.skipIf(!enabled)(
       } finally {
         vi.unstubAllGlobals();
       }
+    });
+
+    it("adopts the webhook mirror committed while its insert waits, and keeps a record of an unstored issue", async () => {
+      const d = drizzle({ client });
+      const drafts = await import("@/lib/assistant/draft-store");
+      const { createJiraIssueFromDraft } = await import("@/lib/jira/create");
+      const [user] = await d.select().from(schema.users).limit(1);
+      const [conversation] = await d
+        .select()
+        .from(schema.assistantConversations)
+        .limit(1);
+      if (!user || !conversation) throw new Error("first test's rows missing");
+      const content = {
+        summary: "Race",
+        issueType: "Task",
+        description: "x",
+        acceptanceCriteria: [],
+      };
+      const draftId = await drafts.insertDraft({
+        conversationId: conversation.id,
+        kind: "jira",
+        content,
+      });
+
+      // The sync job's transaction: its mirror of 20002 is inserted but not
+      // yet committed when the assistant's insert reaches the unique index.
+      const sync = await client.reserve();
+      let posts = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: string | URL, init: RequestInit = {}) => {
+          const path = new URL(String(input)).pathname;
+          if (path === "/rest/api/3/issue/createmeta/KST/issuetypes") {
+            return Response.json({
+              issueTypes: [{ id: "10001", name: "Task" }],
+            });
+          }
+          if (path === "/rest/api/3/issue/createmeta/KST/issuetypes/10001") {
+            return Response.json({ fields: [] });
+          }
+          if (path === "/rest/api/3/issue" && init.method === "POST") {
+            posts++;
+            await sync`begin`;
+            await sync`insert into issues (project_id, number, title, jira_issue_id, jira_key)
+              values (${conversation.projectId}, 100, 'Race (synced)', '20002', 'KST-902')`;
+            // Commit once the assistant's insert is waiting on the row.
+            setTimeout(() => {
+              sync`commit`.then(() => {});
+            }, 300);
+            return Response.json({ id: "20002", key: "KST-902" });
+          }
+          if (path === "/rest/api/3/issue/20002") {
+            // Slow enough that the assistant still found no mirror before.
+            return Response.json({
+              id: "20002",
+              key: "KST-902",
+              fields: { updated: "2026-11-16T23:40:00.000+0700" },
+            });
+          }
+          return new Response("unexpected", { status: 500 });
+        })
+      );
+      try {
+        const result = await createJiraIssueFromDraft(draftId, user.id);
+        // The test's own client has one connection: free it for the reads.
+        sync.release();
+        expect(posts).toBe(1);
+        const mirrors = await d
+          .select()
+          .from(schema.issues)
+          .where(eq(schema.issues.jiraIssueId, "20002"));
+        expect(mirrors).toHaveLength(1);
+        expect(mirrors[0]).toMatchObject({
+          id: result.issueId,
+          number: 100,
+          title: "Race (synced)",
+          createdById: user.id,
+        });
+        expect(await drafts.findDraftOwner(draftId)).toMatchObject({
+          issueId: result.issueId,
+        });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+
+      // The record a failed local write leaves, read back by the next try.
+      const other = await drafts.insertDraft({
+        conversationId: conversation.id,
+        kind: "jira",
+        content,
+      });
+      await drafts.recordUnlinkedRemote(other, user.id, {
+        jiraIssueId: "20003",
+        jiraKey: "KST-903",
+      });
+      const { db } = await import("@/lib/db");
+      expect(
+        await db.transaction((tx) => drafts.findUnlinkedRemote(tx, other))
+      ).toEqual({ jiraIssueId: "20003", jiraKey: "KST-903" });
+      expect(
+        await db.transaction((tx) => drafts.findUnlinkedRemote(tx, draftId))
+      ).toBeNull();
     });
 
     it("insertIssueWithNextNumber takes the next number inside an open transaction", async () => {

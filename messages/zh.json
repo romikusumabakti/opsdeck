@@ -2119,6 +2119,7 @@
     "unknown": "{actor} 执行了操作",
     "issueCreated": "{actor} 创建了 {key}",
     "issueCreatedFromAssistant": "{actor} 根据助手草稿创建了 {key}（{jiraKey}）",
+    "issueJiraCreateUnlinked": "{actor} 根据助手草稿在 Jira 中创建了 {jiraKey}，但未能保存到面板中",
     "issueStatusChanged": "{actor} 将 {key} 移动到 {status}",
     "memberAdded": "{actor} 将 {user} 添加到 {project}，角色为 {role}",
     "memberAddedToProject": "{actor} 将 {user} 添加到 {project}",
@@ -3595,7 +3596,7 @@
     "interrupted": "回答已中断，请重新发送消息。",
     "failed": "助手无法回答，请重试。",
     "nothingToDraft": "此对话中还没有可用于起草的回答。请先向助手提问。",
-    "invalidDraft": "此草稿不完整或过长。请检查各字段后重试。",
+    "invalidDraft": "此草稿不完整、过长，或 Jira 拒绝了其中某个字段。请检查各字段后重试。",
     "jiraPushDisabled": "此项目的 Jira 关联不允许创建问题。请让管理员开启写回 Jira。",
     "draftAlreadyCreated": "已根据此草稿创建过 Jira 问题。",
     "jiraCreateFailed": "Jira 无法创建该问题。请稍后重试。"

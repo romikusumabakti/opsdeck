@@ -17,6 +17,13 @@ const state = vi.hoisted(() => ({
   inserted: [] as Array<{ projectId: string; values: Record<string, unknown> }>,
   linked: [] as Array<{ draftId: string; issueId: string }>,
   activity: [] as Array<Record<string, unknown>>,
+  // A mirror the webhook sync already stored, by Jira issue id.
+  synced: null as null | { id: string; number: number },
+  // What the next insert does instead of succeeding.
+  insertError: null as unknown,
+  claimed: [] as string[],
+  unlinked: null as null | { jiraIssueId: string; jiraKey: string },
+  recordedUnlinked: [] as Array<{ jiraIssueId: string; jiraKey: string }>,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -34,22 +41,47 @@ vi.mock("@/lib/assistant/draft-store", () => ({
     actorName: "Widya",
     projectKey: "KMEM",
   })),
+  findIssueByJiraId: vi.fn(async () => state.synced),
+  claimIssueCreator: vi.fn(async (_tx: unknown, issueId: string) => {
+    state.claimed.push(issueId);
+  }),
+  findUnlinkedRemote: vi.fn(async () => state.unlinked),
+  recordUnlinkedRemote: vi.fn(
+    async (
+      _draftId: string,
+      _actorId: string,
+      remote: { jiraIssueId: string; jiraKey: string }
+    ) => {
+      state.recordedUnlinked.push(remote);
+    }
+  ),
 }));
 
-vi.mock("@/lib/issue-number", () => ({
+vi.mock("@/lib/issue-number", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/issue-number")>()),
   insertIssueWithNextNumber: vi.fn(
     async (
       _tx: unknown,
       projectId: string,
       values: Record<string, unknown>
     ) => {
+      if (state.insertError) {
+        const error = state.insertError;
+        state.insertError = null;
+        throw error;
+      }
       state.inserted.push({ projectId, values });
       return { id: "issue-1", number: 43 };
     }
   ),
 }));
 
-vi.mock("@/lib/jira/sync", () => ({
+vi.mock("@/lib/jira/sync", async (importOriginal) => ({
+  mapRemoteFields: (await importOriginal<typeof import("@/lib/jira/sync")>())
+    .mapRemoteFields,
+  resolveRemoteUser: vi.fn(async (actor: { accountId?: string } | null) =>
+    actor?.accountId === "acc-wulan" ? "user-wulan" : null
+  ),
   resolveLink: vi.fn(async () =>
     state.link
       ? {
@@ -76,9 +108,13 @@ vi.mock("@/lib/activity", () => ({
   }),
 }));
 
-const { createJiraIssueFromDraft, JiraCreateError } = await import(
-  "@/lib/jira/create"
-);
+const {
+  createJiraIssueFromDraft,
+  JiraCreateError,
+  jiraDescription,
+  JIRA_DESCRIPTION_BUDGET,
+} = await import("@/lib/jira/create");
+const { JiraClient, JiraError } = await import("@/lib/jira/client");
 
 const ISSUE_TYPES = {
   issueTypes: [
@@ -113,7 +149,14 @@ const BASE_FIELDS = [
 type Call = { url: string; method: string; body: unknown };
 
 function mockJira(
-  options: { fields?: unknown[]; types?: unknown; getIssueFails?: boolean } = {}
+  options: {
+    fields?: unknown[];
+    types?: unknown;
+    getIssueFails?: boolean;
+    /** What the create POST answers: a status, or a network failure. */
+    post?: number | "network";
+    issueFields?: Record<string, unknown>;
+  } = {}
 ) {
   const calls: Call[] = [];
   vi.stubGlobal(
@@ -134,6 +177,12 @@ function mockJira(
         return Response.json({ fields: options.fields ?? BASE_FIELDS });
       }
       if (path === "/rest/api/3/issue" && method === "POST") {
+        if (options.post === "network") throw new TypeError("fetch failed");
+        if (options.post && options.post !== 201) {
+          return new Response('{"errors":{"customfield_1":"required"}}', {
+            status: options.post,
+          });
+        }
         return Response.json(
           { id: "20001", key: "KST-901", self: "x" },
           { status: 201 }
@@ -144,7 +193,10 @@ function mockJira(
         return Response.json({
           id: "20001",
           key: "KST-901",
-          fields: { updated: "2026-11-16T23:30:00.000+0700" },
+          fields: {
+            updated: "2026-11-16T23:30:00.000+0700",
+            ...options.issueFields,
+          },
         });
       }
       return new Response("unexpected", { status: 500 });
@@ -187,6 +239,11 @@ function adfText(node: unknown): string {
 }
 
 beforeEach(() => {
+  state.synced = null;
+  state.insertError = null;
+  state.claimed = [];
+  state.unlinked = null;
+  state.recordedUnlinked = [];
   state.draft = jiraDraft();
   state.link = { enabled: true, pushEnabled: true };
   state.inserted = [];
@@ -349,5 +406,200 @@ describe("createJiraIssueFromDraft", () => {
     expect(at).toBeGreaterThanOrEqual(before);
     expect(state.linked).toHaveLength(1);
     warn.mockRestore();
+  });
+});
+
+const posts = (calls: Call[]) =>
+  calls.filter((c) => c.method === "POST" && c.url === "/rest/api/3/issue");
+
+describe("JiraClient.createIssue retries", () => {
+  const client = new JiraClient({
+    baseUrl: "https://acme.atlassian.net",
+    flavor: "cloud",
+    email: "bot@example.com",
+    token: "token",
+  });
+
+  it("sends the POST exactly once on a 5xx or a network failure", async () => {
+    for (const post of [502, 503, "network"] as const) {
+      const calls = mockJira({ post });
+      await expect(client.createIssue({ summary: "x" })).rejects.toBeInstanceOf(
+        JiraError
+      );
+      expect(posts(calls)).toHaveLength(1);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("retries a 429 (nothing was processed)", async () => {
+    let attempt = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        ++attempt === 1
+          ? new Response("slow down", {
+              status: 429,
+              headers: { "Retry-After": "0" },
+            })
+          : Response.json({ id: "20001", key: "KST-901" })
+      )
+    );
+    expect(await client.createIssue({ summary: "x" })).toEqual({
+      id: "20001",
+      key: "KST-901",
+    });
+    expect(attempt).toBe(2);
+  });
+
+  it("reads still retry a 5xx", async () => {
+    let attempt = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        ++attempt === 1
+          ? new Response("bad gateway", {
+              status: 502,
+              headers: { "Retry-After": "0" },
+            })
+          : Response.json({
+              id: "20001",
+              key: "KST-901",
+              fields: { updated: "2026-11-16T23:30:00.000+0700" },
+            })
+      )
+    );
+    await client.getIssue("20001");
+    expect(attempt).toBe(2);
+  });
+});
+
+describe("createJiraIssueFromDraft idempotency", () => {
+  it("a 502 on the create POST is one attempt, nothing stored or recorded", async () => {
+    const calls = mockJira({ post: 502 });
+    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toBeInstanceOf(
+      JiraError
+    );
+    expect(posts(calls)).toHaveLength(1);
+    expect(state.inserted).toEqual([]);
+    expect(state.recordedUnlinked).toEqual([]);
+  });
+
+  it("a Jira 400 on create is assistant.invalid_draft", async () => {
+    const calls = mockJira({ post: 400 });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+      code: "assistant.invalid_draft",
+    });
+    expect(posts(calls)).toHaveLength(1);
+    warn.mockRestore();
+  });
+
+  it("adopts the mirror the webhook sync stored first: draft linked, no insert, one POST", async () => {
+    const calls = mockJira();
+    state.synced = { id: "issue-synced", number: 44 };
+    const result = await createJiraIssueFromDraft(DRAFT, ACTOR);
+    expect(result).toEqual({ issueId: "issue-synced", jiraKey: "KST-901" });
+    expect(posts(calls)).toHaveLength(1);
+    expect(state.inserted).toEqual([]);
+    expect(state.claimed).toEqual(["issue-synced"]);
+    expect(state.linked).toEqual([{ draftId: DRAFT, issueId: "issue-synced" }]);
+    expect(state.activity[0]).toMatchObject({
+      entityId: "issue-synced",
+      data: { key: "KMEM-44", jiraKey: "KST-901" },
+    });
+  });
+
+  it("adopts a mirror committed while the insert waited (jira_issue_id violation)", async () => {
+    const calls = mockJira();
+    const { findIssueByJiraId } = await import("@/lib/assistant/draft-store");
+    vi.mocked(findIssueByJiraId)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "issue-synced", number: 44 });
+    state.insertError = Object.assign(new Error("duplicate key"), {
+      cause: {
+        code: "23505",
+        constraint_name: "issues_jira_issue_id_idx",
+      },
+    });
+    const result = await createJiraIssueFromDraft(DRAFT, ACTOR);
+    expect(result.issueId).toBe("issue-synced");
+    expect(posts(calls)).toHaveLength(1);
+    expect(state.linked).toEqual([{ draftId: DRAFT, issueId: "issue-synced" }]);
+    expect(state.recordedUnlinked).toEqual([]);
+  });
+
+  it("records a Jira issue it could not store, and the next request links it without a second POST", async () => {
+    const calls = mockJira();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    state.insertError = new Error("connection reset");
+    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toThrow(
+      "connection reset"
+    );
+    expect(state.recordedUnlinked).toEqual([
+      { jiraIssueId: "20001", jiraKey: "KST-901" },
+    ]);
+    expect(state.linked).toEqual([]);
+
+    // The retry finds the record (in the real store: the activity row).
+    state.unlinked = state.recordedUnlinked[0] ?? null;
+    const result = await createJiraIssueFromDraft(DRAFT, ACTOR);
+    expect(result).toEqual({ issueId: "issue-1", jiraKey: "KST-901" });
+    expect(posts(calls)).toHaveLength(1);
+    expect(state.linked).toEqual([{ draftId: DRAFT, issueId: "issue-1" }]);
+    expect(state.recordedUnlinked).toHaveLength(1);
+    error.mockRestore();
+  });
+});
+
+describe("createJiraIssueFromDraft mirror", () => {
+  it("maps status, priority, type and assignee from the read-back issue", async () => {
+    mockJira({
+      issueFields: {
+        status: {
+          name: "In Progress",
+          statusCategory: { key: "indeterminate" },
+        },
+        priority: { name: "High" },
+        issuetype: { name: "Story" },
+        assignee: { accountId: "acc-wulan" },
+      },
+    });
+    await createJiraIssueFromDraft(DRAFT, ACTOR);
+    expect(state.inserted[0]?.values).toMatchObject({
+      status: "in_progress",
+      priority: "high",
+      type: "story",
+      assigneeId: "user-wulan",
+    });
+  });
+});
+
+describe("jiraDescription", () => {
+  it("stays within the budget, cutting the draft text but keeping attribution and criteria", () => {
+    const draft = {
+      summary: "S",
+      issueType: "Task" as const,
+      description: "d".repeat(32_000),
+      acceptanceCriteria: Array.from({ length: 20 }, (_, i) =>
+        `${i}`.padEnd(1000, "c")
+      ),
+    };
+    const text = jiraDescription(draft, {
+      criteria: true,
+      authorName: "Widya",
+    });
+    expect(Array.from(text).length).toBeLessThanOrEqual(
+      JIRA_DESCRIPTION_BUDGET
+    );
+    expect(JIRA_DESCRIPTION_BUDGET).toBeLessThan(32_767);
+    expect(text.startsWith("*Written by Widya via Menara*")).toBe(true);
+    expect(text).toContain("[…]");
+    expect(text).toContain(`- ${"19".padEnd(1000, "c")}`);
+    // Short drafts are untouched.
+    const short = jiraDescription(
+      { ...draft, description: "pendek", acceptanceCriteria: ["a"] },
+      { criteria: false, authorName: null }
+    );
+    expect(short).toBe("pendek");
   });
 });

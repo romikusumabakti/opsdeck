@@ -248,8 +248,11 @@ type MappedFields = {
   priority: IssuePriority;
 };
 
-function mapFields(remote: JiraIssue, ctx: SyncContext): MappedFields {
-  const overrides = ctx.link.mappingOverrides;
+/** The local column values of a remote issue under a link's overrides. */
+export function mapRemoteFields(
+  remote: JiraIssue,
+  overrides: JiraProjectLink["mappingOverrides"]
+): MappedFields {
   return {
     // A remote summary is never empty in practice, but a null would violate
     // NOT NULL — fall back to the key so the row is still identifiable.
@@ -265,6 +268,45 @@ function mapFields(remote: JiraIssue, ctx: SyncContext): MappedFields {
     type: mapType(remote.fields.issuetype?.name, overrides),
     priority: mapPriority(remote.fields.priority?.name, overrides),
   };
+}
+
+function mapFields(remote: JiraIssue, ctx: SyncContext): MappedFields {
+  return mapRemoteFields(remote, ctx.link.mappingOverrides);
+}
+
+/**
+ * resolveUser outside a sweep, for one actor (the assignee of an issue the
+ * Panel just created): same rule, by stored account id, else by email with
+ * the account id written back.
+ */
+export async function resolveRemoteUser(
+  actor: RemoteActor | null | undefined
+): Promise<string | null> {
+  if (!actor) return null;
+  const account = actor.accountId ?? actor.name;
+  if (account) {
+    const [known] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.jiraAccountId, account))
+      .limit(1);
+    if (known) return known.id;
+  }
+  const email = actor.emailAddress?.toLowerCase();
+  if (!email) return null;
+  const [byEmail] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(${users.email}) = ${email}`)
+    .limit(1);
+  if (!byEmail) return null;
+  if (account) {
+    await db
+      .update(users)
+      .set({ jiraAccountId: account })
+      .where(eq(users.id, byEmail.id));
+  }
+  return byEmail.id;
 }
 
 /** Replace an issue's labels with the remote set, touching only the diff. */

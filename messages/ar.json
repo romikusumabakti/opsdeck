@@ -2119,6 +2119,7 @@
     "unknown": "{actor} قام بإجراء ما",
     "issueCreated": "أنشأ {actor} {key}",
     "issueCreatedFromAssistant": "أنشأ {actor} {key} ({jiraKey}) من مسودة المساعد",
+    "issueJiraCreateUnlinked": "أنشأ {actor} {jiraKey} في Jira من مسودة المساعد، لكن تعذّر حفظها في اللوحة",
     "issueStatusChanged": "نقل {actor} {key} إلى {status}",
     "memberAdded": "أضاف {actor} {user} إلى {project} بدور {role}",
     "memberAddedToProject": "أضاف {actor} {user} إلى {project}",
@@ -3595,7 +3596,7 @@
     "interrupted": "انقطعت الإجابة. أرسل رسالتك مرة أخرى.",
     "failed": "تعذّر على المساعد الإجابة. حاول مرة أخرى.",
     "nothingToDraft": "لا توجد إجابة في هذه المحادثة بعد لإنشاء مسودة منها. اسأل المساعد أولًا.",
-    "invalidDraft": "هذه المسودة غير مكتملة أو طويلة جدًا. تحقّق من الحقول وحاول مرة أخرى.",
+    "invalidDraft": "هذه المسودة غير مكتملة أو طويلة جدًا، أو رفض Jira أحد حقولها. تحقّق من الحقول وحاول مرة أخرى.",
     "jiraPushDisabled": "لا يسمح ربط Jira لهذا المشروع بإنشاء المهام. اطلب من المسؤول تفعيل الكتابة إلى Jira.",
     "draftAlreadyCreated": "تم إنشاء مهمة Jira من هذه المسودة مسبقًا.",
     "jiraCreateFailed": "تعذّر على Jira إنشاء المهمة. حاول مرة أخرى بعد قليل."

@@ -70,6 +70,11 @@ function message(
         key: String(d.key),
         jiraKey: String(d.jiraKey),
       });
+    case "issue.jira_create_unlinked":
+      return t("issueJiraCreateUnlinked", {
+        actor,
+        jiraKey: String(d.jiraKey),
+      });
     case "issue.status_changed":
       return t("issueStatusChanged", {
         actor,

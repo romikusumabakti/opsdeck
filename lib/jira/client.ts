@@ -132,6 +132,14 @@ async function readCapped(
   return out;
 }
 
+/**
+ * When a failed call is sent again. `transient`: on 429, 5xx, network errors
+ * and timeouts, for reads and idempotent writes. `rate-limit`: on 429 only
+ * (Jira processed nothing), for writes a repeat would duplicate, such as
+ * creating an issue: a 5xx or a timeout may come after Jira committed it.
+ */
+export type RetryPolicy = "transient" | "rate-limit";
+
 export class JiraClient {
   private readonly baseUrl: string;
   private readonly flavor: "cloud" | "datacenter";
@@ -154,9 +162,10 @@ export class JiraClient {
   }
 
   /**
-   * One authenticated call, retried on 429 and 5xx. The response is parsed
-   * with `schema` so malformed payloads fail here rather than three layers
-   * deep in the mapper.
+   * One authenticated call, retried per `retry` (default `transient`: 429,
+   * 5xx, network errors and timeouts). The response is parsed with `schema`
+   * so malformed payloads fail here rather than three layers deep in the
+   * mapper.
    */
   private async request<S extends z.ZodType>(
     path: string,
@@ -165,8 +174,10 @@ export class JiraClient {
       body?: unknown;
       query?: Record<string, string | number | undefined>;
       schema: S;
+      retry?: RetryPolicy;
     }
   ): Promise<z.infer<S>> {
+    const policy = options.retry ?? "transient";
     const url = new URL(`${this.baseUrl}${this.apiBase}${path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, String(value));
@@ -196,7 +207,9 @@ export class JiraClient {
             error instanceof Error ? error.message : String(error)
           }`
         );
-        if (attempt === MAX_ATTEMPTS) throw lastError;
+        // The request may have reached Jira: only a policy that allows a
+        // repeat retries it.
+        if (policy !== "transient" || attempt === MAX_ATTEMPTS) throw lastError;
         await sleep(retryDelayMs(attempt, null));
         continue;
       }
@@ -210,7 +223,9 @@ export class JiraClient {
 
       const body = await response.text().catch(() => "");
       lastError = new JiraError(response.status, body);
-      const retryable = response.status === 429 || response.status >= 500;
+      const retryable =
+        response.status === 429 ||
+        (policy === "transient" && response.status >= 500);
       if (!retryable || attempt === MAX_ATTEMPTS) throw lastError;
       await sleep(retryDelayMs(attempt, response.headers.get("Retry-After")));
     }
@@ -452,7 +467,11 @@ export class JiraClient {
     });
   }
 
-  /** Create an issue; `fields` are already in the flavor's shapes. */
+  /**
+   * Create an issue; `fields` are already in the flavor's shapes. Retried on
+   * 429 only: any other failure may follow a committed create, and a repeat
+   * would make a second issue.
+   */
   async createIssue(
     fields: Record<string, unknown>
   ): Promise<{ id: string; key: string }> {
@@ -460,6 +479,7 @@ export class JiraClient {
       method: "POST",
       body: { fields },
       schema: jiraCreatedIssueSchema,
+      retry: "rate-limit",
     });
     return { id: created.id, key: created.key };
   }
