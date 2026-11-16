@@ -148,7 +148,8 @@
     "repositories": "Repositorios",
     "variables": "Variables",
     "instance": "Instancia",
-    "releases": "Releases"
+    "releases": "Releases",
+    "assistant": "Asistente"
   },
   "header": {
     "searchEnvironment": "Buscar entorno…",
@@ -3548,5 +3549,37 @@
     "setUp": "Configurar autenticador",
     "signOut": "Cerrar sesión",
     "dismiss": "Descartar"
+  },
+  "assistantSettings": {
+    "title": "Asistente",
+    "subtitle": "El asistente de código basado en Claude que responde preguntas sobre el código de un proyecto.",
+    "formTitle": "Asistente de código",
+    "formDescription": "Una vez activado, los miembros pueden preguntar sobre el código de los proyectos que ven.",
+    "enabled": "Activar el asistente",
+    "enabledDescription": "Requiere una clave de API de Anthropic. El uso se factura a esa clave.",
+    "apiKey": "Clave de API de Anthropic",
+    "apiKeyDescription": "Se guarda cifrada y no se vuelve a mostrar.",
+    "set": "Definida",
+    "notSet": "Sin definir",
+    "keepPlaceholder": "Déjalo en blanco para conservar la clave guardada",
+    "removeKey": "Eliminar la clave",
+    "keyRemoved": "La clave se eliminará al guardar",
+    "model": "Modelo",
+    "modelOpus": "Claude Opus 5.5 (el más capaz)",
+    "modelSonnet": "Claude Sonnet 5.5 (más rápido y económico)",
+    "effort": "Esfuerzo",
+    "effortDescription": "Cuánto piensa el modelo antes de responder. Medio sirve para la mayoría de las preguntas.",
+    "effortLow": "Bajo",
+    "effortMedium": "Medio",
+    "effortHigh": "Alto",
+    "dailyCap": "Límite diario por usuario (USD)",
+    "dailyCapDescription": "Quien lo alcanza espera hasta el día siguiente (zona horaria de la instancia).",
+    "save": "Guardar",
+    "submitting": "Guardando…",
+    "saved": "Ajustes del asistente guardados",
+    "test": "Probar conexión",
+    "testing": "Probando…",
+    "testOk": "Conectado con Anthropic",
+    "keepKey": "Conservar la clave"
   }
 }

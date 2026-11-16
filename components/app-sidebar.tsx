@@ -1,6 +1,7 @@
 import {
   Activity,
   BookOpen,
+  Bot,
   Boxes,
   Cable,
   CircleDot,
@@ -160,6 +161,12 @@ const integrationItems: AdminItem[] = [
     url: "/admin/cloudflare",
     icon: CloudCog,
     perm: { server: ["manage"] },
+  },
+  {
+    key: "assistant",
+    url: "/admin/assistant",
+    icon: Bot,
+    perm: { assistant: ["manage"] },
   },
 ];
 

@@ -148,7 +148,8 @@
     "repositories": "Repositori",
     "variables": "Variabel",
     "instance": "Instans",
-    "releases": "Rilis"
+    "releases": "Rilis",
+    "assistant": "Asisten"
   },
   "header": {
     "searchEnvironment": "Cari environment…",
@@ -3548,5 +3549,37 @@
     "setUp": "Siapkan autentikator",
     "signOut": "Keluar",
     "dismiss": "Tutup"
+  },
+  "assistantSettings": {
+    "title": "Asisten",
+    "subtitle": "Asisten kode berbasis Claude yang menjawab pertanyaan tentang kode proyek.",
+    "formTitle": "Asisten kode",
+    "formDescription": "Setelah diaktifkan, anggota bisa bertanya tentang kode proyek yang bisa mereka lihat.",
+    "enabled": "Aktifkan asisten",
+    "enabledDescription": "Butuh API key Anthropic. Pemakaian ditagihkan ke key tersebut.",
+    "apiKey": "API key Anthropic",
+    "apiKeyDescription": "Disimpan terenkripsi dan tidak pernah ditampilkan lagi.",
+    "set": "Terisi",
+    "notSet": "Belum diisi",
+    "keepPlaceholder": "Kosongkan untuk mempertahankan key tersimpan",
+    "removeKey": "Hapus key",
+    "keyRemoved": "Key akan dihapus saat Anda menyimpan",
+    "model": "Model",
+    "modelOpus": "Claude Opus 5.5 (paling mampu)",
+    "modelSonnet": "Claude Sonnet 5.5 (lebih cepat, lebih murah)",
+    "effort": "Effort",
+    "effortDescription": "Seberapa dalam model berpikir sebelum menjawab. Medium cocok untuk kebanyakan pertanyaan.",
+    "effortLow": "Rendah",
+    "effortMedium": "Sedang",
+    "effortHigh": "Tinggi",
+    "dailyCap": "Batas harian per pengguna (USD)",
+    "dailyCapDescription": "Pengguna yang mencapainya harus menunggu hari berikutnya (zona waktu instance).",
+    "save": "Simpan",
+    "submitting": "Menyimpan…",
+    "saved": "Pengaturan asisten disimpan",
+    "test": "Tes koneksi",
+    "testing": "Menguji…",
+    "testOk": "Terhubung ke Anthropic",
+    "keepKey": "Pertahankan key"
   }
 }

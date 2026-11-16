@@ -148,7 +148,8 @@
     "repositories": "Repositories",
     "variables": "Variables",
     "instance": "Instance",
-    "releases": "Releases"
+    "releases": "Releases",
+    "assistant": "Assistant"
   },
   "header": {
     "searchEnvironment": "Search environment…",
@@ -3548,5 +3549,37 @@
     "setUp": "Set up authenticator",
     "signOut": "Sign out",
     "dismiss": "Dismiss"
+  },
+  "assistantSettings": {
+    "title": "Assistant",
+    "subtitle": "The Claude-powered code assistant that answers questions about a project's code.",
+    "formTitle": "Code assistant",
+    "formDescription": "Members can ask about the code of the projects they can see once it is enabled.",
+    "enabled": "Enable the assistant",
+    "enabledDescription": "Needs an Anthropic API key. Usage is billed to that key.",
+    "apiKey": "Anthropic API key",
+    "apiKeyDescription": "Stored encrypted and never shown again.",
+    "set": "Set",
+    "notSet": "Not set",
+    "keepPlaceholder": "Leave blank to keep the stored key",
+    "removeKey": "Remove the key",
+    "keyRemoved": "The key will be removed when you save",
+    "model": "Model",
+    "modelOpus": "Claude Opus 5.5 (most capable)",
+    "modelSonnet": "Claude Sonnet 5.5 (faster, cheaper)",
+    "effort": "Effort",
+    "effortDescription": "How much the model thinks before answering. Medium suits most questions.",
+    "effortLow": "Low",
+    "effortMedium": "Medium",
+    "effortHigh": "High",
+    "dailyCap": "Daily limit per user (USD)",
+    "dailyCapDescription": "A user who reaches it waits until the next day (instance time zone).",
+    "save": "Save",
+    "submitting": "Saving…",
+    "saved": "Assistant settings saved",
+    "test": "Test connection",
+    "testing": "Testing…",
+    "testOk": "Connected to Anthropic",
+    "keepKey": "Keep the key"
   }
 }

@@ -148,7 +148,8 @@
     "repositories": "代码仓库",
     "variables": "变量",
     "instance": "实例",
-    "releases": "Releases"
+    "releases": "Releases",
+    "assistant": "助手"
   },
   "header": {
     "searchEnvironment": "搜索环境…",
@@ -3548,5 +3549,37 @@
     "setUp": "设置身份验证器",
     "signOut": "退出登录",
     "dismiss": "关闭"
+  },
+  "assistantSettings": {
+    "title": "助手",
+    "subtitle": "基于 Claude 的代码助手，回答有关项目代码的问题。",
+    "formTitle": "代码助手",
+    "formDescription": "启用后，成员可以询问自己可见项目的代码。",
+    "enabled": "启用助手",
+    "enabledDescription": "需要 Anthropic API 密钥，用量将计入该密钥。",
+    "apiKey": "Anthropic API 密钥",
+    "apiKeyDescription": "加密存储，不会再次显示。",
+    "set": "已设置",
+    "notSet": "未设置",
+    "keepPlaceholder": "留空以保留已存储的密钥",
+    "removeKey": "移除密钥",
+    "keyRemoved": "保存时将移除密钥",
+    "model": "模型",
+    "modelOpus": "Claude Opus 5.5（能力最强）",
+    "modelSonnet": "Claude Sonnet 5.5（更快、更便宜）",
+    "effort": "思考强度",
+    "effortDescription": "模型回答前思考的程度。大多数问题选“中”即可。",
+    "effortLow": "低",
+    "effortMedium": "中",
+    "effortHigh": "高",
+    "dailyCap": "每位用户每日上限（USD）",
+    "dailyCapDescription": "达到上限的用户需等到次日（实例时区）。",
+    "save": "保存",
+    "submitting": "保存中…",
+    "saved": "助手设置已保存",
+    "test": "测试连接",
+    "testing": "测试中…",
+    "testOk": "已连接到 Anthropic",
+    "keepKey": "保留密钥"
   }
 }

@@ -148,7 +148,8 @@
     "repositories": "المستودعات",
     "variables": "المتغيرات",
     "instance": "المثيل",
-    "releases": "Releases"
+    "releases": "Releases",
+    "assistant": "المساعد"
   },
   "header": {
     "searchEnvironment": "ابحث عن بيئة…",
@@ -3548,5 +3549,37 @@
     "setUp": "إعداد تطبيق المصادقة",
     "signOut": "تسجيل الخروج",
     "dismiss": "إغلاق"
+  },
+  "assistantSettings": {
+    "title": "المساعد",
+    "subtitle": "مساعد الشيفرة المبني على Claude والذي يجيب عن الأسئلة حول شيفرة المشروع.",
+    "formTitle": "مساعد الشيفرة",
+    "formDescription": "بعد التفعيل يمكن للأعضاء السؤال عن شيفرة المشاريع التي يرونها.",
+    "enabled": "تفعيل المساعد",
+    "enabledDescription": "يتطلب مفتاح Anthropic API. يُحتسب الاستخدام على هذا المفتاح.",
+    "apiKey": "مفتاح Anthropic API",
+    "apiKeyDescription": "يُخزَّن مشفرًا ولا يُعرض مرة أخرى.",
+    "set": "محدد",
+    "notSet": "غير محدد",
+    "keepPlaceholder": "اتركه فارغًا للاحتفاظ بالمفتاح المخزن",
+    "removeKey": "إزالة المفتاح",
+    "keyRemoved": "ستتم إزالة المفتاح عند الحفظ",
+    "model": "النموذج",
+    "modelOpus": "Claude Opus 5.5 (الأقوى)",
+    "modelSonnet": "Claude Sonnet 5.5 (أسرع وأرخص)",
+    "effort": "مستوى الجهد",
+    "effortDescription": "مقدار تفكير النموذج قبل الإجابة. المتوسط مناسب لمعظم الأسئلة.",
+    "effortLow": "منخفض",
+    "effortMedium": "متوسط",
+    "effortHigh": "مرتفع",
+    "dailyCap": "الحد اليومي لكل مستخدم (USD)",
+    "dailyCapDescription": "ينتظر المستخدم الذي يبلغه حتى اليوم التالي (المنطقة الزمنية للنسخة).",
+    "save": "حفظ",
+    "submitting": "جارٍ الحفظ…",
+    "saved": "تم حفظ إعدادات المساعد",
+    "test": "اختبار الاتصال",
+    "testing": "جارٍ الاختبار…",
+    "testOk": "تم الاتصال بـ Anthropic",
+    "keepKey": "الاحتفاظ بالمفتاح"
   }
 }
