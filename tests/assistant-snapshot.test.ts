@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
+import { HTTPException } from "hono/http-exception";
 import tar from "tar-stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -61,6 +62,7 @@ const archiveEntries: Entry[] = [
   { name: "/abs/evil", content: "pwned" },
   { name: "repo-abc/link", type: "symlink", linkname: "/etc/passwd" },
   { name: "repo-abc/hard", type: "link", linkname: "repo-abc/README.md" },
+  { name: "repo-abc/docs/big.txt", content: "x".repeat(5 * 1024 * 1024 + 1) },
   { name: "repo-abc/bin/blob.dat", content: Buffer.from([1, 0, 2, 0, 3]) },
 ];
 
@@ -133,6 +135,62 @@ describe("ensureSnapshot", () => {
     );
     expect(out.withheld).toBe(withheld.length);
     expect(existsSync(join(out.dir, ".ready"))).toBe(true);
+  });
+
+  it("withholds an entry just over 5 MiB without writing it", async () => {
+    const out = await ensureSnapshot(source(), deps());
+    expect(existsSync(join(out.dir, "docs/big.txt"))).toBe(false);
+    const withheld = JSON.parse(
+      await readFile(join(out.dir, ".withheld.json"), "utf8")
+    ) as string[];
+    expect(withheld).toContain("docs/big.txt");
+  });
+
+  it("maps a deleted connection to no-connection", async () => {
+    getCredentials.mockRejectedValueOnce(
+      new HTTPException(404, { message: "Not Found" })
+    );
+    await expect(ensureSnapshot(source(), deps())).rejects.toMatchObject({
+      reason: "no-connection",
+    });
+  });
+
+  it("cuts a stalled body and frees the key for a retry", async () => {
+    fetchImpl.mockImplementationOnce(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(c) {
+              c.enqueue(new Uint8Array(archive.subarray(0, 20)));
+            },
+          })
+        )
+    );
+    const stalled = { ...deps(), timeouts: { idleMs: 50, totalMs: 5000 } };
+    await expect(ensureSnapshot(source(), stalled)).rejects.toThrow(
+      "timed out"
+    );
+    expect(await readdir(join(root, "acme__widgets"))).toEqual([]);
+    const retry = await ensureSnapshot(source(), deps());
+    expect(existsSync(join(retry.dir, ".ready"))).toBe(true);
+  });
+
+  it("caps the total download time even when data keeps trickling", async () => {
+    let sent = 0;
+    fetchImpl.mockImplementationOnce(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            async pull(c) {
+              await new Promise((r) => setTimeout(r, 10));
+              // One real byte at a time: never idle, never finished.
+              c.enqueue(new Uint8Array(archive.subarray(sent, ++sent)));
+            },
+          })
+        )
+    );
+    const slow = { ...deps(), timeouts: { idleMs: 1000, totalMs: 100 } };
+    await expect(ensureSnapshot(source(), slow)).rejects.toThrow("timed out");
   });
 
   it("skips traversal, absolute, symlink and hardlink entries", async () => {
@@ -258,6 +316,25 @@ describe("evictSnapshots", () => {
     expect(existsSync(a)).toBe(false);
     expect(existsSync(b)).toBe(true);
     expect(existsSync(c)).toBe(true);
+  });
+
+  it("never removes anything outside its own naming", async () => {
+    const { mkdir } = await import("node:fs/promises");
+    const old = new Date(Date.now() - 400 * 86_400_000);
+    const strayDir = join(root, "backups");
+    await mkdir(join(strayDir, "2020"), { recursive: true });
+    await writeFile(join(strayDir, "2020", "dump.sql"), "x");
+    await writeFile(join(root, "notes.txt"), "x");
+    const wrongChild = join(root, "acme__widgets", "keep-me");
+    await mkdir(wrongChild, { recursive: true });
+    for (const p of [strayDir, join(strayDir, "2020"), wrongChild]) {
+      await utimes(p, old, old);
+    }
+    await fakeSnapshot("acme__widgets", "1".repeat(40), 15);
+    expect(await evictSnapshots(new Date(), { root })).toBe(1);
+    expect(existsSync(join(strayDir, "2020", "dump.sql"))).toBe(true);
+    expect(existsSync(join(root, "notes.txt"))).toBe(true);
+    expect(existsSync(wrongChild)).toBe(true);
   });
 
   it("returns 0 when the cache root does not exist", async () => {

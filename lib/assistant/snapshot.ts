@@ -10,10 +10,11 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeWebStream } from "node:stream/web";
 import { createGunzip } from "node:zlib";
+import { HTTPException } from "hono/http-exception";
 import tar from "tar-stream";
 import { fileVerdict, isWithheldPath } from "@/lib/assistant/secret-filter";
 import type { AssistantSource } from "@/lib/assistant/sources";
@@ -28,6 +29,10 @@ const DEFAULT_ROOT = "/var/lib/menara/assistant";
 const MAX_ENTRY_BYTES = 5 * 1024 * 1024;
 const RETENTION_DAYS = 14;
 const MAX_TOTAL_BYTES = 5 * 1024 ** 3;
+// A stalled body is cut after this long without data, and any download after
+// this long in all, so one hung connection cannot block its cache key forever.
+const IDLE_TIMEOUT_MS = 60_000;
+const TOTAL_TIMEOUT_MS = 10 * 60_000;
 const STALE_TEMP_MS = 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -37,6 +42,9 @@ const WITHHELD = ".withheld.json";
 const RESERVED = new Set([READY, USED, WITHHELD]);
 const REPO_PATTERN = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 const SHA_PATTERN = /^[0-9a-f]{7,64}$/;
+const REPO_DIR_PATTERN = /^[A-Za-z0-9._-]+__[A-Za-z0-9._-]+$/;
+const SNAPSHOT_DIR_PATTERN = /^[0-9a-f]{7,64}$/;
+const TEMP_DIR_PATTERN = /^[0-9a-f]{7,64}\.tmp-[0-9a-f-]+$/;
 
 export type SnapshotUnavailableReason =
   | "no-connection"
@@ -54,7 +62,10 @@ export class SnapshotUnavailableError extends Error {
   }
 }
 
+export type SnapshotTimeouts = { idleMs?: number; totalMs?: number };
+
 export type SnapshotDeps = {
+  timeouts?: SnapshotTimeouts;
   fetchImpl?: typeof fetch;
   getCredentials?: (
     ciConnectionId: string
@@ -116,14 +127,38 @@ function relativePath(name: string): string | null {
 
 async function extractArchive(
   body: ReadableStream<Uint8Array>,
-  dir: string
+  dir: string,
+  timeouts: SnapshotTimeouts = {}
 ): Promise<string[]> {
   const withheld: string[] = [];
   const extract = tar.extract();
+  const controller = new AbortController();
+  const expire = (what: string) =>
+    controller.abort(new Error(`Snapshot download timed out (${what})`));
+  let idle = setTimeout(
+    () => expire("idle"),
+    timeouts.idleMs ?? IDLE_TIMEOUT_MS
+  );
+  const total = setTimeout(
+    () => expire("total"),
+    timeouts.totalMs ?? TOTAL_TIMEOUT_MS
+  );
+  const watchdog = new Transform({
+    transform(chunk, _encoding, callback) {
+      clearTimeout(idle);
+      idle = setTimeout(
+        () => expire("idle"),
+        timeouts.idleMs ?? IDLE_TIMEOUT_MS
+      );
+      callback(null, chunk);
+    },
+  });
   const finished = pipeline(
     Readable.fromWeb(body as unknown as NodeWebStream),
+    watchdog,
     createGunzip(),
-    extract
+    extract,
+    { signal: controller.signal }
   );
   // An unhandled rejection must not outlive a failed iteration below.
   finished.catch(() => undefined);
@@ -161,7 +196,11 @@ async function extractArchive(
     await finished;
   } catch (error) {
     extract.destroy();
-    throw error;
+    // The abort reason (a timeout) is the useful error, not AbortError.
+    throw controller.signal.aborted ? controller.signal.reason : error;
+  } finally {
+    clearTimeout(idle);
+    clearTimeout(total);
   }
   return withheld.sort();
 }
@@ -172,13 +211,14 @@ async function build(
   sha: string,
   auth: BitbucketAuth,
   fetchImpl: typeof fetch,
-  dir: string
+  dir: string,
+  timeouts?: SnapshotTimeouts
 ): Promise<Snapshot> {
   const temp = `${dir}.tmp-${randomUUID()}`;
   await mkdir(temp, { recursive: true });
   try {
     const body = await downloadArchive(auth, repoFullName, sha, fetchImpl);
-    const withheld = await extractArchive(body, temp);
+    const withheld = await extractArchive(body, temp, timeouts);
     await writeFile(join(temp, WITHHELD), JSON.stringify(withheld));
     await writeFile(join(temp, USED), "");
     await writeFile(join(temp, READY), "");
@@ -206,9 +246,19 @@ export async function ensureSnapshot(
   if (source.ciConnectionId === null) {
     throw new SnapshotUnavailableError("no-connection");
   }
-  const { forge, auth } = await (deps.getCredentials ?? getForgeCredentials)(
-    source.ciConnectionId
-  );
+  let credentials: { forge: string; auth: BitbucketAuth | null };
+  try {
+    credentials = await (deps.getCredentials ?? getForgeCredentials)(
+      source.ciConnectionId
+    );
+  } catch (error) {
+    // A deleted connection: findConnection throws a 404.
+    if (error instanceof HTTPException && error.status === 404) {
+      throw new SnapshotUnavailableError("no-connection");
+    }
+    throw error;
+  }
+  const { forge, auth } = credentials;
   if (forge !== "bitbucket") {
     throw new SnapshotUnavailableError("unsupported-forge");
   }
@@ -230,20 +280,31 @@ export async function ensureSnapshot(
   if (!pending) {
     pending = (async () => {
       if (await pathExists(join(dir, READY))) {
-        return {
+        const cached = {
           dir,
           commitSha: sha,
           withheld: (await readWithheld(dir)).length,
         };
+        await touchUsed(dir);
+        return cached;
       }
       await mkdir(dirname(dir), { recursive: true });
-      return build(root, source.repoFullName, sha, auth, fetchImpl, dir);
+      const built = await build(
+        root,
+        source.repoFullName,
+        sha,
+        auth,
+        fetchImpl,
+        dir,
+        deps.timeouts
+      );
+      // Inside the shared promise, so eviction never sees a stale .used.
+      await touchUsed(dir);
+      return built;
     })().finally(() => inFlight.delete(dir));
     inFlight.set(dir, pending);
   }
-  const snapshot = await pending;
-  await touchUsed(dir);
-  return snapshot;
+  return pending;
 }
 
 async function directorySize(dir: string): Promise<number> {
@@ -278,6 +339,8 @@ export async function evictSnapshots(
     return 0;
   }
   for (const repo of repos) {
+    // Only what this module creates; anything else under the root is not ours.
+    if (!REPO_DIR_PATTERN.test(repo)) continue;
     const repoDir = join(base, repo);
     let children: string[];
     try {
@@ -286,6 +349,8 @@ export async function evictSnapshots(
       continue;
     }
     for (const name of children) {
+      const isTemp = TEMP_DIR_PATTERN.test(name);
+      if (!isTemp && !SNAPSHOT_DIR_PATTERN.test(name)) continue;
       const dir = join(repoDir, name);
       let usedAt: number;
       try {
@@ -293,7 +358,7 @@ export async function evictSnapshots(
       } catch {
         usedAt = (await stat(dir)).mtimeMs;
       }
-      if (name.includes(".tmp-")) {
+      if (isTemp) {
         if (now.getTime() - usedAt > STALE_TEMP_MS) {
           await rm(dir, { recursive: true, force: true });
         }
