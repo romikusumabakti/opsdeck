@@ -14,9 +14,11 @@ export type FileVerdict = "allowed" | "withheld";
 const MAX_SEED_SQL_BYTES = 1024 * 1024;
 const BINARY_SNIFF_CHARS = 8192;
 
+export type FileKind = "code" | "config" | "other";
+
 type PathRule = {
   name: string;
-  test: (segments: string[], base: string) => boolean;
+  test: (dirs: string[], base: string, kind: FileKind) => boolean;
 };
 
 const TEMPLATE_SUFFIXES = [".example", ".sample", ".template"];
@@ -33,6 +35,36 @@ const KEY_EXTENSIONS = [
   ".bak",
 ];
 
+const CODE_EXTENSIONS = new Set([
+  "java",
+  "kt",
+  "groovy",
+  "scala",
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "vue",
+  "py",
+  "go",
+  "cs",
+  "php",
+  "rb",
+]);
+const CONFIG_EXTENSIONS = new Set([
+  "yml",
+  "yaml",
+  "properties",
+  "conf",
+  "ini",
+  "cfg",
+  "toml",
+  "json",
+  "xml",
+]);
+
 const PATH_RULES: PathRule[] = [
   { name: "git-dir", test: (dirs) => dirs.includes(".git") },
   { name: "node-modules", test: (dirs) => dirs.includes("node_modules") },
@@ -40,8 +72,9 @@ const PATH_RULES: PathRule[] = [
   {
     name: "dotenv",
     test: (_d, base) =>
-      (base === ".env" || base.startsWith(".env.")) &&
-      !TEMPLATE_SUFFIXES.some((s) => base.endsWith(s)),
+      base === ".envrc" ||
+      ((base === ".env" || base.startsWith(".env.")) &&
+        !TEMPLATE_SUFFIXES.some((s) => base.endsWith(s))),
   },
   {
     name: "key-or-dump-extension",
@@ -53,9 +86,11 @@ const PATH_RULES: PathRule[] = [
       base.startsWith("id_rsa") || base.startsWith("id_ed25519"),
   },
   {
+    // Source files such as CredentialsService.java are ordinary code.
     name: "credentials-or-secrets-name",
-    test: (_d, base) =>
-      base.startsWith("credentials") || base.startsWith("secrets"),
+    test: (_d, base, kind) =>
+      kind !== "code" &&
+      (base.startsWith("credentials") || base.startsWith("secrets")),
   },
 ];
 
@@ -69,10 +104,22 @@ function split(path: string): { dirs: string[]; base: string } {
   return { dirs: parts, base };
 }
 
+/** Classifies a path by extension; "other" is treated like "config" for key rules. */
+export function fileKind(path: string): FileKind {
+  const { base } = split(path);
+  if (base.startsWith(".env") || base === ".npmrc") return "config";
+  const dot = base.lastIndexOf(".");
+  const ext = dot > 0 ? base.slice(dot + 1) : "";
+  if (CODE_EXTENSIONS.has(ext)) return "code";
+  if (CONFIG_EXTENSIONS.has(ext)) return "config";
+  return "other";
+}
+
 /** Path-only check. Content-dependent cases are decided in `fileVerdict`. */
 export function isWithheldPath(path: string): boolean {
   const { dirs, base } = split(path);
-  return PATH_RULES.some((r) => r.test(dirs, base));
+  const kind = fileKind(path);
+  return PATH_RULES.some((r) => r.test(dirs, base, kind));
 }
 
 /** Heuristic: SQL under a seed* dir or named *seed*.sql is likely real data. */
@@ -82,17 +129,87 @@ function isSeedSqlPath(path: string): boolean {
   return base.includes("seed") || dirs.some((d) => d.startsWith("seed"));
 }
 
-const SECRET_PATTERNS: RegExp[] = [
+/** Patterns that identify a credential by shape alone, in any kind of file. */
+const TOKEN_PATTERNS: RegExp[] = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
   /AKIA[0-9A-Z]{16}/,
   /ATATT[0-9A-Za-z_\-=]{20,}/,
   /sk-ant-[A-Za-z0-9_-]{20,}/,
-  // key = literal value; `${...}` placeholders are excluded by the first value char.
-  /(?:password|passwd|secret|token|api[_-]?key)\s*[:=]\s*["']?[^\s"'${][^\s"']{5,}/i,
+  /gh[pousr]_[A-Za-z0-9]{36,}/,
+  /github_pat_[A-Za-z0-9_]{20,}/,
+  /xox[baprs]-[A-Za-z0-9-]{10,}/,
+  /AIza[0-9A-Za-z_-]{35}/,
 ];
 
-export function containsSecret(text: string): boolean {
-  return SECRET_PATTERNS.some((p) => p.test(text));
+// Anchored on the literal "://" so long runs of letters cannot cause quadratic scans.
+const URL_CREDENTIALS = /:\/\/[^\s:/@]+:([^\s@/]{3,})@/g;
+
+const KEY_NAMES =
+  "(?:password|passwd|pwd|secret|client[_-]?secret|secret[_-]?key|token|auth[_-]?token|api[_-]?key|access[_-]?key(?:[_-]?id)?|private[_-]?key)";
+
+// Code: key, optional closing quote, `:`/`=`/`:=`, then a quoted literal of 6+ chars on the same line.
+const CODE_KEY_VALUE = new RegExp(
+  `${KEY_NAMES}["'\`]?[ \\t]*(?::=|[:=])[ \\t]*["']([^"'\\n]{6,})["']`,
+  "gi"
+);
+
+// Config: key (also `_auth` for .npmrc), optional closing quote, `:`/`=`/`>`, then a quoted or bare value. Never crosses a newline.
+const CONFIG_KEY_VALUE = new RegExp(
+  `(?:${KEY_NAMES}|_auth)["']?[ \\t]*[:=>][ \\t]*(?:"([^"\\n]*)"|'([^'\\n]*)'|([^\\s"'<]+))`,
+  "gi"
+);
+
+/** `${VAR}`, `$VAR`, `{{ var }}` and `<placeholder>` are references, not literals. */
+function isPlaceholder(value: string): boolean {
+  return (
+    value.startsWith("${") ||
+    value.startsWith("{{") ||
+    value.startsWith("<") ||
+    /^\$[A-Za-z_]/.test(value)
+  );
+}
+
+function isCodeSecretValue(value: string): boolean {
+  return value.length >= 6 && !isPlaceholder(value);
+}
+
+function isConfigSecretValue(value: string): boolean {
+  if (value.length < 3) return false;
+  if (/^(?:true|false|null)$/i.test(value)) return false;
+  if (value.startsWith("ENC(")) return false; // encrypted (Jasypt)
+  if (value.startsWith("${")) {
+    // Spring/shell defaults (`${VAR:default}`, `${VAR:-default}`) are literals.
+    const def = /^\$\{[^}:]*:-?([^}]*)\}/.exec(value);
+    return def !== null && (def[1]?.length ?? 0) >= 3;
+  }
+  return !isPlaceholder(value);
+}
+
+function hasLiteral(
+  re: RegExp,
+  text: string,
+  accept: (value: string) => boolean
+): boolean {
+  for (const m of text.matchAll(re)) {
+    const value = m[1] ?? m[2] ?? m[3] ?? "";
+    if (accept(value)) return true;
+  }
+  return false;
+}
+
+/**
+ * `kind` "code" only flags quoted string literals assigned to secret-like
+ * names; "config" (default, also used for other files) flags bare values too.
+ */
+export function containsSecret(
+  text: string,
+  kind: "code" | "config" = "config"
+): boolean {
+  if (TOKEN_PATTERNS.some((p) => p.test(text))) return true;
+  if (hasLiteral(URL_CREDENTIALS, text, (v) => !isPlaceholder(v))) return true;
+  return kind === "code"
+    ? hasLiteral(CODE_KEY_VALUE, text, isCodeSecretValue)
+    : hasLiteral(CONFIG_KEY_VALUE, text, isConfigSecretValue);
 }
 
 function isBinary(content: string): boolean {
@@ -107,5 +224,6 @@ export function fileVerdict(
   if (isWithheldPath(path)) return "withheld";
   if (isSeedSqlPath(path) && sizeBytes > MAX_SEED_SQL_BYTES) return "withheld";
   if (isBinary(content)) return "withheld";
-  return containsSecret(content) ? "withheld" : "allowed";
+  const kind = fileKind(path) === "code" ? "code" : "config";
+  return containsSecret(content, kind) ? "withheld" : "allowed";
 }
