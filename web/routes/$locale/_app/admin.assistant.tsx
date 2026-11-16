@@ -124,7 +124,6 @@ function UsageCard({ usage }: { usage: AssistantUsage }) {
                 <TableHead>{t("usageDay")}</TableHead>
                 <TableHead>{t("usageUser")}</TableHead>
                 <TableHead className="text-right">{t("usageTurns")}</TableHead>
-                <TableHead className="text-right">{t("usageDrafts")}</TableHead>
                 <TableHead className="text-right">{t("usageCost")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -134,7 +133,6 @@ function UsageCard({ usage }: { usage: AssistantUsage }) {
                   <TableCell>{row.day}</TableCell>
                   <TableCell>{row.userName}</TableCell>
                   <TableCell className="text-right">{row.turns}</TableCell>
-                  <TableCell className="text-right">{row.drafts}</TableCell>
                   <TableCell className="text-right">
                     {usd(row.costUsd)}
                   </TableCell>

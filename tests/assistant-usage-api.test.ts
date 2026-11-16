@@ -61,7 +61,6 @@ describe("GET /usage", () => {
           userId: "u1",
           userName: "Ana",
           turns: 3,
-          drafts: 1,
           costUsd: "0.412300",
         },
         {
@@ -69,7 +68,6 @@ describe("GET /usage", () => {
           userId: "u2",
           userName: "Budi",
           turns: 1,
-          drafts: 0,
           costUsd: "0.100000",
         },
       ],
@@ -84,7 +82,6 @@ describe("GET /usage", () => {
           userId: "u1",
           userName: "Ana",
           turns: 3,
-          drafts: 1,
           costUsd: 0.4123,
         },
         {
@@ -92,7 +89,6 @@ describe("GET /usage", () => {
           userId: "u2",
           userName: "Budi",
           turns: 1,
-          drafts: 0,
           costUsd: 0.1,
         },
       ],

@@ -140,10 +140,18 @@ const dayNumber = (day: string) => Date.parse(`${day}T00:00:00Z`) / DAY_MS;
 
 // Days are APP_TIMEZONE calendar dates, like assistant_usage.day. Default: the
 // last 30 days up to today; at most 92 days.
-export const assistantUsageQuerySchema = z
-  .object({ from: isoDay.optional(), to: isoDay.optional() })
-  .transform(({ from, to }, ctx) => {
-    const end = to ?? quotaDay();
+const usageRangeSchema = z.object({
+  from: isoDay.optional(),
+  to: isoDay.optional(),
+});
+
+function resolveRange(
+  { from, to }: z.infer<typeof usageRangeSchema>,
+  now: Date,
+  ctx: z.RefinementCtx
+) {
+  {
+    const end = to ?? quotaDay(now);
     const start =
       from ?? quotaDay(new Date(Date.parse(`${end}T12:00:00Z`) - 29 * DAY_MS));
     const span = dayNumber(end) - dayNumber(start);
@@ -155,19 +163,29 @@ export const assistantUsageQuerySchema = z
       return z.NEVER;
     }
     return { from: start, to: end };
-  });
+  }
+}
+
+export const assistantUsageQuerySchema = usageRangeSchema.transform(
+  (range, ctx) => resolveRange(range, new Date(), ctx)
+);
+
+function parseUsageQuery(input: AssistantUsageQuery, now: Date) {
+  return usageRangeSchema
+    .transform((range, ctx) => resolveRange(range, now, ctx))
+    .parse(input);
+}
 
 export type AssistantUsageQuery = z.input<typeof assistantUsageQuerySchema>;
 
 export type AssistantUsage = {
   /** One row per day and user. `turns` = distinct assistant answers with
-   * usage; `drafts` = usage rows of Jira draft generations (no message). */
+   * usage. */
   rows: {
     day: string;
     userId: string;
     userName: string;
     turns: number;
-    drafts: number;
     costUsd: number;
   }[];
   totalUsd: number;
@@ -175,26 +193,28 @@ export type AssistantUsage = {
 };
 
 export async function getAssistantUsage(
-  input: AssistantUsageQuery
+  input: AssistantUsageQuery,
+  now: Date = new Date()
 ): Promise<AssistantUsage> {
   await requireOrgPermission({ assistant: ["manage"] });
-  const { from, to } = assistantUsageQuerySchema.parse(input);
+  const { from, to } = parseUsageQuery(input, now);
   const rows = await db
     .select({
       day: assistantUsage.day,
       userId: assistantUsage.userId,
       userName: users.name,
       turns: sql<number>`count(distinct ${assistantUsage.messageId})::int`,
-      drafts: sql<number>`(count(*) filter (where ${assistantUsage.messageId} is null))::int`,
       costUsd: sql<string>`sum(${assistantUsage.costUsd})`,
     })
     .from(assistantUsage)
+    // Turns of deleted conversations are not counted (their message id is
+    // nulled), though their cost still is.
     .innerJoin(users, eq(users.id, assistantUsage.userId))
     .where(and(gte(assistantUsage.day, from), lte(assistantUsage.day, to)))
     .groupBy(assistantUsage.day, assistantUsage.userId, users.name)
     .orderBy(desc(assistantUsage.day), asc(users.name));
 
-  const today = quotaDay();
+  const today = quotaDay(now);
   const [month] = await db
     .select({
       total: sql<string>`coalesce(sum(${assistantUsage.costUsd}), 0)`,
@@ -212,7 +232,6 @@ export async function getAssistantUsage(
     userId: r.userId,
     userName: r.userName,
     turns: r.turns,
-    drafts: r.drafts,
     costUsd: Number(r.costUsd),
   }));
   return {
