@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import {
   createConversation,
   getAllowanceQuery,
@@ -44,7 +45,7 @@ export function AssistantWorkspace({
   const busy = pendingAnswer(conversation) !== null;
   const capped = capReached(allowance);
 
-  const send = async (text: string, attachmentIds: string[]) => {
+  const send = async (text: string, attachments: AttachmentRef[]) => {
     let conversationId = selectedId;
     if (!conversationId) {
       conversationId = (await createConversation(environmentId)).id;
@@ -53,7 +54,7 @@ export function AssistantWorkspace({
     await sendMessage({
       conversationId,
       text,
-      ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+      ...(attachments.length > 0 ? { attachments } : {}),
     });
   };
 

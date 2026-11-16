@@ -261,3 +261,27 @@ export function fileVerdict(
   const kind = fileKind(path) === "code" ? "code" : "config";
   return containsSecret(content, kind) ? "withheld" : "allowed";
 }
+
+/** What replaces a line of free text that holds a credential. */
+export const REDACTED_LINE = "[disembunyikan: berisi kredensial]";
+
+/**
+ * Free text written by people (Jira descriptions and comments, knowledge-base
+ * documents) cannot be withheld whole like a file: each line that holds a
+ * literal secret (config rules) is replaced with REDACTED_LINE instead.
+ * `redacted` counts the replaced lines.
+ */
+export function redactSecretLines(text: string): {
+  text: string;
+  redacted: number;
+} {
+  let redacted = 0;
+  const lines = text.split("\n").map((line) => {
+    if (!containsSecret(line, "config")) return line;
+    redacted++;
+    return REDACTED_LINE;
+  });
+  return redacted === 0
+    ? { text, redacted }
+    : { text: lines.join("\n"), redacted };
+}

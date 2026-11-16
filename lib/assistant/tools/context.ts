@@ -14,6 +14,7 @@ import {
   loadDocumentBySlug,
   searchDocuments,
 } from "@/lib/knowledge";
+import { type AttachmentRef, JIRA_KEY_PATTERN } from "../attachment-refs";
 import {
   attachmentFormat,
   type ImageMediaType,
@@ -23,7 +24,7 @@ import {
   sniffImage,
   xlsxToText,
 } from "../attachment-text";
-import { containsSecret } from "../secret-filter";
+import { containsSecret, redactSecretLines } from "../secret-filter";
 import type { AssistantViewer } from "../viewer";
 import type { ToolMeta, ToolResult } from "./code";
 
@@ -38,8 +39,6 @@ export const MAX_DESCRIPTION_BYTES = 32 * 1024;
 export const MAX_COMMENT_BYTES = 8 * 1024;
 export const MAX_COMMENTS = 100;
 export const MAX_KNOWLEDGE_BYTES = 64 * 1024;
-
-const JIRA_KEY = /^[A-Z][A-Z0-9_]*-[1-9][0-9]*$/;
 
 function fail(error: string, meta: ToolMeta = {}): ToolResult<never> {
   return { ok: false, error, meta };
@@ -61,7 +60,7 @@ export function capBytes(
 
 export function normalizeJiraKey(raw: string): string | null {
   const key = raw.trim().toUpperCase();
-  return JIRA_KEY.test(key) ? key : null;
+  return JIRA_KEY_PATTERN.test(key) ? key : null;
 }
 
 export type VisibleIssue = { issue: Issue; link: ResolvedLink | null };
@@ -178,8 +177,14 @@ export async function getIssueTool(
     orderBy: { createdAt: "desc" },
     limit: MAX_COMMENTS,
   });
+  let withheld = 0;
+  const redact = (text: string): string => {
+    const result = redactSecretLines(text);
+    withheld += result.redacted;
+    return result.text;
+  };
   const comments = latest.reverse().map((c) => {
-    const body = capBytes(c.body, MAX_COMMENT_BYTES);
+    const body = capBytes(redact(c.body), MAX_COMMENT_BYTES);
     return {
       author: c.author?.name ?? "Unknown",
       body: body.truncated ? `${body.text}\n[truncated]` : body.text,
@@ -190,7 +195,10 @@ export async function getIssueTool(
   const { attachments, error: attachmentsError } =
     await listIssueAttachments(visible);
 
-  const description = capBytes(issue.description, MAX_DESCRIPTION_BYTES);
+  const description = capBytes(
+    redact(issue.description),
+    MAX_DESCRIPTION_BYTES
+  );
   return {
     ok: true,
     data: {
@@ -204,7 +212,8 @@ export async function getIssueTool(
       attachments,
       attachmentsError,
     },
-    meta: { issueKeys: [key] },
+    // Redacted credential lines, as for files withheld by the code tools.
+    meta: withheld > 0 ? { issueKeys: [key], withheld } : { issueKeys: [key] },
   };
 }
 
@@ -220,18 +229,24 @@ function base64(bytes: Uint8Array): string {
 }
 
 /**
- * Read one attachment the user ticked on this message. The tick list alone is
- * not trusted: the attachment must also be on an issue the viewer can see.
+ * Read one attachment the user ticked on this message. The (issue key,
+ * attachment id) pair must be one of the ticked pairs, and the tick list
+ * alone is not trusted: the attachment must also be on an issue the viewer
+ * can see.
  */
 export async function readAttachmentTool(
   viewer: AssistantViewer,
-  tickedAttachmentIds: readonly string[],
+  tickedAttachments: readonly AttachmentRef[],
   input: { issueKey: string; attachmentId: string }
 ): Promise<ToolResult<AttachmentContent>> {
-  const { attachmentId } = input;
-  if (!tickedAttachmentIds.includes(attachmentId)) {
+  const attachmentId = input.attachmentId.trim();
+  const issueKey = normalizeJiraKey(input.issueKey);
+  const ticked = tickedAttachments.some(
+    (a) => a.issueKey === issueKey && a.attachmentId === attachmentId
+  );
+  if (!ticked) {
     return fail(
-      `attachment ${attachmentId} was not selected by the user for this message; ask them to tick it`
+      `attachment ${attachmentId} on ${input.issueKey.trim()} was not selected by the user for this message; ask them to tick it`
     );
   }
   const visible = await visibleIssueByKey(viewer, input.issueKey);
@@ -328,16 +343,21 @@ export async function searchKnowledgeTool(
 ): Promise<ToolResult<{ hits: KnowledgeHit[] }>> {
   if (!query.trim()) return fail("query must not be empty");
   const hits = await searchDocuments(query, knowledgeViewer(viewer));
+  let withheld = 0;
+  const data = {
+    hits: hits.map((h) => {
+      const snippet = redactSecretLines(
+        h.snippet.replaceAll(HL_START, "").replaceAll(HL_STOP, "")
+      );
+      withheld += snippet.redacted;
+      return { slug: h.slug, title: h.title, snippet: snippet.text };
+    }),
+  };
+  const docSlugs = hits.map((h) => h.slug);
   return {
     ok: true,
-    data: {
-      hits: hits.map((h) => ({
-        slug: h.slug,
-        title: h.title,
-        snippet: h.snippet.replaceAll(HL_START, "").replaceAll(HL_STOP, ""),
-      })),
-    },
-    meta: { docSlugs: hits.map((h) => h.slug) },
+    data,
+    meta: withheld > 0 ? { docSlugs, withheld } : { docSlugs },
   };
 }
 
@@ -355,7 +375,8 @@ export async function readKnowledgeTool(
 > {
   const doc = await loadDocumentBySlug(slug.trim(), knowledgeViewer(viewer));
   if (!doc) return fail(`knowledge document ${slug.trim()} not found`);
-  const body = capBytes(doc.content, MAX_KNOWLEDGE_BYTES);
+  const redacted = redactSecretLines(doc.content);
+  const body = capBytes(redacted.text, MAX_KNOWLEDGE_BYTES);
   return {
     ok: true,
     data: {
@@ -365,6 +386,9 @@ export async function readKnowledgeTool(
       markdown: body.text,
       truncated: body.truncated,
     },
-    meta: { docSlugs: [doc.slug] },
+    meta:
+      redacted.redacted > 0
+        ? { docSlugs: [doc.slug], withheld: redacted.redacted }
+        : { docSlugs: [doc.slug] },
   };
 }

@@ -484,7 +484,11 @@ describe("send-message", () => {
   it("enqueues exactly one job with jobId = the assistant message id", async () => {
     const id = await newConversation();
     const res = await send(id, "  Bagaimana iuran dihitung?  ", {
-      attachmentIds: ["10001", "10001", "10002"],
+      attachments: [
+        { issueKey: "KST-12", attachmentId: "10001" },
+        { issueKey: "KST-12", attachmentId: "10001" },
+        { issueKey: "KST-13", attachmentId: "10002" },
+      ],
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -497,7 +501,8 @@ describe("send-message", () => {
       role: "user",
       status: "done",
       content: "Bagaimana iuran dihitung?",
-      attachmentIds: ["10001", "10002"],
+      // Stored as KEY:id pairs, deduplicated.
+      attachmentIds: ["KST-12:10001", "KST-13:10002"],
     });
     expect(answer).toMatchObject({
       id: body.assistantMessageId,
@@ -582,11 +587,22 @@ describe("send-message", () => {
     const id = await newConversation();
     expect((await send(id, "   ")).status).toBe(400);
     expect((await send(id, "x".repeat(8001))).status).toBe(400);
-    expect((await send(id, "q", { attachmentIds: ["../etc"] })).status).toBe(
-      400
-    );
-    const eleven = Array.from({ length: 11 }, (_, i) => String(10000 + i));
-    expect((await send(id, "q", { attachmentIds: eleven })).status).toBe(400);
+    const bad = [
+      [{ issueKey: "KST-12", attachmentId: "../etc" }],
+      [{ issueKey: "kst-12", attachmentId: "10001" }],
+      [{ issueKey: "KST-12:1", attachmentId: "10001" }],
+      [{ issueKey: "KST-12", attachmentId: "0" }],
+      [{ attachmentId: "10001" }],
+      [{ issueKey: "KST-12", attachmentId: "10001", extra: 1 }],
+    ];
+    for (const attachments of bad) {
+      expect((await send(id, "q", { attachments })).status).toBe(400);
+    }
+    const eleven = Array.from({ length: 11 }, (_, i) => ({
+      issueKey: "KST-12",
+      attachmentId: String(10000 + i),
+    }));
+    expect((await send(id, "q", { attachments: eleven })).status).toBe(400);
     expect(queue.enqueue).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
   saveDraft: vi.fn(),
   sendMessage: vi.fn(),
   createConversation: vi.fn(),
+  generateDraft: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 
@@ -99,6 +100,7 @@ import { AllowanceBadge } from "@/web/components/assistant/allowance-badge";
 import { AttachmentPicker } from "@/web/components/assistant/attachment-picker";
 import { ChatThread } from "@/web/components/assistant/chat-thread";
 import { Composer } from "@/web/components/assistant/composer";
+import { DraftPanel } from "@/web/components/assistant/draft-panel";
 import { JiraDraftForm } from "@/web/components/assistant/jira-draft-form";
 import {
   MessageSources,
@@ -573,6 +575,25 @@ describe("answer stream", () => {
     expect(text()).toContain(messages.assistantErrors.creditExhausted);
   });
 
+  it("words a turn stopped at the daily cap with the current allowance", async () => {
+    queryClient.setQueryData(["assistant", "getAllowance"], {
+      enabled: true,
+      capUsd: 1.5,
+      spentUsd: 1.6,
+      remainingUsd: 0,
+      resetsAt: "2026-11-16T17:00:00.000Z",
+    });
+    queryClient.setQueryData(key, {
+      ...conversation("failed"),
+      messages: conversation("failed").messages.map((m) =>
+        m.id === "m2" ? { ...m, errorCode: "assistant.daily_cap_reached" } : m
+      ),
+    });
+    await render(<ChatThread conversationId="c1" />);
+    expect(text()).toContain("allowance of 1.5 USD");
+    expect(text()).toMatch(/resets at (12:00|00:00)/);
+  });
+
   it("renders no raw HTML from an answer", async () => {
     queryClient.setQueryData(key, {
       ...conversation("done"),
@@ -614,6 +635,112 @@ describe("answer stream", () => {
     );
     expect(document.documentElement.innerHTML).not.toContain("NIK123");
     expect(text()).toContain("Lihat x dan");
+  });
+});
+
+describe("composer attachments", () => {
+  it("sends each ticked attachment with its issue key", async () => {
+    queryClient.setQueryData(
+      ["assistant", "listIssueAttachments", ["e1", "KST-12"]],
+      {
+        key: "KST-12",
+        unavailable: false,
+        attachments: [
+          {
+            id: "10001",
+            filename: "BRD.pdf",
+            mime: "application/pdf",
+            sizeBytes: 10,
+          },
+        ],
+      }
+    );
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    await render(
+      <Composer environmentId="e1" disabled={false} onSend={onSend} />
+    );
+    await act(async () => button(t.attachments)?.click());
+    const input = document.querySelector<HTMLInputElement>(
+      "#assistant-issue-key"
+    );
+    if (!input) throw new Error("no input");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(input, "kst-12");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => button(t.showAttachments)?.click());
+    await act(async () =>
+      (
+        document.querySelector(
+          '[role="checkbox"][aria-labelledby="assistant-attachment-10001-label"]'
+        ) as HTMLElement | null
+      )?.click()
+    );
+    await act(async () => button("Use 1 attachment")?.click());
+    const box = container.querySelector("textarea");
+    if (!box) throw new Error("no textarea");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set?.call(box, "Apa isi BRD ini?");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => button(t.send)?.click());
+    expect(onSend).toHaveBeenCalledWith("Apa isi BRD ini?", [
+      { issueKey: "KST-12", attachmentId: "10001" },
+    ]);
+  });
+});
+
+describe("draft panel", () => {
+  const conversation = {
+    id: "c1",
+    title: "Iuran",
+    environmentId: "e1",
+    environmentName: "Dev",
+    drafts: [],
+    jiraPushEnabled: false,
+    messages: [
+      {
+        id: "m2",
+        role: "assistant",
+        content: "Jawaban",
+        status: "done",
+        errorCode: null,
+        sources: null,
+        attachmentIds: [],
+        createdAt: "2026-11-16T01:00:01Z",
+        toolCalls: [],
+      },
+    ],
+  };
+  const key = ["assistant", "getConversation", ["c1"]];
+
+  it("refetches the conversation after a failed generate (the draft may exist) and shows the error", async () => {
+    queryClient.setQueryData(key, conversation);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    // A proxy timeout: no problem+json body, so no code.
+    api.generateDraft.mockRejectedValue(new ApiError(504, "Gateway Timeout"));
+    await render(
+      <DraftPanel
+        conversationId="c1"
+        projectKey="HMEM"
+        canCreateIssue
+        disabled={false}
+      />
+    );
+    await act(async () => button(t.draftBrd)?.click());
+    expect(api.generateDraft).toHaveBeenCalledWith({
+      conversationId: "c1",
+      kind: "brd",
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+    expect(text()).toContain(messages.assistantErrors.failed);
+    expect(text()).not.toContain("Gateway Timeout");
   });
 });
 

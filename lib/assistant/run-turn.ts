@@ -10,6 +10,7 @@ import type {
   BetaToolUnion,
   BetaToolUseBlock,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import {
   ASSISTANT_EFFORTS,
   type AssistantEffort,
@@ -46,18 +47,25 @@ import {
   saveSources,
   type TurnContext,
 } from "./turn-store";
-import { type ResponseUsage, recordUsage } from "./usage";
+import { type ResponseUsage, recordUsage, spentTodayUsd } from "./usage";
 import { type AssistantViewer, loadAssistantViewer } from "./viewer";
 
 export const MAX_TOKENS = 32_000;
-/** Messages API requests per turn; the last one may not ask for more tools. */
+/**
+ * Messages API requests per turn. The last one is sent with tool_choice none
+ * and STEP_LIMIT_NOTE, so it answers with what the tools found so far.
+ */
 export const MAX_ITERATIONS = 25;
+/** Appended to the tool results that precede the last allowed request. */
+export const STEP_LIMIT_NOTE =
+  "Batas langkah tercapai — jawab sekarang dengan temuan yang ada";
 /** Streamed text is written to Postgres at most this often. */
 export const FLUSH_INTERVAL_MS = 400;
 export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 export type AssistantErrorCode =
   | "assistant.not_configured"
+  | "assistant.daily_cap_reached"
   | "assistant.credit_exhausted"
   | "assistant.unavailable"
   | "assistant.refused"
@@ -73,6 +81,8 @@ export type RunTurnDeps = {
   resolveSources?: (environmentId: string) => Promise<AssistantSource[]>;
   ensureSnapshot?: (source: AssistantSource) => Promise<Snapshot>;
   loadViewer?: (userId: string) => Promise<AssistantViewer>;
+  /** The user's spend on the current quota day (USD). */
+  spentToday?: (userId: string, now: Date) => Promise<number>;
   executeTool?: (
     name: string,
     input: unknown,
@@ -145,6 +155,7 @@ function cachedTools(): BetaToolUnion[] {
 export function buildHistory(turn: TurnContext): BetaMessageParam[] {
   const messages: BetaMessageParam[] = [];
   const lastUserIndex = turn.history.findLastIndex((m) => m.role === "user");
+  const ticked = parseAttachmentRefs(turn.attachmentIds);
   turn.history.forEach((m, index) => {
     if (m.role === "assistant") {
       if (m.status !== "done" && m.status !== "failed") return;
@@ -153,8 +164,13 @@ export function buildHistory(turn: TurnContext): BetaMessageParam[] {
       return;
     }
     let text = m.content;
-    if (index === lastUserIndex && turn.attachmentIds.length > 0) {
-      text += `\n\n(Attachments ticked for this question, readable with read_attachment: ${turn.attachmentIds.join(", ")})`;
+    if (index === lastUserIndex && ticked.length > 0) {
+      const list = ticked
+        .map(
+          (a) => `- issue_key ${a.issueKey}, attachment_id ${a.attachmentId}`
+        )
+        .join("\n");
+      text += `\n\n(Attachments ticked for this question, readable with read_attachment:\n${list})`;
     }
     messages.push({ role: "user", content: text });
   });
@@ -416,6 +432,15 @@ async function runClaimedTurn(
   now: () => Date
 ): Promise<void> {
   const runtime = await loadRuntimeOrFail(deps);
+  const spentToday = deps.spentToday ?? spentTodayUsd;
+  // The cap is checked at send time too, but turns already queued (or a long
+  // tool loop) can still cross it: re-checked before every request.
+  const requireAllowance = async () => {
+    if ((await spentToday(turn.userId, now())) >= runtime.dailyCapUsd) {
+      throw new TurnError("assistant.daily_cap_reached");
+    }
+  };
+  await requireAllowance();
   const viewer = await (deps.loadViewer ?? loadAssistantViewer)(turn.userId);
   const resolved = await resolveSnapshots(turn.environmentId, {
     resolveSources: deps.resolveSources ?? defaultResolveSources,
@@ -446,10 +471,11 @@ async function runClaimedTurn(
   ];
   const tools = cachedTools();
   const messages = buildHistory(turn);
+  const attachments: AttachmentRef[] = parseAttachmentRefs(turn.attachmentIds);
   const toolContext: ToolContext = {
     snaps: resolved.snaps,
     viewer,
-    attachmentIds: turn.attachmentIds,
+    attachments,
   };
   const execute = deps.executeTool ?? defaultExecuteTool;
   const meter = (model: string, usage: ResponseUsage) =>
@@ -463,9 +489,13 @@ async function runClaimedTurn(
     });
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    if (iteration > 1) await requireAllowance();
+    const last = iteration === MAX_ITERATIONS;
     const message = await streamRequest(
       runtime,
-      { system, tools, messages },
+      // The same tools on the last request keep the cached prefix; "none"
+      // makes it answer instead of asking for more.
+      { system, tools, toolChoice: last ? "none" : "auto", messages },
       (delta) => writer.append(delta),
       meter
     );
@@ -503,7 +533,8 @@ async function runClaimedTurn(
       )
       .filter((b): b is BetaToolUseBlock => b.type === "tool_use");
     if (toolUses.length === 0) return;
-    if (iteration === MAX_ITERATIONS) break;
+    // Still asked for tools despite tool_choice none.
+    if (last) break;
 
     messages.push({ role: "assistant", content: echoContent(message.content) });
     const results = await Promise.all(
@@ -518,8 +549,15 @@ async function runClaimedTurn(
         return toToolResult(use.name, use.id, result);
       })
     );
-    // All results of one response go back in a single user message.
-    messages.push({ role: "user", content: results });
+    // All results of one response go back in a single user message; before
+    // the last allowed request, with the note that it must answer now.
+    messages.push({
+      role: "user",
+      content:
+        iteration + 1 === MAX_ITERATIONS
+          ? [...results, { type: "text", text: STEP_LIMIT_NOTE }]
+          : results,
+    });
   }
   throw new TurnError("assistant.too_many_steps");
 }
@@ -544,6 +582,8 @@ export type RequestBody = {
   }>;
   /** The tool loop's tools; a request without them is a one-shot answer. */
   tools?: BetaToolUnion[];
+  /** With tools: "auto" (default), or "none" to force a text answer. */
+  toolChoice?: "auto" | "none";
   /** Structured output (`output_config.format`), parsed by the caller. */
   format?: BetaJSONOutputFormat;
   messages: BetaMessageParam[];
@@ -579,7 +619,7 @@ export async function streamRequest(
     ...(body.tools
       ? {
           tools: body.tools,
-          tool_choice: { type: "auto" as const },
+          tool_choice: { type: body.toolChoice ?? "auto" },
           // Caches the growing conversation, so each tool-loop request
           // re-reads the previous one's prefix instead of paying for it again.
           cache_control: { type: "ephemeral" as const },

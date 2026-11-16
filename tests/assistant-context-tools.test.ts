@@ -100,6 +100,8 @@ vi.mock("@/lib/jira/sync", () => ({
   }),
 }));
 
+const { parseAttachmentRefs } = await import("@/lib/assistant/attachment-refs");
+const { REDACTED_LINE } = await import("@/lib/assistant/secret-filter");
 const {
   getIssueTool,
   readAttachmentTool,
@@ -279,6 +281,27 @@ describe("getIssueTool", () => {
     expect(fetchCalls).toEqual(["/rest/api/3/issue/5010"]);
   });
 
+  it("redacts credential lines of the description and comments", async () => {
+    state.issues[0]!.description =
+      "Login fails on SIT.\nDB_PASSWORD=Sup3rS3cret!\nSee the log.";
+    state.comments.push({
+      issueId: "issue-kmem",
+      body: "Tried again with\npassword: hunter2-Prod!\nstill failing",
+      createdAt: new Date("2026-11-03T00:00:00Z"),
+      author: { name: "Wulan" },
+    });
+    const result = await getIssueTool(qa, "KST-10");
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.description).toBe(
+      `Login fails on SIT.\n${REDACTED_LINE}\nSee the log.`
+    );
+    expect(result.data.comments.at(-1)?.body).toBe(
+      `Tried again with\n${REDACTED_LINE}\nstill failing`
+    );
+    expect(JSON.stringify(result.data)).not.toMatch(/Sup3rS3cret|hunter2/);
+    expect(result.meta).toEqual({ issueKeys: ["KST-10"], withheld: 2 });
+  });
+
   it("still answers from the Panel when the project has no Jira link", async () => {
     state.links = {};
     const result = await getIssueTool(qa, "KST-10");
@@ -290,12 +313,17 @@ describe("getIssueTool", () => {
 });
 
 describe("readAttachmentTool", () => {
+  // `ticked` as stored on the message: `KEY:id`.
   const read = (
     viewer: AssistantViewer,
     ticked: string[],
     id: string,
     key = "KST-10"
-  ) => readAttachmentTool(viewer, ticked, { issueKey: key, attachmentId: id });
+  ) =>
+    readAttachmentTool(viewer, parseAttachmentRefs(ticked), {
+      issueKey: key,
+      attachmentId: id,
+    });
 
   it("refuses an attachment the user did not tick", async () => {
     attachments = [
@@ -307,10 +335,59 @@ describe("readAttachmentTool", () => {
         bytes: PDF,
       },
     ];
-    const result = await read(qa, ["901"], "900");
+    const result = await read(qa, ["KST-10:901"], "900");
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error).toMatch(/not selected/);
     expect(fetchCalls).toEqual([]);
+  });
+
+  it("refuses a ticked id named with another issue than the one ticked", async () => {
+    attachments = [
+      {
+        id: "900",
+        filename: "a.pdf",
+        mimeType: "application/pdf",
+        size: 10,
+        bytes: PDF,
+      },
+    ];
+    state.issues.push({
+      ...state.issues[0]!,
+      id: "issue-11",
+      jiraKey: "KST-11",
+    });
+    const result = await read(qa, ["KST-11:900"], "900", "KST-10");
+    expect(!result.ok && result.error).toMatch(/not selected/);
+    expect(fetchCalls).toEqual([]);
+  });
+
+  it("matches the ticked pair whatever the case of the key", async () => {
+    attachments = [
+      {
+        id: "900",
+        filename: "spec.pdf",
+        mimeType: "application/pdf",
+        size: PDF.byteLength,
+        bytes: PDF,
+      },
+    ];
+    const result = await read(qa, ["KST-10:900"], "900", " kst-10 ");
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses a PDF over 15 MiB without downloading it", async () => {
+    attachments = [
+      {
+        id: "900",
+        filename: "big.pdf",
+        mimeType: "application/pdf",
+        size: 15 * 1024 * 1024 + 1,
+        bytes: PDF,
+      },
+    ];
+    const result = await read(qa, ["KST-10:900"], "900");
+    expect(!result.ok && result.error).toMatch(/too large/);
+    expect(fetchCalls).toEqual(["/rest/api/3/issue/5010"]);
   });
 
   it("refuses a ticked id on an issue the viewer cannot see", async () => {
@@ -323,14 +400,14 @@ describe("readAttachmentTool", () => {
         bytes: PDF,
       },
     ];
-    const result = await read(qa, ["900"], "900", "CRM-7");
+    const result = await read(qa, ["CRM-7:900"], "900", "CRM-7");
     expect(!result.ok && result.error).toMatch(/not found/);
     expect(fetchCalls).toEqual([]);
   });
 
   it("refuses a ticked id that is not on the named issue", async () => {
     attachments = [];
-    const result = await read(qa, ["900"], "900");
+    const result = await read(qa, ["KST-10:900"], "900");
     expect(!result.ok && result.error).toMatch(/not found on KST-10/);
     expect(fetchCalls).toEqual(["/rest/api/3/issue/5010"]);
   });
@@ -345,7 +422,7 @@ describe("readAttachmentTool", () => {
         bytes: PDF,
       },
     ];
-    const result = await read(qa, ["900"], "900");
+    const result = await read(qa, ["KST-10:900"], "900");
     if (!result.ok) throw new Error(result.error);
     expect(result.data).toEqual({
       kind: "document",
@@ -368,7 +445,7 @@ describe("readAttachmentTool", () => {
         bytes: PNG,
       },
     ];
-    const result = await read(qa, ["901"], "901");
+    const result = await read(qa, ["KST-10:901"], "901");
     if (!result.ok) throw new Error(result.error);
     expect(result.data).toMatchObject({
       kind: "image",
@@ -386,7 +463,7 @@ describe("readAttachmentTool", () => {
         bytes: PNG,
       },
     ];
-    const result = await read(qa, ["901"], "901");
+    const result = await read(qa, ["KST-10:901"], "901");
     expect(!result.ok && result.error).toMatch(/too large/);
     expect(fetchCalls).toEqual(["/rest/api/3/issue/5010"]);
   });
@@ -402,7 +479,7 @@ describe("readAttachmentTool", () => {
         bytes: new Uint8Array([0x50, 0x4b]),
       },
     ];
-    const result = await read(qa, ["902"], "902");
+    const result = await read(qa, ["KST-10:902"], "902");
     expect(!result.ok && result.error).toMatch(/format not supported in v1/);
   });
 
@@ -436,7 +513,7 @@ describe("readAttachmentTool", () => {
         bytes,
       },
     ];
-    const result = await read(qa, ["903"], "903");
+    const result = await read(qa, ["KST-10:903"], "903");
     if (!result.ok) throw new Error(result.error);
     expect(result.data).toEqual({
       kind: "text",
@@ -466,7 +543,7 @@ describe("readAttachmentTool", () => {
         bytes,
       },
     ];
-    const result = await read(qa, ["904"], "904");
+    const result = await read(qa, ["KST-10:904"], "904");
     expect(!result.ok && result.error).toBe(
       "attachment withheld: contains credentials"
     );
@@ -505,6 +582,23 @@ describe("knowledge tools", () => {
     expect(result.data.markdown.length).toBe(64 * 1024);
     expect(result.data.truncated).toBe(true);
     expect(result.meta.docSlugs).toEqual(["draft-plan"]);
+  });
+
+  it("redacts a token line of a document and counts it as withheld", async () => {
+    state.docs = [
+      {
+        ...draft,
+        publishedAt: new Date(),
+        content:
+          "# Deploy\n\nUse the bot token:\nghp_abcdefghijklmnopqrstuvwxyz0123456789AB\nThen run it.",
+      },
+    ];
+    const result = await readKnowledgeTool(qa, "draft-plan");
+    if (!result.ok) throw new Error(result.error);
+    expect(result.data.markdown).toBe(
+      `# Deploy\n\nUse the bot token:\n${REDACTED_LINE}\nThen run it.`
+    );
+    expect(result.meta).toEqual({ docSlugs: ["draft-plan"], withheld: 1 });
   });
 
   it("filters drafts out of search for non-managers only", async () => {

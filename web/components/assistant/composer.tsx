@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
 import { useAssistantErrorText } from "./error-text";
 
@@ -25,7 +26,7 @@ export function Composer({
   environmentId: string;
   /** An answer is still running, or the assistant cannot take questions. */
   disabled: boolean;
-  onSend: (text: string, attachmentIds: string[]) => Promise<void>;
+  onSend: (text: string, attachments: AttachmentRef[]) => Promise<void>;
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
@@ -44,7 +45,7 @@ export function Composer({
     try {
       await onSend(
         text.trim(),
-        attachments.map((a) => a.id)
+        attachments.map((a) => ({ issueKey: a.issueKey, attachmentId: a.id }))
       );
       setText("");
       setAttachments([]);

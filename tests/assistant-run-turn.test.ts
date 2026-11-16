@@ -85,8 +85,14 @@ vi.mock("@/lib/assistant/turn-store", () => ({
   ),
 }));
 
-const { runTurn, classifyError, MAX_ITERATIONS, toToolResult, echoContent } =
-  await import("@/lib/assistant/run-turn");
+const {
+  runTurn,
+  classifyError,
+  MAX_ITERATIONS,
+  STEP_LIMIT_NOTE,
+  toToolResult,
+  echoContent,
+} = await import("@/lib/assistant/run-turn");
 const { buildSystemPrompt } = await import("@/lib/assistant/system-prompt");
 const { SnapshotUnavailableError } = await import("@/lib/assistant/snapshot");
 
@@ -230,6 +236,7 @@ function deps(
       projectIds: ["p1"],
       canManageKnowledge: false,
     }),
+    spentToday: async () => 0,
     resolveSources: async () => [SOURCE],
     ensureSnapshot: async () => ({
       dir: "/cache/acme__acme-membership/abcdef1234567890",
@@ -487,6 +494,83 @@ describe("runTurn", () => {
     expect(state.usage).toHaveLength(0);
   });
 
+  it("sends the last allowed request with tool_choice none and the step-limit note, and keeps its answer", async () => {
+    const steps: Step[] = Array.from(
+      { length: MAX_ITERATIONS - 1 },
+      (_, i) => ({
+        content: [toolUse(`tu_${i}`, "list_files", { glob: "**/*" })],
+        stop_reason: "tool_use" as const,
+      })
+    );
+    steps.push({
+      text: ["Temuan sejauh ini: ..."],
+      content: [text("Temuan sejauh ini: ...")],
+      stop_reason: "end_turn",
+    });
+    const { client, requests } = fakeClient(steps);
+
+    await runTurn(MESSAGE_ID, deps(client));
+
+    expect(requests).toHaveLength(MAX_ITERATIONS);
+    type Sent = {
+      tool_choice: unknown;
+      tools: unknown[];
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    const sent = requests as unknown as Sent[];
+    expect(sent.slice(0, -1).map((r) => r.tool_choice)).toEqual(
+      Array(MAX_ITERATIONS - 1).fill({ type: "auto" })
+    );
+    const last = sent.at(-1)!;
+    expect(last.tool_choice).toEqual({ type: "none" });
+    // Same tools array, so the cached tools + system prefix still holds.
+    expect(last.tools).toEqual(sent[0]?.tools);
+    const lastUser = last.messages.at(-1);
+    expect(lastUser?.role).toBe("user");
+    const blocks = lastUser?.content as Array<{ type: string; text?: string }>;
+    expect(blocks.slice(0, -1).every((b) => b.type === "tool_result")).toBe(
+      true
+    );
+    expect(blocks.at(-1)).toEqual({ type: "text", text: STEP_LIMIT_NOTE });
+    // Only the results before the last request carry the note.
+    const earlier = sent.at(-2)?.messages.at(-1)?.content as Array<{
+      type: string;
+    }>;
+    expect(earlier.every((b) => b.type === "tool_result")).toBe(true);
+
+    expect(state.message.status).toBe("done");
+    expect(state.message.content).toBe("Temuan sejauh ini: ...");
+  });
+
+  it("fails with daily_cap_reached before any request once the cap is spent", async () => {
+    const { client, stream } = fakeClient([]);
+    await runTurn(MESSAGE_ID, deps(client, { spentToday: async () => 1.5 }));
+    expect(stream).not.toHaveBeenCalled();
+    expect(state.message.status).toBe("failed");
+    expect(state.message.errorCode).toBe("assistant.daily_cap_reached");
+  });
+
+  it("re-checks the cap before each request and stops the loop at it", async () => {
+    const { client, stream } = fakeClient([
+      {
+        content: [toolUse("tu_1", "list_files", { glob: "**/*" })],
+        stop_reason: "tool_use",
+      },
+      { content: [text("never sent")], stop_reason: "end_turn" },
+    ]);
+    // Under the cap at the start; over it once the first response is metered.
+    const spentToday = vi.fn(async () =>
+      state.usage.reduce((sum, row) => sum + Number(row.costUsd), 1.49)
+    );
+    await runTurn(MESSAGE_ID, deps(client, { spentToday }));
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(spentToday).toHaveBeenCalledTimes(2);
+    expect(spentToday).toHaveBeenCalledWith(USER_ID, expect.any(Date));
+    expect(state.toolCalls).toHaveLength(1);
+    expect(state.message.status).toBe("failed");
+    expect(state.message.errorCode).toBe("assistant.daily_cap_reached");
+  });
+
   it("stops after 25 requests and fails with too_many_steps", async () => {
     const steps: Step[] = Array.from(
       { length: MAX_ITERATIONS + 1 },
@@ -586,7 +670,8 @@ describe("runTurn", () => {
         { role: "assistant", content: "", status: "failed" },
         { role: "user", content: "Q3", status: "done" },
       ],
-      attachmentIds: ["att-9"],
+      // A malformed (pre-pair) entry is dropped.
+      attachmentIds: ["KST-12:10001", "10002"],
     };
     const { client, requests } = fakeClient([
       { content: [text("A3")], stop_reason: "end_turn" },
@@ -599,7 +684,8 @@ describe("runTurn", () => {
       { role: "user", content: "Q2" },
       {
         role: "user",
-        content: expect.stringMatching(/^Q3\n\n.*att-9/s),
+        content:
+          "Q3\n\n(Attachments ticked for this question, readable with read_attachment:\n- issue_key KST-12, attachment_id 10001)",
       },
     ]);
   });

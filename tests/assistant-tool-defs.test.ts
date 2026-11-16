@@ -32,7 +32,8 @@ const viewer: AssistantViewer = {
   projectIds: [],
   canManageKnowledge: false,
 };
-const ctx = { snaps: [], viewer, attachmentIds: ["900"] };
+const ticked = [{ issueKey: "KST-1", attachmentId: "900" }];
+const ctx = { snaps: [], viewer, attachments: ticked };
 
 type JsonSchema = {
   type?: unknown;
@@ -52,6 +53,11 @@ describe("TOOL_DEFS", () => {
       "search_knowledge",
       "read_knowledge",
     ]);
+  });
+
+  it("states the 15 MiB PDF cap of read_attachment", () => {
+    const tool = TOOL_DEFS.find((t) => t.name === "read_attachment");
+    expect(tool?.description).toContain("PDF (≤15 MiB)");
   });
 
   it("is strict: closed objects with every property required", () => {
@@ -114,7 +120,7 @@ describe("executeTool", () => {
       },
       {
         fn: "readAttachmentTool",
-        args: [viewer, ["900"], { issueKey: "KST-1", attachmentId: "900" }],
+        args: [viewer, ticked, { issueKey: "KST-1", attachmentId: "900" }],
       },
     ]);
   });

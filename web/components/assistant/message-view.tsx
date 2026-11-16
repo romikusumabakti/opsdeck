@@ -1,9 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, Paperclip } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslations } from "use-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import type { ConversationMessage } from "@/web/api/assistant";
+import {
+  type ConversationMessage,
+  getAllowanceQuery,
+} from "@/web/api/assistant";
 import { useAssistantErrorText } from "./error-text";
 import { MessageSources } from "./message-sources";
 
@@ -44,6 +48,12 @@ function AnswerMarkdown({ content }: { content: string }) {
 export function MessageView({ message }: { message: ConversationMessage }) {
   const t = useTranslations("assistant");
   const { codeText } = useAssistantErrorText();
+  // A failed message stores only its code: a turn stopped at the daily cap is
+  // worded with the current allowance (loaded by the workspace already).
+  const allowance = useQuery({
+    ...getAllowanceQuery(),
+    enabled: message.errorCode === "assistant.daily_cap_reached",
+  }).data;
 
   if (message.role === "user") {
     return (
@@ -73,7 +83,14 @@ export function MessageView({ message }: { message: ConversationMessage }) {
       )}
       {message.status === "failed" && (
         <Alert variant="destructive">
-          <AlertDescription>{codeText(message.errorCode)}</AlertDescription>
+          <AlertDescription>
+            {codeText(
+              message.errorCode,
+              allowance
+                ? { capUsd: allowance.capUsd, resetsAt: allowance.resetsAt }
+                : undefined
+            )}
+          </AlertDescription>
         </Alert>
       )}
       {message.status === "done" && (

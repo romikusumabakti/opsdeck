@@ -1,10 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Loader2, Ticket } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
-import { generateDraft, getConversationQuery } from "@/web/api/assistant";
+import {
+  generateDraft,
+  getAllowanceQuery,
+  getConversationQuery,
+} from "@/web/api/assistant";
 import { BrdDraftForm } from "./brd-draft-form";
 import { useAssistantErrorText } from "./error-text";
 import { JiraDraftForm } from "./jira-draft-form";
@@ -29,6 +33,7 @@ export function DraftPanel({
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
+  const queryClient = useQueryClient();
   const conversation = useQuery(getConversationQuery(conversationId)).data;
   const [generating, setGenerating] = React.useState<DraftKind | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -42,6 +47,14 @@ export function DraftPanel({
       setError(errorText(e));
     } finally {
       setGenerating(null);
+      // Also after a failure: a request cut off by a proxy timeout may still
+      // have stored the draft server-side. The spend changed either way.
+      void queryClient.invalidateQueries({
+        queryKey: getConversationQuery(conversationId).queryKey,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getAllowanceQuery().queryKey,
+      });
     }
   };
 

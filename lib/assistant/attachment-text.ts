@@ -6,7 +6,11 @@ import ExcelJS from "exceljs";
  */
 
 export const MAX_ATTACHMENT_TEXT_BYTES = 200 * 1024;
-export const MAX_PDF_BYTES = 20 * 1024 * 1024;
+/**
+ * A PDF goes to the API base64-encoded (4/3 of its size) and the whole
+ * request is capped at 32 MB, so 15 MiB leaves room for the conversation.
+ */
+export const MAX_PDF_BYTES = 15 * 1024 * 1024;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export type ImageMediaType =

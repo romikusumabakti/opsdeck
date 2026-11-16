@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+import type { AttachmentRef } from "./attachment-refs";
 import {
   listFiles,
   MAX_LIST_PATHS,
@@ -96,11 +97,15 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: "read_attachment",
     description:
-      "Read the content of one Jira attachment the user ticked for this message (other attachments are refused). PDF (≤20 MiB) and PNG/JPEG/GIF/WebP images (≤5 MiB) are returned as-is; XLSX is converted to CSV text per sheet (≤200 KiB) with yellow-highlighted cells marked [highlight] and cell notes as [note: …]. Other formats are not supported.",
+      "Read the content of one Jira attachment the user ticked for this message (other attachments are refused). PDF (≤15 MiB) and PNG/JPEG/GIF/WebP images (≤5 MiB) are returned as-is; XLSX is converted to CSV text per sheet (≤200 KiB) with yellow-highlighted cells marked [highlight] and cell notes as [note: …]. Other formats are not supported.",
     strict: true,
     input_schema: object({
-      issue_key: str("Key of the issue the attachment belongs to."),
-      attachment_id: str("Attachment id from get_issue's attachment list."),
+      issue_key: str(
+        "Key of the issue the attachment belongs to, as listed with the ticked attachments."
+      ),
+      attachment_id: str(
+        "Attachment id, as listed with the ticked attachments (or in get_issue's attachment list)."
+      ),
     }),
   },
   {
@@ -152,8 +157,8 @@ export type ToolName = keyof typeof INPUTS;
 export type ToolContext = {
   snaps: SnapshotRef[];
   viewer: AssistantViewer;
-  /** Jira attachment ids the user ticked on the message being answered. */
-  attachmentIds: string[];
+  /** Jira attachments the user ticked on the message being answered. */
+  attachments: AttachmentRef[];
 };
 
 function isToolName(name: string): name is ToolName {
@@ -222,7 +227,7 @@ async function run(
     }
     case "read_attachment": {
       const i = data as z.infer<typeof INPUTS.read_attachment>;
-      return readAttachmentTool(ctx.viewer, ctx.attachmentIds, {
+      return readAttachmentTool(ctx.viewer, ctx.attachments, {
         issueKey: i.issue_key,
         attachmentId: i.attachment_id,
       });

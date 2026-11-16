@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  ATTACHMENT_ID_PATTERN,
+  formatAttachmentRef,
+  JIRA_KEY_PATTERN,
+} from "@/lib/assistant/attachment-refs";
+import {
   type AssistantRuntime,
   loadAssistantRuntime,
 } from "@/lib/assistant/client";
@@ -64,9 +69,14 @@ export const MAX_ATTACHMENTS = 10;
 export const sendMessageInputSchema = z.object({
   conversationId: uuidSchema,
   text: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
-  // Jira attachment ids are numeric strings.
-  attachmentIds: z
-    .array(z.string().regex(/^[1-9][0-9]{0,18}$/))
+  // Each ticked attachment with the issue it is on, so the model can read it.
+  attachments: z
+    .array(
+      z.strictObject({
+        issueKey: z.string().regex(JIRA_KEY_PATTERN),
+        attachmentId: z.string().regex(ATTACHMENT_ID_PATTERN),
+      })
+    )
     .max(MAX_ATTACHMENTS)
     .optional(),
 });
@@ -203,7 +213,10 @@ export async function sendMessage(
   const turn = await insertTurn({
     conversationId: conversation.id,
     text: input.text,
-    attachmentIds: [...new Set(input.attachmentIds ?? [])],
+    // Stored as `KEY:id` (lib/assistant/attachment-refs.ts), deduplicated.
+    attachmentIds: [
+      ...new Set((input.attachments ?? []).map(formatAttachmentRef)),
+    ],
     now,
   });
   if (turn === "busy") throw await refusal(409, "assistant.busy");
