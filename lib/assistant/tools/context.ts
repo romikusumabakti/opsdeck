@@ -203,7 +203,7 @@ export async function getIssueTool(
     ok: true,
     data: {
       key,
-      title: issue.title,
+      title: redact(issue.title),
       status: issue.status,
       type: issue.type,
       description: description.text,

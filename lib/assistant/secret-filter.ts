@@ -265,23 +265,49 @@ export function fileVerdict(
 /** What replaces a line of free text that holds a credential. */
 export const REDACTED_LINE = "[disembunyikan: berisi kredensial]";
 
+const PRIVATE_KEY_BEGIN = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
+const PRIVATE_KEY_END = /-----END [A-Z ]*PRIVATE KEY-----/;
+
 /**
  * Free text written by people (Jira descriptions and comments, knowledge-base
  * documents) cannot be withheld whole like a file: each line that holds a
- * literal secret (config rules) is replaced with REDACTED_LINE instead.
- * `redacted` counts the replaced lines.
+ * literal secret (config rules) is replaced with REDACTED_LINE instead. A
+ * pasted private key (PEM or OpenSSH) is replaced as one block, from its
+ * BEGIN line through its END line (or the end of the text when END is
+ * missing). `redacted` counts the replaced lines and key blocks.
  */
 export function redactSecretLines(text: string): {
   text: string;
   redacted: number;
 } {
+  const lines = text.split("\n");
+  const out: string[] = [];
   let redacted = 0;
-  const lines = text.split("\n").map((line) => {
-    if (!containsSecret(line, "config")) return line;
-    redacted++;
-    return REDACTED_LINE;
-  });
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (PRIVATE_KEY_BEGIN.test(line)) {
+      // The END may sit on the BEGIN line itself (a key pasted unwrapped).
+      const after = line.slice(line.search(PRIVATE_KEY_BEGIN) + 1);
+      if (!PRIVATE_KEY_END.test(after)) {
+        while (
+          i + 1 < lines.length &&
+          !PRIVATE_KEY_END.test(lines[i + 1] ?? "")
+        )
+          i++;
+        if (i + 1 < lines.length) i++; // the END line
+      }
+      out.push(REDACTED_LINE);
+      redacted++;
+      continue;
+    }
+    if (containsSecret(line, "config")) {
+      out.push(REDACTED_LINE);
+      redacted++;
+      continue;
+    }
+    out.push(line);
+  }
   return redacted === 0
     ? { text, redacted }
-    : { text: lines.join("\n"), redacted };
+    : { text: out.join("\n"), redacted };
 }

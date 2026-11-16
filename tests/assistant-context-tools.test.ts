@@ -282,8 +282,16 @@ describe("getIssueTool", () => {
   });
 
   it("redacts credential lines of the description and comments", async () => {
-    state.issues[0]!.description =
-      "Login fails on SIT.\nDB_PASSWORD=Sup3rS3cret!\nSee the log.";
+    state.issues[0]!.title =
+      "Login fails with token ghp_abcdefghijklmnopqrstuvwxyz0123456789AB";
+    state.issues[0]!.description = [
+      "Login fails on SIT.",
+      "DB_PASSWORD=Sup3rS3cret!",
+      "-----BEGIN OPENSSH PRIVATE KEY-----",
+      "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW",
+      "-----END OPENSSH PRIVATE KEY-----",
+      "See the log.",
+    ].join("\n");
     state.comments.push({
       issueId: "issue-kmem",
       body: "Tried again with\npassword: hunter2-Prod!\nstill failing",
@@ -292,14 +300,18 @@ describe("getIssueTool", () => {
     });
     const result = await getIssueTool(qa, "KST-10");
     if (!result.ok) throw new Error(result.error);
+    expect(result.data.title).toBe(REDACTED_LINE);
     expect(result.data.description).toBe(
-      `Login fails on SIT.\n${REDACTED_LINE}\nSee the log.`
+      `Login fails on SIT.\n${REDACTED_LINE}\n${REDACTED_LINE}\nSee the log.`
     );
     expect(result.data.comments.at(-1)?.body).toBe(
       `Tried again with\n${REDACTED_LINE}\nstill failing`
     );
-    expect(JSON.stringify(result.data)).not.toMatch(/Sup3rS3cret|hunter2/);
-    expect(result.meta).toEqual({ issueKeys: ["KST-10"], withheld: 2 });
+    expect(JSON.stringify(result.data)).not.toMatch(
+      /Sup3rS3cret|hunter2|ghp_|b3BlbnNzaC|PRIVATE KEY/
+    );
+    // Title, password line, key block, comment line.
+    expect(result.meta).toEqual({ issueKeys: ["KST-10"], withheld: 4 });
   });
 
   it("still answers from the Panel when the project has no Jira link", async () => {

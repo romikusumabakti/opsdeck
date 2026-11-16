@@ -5,6 +5,8 @@ import {
   fileKind,
   fileVerdict,
   isWithheldPath,
+  REDACTED_LINE,
+  redactSecretLines,
 } from "@/lib/assistant/secret-filter";
 
 describe("isWithheldPath", () => {
@@ -337,5 +339,73 @@ describe("labels and Spring XML properties (R8)", () => {
     expect(fileKind("a/.env")).toBe("config");
     expect(fileKind("a/.env.local")).toBe("config");
     expect(fileKind("a/.envrc")).toBe("config");
+  });
+});
+
+describe("redactSecretLines", () => {
+  const body = [
+    "MIIEowIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0gun",
+    "VTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u+qKhbwKfBstIs+bMY2Zkp18gnTxK",
+  ];
+
+  it("replaces a whole RSA PEM block with one marker", () => {
+    const text = [
+      "Key used on SIT:",
+      "-----BEGIN RSA PRIVATE KEY-----",
+      ...body,
+      "-----END RSA PRIVATE KEY-----",
+      "Rotate it after the test.",
+    ].join("\n");
+    expect(redactSecretLines(text)).toEqual({
+      text: `Key used on SIT:\n${REDACTED_LINE}\nRotate it after the test.`,
+      redacted: 1,
+    });
+  });
+
+  it("replaces a whole OpenSSH block with one marker", () => {
+    const text = [
+      "-----BEGIN OPENSSH PRIVATE KEY-----",
+      "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW",
+      "QyNTUxOQAAACDvQ6dVHq6pW0m6l0RtZ9wq9X0Vh1z9Kj4Ff0AAAAAAAAAAAAAAAAAAAAAA",
+      "-----END OPENSSH PRIVATE KEY-----",
+      "done",
+    ].join("\n");
+    expect(redactSecretLines(text)).toEqual({
+      text: `${REDACTED_LINE}\ndone`,
+      redacted: 1,
+    });
+  });
+
+  it("redacts to the end of the text when the END line is missing", () => {
+    const text = [
+      "see below",
+      "-----BEGIN PRIVATE KEY-----",
+      ...body,
+      "(truncated by Jira)",
+    ].join("\n");
+    expect(redactSecretLines(text)).toEqual({
+      text: `see below\n${REDACTED_LINE}`,
+      redacted: 1,
+    });
+  });
+
+  it("handles a key pasted on one line and keeps counting other secrets", () => {
+    const text = [
+      `-----BEGIN PRIVATE KEY-----${body[0]}-----END PRIVATE KEY-----`,
+      "kept",
+      "DB_PASSWORD=Sup3rS3cret!",
+    ].join("\n");
+    expect(redactSecretLines(text)).toEqual({
+      text: `${REDACTED_LINE}\nkept\n${REDACTED_LINE}`,
+      redacted: 2,
+    });
+  });
+
+  it("leaves normal text untouched", () => {
+    const text =
+      "Iuran dihitung dari gaji pokok.\n\nLihat BEGIN dan END di log -----\npassword policy: 12 chars";
+    const result = redactSecretLines(text);
+    expect(result.redacted).toBe(0);
+    expect(result.text).toBe(text);
   });
 });
