@@ -7,6 +7,7 @@ import {
   readFile,
   type SnapshotRef,
   searchCode,
+  unsafeRegex,
 } from "@/lib/assistant/tools/code";
 
 let root: string;
@@ -57,12 +58,71 @@ describe("searchCode", () => {
       `const hello = 2;\nconst token = "ghp_${"a".repeat(36)}";\n`
     );
     await put(".env", "hello=1\n");
+    await put(
+      "src/main/resources/application.yml",
+      [
+        "spring:",
+        "  datasource:",
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: Spring placeholder
+        "    password: ${DB_PASSWORD}",
+        "",
+      ].join("\n")
+    );
+    await put(
+      "src/main/resources/application-prod.yml",
+      "spring.datasource.password: hunter2xyz\n"
+    );
     const r = await searchCode([snap], { pattern: "hello" });
     expect(r.ok && r.data.matches.map((m) => m.path)).toEqual([
       "api/src/ok.ts",
     ]);
     expect(JSON.stringify(r)).not.toContain("ghp_");
     expect(r.meta.withheld).toBeGreaterThanOrEqual(1);
+    for (const pattern of ["datasource", "password"]) {
+      const s = await searchCode([snap], { pattern });
+      expect(JSON.stringify(s)).not.toContain("hunter2xyz");
+      expect(s.ok && s.data.matches.map((m) => m.path)).not.toContain(
+        "api/src/main/resources/application-prod.yml"
+      );
+      expect(s.meta.withheld).toBeGreaterThanOrEqual(1);
+    }
+    const read = await readFile([snap], {
+      path: "api/src/main/resources/application-prod.yml",
+    });
+    expect(read.ok).toBe(false);
+  });
+
+  it("caps total search output at 64 KiB", async () => {
+    await put("big.ts", `${"x".repeat(1500)}\n`.repeat(90));
+    const r = await searchCode([snap], { pattern: "xxx" });
+    expect(r.ok && r.data.truncated).toBe(true);
+    expect(JSON.stringify(r.ok && r.data.matches).length).toBeLessThan(70_000);
+  });
+
+  it("rejects dangerous regexes and accepts ordinary ones", async () => {
+    for (const p of [
+      "(a+)+",
+      "(a*)*",
+      "(\\w+\\s?)*",
+      "(a{2,})+",
+      "x".repeat(201),
+    ]) {
+      expect(
+        (await searchCode([snap], { pattern: p, regex: true })).ok,
+        p
+      ).toBe(false);
+    }
+    for (const p of [
+      "foo\\(bar\\)+",
+      "(foo|bar)+",
+      "\\w+\\s*=",
+      "(ab)?c+",
+      "[(a+]+",
+    ]) {
+      expect(unsafeRegex(p), p).toBeNull();
+    }
+    // literal search is never screened
+    expect((await searchCode([snap], { pattern: "(a+)+" })).ok).toBe(true);
   });
 
   it("returns context and stops at 100 matches", async () => {
@@ -139,5 +199,42 @@ describe("readFile", () => {
       false
     );
     expect((await readFile([snap], { path: "api/.ready" })).ok).toBe(false);
+  });
+
+  it("refuses symlinks to withheld files, bookkeeping files and symlinked dirs", async () => {
+    await put(".env", "A=1");
+    await put(".withheld.json", "[]");
+    await put("src/real/a.ts", "ok");
+    await symlink(
+      join(root, "snap", ".env"),
+      join(root, "snap", "src", "alias.txt")
+    );
+    await symlink(
+      join(root, "snap", ".withheld.json"),
+      join(root, "snap", "w.txt")
+    );
+    await symlink(
+      join(root, "snap", "src", "real"),
+      join(root, "snap", "linked")
+    );
+    for (const path of ["api/src/alias.txt", "api/w.txt", "api/linked/a.ts"]) {
+      expect((await readFile([snap], { path })).ok, path).toBe(false);
+    }
+    expect((await readFile([snap], { path: "api/src/real/a.ts" })).ok).toBe(
+      true
+    );
+  });
+
+  it("ignores non-integer line bounds and rejects directories", async () => {
+    await put("src/a.ts", "one\ntwo\n");
+    const r = await readFile([snap], {
+      path: "api/src/a.ts",
+      startLine: Number.NaN,
+      endLine: 1.5,
+    });
+    expect(r.ok && r.data).toMatchObject({ startLine: 1, endLine: 2 });
+    const d = await readFile([snap], { path: "api/src" });
+    expect(d).toMatchObject({ ok: false, error: "Not a file." });
+    expect(d.meta.withheld).toBeUndefined();
   });
 });

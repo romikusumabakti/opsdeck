@@ -1,10 +1,11 @@
 import {
   readFile as fsReadFile,
+  lstat,
   readdir,
   realpath,
   stat,
 } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 import { fileVerdict, isWithheldPath } from "../secret-filter";
 
 /**
@@ -36,9 +37,15 @@ export const MAX_SEARCH_MATCHES = 100;
 export const CONTEXT_LINES = 2;
 export const MAX_READ_LINES = 400;
 export const MAX_READ_BYTES = 64 * 1024;
-/** Lines longer than this are cut before matching (ReDoS guard) and output. */
+/**
+ * Lines longer than this are cut before matching and output. This only bounds
+ * output size and per-line work; it is NOT a ReDoS defence (see `unsafeRegex`).
+ */
 export const MAX_LINE_CHARS = 2000;
 /** Files larger than this are skipped by search/read and counted as withheld. */
+/** Total budget for one search result (paths + text + context). */
+export const MAX_SEARCH_BYTES = 64 * 1024;
+export const MAX_REGEX_LENGTH = 200;
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 /** Snapshot bookkeeping files at each snapshot root; never shown. */
@@ -130,6 +137,56 @@ async function loadAllowed(
   return fileVerdict(relPath, text, buf.length) === "allowed" ? text : null;
 }
 
+/**
+ * JS regexes cannot be interrupted, so model-supplied patterns are screened
+ * up front: too long, or a quantified group (`+`, `*`, `{n,}`, `{n,m}`) whose
+ * body itself contains an unbounded quantifier (`(a+)+`, `(\w+\s?)*`).
+ * Returns a reason, or null when the pattern looks safe.
+ */
+export function unsafeRegex(pattern: string): string | null {
+  if (pattern.length > MAX_REGEX_LENGTH) {
+    return `Regex is longer than ${MAX_REGEX_LENGTH} characters; use a shorter pattern or a literal search (regex: false).`;
+  }
+  const nested =
+    "Regex has nested quantifiers (risk of catastrophic backtracking); simplify it or use a literal search (regex: false).";
+  const stack: boolean[] = []; // per open group: body has an unbounded quantifier
+  let inClass = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "\\") {
+      i++;
+      continue;
+    }
+    if (inClass) {
+      if (c === "]") inClass = false;
+      continue;
+    }
+    if (c === "[") inClass = true;
+    else if (c === "(") stack.push(false);
+    else if (c === "+" || c === "*") {
+      if (stack.length) stack[stack.length - 1] = true;
+    } else if (c === "{") {
+      const m = /^\{\d+,\d*\}/.exec(pattern.slice(i));
+      if (m?.[0].endsWith(",}") && stack.length) {
+        stack[stack.length - 1] = true;
+      }
+    } else if (c === ")") {
+      const unbounded = stack.pop() ?? false;
+      const rest = pattern.slice(i + 1);
+      const quantified = /^(?:[+*]|\{\d+(?:,\d*)?\})/.test(rest);
+      if (unbounded && quantified) return nested;
+      if (unbounded && stack.length) stack[stack.length - 1] = true;
+    }
+  }
+  return null;
+}
+
+function toInt(value: number | undefined): number | undefined {
+  return typeof value === "number" && Number.isInteger(value)
+    ? value
+    : undefined;
+}
+
 function splitLines(text: string): string[] {
   const lines = text.split(/\r?\n/);
   if (lines.length > 1 && lines.at(-1) === "") lines.pop();
@@ -157,6 +214,10 @@ export async function searchCode(
   }
 ): Promise<ToolResult<{ matches: SearchMatch[]; truncated: boolean }>> {
   if (!opts.pattern) return fail("Pattern must not be empty.");
+  if (opts.regex) {
+    const reason = unsafeRegex(opts.pattern);
+    if (reason) return fail(reason);
+  }
   let re: RegExp;
   try {
     const source = opts.regex
@@ -177,6 +238,7 @@ export async function searchCode(
   const matches: SearchMatch[] = [];
   const hitPaths = new Set<string>();
   let truncated = false;
+  let bytes = 0;
 
   outer: for (const snap of snaps) {
     for await (const entry of walk(snap, counter)) {
@@ -202,12 +264,18 @@ export async function searchCode(
         ) {
           if (j !== i) context.push(clip(lines[j] ?? ""));
         }
-        matches.push({
+        const match = {
           path: entry.path,
           line: i + 1,
           text: clip(lines[i] ?? ""),
           context,
-        });
+        };
+        bytes += Buffer.byteLength(JSON.stringify(match));
+        if (bytes > MAX_SEARCH_BYTES) {
+          truncated = true;
+          break outer;
+        }
+        matches.push(match);
         hitPaths.add(entry.path);
       }
     }
@@ -246,10 +314,22 @@ async function resolvePath(
   if (RESERVED.has(rel)) return { error: "File not found." };
   const abs = join(snap.dir, rel);
   try {
-    const [root, real] = await Promise.all([realpath(snap.dir), realpath(abs)]);
-    if (real !== root && !real.startsWith(root + sep)) {
-      return { error: "Invalid path." };
+    // Every component must be a real directory/file: no symlinks anywhere,
+    // consistent with `walk`, so a link cannot reach withheld or outside files.
+    let cur = snap.dir;
+    for (const [i, segment] of segments.entries()) {
+      cur = join(cur, segment);
+      const info = await lstat(cur);
+      if (info.isSymbolicLink()) return { error: "File not found." };
+      if (i === segments.length - 1) {
+        if (info.isDirectory()) return { error: "Not a file." };
+        if (!info.isFile()) return { error: "File not found." };
+      } else if (!info.isDirectory()) {
+        return { error: "File not found." };
+      }
     }
+    const [root, real] = await Promise.all([realpath(snap.dir), realpath(abs)]);
+    if (real !== join(root, rel)) return { error: "File not found." };
   } catch {
     return { error: "File not found." };
   }
@@ -278,13 +358,13 @@ export async function readFile(
 
   const lines = splitLines(text);
   const totalLines = lines.length;
-  const start = Math.max(1, Math.floor(opts.startLine ?? 1));
+  const start = Math.max(1, toInt(opts.startLine) ?? 1);
   if (start > totalLines && totalLines > 0) {
     return fail(
       `startLine ${start} is beyond the end of the file (${totalLines} lines).`
     );
   }
-  const requestedEnd = Math.floor(opts.endLine ?? start + MAX_READ_LINES - 1);
+  const requestedEnd = toInt(opts.endLine) ?? start + MAX_READ_LINES - 1;
   const end = Math.min(totalLines, requestedEnd, start + MAX_READ_LINES - 1);
   if (end < start && totalLines > 0) {
     return fail("endLine must not be before startLine.");
