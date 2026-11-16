@@ -2226,7 +2226,8 @@
       "compressMany": "{actor} compressed {path} and {count} items in total into {archive} on {target}",
       "download": "{actor} downloaded {path} from {target}",
       "downloadMany": "{actor} downloaded {count} items starting with {path} from {target}"
-    }
+    },
+    "assistantConfigured": "{actor} updated the assistant settings: {enabled, select, true {enabled} other {disabled}}, {model}, effort {effort}, limit {dailyCapUsd, number} USD per user per day{keyChanged, select, true {, API key changed} other {}}"
   },
   "jira": {
     "title": "Jira",

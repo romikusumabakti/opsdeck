@@ -44,6 +44,9 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+const activity = vi.hoisted(() => ({ record: vi.fn() }));
+vi.mock("@/lib/activity", () => ({ recordActivity: activity.record }));
+
 const sdk = vi.hoisted(() => ({
   retrieve: vi.fn(),
   keys: [] as string[],
@@ -133,7 +136,7 @@ describe("settings", () => {
 
   it("keeps the key when it is omitted or blank, clears it on null", async () => {
     await send("PUT", BASE, { apiKey: "sk-ant-secret-value" });
-    await send("PUT", BASE, { apiKey: "  " });
+    await send("PUT", BASE, { apiKey: "  ", enabled: false });
     await send("PUT", BASE, { enabled: true });
     expect((await (await send("GET", BASE)).json()).hasApiKey).toBe(true);
     await send("PUT", BASE, { apiKey: null });
@@ -145,6 +148,43 @@ describe("settings", () => {
     const res = await send("PUT", BASE, { model: "claude-opus-4-8" });
     expect(res.status).toBe(400);
     expect(state.lastSet).toBeNull();
+  });
+});
+
+describe("activity log", () => {
+  it("records keyChanged true for a new key and false otherwise, never the key", async () => {
+    await send("PUT", BASE, { apiKey: "sk-ant-secret-value", enabled: true });
+    await send("PUT", BASE, { dailyCapUsd: 2 });
+    await send("PUT", BASE, { apiKey: "  ", enabled: false });
+    await send("PUT", BASE, { apiKey: null });
+    const calls = activity.record.mock.calls.map(([arg]) => arg);
+    expect(calls.map((c) => c.data.keyChanged)).toEqual([
+      "true",
+      "false",
+      "false",
+      "true",
+    ]);
+    expect(calls[0]).toMatchObject({
+      actorId: "user-1",
+      action: "assistant.configured",
+      data: {
+        enabled: "true",
+        model: "claude-opus-5-5",
+        effort: "medium",
+        dailyCapUsd: 1.5,
+      },
+    });
+    expect(calls[1].data.dailyCapUsd).toBe(2);
+    const text = JSON.stringify(calls);
+    expect(text).not.toContain("sk-ant");
+    expect(text).not.toContain("enc:v1:");
+  });
+
+  it("records nothing for a rejected or forbidden save", async () => {
+    await send("PUT", BASE, { model: "claude-opus-4-8" });
+    state.role = "engineer";
+    await send("PUT", BASE, { enabled: true });
+    expect(activity.record).not.toHaveBeenCalled();
   });
 });
 

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { recordActivity } from "@/lib/activity";
 import {
   ASSISTANT_EFFORTS,
   ASSISTANT_MODELS,
@@ -65,7 +66,7 @@ export async function getAssistantSettings(): Promise<AssistantSettings> {
 export async function saveAssistantSettings(
   input: AssistantSettingsInput
 ): Promise<ActionResponse> {
-  await requireOrgPermission({ assistant: ["manage"] });
+  const session = await requireOrgPermission({ assistant: ["manage"] });
   const parsed = assistantSettingsInputSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, message: "Invalid assistant settings" };
@@ -91,6 +92,20 @@ export async function saveAssistantSettings(
       console.error("Failed to save assistant settings:", error);
       return { success: false, message: "Failed to save assistant settings" };
     }
+    const row = await loadRow();
+    // No key material here: only whether the key changed.
+    await recordActivity({
+      actorId: session.user.id,
+      action: "assistant.configured",
+      entityType: "instance",
+      data: {
+        enabled: String(row.assistantEnabled),
+        model: row.assistantModel,
+        effort: row.assistantEffort,
+        dailyCapUsd: Number(row.assistantDailyCapUsd),
+        keyChanged: String(apiKey !== undefined && apiKey !== ""),
+      },
+    });
   }
   return { success: true, message: "Assistant settings saved" };
 }

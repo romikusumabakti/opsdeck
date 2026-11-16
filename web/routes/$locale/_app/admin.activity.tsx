@@ -201,6 +201,15 @@ function message(
         actor,
         environment: String(d.environment),
       });
+    case "assistant.configured":
+      return t("assistantConfigured", {
+        actor,
+        enabled: String(d.enabled),
+        model: String(d.model),
+        effort: String(d.effort),
+        dailyCapUsd: Number(d.dailyCapUsd),
+        keyChanged: String(d.keyChanged),
+      });
     case "variables.revealed":
       return t("variablesRevealed", {
         actor,

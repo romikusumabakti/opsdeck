@@ -2226,7 +2226,8 @@
       "compressMany": "{actor} 在 {target} 上将 {count} 个项目（从 {path} 开始）压缩为 {archive}",
       "download": "{actor} 从 {target} 下载了 {path}",
       "downloadMany": "{actor} 从 {target} 下载了 {count} 个项目（从 {path} 开始）"
-    }
+    },
+    "assistantConfigured": "{actor} 更新了助手设置：{enabled, select, true {已启用} other {已停用}}，{model}，思考强度 {effort}，每位用户每日上限 {dailyCapUsd, number} USD{keyChanged, select, true {，API 密钥已更改} other {}}"
   },
   "jira": {
     "title": "Jira",

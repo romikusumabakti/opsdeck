@@ -2226,7 +2226,8 @@
       "compressMany": "{actor} mengompres {count} item (dimulai dari {path}) menjadi {archive} di {target}",
       "download": "{actor} mengunduh {path} dari {target}",
       "downloadMany": "{actor} mengunduh {count} item (dimulai dari {path}) dari {target}"
-    }
+    },
+    "assistantConfigured": "{actor} memperbarui pengaturan asisten: {enabled, select, true {aktif} other {nonaktif}}, {model}, effort {effort}, batas {dailyCapUsd, number} USD per pengguna per hari{keyChanged, select, true {, API key diubah} other {}}"
   },
   "jira": {
     "title": "Jira",

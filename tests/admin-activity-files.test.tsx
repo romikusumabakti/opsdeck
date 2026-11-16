@@ -171,3 +171,30 @@ describe("activity page file explorer events", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("activity page assistant events", () => {
+  it("renders assistant.configured without the key", async () => {
+    const text = await renderEvents([
+      row("1", "assistant.configured", {
+        enabled: "true",
+        model: "claude-sonnet-5-5",
+        effort: "medium",
+        dailyCapUsd: 1.5,
+        keyChanged: "true",
+      }),
+      row("2", "assistant.configured", {
+        enabled: "false",
+        model: "claude-opus-5-5",
+        effort: "high",
+        dailyCapUsd: 3,
+        keyChanged: "false",
+      }),
+    ]);
+    expect(text).toContain(
+      "updated the assistant settings: enabled, claude-sonnet-5-5, effort medium, limit 1.5 USD per user per day, API key changed"
+    );
+    expect(text).toContain(
+      "disabled, claude-opus-5-5, effort high, limit 3 USD per user per day"
+    );
+  });
+});

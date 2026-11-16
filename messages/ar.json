@@ -2226,7 +2226,8 @@
       "compressMany": "{actor} ضغط {count} عناصر (بدءًا من {path}) في {archive} على {target}",
       "download": "{actor} نزّل {path} من {target}",
       "downloadMany": "{actor} نزّل {count} عناصر (بدءًا من {path}) من {target}"
-    }
+    },
+    "assistantConfigured": "قام {actor} بتحديث إعدادات المساعد: {enabled, select, true {مفعّل} other {معطّل}}، {model}، مستوى الجهد {effort}، الحد {dailyCapUsd, number} USD لكل مستخدم يوميًا{keyChanged, select, true {، تم تغيير مفتاح API} other {}}"
   },
   "jira": {
     "title": "Jira",

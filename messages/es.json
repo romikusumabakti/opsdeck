@@ -2226,7 +2226,8 @@
       "compressMany": "{actor} comprimió {count} elementos (empezando por {path}) en {archive} en {target}",
       "download": "{actor} descargó {path} de {target}",
       "downloadMany": "{actor} descargó {count} elementos (empezando por {path}) de {target}"
-    }
+    },
+    "assistantConfigured": "{actor} actualizó los ajustes del asistente: {enabled, select, true {activado} other {desactivado}}, {model}, esfuerzo {effort}, límite de {dailyCapUsd, number} USD por usuario al día{keyChanged, select, true {, clave de API cambiada} other {}}"
   },
   "jira": {
     "title": "Jira",
