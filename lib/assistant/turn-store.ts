@@ -139,6 +139,7 @@ export async function saveSources(
     .where(eq(assistantMessages.id, messageId));
 }
 
+/** streaming → done | failed. A no-op once the message is terminal. */
 export async function finishMessage(
   messageId: string,
   outcome:
@@ -154,7 +155,14 @@ export async function finishMessage(
       errorCode: outcome.status === "failed" ? outcome.errorCode : null,
       finishedAt: now,
     })
-    .where(eq(assistantMessages.id, messageId));
+    // The first terminal write wins: a turn the boot sweep already failed
+    // (or a second finish) stays as it is.
+    .where(
+      and(
+        eq(assistantMessages.id, messageId),
+        eq(assistantMessages.status, "streaming")
+      )
+    );
 }
 
 export async function recordToolCall(

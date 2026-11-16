@@ -187,6 +187,23 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     });
     expect(row?.finished_at).not.toBeNull();
 
+    // The first terminal write wins: a second finish is a no-op.
+    await store.finishMessage(answer.id, { status: "done", content: "late" });
+    const [again] =
+      await client`select status, content, error_code from assistant_messages where id = ${answer.id}`;
+    expect(again).toMatchObject({
+      status: "failed",
+      content: "partial",
+      error_code: "assistant.credit_exhausted",
+    });
+    // A queued (never claimed) message is not finished either.
+    const unclaimed = await message("assistant", "queued");
+    await store.finishMessage(unclaimed.id, { status: "done", content: "x" });
+    const [still] =
+      await client`select status from assistant_messages where id = ${unclaimed.id}`;
+    expect(still?.status).toBe("queued");
+    await client`delete from assistant_messages where id = ${unclaimed.id}`;
+
     // Usage: two rows on the Jakarta day 2026-11-16 (23:30 UTC on the 15th),
     // one on the next day.
     const usage = {
@@ -239,5 +256,14 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       content: "half",
     });
     expect(byId.get(fresh.id)).toMatchObject({ status: "queued" });
+
+    // The turn that lost its worker cannot overwrite the sweep's outcome.
+    await store.finishMessage(stale.id, {
+      status: "done",
+      content: "too late",
+    });
+    const [swept] =
+      await client`select status, content from assistant_messages where id = ${stale.id}`;
+    expect(swept).toMatchObject({ status: "failed", content: "half" });
   });
 });

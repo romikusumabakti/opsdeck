@@ -66,6 +66,8 @@ vi.mock("@/lib/assistant/turn-store", () => ({
       _id: string,
       outcome: { status: string; content: string; errorCode?: string }
     ) => {
+      // Like the real WHERE status = 'streaming': first terminal write wins.
+      if (state.message.status !== "streaming") return;
       state.message.status = outcome.status;
       state.message.content = outcome.content;
       state.message.errorCode = outcome.errorCode ?? null;
@@ -111,7 +113,7 @@ type Step =
       stop_reason: BetaMessage["stop_reason"];
       model?: string;
     }
-  | { text?: string[]; error: unknown };
+  | { text?: string[]; error: unknown; partialUsage?: Usage };
 
 function finalMessage(step: Extract<Step, { content: unknown }>): BetaMessage {
   return {
@@ -141,6 +143,11 @@ function fakeClient(steps: Step[]) {
         }) as BetaRawMessageStreamEvent
     );
     return {
+      get currentMessage() {
+        return "error" in step && step.partialUsage
+          ? { model: "claude-opus-5-5", usage: step.partialUsage }
+          : undefined;
+      },
       async *[Symbol.asyncIterator]() {
         for (const event of events) yield event;
         if ("error" in step) throw step.error;
@@ -330,6 +337,88 @@ describe("runTurn", () => {
     expect(state.message.sources).toEqual([SOURCE]);
   });
 
+  it("keeps only the final response's text in content (R11)", async () => {
+    const { client } = fakeClient([
+      {
+        text: ["Saya cari dulu."],
+        content: [
+          text("Saya cari dulu."),
+          toolUse("tu_1", "search_code", { pattern: "Iuran" }),
+        ],
+        stop_reason: "tool_use",
+      },
+      {
+        text: ["Jawaban akhir."],
+        content: [text("Jawaban akhir.")],
+        stop_reason: "end_turn",
+      },
+    ]);
+    await runTurn(MESSAGE_ID, deps(client));
+
+    expect(state.message.status).toBe("done");
+    expect(state.message.content).toBe("Jawaban akhir.");
+    // The intermediate text streamed live, then was cleared before the
+    // final response's text.
+    expect(state.contentWrites).toEqual([
+      "Saya cari dulu.",
+      "",
+      "Jawaban akhir.",
+    ]);
+  });
+
+  it("records the usage streamed before a mid-stream error", async () => {
+    const overloaded = new Anthropic.APIError(
+      undefined,
+      {
+        type: "error",
+        error: { type: "overloaded_error", message: "Overloaded" },
+      },
+      undefined,
+      undefined,
+      "overloaded_error"
+    );
+    const { client } = fakeClient([
+      {
+        text: ["Sebagian"],
+        error: overloaded,
+        partialUsage: { ...USAGE, output_tokens: 50 },
+      },
+    ]);
+    await runTurn(MESSAGE_ID, deps(client));
+
+    expect(state.message.errorCode).toBe("assistant.unavailable");
+    expect(state.message.content).toBe("Sebagian");
+    expect(state.usage).toHaveLength(1);
+    expect(state.usage[0]).toMatchObject({
+      outputTokens: 50,
+      model: "claude-opus-5-5",
+    });
+    expect(Number(state.usage[0]?.costUsd)).toBeCloseTo(
+      (1000 * 4 + 50 * 20 + 5000 * 0.2 + 2000 * 5) / 1_000_000,
+      6
+    );
+  });
+
+  it("leaves output_config out for an effort the SDK does not know", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { client, requests } = fakeClient([
+      { content: [text("ok")], stop_reason: "end_turn" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(client, {
+        loadRuntime: async () => ({
+          client,
+          model: "claude-opus-5-5",
+          effort: "turbo",
+          dailyCapUsd: 1.5,
+        }),
+      })
+    );
+    expect(requests[0]).not.toHaveProperty("output_config");
+    warn.mockRestore();
+  });
+
   it("sends auto tool choice, adaptive thinking, the configured effort and the refusal fallback", async () => {
     const { client, requests } = fakeClient([
       { text: ["Halo"], content: [text("Halo")], stop_reason: "end_turn" },
@@ -415,6 +504,7 @@ describe("runTurn", () => {
     expect(state.usage).toHaveLength(MAX_ITERATIONS);
     expect(state.message.status).toBe("failed");
     expect(state.message.errorCode).toBe("assistant.too_many_steps");
+    expect(state.message.content).toBe("");
   });
 
   it("fails with not_configured when the runtime is missing or its key cannot be decrypted", async () => {
@@ -585,7 +675,7 @@ describe("classifyError", () => {
 describe("tool results", () => {
   it("turns attachments into document, image and text blocks and errors into is_error", () => {
     expect(
-      toToolResult("t", {
+      toToolResult("read_attachment", "t", {
         ok: true,
         data: {
           kind: "document",
@@ -601,7 +691,7 @@ describe("tool results", () => {
       },
     ]);
     expect(
-      toToolResult("t", {
+      toToolResult("read_attachment", "t", {
         ok: true,
         data: { kind: "image", mediaType: "image/png", base64: "iVBO" },
         meta: {},
@@ -613,20 +703,31 @@ describe("tool results", () => {
       },
     ]);
     expect(
-      toToolResult("t", {
+      toToolResult("read_attachment", "t", {
         ok: true,
         data: { kind: "text", text: "a,b" },
         meta: {},
       }).content
     ).toEqual([{ type: "text", text: "a,b" }]);
     expect(
-      toToolResult("t", { ok: false, error: "not found", meta: {} })
+      toToolResult("get_issue", "t", {
+        ok: false,
+        error: "not found",
+        meta: {},
+      })
     ).toEqual({
       type: "tool_result",
       tool_use_id: "t",
       is_error: true,
       content: "not found",
     });
+  });
+
+  it("sends other tools' data as JSON even when it has a kind field", () => {
+    const data = { kind: "text", text: "not an attachment" };
+    expect(
+      toToolResult("read_knowledge", "t", { ok: true, data, meta: {} }).content
+    ).toBe(JSON.stringify(data));
   });
 
   it("drops the declined attempt's thinking and tool calls before a fallback block", () => {

@@ -4,11 +4,17 @@ import type {
   BetaContentBlockParam,
   BetaMessage,
   BetaMessageParam,
+  BetaOutputConfig,
   BetaToolResultBlockParam,
   BetaToolUnion,
   BetaToolUseBlock,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { type AssistantRuntime, loadAssistantRuntime } from "./client";
+import {
+  ASSISTANT_EFFORTS,
+  type AssistantEffort,
+  type AssistantRuntime,
+  loadAssistantRuntime,
+} from "./client";
 import {
   ensureSnapshot as defaultEnsureSnapshot,
   type Snapshot,
@@ -29,6 +35,7 @@ import {
   type ToolContext,
 } from "./tool-defs";
 import type { SnapshotRef, ToolResult } from "./tools/code";
+import type { AttachmentContent } from "./tools/context";
 import {
   claimMessage,
   finishMessage,
@@ -38,7 +45,7 @@ import {
   saveSources,
   type TurnContext,
 } from "./turn-store";
-import { recordUsage } from "./usage";
+import { type ResponseUsage, recordUsage } from "./usage";
 import { type AssistantViewer, loadAssistantViewer } from "./viewer";
 
 export const MAX_TOKENS = 32_000;
@@ -167,8 +174,45 @@ export function echoContent(
   ) as BetaContentBlockParam[];
 }
 
-/** One tool's result as a tool_result block. */
+/** A read_attachment result as content blocks Claude reads natively. */
+function attachmentBlocks(
+  data: AttachmentContent
+): Exclude<BetaToolResultBlockParam["content"], string | undefined> {
+  switch (data.kind) {
+    case "document":
+      return [
+        {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: data.mediaType,
+            data: data.base64,
+          },
+        },
+      ];
+    case "image":
+      return [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: data.mediaType,
+            data: data.base64,
+          },
+        },
+      ];
+    case "text":
+      return [{ type: "text", text: data.text }];
+  }
+}
+
+/**
+ * One tool's result as a tool_result block: read_attachment data
+ * (AttachmentContent) becomes document/image/text blocks, any other tool's
+ * data JSON text, a failure an is_error result.
+ */
 export function toToolResult(
+  toolName: string,
   toolUseId: string,
   result: ToolResult<unknown>
 ): BetaToolResultBlockParam {
@@ -180,54 +224,12 @@ export function toToolResult(
       content: result.error,
     };
   }
-  const data = result.data as
-    | { kind?: unknown; mediaType?: unknown; base64?: unknown; text?: unknown }
-    | null
-    | undefined;
-  if (data && typeof data === "object") {
-    if (data.kind === "document" && typeof data.base64 === "string") {
-      return {
-        type: "tool_result",
-        tool_use_id: toolUseId,
-        content: [
-          {
-            type: "document",
-            source: {
-              type: "base64",
-              media_type: "application/pdf",
-              data: data.base64,
-            },
-          },
-        ],
-      };
-    }
-    if (data.kind === "image" && typeof data.base64 === "string") {
-      return {
-        type: "tool_result",
-        tool_use_id: toolUseId,
-        content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: data.mediaType as
-                | "image/png"
-                | "image/jpeg"
-                | "image/gif"
-                | "image/webp",
-              data: data.base64,
-            },
-          },
-        ],
-      };
-    }
-    if (data.kind === "text" && typeof data.text === "string") {
-      return {
-        type: "tool_result",
-        tool_use_id: toolUseId,
-        content: [{ type: "text", text: data.text }],
-      };
-    }
+  if (toolName === "read_attachment") {
+    return {
+      type: "tool_result",
+      tool_use_id: toolUseId,
+      content: attachmentBlocks(result.data as AttachmentContent),
+    };
   }
   return {
     type: "tool_result",
@@ -282,9 +284,12 @@ async function resolveSnapshots(
   return { prompt, snaps };
 }
 
-/** The final text of the turn, flushed to Postgres at most every 400 ms. */
+/**
+ * The answer text, flushed to Postgres at most every 400 ms. Only the final
+ * response's text is the answer: text of a response that ends in tool calls
+ * streams live while it is written, then is dropped (R11).
+ */
 class ContentWriter {
-  private committed = "";
   private current = "";
   private lastFlush = 0;
   private pending: Promise<void> = Promise.resolve();
@@ -295,10 +300,16 @@ class ContentWriter {
   ) {}
 
   get text(): string {
-    if (!this.current) return this.committed;
-    return this.committed
-      ? `${this.committed}\n\n${this.current}`
-      : this.current;
+    return this.current;
+  }
+
+  private save(snapshot: string): void {
+    // Writes are chained so an older snapshot never lands after a newer one.
+    this.pending = this.pending.then(() =>
+      saveContent(this.messageId, snapshot).catch((error) => {
+        console.error("[assistant] failed to save streamed content", error);
+      })
+    );
   }
 
   append(delta: string): void {
@@ -306,24 +317,15 @@ class ContentWriter {
     const at = this.now().getTime();
     if (at - this.lastFlush >= FLUSH_INTERVAL_MS) {
       this.lastFlush = at;
-      const snapshot = this.text;
-      // Writes are chained so an older snapshot never lands after a newer one.
-      this.pending = this.pending.then(() =>
-        saveContent(this.messageId, snapshot).catch((error) => {
-          console.error("[assistant] failed to save streamed content", error);
-        })
-      );
+      this.save(this.current);
     }
   }
 
-  /** Ends one API response: its text stays, the next starts a new paragraph. */
-  commit(): void {
-    if (this.current.trim() === "") {
-      this.current = "";
-      return;
-    }
-    this.committed = this.text;
+  /** The response ended in tool calls: its text is not the answer. */
+  discard(): void {
+    if (this.current === "") return;
     this.current = "";
+    this.save("");
   }
 
   async settle(): Promise<void> {
@@ -358,7 +360,12 @@ export async function runTurn(
         errorCode: "assistant.interrupted",
       },
       now()
-    ).catch(() => {});
+    ).catch((error) => {
+      console.error(
+        `[assistant] failed to mark redelivered turn ${messageId} interrupted`,
+        error
+      );
+    });
     return;
   }
   if (turn.status !== "queued" || !(await claimMessage(messageId))) return;
@@ -442,18 +449,25 @@ async function runClaimedTurn(
     attachmentIds: turn.attachmentIds,
   };
   const execute = deps.executeTool ?? defaultExecuteTool;
-
-  for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-    const message = await streamOnce(runtime, system, tools, messages, writer);
-    await recordUsage({
+  const meter = (model: string, usage: ResponseUsage) =>
+    recordUsage({
       messageId: turn.messageId,
       userId: turn.userId,
-      model: message.model,
-      usage: message.usage,
+      model,
+      usage,
       priceModel: runtime.model,
       now: now(),
     });
-    writer.commit();
+
+  for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    const message = await streamOnce(
+      runtime,
+      { system, tools, messages },
+      writer,
+      meter
+    );
+    await meter(message.model, message.usage);
+    if (message.stop_reason === "tool_use") writer.discard();
 
     switch (message.stop_reason) {
       case "end_turn":
@@ -498,7 +512,7 @@ async function runClaimedTurn(
           (use.input ?? {}) as Record<string, unknown>,
           result.meta as Record<string, unknown>
         );
-        return toToolResult(use.id, result);
+        return toToolResult(use.name, use.id, result);
       })
     );
     // All results of one response go back in a single user message.
@@ -507,44 +521,70 @@ async function runClaimedTurn(
   throw new TurnError("assistant.too_many_steps");
 }
 
-async function streamOnce(
-  runtime: AssistantRuntime,
+function effortOf(runtime: AssistantRuntime): BetaOutputConfig["effort"] {
+  if ((ASSISTANT_EFFORTS as readonly string[]).includes(runtime.effort)) {
+    return runtime.effort as AssistantEffort;
+  }
+  console.warn(
+    `[assistant] unknown effort ${runtime.effort}; using the model default`
+  );
+  return undefined;
+}
+
+type RequestBody = {
   system: Array<{
     type: "text";
     text: string;
     cache_control?: { type: "ephemeral" };
-  }>,
-  tools: BetaToolUnion[],
-  messages: BetaMessageParam[],
-  writer: ContentWriter
+  }>;
+  tools: BetaToolUnion[];
+  messages: BetaMessageParam[];
+};
+
+async function streamOnce(
+  runtime: AssistantRuntime,
+  body: RequestBody,
+  writer: ContentWriter,
+  meter: (model: string, usage: ResponseUsage) => Promise<number>
 ): Promise<BetaMessage> {
+  const effort = effortOf(runtime);
   const stream = runtime.client.beta.messages.stream({
     model: runtime.model,
     max_tokens: MAX_TOKENS,
     betas: [FALLBACK_BETA],
     fallbacks: "default",
     thinking: { type: "adaptive" },
-    output_config: {
-      effort: runtime.effort as "low" | "medium" | "high",
-    },
-    system,
-    tools,
+    ...(effort ? { output_config: { effort } } : {}),
+    system: body.system,
+    tools: body.tools,
     tool_choice: { type: "auto" },
     // Caches the growing conversation, so each tool-loop request re-reads
     // the previous one's prefix instead of paying for it again.
     cache_control: { type: "ephemeral" },
     // A copy: the loop appends to `messages` after this request.
-    messages: [...messages],
+    messages: [...body.messages],
   });
-  // After a mid-output refusal fallback the fallback model continues the
-  // partial text, so streamed text is never discarded.
-  for await (const event of stream) {
-    if (
-      event.type === "content_block_delta" &&
-      event.delta.type === "text_delta"
-    ) {
-      writer.append(event.delta.text);
+  try {
+    // After a mid-output refusal fallback the fallback model continues the
+    // partial text, so streamed text is never discarded.
+    for await (const event of stream) {
+      if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta"
+      ) {
+        writer.append(event.delta.text);
+      }
     }
+    return await stream.finalMessage();
+  } catch (error) {
+    // The tokens streamed before the error are billed; meter what the
+    // stream reported so far (message_start and any message_delta).
+    const partial = stream.currentMessage;
+    if (partial?.usage) {
+      await meter(partial.model, partial.usage).catch((meterError) => {
+        console.error("[assistant] failed to record partial usage", meterError);
+      });
+    }
+    throw error;
   }
-  return stream.finalMessage();
 }
