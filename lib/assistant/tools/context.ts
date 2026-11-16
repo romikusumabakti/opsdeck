@@ -142,6 +142,27 @@ function toAttachment(meta: JiraAttachmentMeta): IssueAttachment {
   };
 }
 
+/**
+ * The live attachment list of a visible issue (from visibleIssueByKey), or
+ * why it could not be fetched (English, for the model). Shared by get_issue
+ * and the API's attachment tick list, so both list the same files.
+ */
+export async function listIssueAttachments(
+  visible: VisibleIssue
+): Promise<{ attachments: IssueAttachment[]; error: string | null }> {
+  const client = jiraClientFor(visible);
+  if (typeof client === "string") return { attachments: [], error: client };
+  const { issue } = visible;
+  try {
+    const list = await client.getAttachments(
+      issue.jiraIssueId ?? issue.jiraKey ?? ""
+    );
+    return { attachments: list.map(toAttachment), error: null };
+  } catch (error) {
+    return { attachments: [], error: jiraFailure(error) };
+  }
+}
+
 export async function getIssueTool(
   viewer: AssistantViewer,
   rawKey: string
@@ -166,19 +187,8 @@ export async function getIssueTool(
     };
   });
 
-  let attachments: IssueAttachment[] = [];
-  let attachmentsError: string | null = null;
-  const client = jiraClientFor(visible);
-  if (typeof client === "string") {
-    attachmentsError = client;
-  } else {
-    try {
-      const list = await client.getAttachments(issue.jiraIssueId ?? key);
-      attachments = list.map(toAttachment);
-    } catch (error) {
-      attachmentsError = jiraFailure(error);
-    }
-  }
+  const { attachments, error: attachmentsError } =
+    await listIssueAttachments(visible);
 
   const description = capBytes(issue.description, MAX_DESCRIPTION_BYTES);
   return {

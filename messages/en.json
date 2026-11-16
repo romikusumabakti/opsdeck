@@ -3582,5 +3582,16 @@
     "testing": "Testing…",
     "testOk": "Connected to Anthropic",
     "keepKey": "Keep the key"
+  },
+  "assistantErrors": {
+    "notConfigured": "The assistant is not set up. Ask an admin to enable it and save an Anthropic API key.",
+    "dailyCapReached": "You have used today's assistant allowance of {capUsd, number} USD. It resets at {resetsAt, time, short}.",
+    "busy": "The assistant is still answering your previous message. Wait for it to finish.",
+    "unavailable": "The assistant could not take your message right now. Try again in a moment.",
+    "creditExhausted": "The assistant's Anthropic credit has run out. Ask an admin to top it up.",
+    "refused": "The assistant declined to answer this request.",
+    "tooManySteps": "The assistant stopped after too many steps. Try a narrower question.",
+    "interrupted": "The answer was interrupted. Send your message again.",
+    "failed": "The assistant could not answer. Try again."
   }
 }

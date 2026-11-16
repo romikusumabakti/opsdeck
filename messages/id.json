@@ -3582,5 +3582,16 @@
     "testing": "Menguji…",
     "testOk": "Terhubung ke Anthropic",
     "keepKey": "Pertahankan key"
+  },
+  "assistantErrors": {
+    "notConfigured": "Asisten belum disiapkan. Minta admin mengaktifkannya dan menyimpan API key Anthropic.",
+    "dailyCapReached": "Jatah asisten hari ini sebesar {capUsd, number} USD sudah terpakai. Jatah direset pukul {resetsAt, time, short}.",
+    "busy": "Asisten masih menjawab pesan sebelumnya. Tunggu sampai selesai.",
+    "unavailable": "Asisten tidak dapat menerima pesan saat ini. Coba lagi sebentar lagi.",
+    "creditExhausted": "Kredit Anthropic untuk asisten sudah habis. Minta admin untuk mengisinya.",
+    "refused": "Asisten menolak menjawab permintaan ini.",
+    "tooManySteps": "Asisten berhenti setelah terlalu banyak langkah. Coba pertanyaan yang lebih spesifik.",
+    "interrupted": "Jawaban terputus. Kirim ulang pesan Anda.",
+    "failed": "Asisten tidak dapat menjawab. Coba lagi."
   }
 }

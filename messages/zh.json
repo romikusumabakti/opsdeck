@@ -3582,5 +3582,16 @@
     "testing": "测试中…",
     "testOk": "已连接到 Anthropic",
     "keepKey": "保留密钥"
+  },
+  "assistantErrors": {
+    "notConfigured": "助手尚未设置。请管理员启用它并保存 Anthropic API 密钥。",
+    "dailyCapReached": "你今天的助手额度 {capUsd, number} 美元已用完，将于 {resetsAt, time, short} 重置。",
+    "busy": "助手仍在回答你的上一条消息，请等待其完成。",
+    "unavailable": "助手暂时无法接收你的消息，请稍后再试。",
+    "creditExhausted": "助手的 Anthropic 额度已用完，请管理员充值。",
+    "refused": "助手拒绝回答此请求。",
+    "tooManySteps": "助手执行的步骤过多已停止，请尝试更具体的问题。",
+    "interrupted": "回答已中断，请重新发送消息。",
+    "failed": "助手无法回答，请重试。"
   }
 }

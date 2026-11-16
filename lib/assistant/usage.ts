@@ -26,6 +26,41 @@ export function quotaDay(now: Date = new Date()): string {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
+/** How far APP_TIMEZONE's wall clock is ahead of UTC at `at`, in ms. */
+function zoneOffsetMs(at: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TIMEZONE,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const part = (type: string) =>
+    Number(parts.find((p) => p.type === type)?.value);
+  const wall = Date.UTC(
+    part("year"),
+    part("month") - 1,
+    part("day"),
+    part("hour"),
+    part("minute"),
+    part("second")
+  );
+  return wall - Math.floor(at.getTime() / 1000) * 1000;
+}
+
+/** When the quota day `now` falls on ends: the next APP_TIMEZONE midnight. */
+export function quotaDayResetsAt(now: Date = new Date()): Date {
+  const [year, month, day] = quotaDay(now).split("-").map(Number);
+  const midnightAsUtc = Date.UTC(year ?? 0, (month ?? 1) - 1, (day ?? 1) + 1);
+  // The offset at that instant, corrected once for a DST change on the way.
+  let at = midnightAsUtc - zoneOffsetMs(new Date(midnightAsUtc));
+  at = midnightAsUtc - zoneOffsetMs(new Date(at));
+  return new Date(at);
+}
+
 type PricedAttempt = { model: string; tokens: TokenUsage };
 
 /**

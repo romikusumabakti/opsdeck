@@ -3582,5 +3582,16 @@
     "testing": "Probando…",
     "testOk": "Conectado con Anthropic",
     "keepKey": "Conservar la clave"
+  },
+  "assistantErrors": {
+    "notConfigured": "El asistente no está configurado. Pide a un administrador que lo active y guarde una clave de API de Anthropic.",
+    "dailyCapReached": "Has usado la asignación diaria del asistente de {capUsd, number} USD. Se restablece a las {resetsAt, time, short}.",
+    "busy": "El asistente todavía está respondiendo tu mensaje anterior. Espera a que termine.",
+    "unavailable": "El asistente no pudo recibir tu mensaje ahora. Inténtalo de nuevo en un momento.",
+    "creditExhausted": "Se agotó el crédito de Anthropic del asistente. Pide a un administrador que lo recargue.",
+    "refused": "El asistente se negó a responder esta solicitud.",
+    "tooManySteps": "El asistente se detuvo tras demasiados pasos. Prueba con una pregunta más concreta.",
+    "interrupted": "La respuesta se interrumpió. Envía tu mensaje de nuevo.",
+    "failed": "El asistente no pudo responder. Inténtalo de nuevo."
   }
 }

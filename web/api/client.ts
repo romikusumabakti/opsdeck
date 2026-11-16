@@ -52,12 +52,20 @@ import {
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
+  /** The coded refusal's values (`{ capUsd, resetsAt }`), if it sent any. */
+  readonly params: Record<string, string | number> | undefined;
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    params?: Record<string, string | number>
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.params = params;
   }
 }
 
@@ -106,9 +114,24 @@ export function setStrongSignInMessage(message: string | undefined): void {
   strongSignInMessage = message;
 }
 
-async function errorBody(
-  response: Response
-): Promise<{ message: string; code?: string }> {
+function paramsOf(body: object): Record<string, string | number> | undefined {
+  if (!("params" in body)) return undefined;
+  const raw = body.params;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const params: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "string" || typeof value === "number") {
+      params[key] = value;
+    }
+  }
+  return params;
+}
+
+async function errorBody(response: Response): Promise<{
+  message: string;
+  code?: string;
+  params?: Record<string, string | number>;
+}> {
   try {
     const body: unknown = await response.json();
     if (
@@ -122,7 +145,12 @@ async function errorBody(
         "code" in body && typeof body.code === "string" && body.code
           ? body.code
           : undefined;
-      return { message: body.error, ...(code ? { code } : {}) };
+      const params = code ? paramsOf(body) : undefined;
+      return {
+        message: body.error,
+        ...(code ? { code } : {}),
+        ...(params ? { params } : {}),
+      };
     }
   } catch {
     // Not JSON (a proxy's error page): fall through to the status text.
@@ -181,12 +209,12 @@ export function createApiFetch(deps: ApiFetchDeps): typeof fetch {
         deps.navigate(`/${locale}/sign-in?redirect=${redirect}`);
       }
     }
-    const { message, code } = await errorBody(response);
+    const { message, code, params } = await errorBody(response);
     const shown =
       code === STRONG_SIGN_IN_CODE && strongSignInMessage
         ? strongSignInMessage
         : message;
-    throw new ApiError(response.status, shown, code);
+    throw new ApiError(response.status, shown, code, params);
   };
   return apiFetch as typeof fetch;
 }

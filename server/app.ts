@@ -10,6 +10,7 @@ import { securityHeaders } from "@/server/middleware/security-headers";
 import { accessRouter } from "@/server/routes/access";
 import { activityRouter } from "@/server/routes/activity";
 import { appsRouter } from "@/server/routes/apps";
+import { assistantRouter } from "@/server/routes/assistant";
 import { assistantSettingsRouter } from "@/server/routes/assistant-settings";
 import { backupsRouter } from "@/server/routes/backups";
 import { brandRouter } from "@/server/routes/brand";
@@ -130,6 +131,7 @@ export const app = createBaseApp()
   .route("/api/mail", mailRouter)
   .route("/api/mailpit-settings", mailpitSettingsRouter)
   .route("/api/assistant-settings", assistantSettingsRouter)
+  .route("/api/assistant", assistantRouter)
   .route("/api/mock-time", mockTimeRouter)
   .route("/api/test-runs", testRunsRouter)
   .route("/api/servers", serversRouter)

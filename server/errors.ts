@@ -24,7 +24,9 @@ export class CodedHTTPException extends HTTPException {
   constructor(
     status: ContentfulStatusCode,
     readonly code: string,
-    message: string
+    message: string,
+    /** Values the client needs to word the refusal itself (`{ capUsd }`). */
+    readonly params?: Record<string, string | number>
   ) {
     super(status, { message });
     this.name = "CodedHTTPException";
@@ -50,8 +52,8 @@ export function notFound(): never {
   throw new HTTPException(404, { message: "Not Found" });
 }
 
-// Every API error is `{ error }` with the status, plus `code` for a coded
-// refusal (CodedHTTPException), so the client has one shape to parse and can
+// Every API error is `{ error }` with the status, plus `code` (and `params`,
+// when it has any) for a coded refusal (CodedHTTPException), so the client has one shape to parse and can
 // localise a refusal it knows by code. An HTTPException thrown without a message (hono/csrf's 403, for one)
 // gets its status's standard text ("Forbidden"), which is what the client then
 // shows. Anything that is not an HTTPException is a bug: log it, and answer
@@ -62,8 +64,12 @@ export const onError: ErrorHandler = (error, c) => {
     const message =
       error.message || STATUS_CODES[error.status] || `HTTP ${error.status}`;
     const code = errorCode(error);
+    const params =
+      error instanceof CodedHTTPException ? error.params : undefined;
     return c.json(
-      code === undefined ? { error: message } : { error: message, code },
+      code === undefined
+        ? { error: message }
+        : { error: message, code, ...(params ? { params } : {}) },
       error.status
     );
   }

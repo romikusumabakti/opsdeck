@@ -44,6 +44,22 @@ describe("onError", () => {
     });
   });
 
+  it("adds a coded refusal's params when it has any", async () => {
+    const app = createBaseApp().get("/api/x", () => {
+      throw new CodedHTTPException(429, "assistant.daily_cap_reached", "Cap", {
+        capUsd: 1.5,
+        resetsAt: "2026-11-16T17:00:00.000Z",
+      });
+    });
+    const res = await app.request("/api/x");
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({
+      error: "Cap",
+      code: "assistant.daily_cap_reached",
+      params: { capUsd: 1.5, resetsAt: "2026-11-16T17:00:00.000Z" },
+    });
+  });
+
   it("falls back to the status text for any messageless status", async () => {
     const app = createBaseApp().get("/api/x", () => {
       throw new HTTPException(413);
