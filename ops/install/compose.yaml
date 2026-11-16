@@ -141,6 +141,8 @@ services:
       - ${MENARA_DIR:?MENARA_DIR is required}/updates:/var/lib/menara/updates
       # Local backups (no S3 destination yet, and restore safety copies).
       - ${MENARA_DIR:?MENARA_DIR is required}/backups:/var/lib/menara/backups
+      # Source snapshots the code assistant downloads (a cache: safe to lose).
+      - assistant_cache:/var/lib/menara/assistant
     healthcheck:
       test:
         [
@@ -260,3 +262,5 @@ volumes:
     name: ${MENARA_VOLUME_CADDY_DATA:-${COMPOSE_PROJECT_NAME}_caddy_data}
   caddy_config:
     name: ${MENARA_VOLUME_CADDY_CONFIG:-${COMPOSE_PROJECT_NAME}_caddy_config}
+  assistant_cache:
+    name: ${MENARA_VOLUME_ASSISTANT_CACHE:-${COMPOSE_PROJECT_NAME}_assistant_cache}

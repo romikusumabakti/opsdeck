@@ -322,3 +322,99 @@ export async function listRepoDir(
   }
   return entries;
 }
+
+/** The commit a branch points at now. Throws CiProviderError on any failure. */
+export async function getBranchHead(
+  auth: BitbucketAuth,
+  repoFullName: string,
+  branch: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<string> {
+  assertRepo(repoFullName);
+  assertBranch(branch);
+  const res = await request(
+    auth,
+    "GET",
+    repoFullName,
+    `/refs/branches/${encodeURIComponent(branch)}`,
+    undefined,
+    fetchImpl
+  );
+  const hash = ((await res.json()) as { target?: { hash?: unknown } }).target
+    ?.hash;
+  if (typeof hash !== "string" || !/^[0-9a-f]{7,64}$/.test(hash)) {
+    throw new CiProviderError(
+      `Bitbucket GET ${repoFullName}/refs/branches returned no commit hash`,
+      res.status
+    );
+  }
+  return hash;
+}
+
+const MAX_ARCHIVE_REDIRECTS = 3;
+// Covers connecting and the response headers only; the body then streams
+// without a deadline (an archive can be large).
+const ARCHIVE_TIMEOUT_MS = 60_000;
+
+/**
+ * The repository at a commit as a tar.gz byte stream, from
+ * bitbucket.org/{repo}/get/{sha}.tar.gz. That host redirects to a signed
+ * download URL: the Basic credentials go only to the first request, and a
+ * redirect is followed only over https.
+ */
+export async function downloadArchive(
+  auth: BitbucketAuth,
+  repoFullName: string,
+  sha: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<ReadableStream<Uint8Array>> {
+  assertRepo(repoFullName);
+  if (!/^[0-9a-f]{7,64}$/.test(sha)) {
+    throw new Error("Invalid commit sha for a Bitbucket archive");
+  }
+  const label = `Bitbucket GET ${repoFullName}/get/${sha}.tar.gz`;
+  let url = `https://bitbucket.org/${repoFullName}/get/${sha}.tar.gz`;
+  let headers: Record<string, string> | undefined = {
+    Authorization: `Basic ${Buffer.from(`${auth.username}:${auth.token}`).toString("base64")}`,
+  };
+  for (let hop = 0; hop <= MAX_ARCHIVE_REDIRECTS; hop++) {
+    let res: Response;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ARCHIVE_TIMEOUT_MS);
+    try {
+      res = await fetchImpl(url, {
+        method: "GET",
+        headers,
+        redirect: "manual",
+        signal: controller.signal,
+      });
+    } catch {
+      throw new CiProviderError(`${label} unreachable`, 0);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (res.status >= 300 && res.status < 400) {
+      await res.body?.cancel();
+      const location = res.headers.get("location");
+      const next = location ? new URL(location, url) : null;
+      if (next?.protocol !== "https:") {
+        throw new CiProviderError(
+          `${label} redirected to an unusable location`,
+          res.status
+        );
+      }
+      url = next.toString();
+      headers = undefined;
+      continue;
+    }
+    if (!res.ok || !res.body) {
+      await res.body?.cancel();
+      throw new CiProviderError(
+        `${label} failed with ${res.status}`,
+        res.status
+      );
+    }
+    return res.body;
+  }
+  throw new CiProviderError(`${label} redirected too many times`, 0);
+}

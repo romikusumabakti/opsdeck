@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   branchExists,
   commitFile,
+  downloadArchive,
   FILE_TOO_LARGE,
+  getBranchHead,
   listRepoDir,
   readRepoFile,
   readRepoFileOrLarge,
@@ -398,5 +400,92 @@ describe("bitbucket verifyBitbucketAuth", () => {
     expect(error).toBeInstanceOf(CiProviderError);
     expect(error.status).toBe(401);
     expect(error.message).not.toContain(AUTH.token);
+  });
+});
+
+describe("bitbucket getBranchHead", () => {
+  it("reads target.hash of the branch with Basic auth", async () => {
+    const m = mockFetch(
+      Response.json({ name: "release/x", target: { hash: "a".repeat(40) } })
+    );
+    expect(await getBranchHead(AUTH, REPO, "release/x", m.impl)).toBe(
+      "a".repeat(40)
+    );
+    const call = m.calls[0] as (typeof m.calls)[number];
+    expect(call.url).toBe(
+      "https://api.bitbucket.org/2.0/repositories/acme/widgets/refs/branches/release%2Fx"
+    );
+    expect(new Headers(call.init.headers).get("authorization")).toBe(
+      basic(AUTH.username, AUTH.token)
+    );
+  });
+
+  it("fails when the response carries no hash", async () => {
+    const m = mockFetch(Response.json({ name: "main" }));
+    await expect(getBranchHead(AUTH, REPO, "main", m.impl)).rejects.toThrow(
+      CiProviderError
+    );
+  });
+});
+
+const SHA = "abc123def456abc123def456abc123def456abcd";
+
+describe("bitbucket downloadArchive", () => {
+  it("gets the tar.gz from bitbucket.org with Basic auth", async () => {
+    const m = mockFetch(new Response("bytes", { status: 200 }));
+    const stream = await downloadArchive(AUTH, REPO, SHA, m.impl);
+    expect(await new Response(stream).text()).toBe("bytes");
+    const call = m.calls[0] as (typeof m.calls)[number];
+    expect(call.url).toBe(
+      `https://bitbucket.org/acme/widgets/get/${SHA}.tar.gz`
+    );
+    expect(new Headers(call.init.headers).get("authorization")).toBe(
+      basic(AUTH.username, AUTH.token)
+    );
+  });
+
+  it("follows a redirect to https without forwarding the credentials", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), init: init ?? {} });
+      return calls.length === 1
+        ? new Response(null, {
+            status: 302,
+            headers: { Location: "https://cdn.example.test/signed.tar.gz" },
+          })
+        : new Response("tgz");
+    }) as unknown as typeof fetch;
+    const stream = await downloadArchive(AUTH, REPO, SHA, impl);
+    expect(await new Response(stream).text()).toBe("tgz");
+    expect(calls[1]?.url).toBe("https://cdn.example.test/signed.tar.gz");
+    expect(new Headers(calls[1]?.init.headers).get("authorization")).toBeNull();
+  });
+
+  it("refuses a redirect to a non-https location", async () => {
+    const m = mockFetch(
+      new Response(null, {
+        status: 302,
+        headers: { Location: "http://evil.example.test/x" },
+      })
+    );
+    await expect(downloadArchive(AUTH, REPO, SHA, m.impl)).rejects.toThrow(
+      CiProviderError
+    );
+  });
+
+  it("throws a CiProviderError on a failure status", async () => {
+    const m = mockFetch(new Response("no", { status: 403 }));
+    await expect(
+      downloadArchive(AUTH, REPO, SHA, m.impl)
+    ).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("rejects a sha that is not hex", async () => {
+    const m = mockFetch(new Response("x"));
+    await expect(
+      downloadArchive(AUTH, REPO, "../main", m.impl)
+    ).rejects.toThrow("Invalid");
   });
 });

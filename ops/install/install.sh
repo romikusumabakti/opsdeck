@@ -61,7 +61,7 @@ ADOPT_REQUIRED='POSTGRES_PASSWORD DATABASE_URL BETTER_AUTH_SECRET SECRETS_KEY'
 # The old stack's Caddy port (repo-root compose.yaml publishes 127.0.0.1:80).
 ADOPT_DEFAULT_PORT=80
 # compose.yaml's volumes (<name>_<suffix> outside adopt mode).
-INSTANCE_VOLUMES='postgres valkey garage_meta garage_data caddy_data caddy_config'
+INSTANCE_VOLUMES='postgres valkey garage_meta garage_data caddy_data caddy_config assistant_cache'
 # compose.yaml uses configs.content, added in Compose 2.23.1.
 MIN_COMPOSE=2.23.1
 # Where to get Docker Engine and its Compose plugin for each distribution.
