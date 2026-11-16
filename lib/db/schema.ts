@@ -24,6 +24,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { AccentColor } from "@/lib/accents";
+import type { AssistantSource } from "@/lib/assistant/sources";
 import type { BuildSpec } from "@/lib/ci/build-spec";
 import type { PipelineFileCommits } from "@/lib/ci/types";
 import type { MotifPreference } from "@/lib/motifs";
@@ -2718,8 +2719,7 @@ export const assistantMessages = pgTable(
     content: text("content").notNull().default(""),
     status: assistantMessageStatusEnum("status").notNull(),
     errorCode: text("error_code"),
-    // AssistantSource[] (typed in lib/assistant once it exists).
-    sources: jsonb("sources").$type<unknown[]>(),
+    sources: jsonb("sources").$type<AssistantSource[]>(),
     // Jira attachment ids the user ticked for this question.
     attachmentIds: text("attachment_ids").array().notNull().default(sql`'{}'`),
     createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -1,0 +1,222 @@
+import { execFileSync, spawnSync } from "node:child_process";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import * as schema from "@/lib/db/schema";
+
+// resolveEnvironmentSources against a real Postgres: the local
+// menara-postgres container (postgres 18) through its published port, with
+// the container's superuser password read from the container and never
+// printed. It creates a scratch database, migrates it with `menara migrate`
+// and drops it afterwards; no other database is touched.
+//
+//   ASSISTANT_SCRATCH_DB=1 env -u SECRETS_KEY bun --bun vitest run tests/assistant-sources-scratch.test.ts
+const enabled = process.env.ASSISTANT_SCRATCH_DB === "1";
+const CONTAINER = "menara-postgres";
+const DB_NAME = "assistant_sources_scratch";
+
+function psql(db: string, args: string[]) {
+  return execFileSync(
+    "podman",
+    [
+      "exec",
+      CONTAINER,
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      db,
+      "-q",
+      "-v",
+      "ON_ERROR_STOP=1",
+      ...args,
+    ],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+  );
+}
+
+function one<T>(rows: T[]): T {
+  const [row] = rows;
+  if (!row) throw new Error("expected a row");
+  return row;
+}
+
+describe.skipIf(!enabled)(
+  "resolveEnvironmentSources on a real Postgres",
+  () => {
+    let client: ReturnType<typeof postgres>;
+    let previousUrl: string | undefined;
+
+    beforeAll(() => {
+      const password = encodeURIComponent(
+        execFileSync("podman", [
+          "exec",
+          CONTAINER,
+          "printenv",
+          "POSTGRES_PASSWORD",
+        ])
+          .toString()
+          .trim()
+      );
+      const url = `postgres://postgres:${password}@127.0.0.1:5432/${DB_NAME}`;
+      psql("postgres", [
+        "-c",
+        `DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`,
+        "-c",
+        `CREATE DATABASE ${DB_NAME}`,
+      ]);
+      const result = spawnSync("bun", ["scripts/cli.ts", "migrate"], {
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH ?? "",
+          HOME: process.env.HOME ?? "",
+          DATABASE_URL: url,
+        },
+      });
+      if (result.status !== 0)
+        throw new Error(`migrate failed: ${result.stderr}`);
+      // lib/db reads DATABASE_URL lazily, on the first query.
+      previousUrl = process.env.DATABASE_URL;
+      process.env.DATABASE_URL = url;
+      client = postgres(url, { max: 1, onnotice: () => {} });
+    });
+
+    afterAll(async () => {
+      await client?.end();
+      if (previousUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = previousUrl;
+      psql("postgres", [
+        "-c",
+        `DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`,
+      ]);
+    });
+
+    it("resolves running commits, falls back to the tag and reports never-deployed targets", async () => {
+      const d = drizzle({ client });
+      const { resolveEnvironmentSources } = await import(
+        "@/lib/assistant/sources"
+      );
+      const project = one(
+        await d
+          .insert(schema.projects)
+          .values({ name: "P", key: "p" })
+          .returning()
+      );
+      const env = one(
+        await d
+          .insert(schema.environments)
+          .values({ projectId: project.id, name: "Dev", slug: "dev" })
+          .returning()
+      );
+      const server = one(
+        await d
+          .insert(schema.servers)
+          .values({ name: "s", host: "h", username: "u" })
+          .returning()
+      );
+      const ci = one(
+        await d
+          .insert(schema.ciConnections)
+          .values({
+            name: "ci",
+            provider: "woodpecker",
+            forge: "bitbucket",
+            baseUrl: "https://ci.example.net",
+          })
+          .returning()
+      );
+      const app = one(
+        await d
+          .insert(schema.apps)
+          .values({ appKey: "app", name: "App" })
+          .returning()
+      );
+      for (const key of ["comp-a", "comp-b", "comp-c"]) {
+        await d.insert(schema.appComponents).values({
+          componentKey: key,
+          appId: app.id,
+          ciConnectionId: ci.id,
+          repoFullName: `org/${key}`,
+          bundleImage: key,
+          notifySecret: "x",
+        });
+      }
+      const target = async (componentKey: string, sourceBranch: string) =>
+        one(
+          await d
+            .insert(schema.deployTargets)
+            .values({
+              environmentId: env.id,
+              componentKey,
+              serverId: server.id,
+              sourceBranch,
+              deployDir: `/srv/${componentKey}`,
+              services: ["app"],
+            })
+            .returning()
+        );
+      const tA = await target("comp-a", "main");
+      const tB = await target("comp-b", "develop");
+      const tC = await target("comp-c", "release");
+
+      const build = async (componentKey: string, tag: string, sha: string) =>
+        one(
+          await d
+            .insert(schema.builds)
+            .values({ componentKey, branch: "main", tag, commitSha: sha })
+            .returning()
+        );
+      const bOld = await build("comp-a", "v1", "sha-old");
+      const bNew = await build("comp-a", "v2", "sha-new");
+      await build("comp-b", "v7", "sha-b");
+      await build("comp-a", "v3", "sha-failed");
+
+      const deploy = (
+        targetId: string,
+        tag: string,
+        status: "success" | "failed",
+        buildId: string | null,
+        at: string
+      ) =>
+        d.insert(schema.deployments).values({
+          targetId,
+          environmentId: env.id,
+          tag,
+          trigger: "manual",
+          status,
+          buildId,
+          createdAt: new Date(at),
+          finishedAt: status === "success" ? new Date(at) : null,
+        });
+      await deploy(tA.id, "v1", "success", bOld.id, "2026-11-01T10:00:00Z");
+      await deploy(tA.id, "v2", "success", bNew.id, "2026-11-02T10:00:00Z");
+      await deploy(tA.id, "v3", "failed", null, "2026-11-03T10:00:00Z");
+      await deploy(tB.id, "v7", "success", null, "2026-11-02T11:00:00Z");
+
+      const sources = await resolveEnvironmentSources(env.id);
+      const byKey = Object.fromEntries(sources.map((s) => [s.componentKey, s]));
+
+      expect(byKey["comp-a"]).toMatchObject({
+        repoFullName: "org/comp-a",
+        ciConnectionId: ci.id,
+        commitSha: "sha-new",
+        deployed: true,
+        deployedAt: "2026-11-02T10:00:00.000Z",
+      });
+      expect(byKey["comp-b"]).toMatchObject({
+        commitSha: "sha-b",
+        deployed: true,
+      });
+      expect(byKey["comp-c"]).toEqual({
+        componentKey: "comp-c",
+        repoFullName: "org/comp-c",
+        ciConnectionId: ci.id,
+        commitSha: null,
+        ref: tC.sourceBranch,
+        deployed: false,
+        deployedAt: null,
+      });
+      expect(sources).toHaveLength(3);
+    });
+  }
+);
