@@ -5,10 +5,16 @@ import { sessionRouter } from "@/server/router";
 import {
   authorizeMessageStream,
   createConversation,
+  createJiraIssue,
+  draftIdInputSchema,
+  generateConversationDraft,
+  generateDraftInputSchema,
   getAllowance,
   getConversation,
   listConversations,
   listIssueAttachmentsForPicker,
+  saveDraft,
+  saveDraftInputSchema,
   sendMessage,
   sendMessageInputSchema,
 } from "@/server/services/assistant";
@@ -43,6 +49,17 @@ export const assistantRouter = sessionRouter()
   )
   .post("/send-message", json(sendMessageInputSchema), async (c) =>
     c.json(await sendMessage(c.req.valid("json")))
+  )
+  // Drafts: written by Claude from the conversation, edited by the user, and
+  // (Jira drafts) created as an issue on an explicit request.
+  .post("/generate-draft", json(generateDraftInputSchema), async (c) =>
+    c.json(await generateConversationDraft(c.req.valid("json")))
+  )
+  .post("/save-draft", json(saveDraftInputSchema), async (c) =>
+    c.json(await saveDraft(c.req.valid("json")))
+  )
+  .post("/create-jira-issue", json(draftIdInputSchema), async (c) =>
+    c.json(await createJiraIssue(c.req.valid("json")))
   )
   .get(
     "/list-issue-attachments",

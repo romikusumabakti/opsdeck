@@ -42,6 +42,9 @@ const state = vi.hoisted(() => ({
   limits: { enabled: true, hasApiKey: true, dailyCapUsd: 1.5 },
   // spend rows: what the usage table holds, by the instant it was recorded.
   spend: [] as { userId: string; at: Date; costUsd: number }[],
+  // project members whose project role is viewer (no issue:write).
+  viewers: [] as string[],
+  jiraPushEnabled: true,
 }));
 
 const store = vi.hoisted(() => ({
@@ -52,6 +55,13 @@ const store = vi.hoisted(() => ({
     tool: string;
     input: Record<string, unknown>;
     meta: Record<string, unknown>;
+  }[],
+  drafts: [] as {
+    id: string;
+    conversationId: string;
+    kind: "brd" | "jira";
+    content: Record<string, unknown>;
+    issueId: string | null;
   }[],
   seq: 0,
 }));
@@ -87,7 +97,11 @@ vi.mock("@/lib/authz", async () => {
         scope: { environmentId?: string; projectId?: string },
         perms: Record<string, string[]>
       ) => {
-        expect(perms).toEqual({ assistant: ["use"] });
+        // assistant:use everywhere; creating a Jira issue adds issue:write.
+        expect([
+          JSON.stringify({ assistant: ["use"] }),
+          JSON.stringify({ issue: ["write"] }),
+        ]).toContain(JSON.stringify(perms));
         const projectId =
           scope.projectId ?? ENV_PROJECT[scope.environmentId ?? ""];
         const visible =
@@ -95,6 +109,9 @@ vi.mock("@/lib/authz", async () => {
           (state.orgRole === "admin" ||
             (state.members[projectId] ?? []).includes(state.userId));
         if (!visible) throw new HTTPException(404, { message: "Not Found" });
+        if (perms.issue && state.viewers.includes(state.userId)) {
+          throw new ForbiddenError();
+        }
         return {
           session: { user: { id: state.userId, role: state.orgRole } },
           role: "qa",
@@ -199,7 +216,18 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
             createdAt: new Date(0),
             toolCalls: callsOf(m.id),
           })),
-        drafts: [],
+        drafts: store.drafts
+          .filter((d) => d.conversationId === id)
+          .map((d) => ({
+            id: d.id,
+            kind: d.kind,
+            content: d.content,
+            issueId: d.issueId,
+            jiraKey: d.issueId ? "KST-901" : null,
+            createdAt: new Date(0),
+            updatedAt: new Date(0),
+          })),
+        jiraPushEnabled: state.jiraPushEnabled,
       };
     },
     insertTurn: async (p: {
@@ -259,9 +287,55 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
   };
 });
 
+const drafting = vi.hoisted(() => ({
+  generate: vi.fn(),
+  create: vi.fn(),
+}));
+
+vi.mock("@/lib/assistant/draft-store", () => ({
+  findDraftOwner: async (draftId: string) => {
+    const d = store.drafts.find((x) => x.id === draftId);
+    const c = store.conversations.find((x) => x.id === d?.conversationId);
+    return d && c
+      ? {
+          conversation: { id: c.id, userId: c.userId, projectId: c.projectId },
+          kind: d.kind,
+          issueId: d.issueId,
+        }
+      : null;
+  },
+  updateDraftContent: async (
+    draftId: string,
+    content: Record<string, unknown>
+  ) => {
+    const d = store.drafts.find((x) => x.id === draftId && !x.issueId);
+    if (d) d.content = content;
+    return !!d;
+  },
+}));
+
+vi.mock("@/lib/assistant/drafts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/assistant/drafts")>()),
+  generateDraft: drafting.generate,
+}));
+
+vi.mock("@/lib/jira/create", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/jira/create")>()),
+  createJiraIssueFromDraft: drafting.create,
+}));
+
 const { app } = await import("@/server/app");
+const { TurnError } = await import("@/lib/assistant/run-turn");
+const { JiraCreateError } = await import("@/lib/jira/create");
 
 const BASE = "/api/assistant";
+
+const JIRA_DRAFT = {
+  summary: "Iuran tambahan dibulatkan ke atas",
+  issueType: "Story",
+  description: "Saat ini dibulatkan ke bawah.",
+  acceptanceCriteria: ["Dibulatkan ke atas"],
+};
 
 function get(path: string) {
   return app.request(`${BASE}${path}`);
@@ -299,6 +373,31 @@ beforeEach(() => {
   store.conversations = [];
   store.messages = [];
   store.toolCalls = [];
+  store.drafts = [];
+  state.viewers = [];
+  state.jiraPushEnabled = true;
+  drafting.generate.mockImplementation(
+    async (conversationId: string, kind: "brd" | "jira") => {
+      const id = `0197f3a0-1b2c-7def-8000-${String(++store.seq).padStart(12, "0")}`;
+      store.drafts.push({
+        id,
+        conversationId,
+        kind,
+        content:
+          kind === "jira" ? { ...JIRA_DRAFT } : { title: "T", sections: [] },
+        issueId: null,
+      });
+      return { draftId: id };
+    }
+  );
+  drafting.create.mockImplementation(async (draftId: string) => {
+    const d = store.drafts.find((x) => x.id === draftId);
+    if (d) d.issueId = "0197f3a0-1b2c-7def-8000-0000000011ee";
+    return {
+      issueId: "0197f3a0-1b2c-7def-8000-0000000011ee",
+      jiraKey: "KST-901",
+    };
+  });
   state.members = { [PROJECT_KMEM]: [QA, OTHER], [PROJECT_HMEM]: [OTHER] };
   state.runtime = { dailyCapUsd: 1.5 };
   state.runtimeThrows = false;
@@ -651,5 +750,198 @@ describe("list-issue-attachments", () => {
       attachments: [],
       unavailable: true,
     });
+  });
+});
+
+describe("drafts", () => {
+  async function draftOf(kind: "brd" | "jira" = "jira") {
+    const id = await newConversation();
+    const res = await post("/generate-draft", { conversationId: id, kind });
+    expect(res.status).toBe(200);
+    const { draftId } = (await res.json()) as { draftId: string };
+    return { conversationId: id, draftId };
+  }
+
+  it("generates a draft for the owner and lists it with jiraPushEnabled", async () => {
+    const { conversationId, draftId } = await draftOf();
+    expect(drafting.generate).toHaveBeenCalledWith(
+      conversationId,
+      "jira",
+      QA,
+      expect.objectContaining({ runtime: state.runtime })
+    );
+    const body = await (
+      await get(`/get-conversation?conversationId=${conversationId}`)
+    ).json();
+    expect(body.jiraPushEnabled).toBe(true);
+    expect(body.drafts).toEqual([
+      expect.objectContaining({
+        id: draftId,
+        kind: "jira",
+        content: JIRA_DRAFT,
+        issueId: null,
+        jiraKey: null,
+      }),
+    ]);
+  });
+
+  it("refuses to generate at the daily cap or when off, without a request", async () => {
+    const id = await newConversation();
+    state.spend = [{ userId: QA, at: new Date(), costUsd: 1.5 }];
+    const capped = await post("/generate-draft", {
+      conversationId: id,
+      kind: "brd",
+    });
+    expect(capped.status).toBe(429);
+    expect(await capped.json()).toMatchObject({
+      code: "assistant.daily_cap_reached",
+      params: { capUsd: 1.5 },
+    });
+    state.spend = [];
+    state.runtime = null;
+    const off = await post("/generate-draft", {
+      conversationId: id,
+      kind: "brd",
+    });
+    expect(off.status).toBe(503);
+    expect(await off.json()).toMatchObject({
+      code: "assistant.not_configured",
+    });
+    expect(drafting.generate).not.toHaveBeenCalled();
+  });
+
+  it("maps generation failures to coded refusals", async () => {
+    const id = await newConversation();
+    const cases = [
+      ["assistant.refused", 422],
+      ["assistant.nothing_to_draft", 409],
+      ["assistant.failed", 502],
+    ] as const;
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const [code, status] of cases) {
+      drafting.generate.mockRejectedValueOnce(new TurnError(code));
+      const res = await post("/generate-draft", {
+        conversationId: id,
+        kind: "jira",
+      });
+      expect(res.status).toBe(status);
+      expect(await res.json()).toMatchObject({ code });
+    }
+    log.mockRestore();
+  });
+
+  it("another user's draft and conversation are 404 on every draft route", async () => {
+    as(OTHER);
+    const { conversationId, draftId } = await draftOf();
+    as(QA);
+    expect(
+      (await post("/generate-draft", { conversationId, kind: "jira" })).status
+    ).toBe(404);
+    expect(
+      (await post("/save-draft", { draftId, content: JIRA_DRAFT })).status
+    ).toBe(404);
+    expect((await post("/create-jira-issue", { draftId })).status).toBe(404);
+    expect(
+      (await post("/create-jira-issue", { draftId: UNKNOWN_ID })).status
+    ).toBe(404);
+    expect(drafting.create).not.toHaveBeenCalled();
+  });
+
+  it("saves an edit validated against the draft's kind and limits", async () => {
+    const { draftId } = await draftOf();
+    const edited = { ...JIRA_DRAFT, summary: "Diubah" };
+    expect(
+      (await post("/save-draft", { draftId, content: edited })).status
+    ).toBe(200);
+    expect(store.drafts[0]?.content).toEqual(edited);
+
+    for (const content of [
+      { ...JIRA_DRAFT, summary: "x".repeat(256) },
+      { ...JIRA_DRAFT, description: "x".repeat(32_001) },
+      {
+        ...JIRA_DRAFT,
+        acceptanceCriteria: Array.from({ length: 21 }, () => "a"),
+      },
+      { title: "BRD shape", sections: [] },
+    ]) {
+      const res = await post("/save-draft", { draftId, content });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({
+        code: "assistant.invalid_draft",
+      });
+    }
+    expect(store.drafts[0]?.content).toEqual(edited);
+
+    const brd = await draftOf("brd");
+    const tooMany = {
+      title: "T",
+      sections: Array.from({ length: 31 }, () => ({ heading: "H", body: "b" })),
+    };
+    expect(
+      (await post("/save-draft", { draftId: brd.draftId, content: tooMany }))
+        .status
+    ).toBe(400);
+  });
+
+  it("creates the Jira issue once; a second create or a later save is refused", async () => {
+    const { conversationId, draftId } = await draftOf();
+    const res = await post("/create-jira-issue", { draftId });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      issueId: "0197f3a0-1b2c-7def-8000-0000000011ee",
+      jiraKey: "KST-901",
+    });
+    expect(drafting.create).toHaveBeenCalledWith(draftId, QA);
+
+    const again = await post("/create-jira-issue", { draftId });
+    expect(again.status).toBe(409);
+    expect(await again.json()).toMatchObject({
+      code: "assistant.draft_already_created",
+    });
+    const save = await post("/save-draft", { draftId, content: JIRA_DRAFT });
+    expect(save.status).toBe(409);
+    expect(drafting.create).toHaveBeenCalledTimes(1);
+
+    const body = await (
+      await get(`/get-conversation?conversationId=${conversationId}`)
+    ).json();
+    expect(body.drafts[0]).toMatchObject({ jiraKey: "KST-901" });
+  });
+
+  it("needs issue:write: a viewer cannot create the issue", async () => {
+    const { draftId } = await draftOf();
+    state.viewers = [QA];
+    expect((await post("/create-jira-issue", { draftId })).status).toBe(403);
+    expect(drafting.create).not.toHaveBeenCalled();
+  });
+
+  it("a BRD draft cannot become a Jira issue", async () => {
+    const { draftId } = await draftOf("brd");
+    const res = await post("/create-jira-issue", { draftId });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: "assistant.invalid_draft" });
+  });
+
+  it("words a disabled push and a Jira failure with stable codes", async () => {
+    const { draftId } = await draftOf();
+    drafting.create.mockRejectedValueOnce(
+      new JiraCreateError("assistant.jira_push_disabled")
+    );
+    const disabled = await post("/create-jira-issue", { draftId });
+    expect(disabled.status).toBe(409);
+    expect(await disabled.json()).toMatchObject({
+      code: "assistant.jira_push_disabled",
+    });
+
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    drafting.create.mockRejectedValueOnce(
+      new Error("Jira request failed (400)")
+    );
+    const failed = await post("/create-jira-issue", { draftId });
+    expect(failed.status).toBe(502);
+    const body = await failed.json();
+    expect(body).toMatchObject({ code: "assistant.jira_create_failed" });
+    expect(JSON.stringify(body)).not.toContain("400");
+    log.mockRestore();
   });
 });

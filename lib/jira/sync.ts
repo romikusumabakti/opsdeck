@@ -1,6 +1,5 @@
 import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { one } from "@/lib/db/one";
 import {
   type IssuePriority,
   type IssueStatus,
@@ -18,6 +17,7 @@ import {
   labels,
   users,
 } from "@/lib/db/schema";
+import { insertIssueWithNextNumber } from "@/lib/issue-number";
 import { decryptSecret } from "@/lib/secrets";
 import { richTextToMarkdown } from "./adf";
 import { stripAttribution } from "./attribution";
@@ -440,39 +440,15 @@ export async function applyRemoteIssue(
 async function insertMirroredIssue(
   ctx: SyncContext,
   remote: JiraIssue,
-  values: Record<string, unknown>
+  values: Omit<typeof issues.$inferInsert, "projectId" | "number">
 ): Promise<string> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await db.transaction(async (tx) => {
-        const [highest] = await tx
-          .select({ max: sql<number>`coalesce(max(${issues.number}), 0)` })
-          .from(issues)
-          .where(eq(issues.projectId, ctx.projectId));
-        // See createIssue: aggregate row is guaranteed, coalesce supplies 0.
-        const max = highest?.max ?? 0;
-        const row = one(
-          await tx
-            .insert(issues)
-            .values({
-              ...values,
-              projectId: ctx.projectId,
-              number: Number(max) + 1,
-              createdAt: remote.fields.created
-                ? new Date(remote.fields.created)
-                : new Date(),
-            } as typeof issues.$inferInsert)
-            .returning({ id: issues.id }),
-          "issue"
-        );
-        return row.id;
-      });
-    } catch (error) {
-      if ((error as { code?: string })?.code === "23505") continue;
-      throw error;
-    }
-  }
-  throw new Error(`Could not allocate an issue number for ${remote.key}`);
+  const row = await insertIssueWithNextNumber(db, ctx.projectId, {
+    ...values,
+    createdAt: remote.fields.created
+      ? new Date(remote.fields.created)
+      : new Date(),
+  });
+  return row.id;
 }
 
 /** Second pass: point mirrored children at whichever parents landed locally. */

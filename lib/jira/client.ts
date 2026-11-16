@@ -3,9 +3,13 @@ import {
   ISSUE_FIELDS,
   type JiraAttachmentMeta,
   type JiraComment,
+  type JiraCreateMetaField,
   type JiraIssue,
   jiraCommentPageSchema,
   jiraCommentSchema,
+  jiraCreatedIssueSchema,
+  jiraCreateMetaFieldsSchema,
+  jiraCreateMetaIssueTypesSchema,
   jiraIssueAttachmentsSchema,
   jiraIssueSchema,
   jiraMyselfSchema,
@@ -446,5 +450,52 @@ export class JiraClient {
       body: { body },
       schema: jiraCommentSchema,
     });
+  }
+
+  /** Create an issue; `fields` are already in the flavor's shapes. */
+  async createIssue(
+    fields: Record<string, unknown>
+  ): Promise<{ id: string; key: string }> {
+    const created = await this.request("/issue", {
+      method: "POST",
+      body: { fields },
+      schema: jiraCreatedIssueSchema,
+    });
+    return { id: created.id, key: created.key };
+  }
+
+  /**
+   * What creating an issue in `projectKey` takes: the issue type named
+   * `issueTypeName` (case-insensitive), else "Task", else the first
+   * non-subtask type, with the fields that type offers on the create screen.
+   * Null when the project offers no issue type at all.
+   */
+  async getCreateMeta(
+    projectKey: string,
+    issueTypeName: string
+  ): Promise<{
+    issueType: { id: string; name: string };
+    fields: JiraCreateMetaField[];
+  } | null> {
+    const base = `/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes`;
+    const page = await this.request(base, {
+      query: { maxResults: 200 },
+      schema: jiraCreateMetaIssueTypesSchema,
+    });
+    const types = (page.issueTypes ?? page.values ?? []).filter(
+      (t) => t.subtask !== true
+    );
+    const named = (name: string) =>
+      types.find((t) => t.name.toLowerCase() === name.toLowerCase());
+    const issueType = named(issueTypeName) ?? named("Task") ?? types[0];
+    if (!issueType) return null;
+    const fieldPage = await this.request(
+      `${base}/${encodeURIComponent(issueType.id)}`,
+      { query: { maxResults: 200 }, schema: jiraCreateMetaFieldsSchema }
+    );
+    return {
+      issueType: { id: issueType.id, name: issueType.name },
+      fields: fieldPage.fields ?? fieldPage.results ?? fieldPage.values ?? [],
+    };
   }
 }

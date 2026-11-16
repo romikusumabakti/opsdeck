@@ -6,6 +6,8 @@ import {
   assistantMessages,
   assistantToolCalls,
   instanceSettings,
+  issues,
+  jiraProjectLinks,
 } from "@/lib/db/schema";
 import type { AssistantSource } from "./sources";
 
@@ -167,6 +169,8 @@ export type ConversationDraft = {
   kind: "brd" | "jira";
   content: Record<string, unknown>;
   issueId: string | null;
+  /** The created issue's Jira key; null before creation or once unlinked. */
+  jiraKey: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -178,6 +182,8 @@ export type ConversationDetail = {
   environmentName: string;
   messages: ConversationMessage[];
   drafts: ConversationDraft[];
+  /** The project's Jira link is on and may write: a Jira draft can be created. */
+  jiraPushEnabled: boolean;
 };
 
 async function toolCallsByMessage(
@@ -211,13 +217,15 @@ export async function loadConversationDetail(
       title: assistantConversations.title,
       environmentId: assistantConversations.environmentId,
       environmentName: assistantConversations.environmentName,
+      projectId: assistantConversations.projectId,
     })
     .from(assistantConversations)
     .where(eq(assistantConversations.id, conversationId))
     .limit(1);
   if (!conversation) return null;
+  const { projectId, ...head } = conversation;
 
-  const [messages, drafts] = await Promise.all([
+  const [messages, drafts, [link]] = await Promise.all([
     db
       .select({
         id: assistantMessages.id,
@@ -239,20 +247,31 @@ export async function loadConversationDetail(
         kind: assistantDrafts.kind,
         content: assistantDrafts.content,
         issueId: assistantDrafts.issueId,
+        jiraKey: issues.jiraKey,
         createdAt: assistantDrafts.createdAt,
         updatedAt: assistantDrafts.updatedAt,
       })
       .from(assistantDrafts)
+      .leftJoin(issues, eq(issues.id, assistantDrafts.issueId))
       .where(eq(assistantDrafts.conversationId, conversationId))
       .orderBy(asc(assistantDrafts.id)),
+    db
+      .select({
+        enabled: jiraProjectLinks.enabled,
+        pushEnabled: jiraProjectLinks.pushEnabled,
+      })
+      .from(jiraProjectLinks)
+      .where(eq(jiraProjectLinks.projectId, projectId))
+      .limit(1),
   ]);
   const calls = await toolCallsByMessage(
     messages.filter((m) => m.role === "assistant").map((m) => m.id)
   );
   return {
-    ...conversation,
+    ...head,
     messages: messages.map((m) => ({ ...m, toolCalls: calls.get(m.id) ?? [] })),
     drafts,
+    jiraPushEnabled: !!(link?.enabled && link.pushEnabled),
   };
 }
 

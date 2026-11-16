@@ -213,3 +213,64 @@ export type JiraAttachmentMeta = {
   sizeBytes: number;
   created: string | null;
 };
+
+// --- Create metadata (Cloud: /issue/createmeta/{project}/issuetypes) --------
+
+export const jiraCreateMetaIssueTypesSchema = z
+  .object({
+    // Cloud names the page `issueTypes`; Data Center 9 calls it `values`.
+    issueTypes: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            subtask: z.boolean().optional(),
+          })
+          .loose()
+      )
+      .optional(),
+    values: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            subtask: z.boolean().optional(),
+          })
+          .loose()
+      )
+      .optional(),
+  })
+  .loose();
+
+const jiraCreateMetaFieldSchema = z
+  .object({
+    fieldId: z.string(),
+    key: z.string().optional(),
+    name: z.string(),
+    required: z.boolean().optional(),
+    schema: z
+      .object({
+        type: z.string(),
+        custom: z.string().optional(),
+        system: z.string().optional(),
+      })
+      .loose()
+      .optional(),
+  })
+  .loose();
+
+export const jiraCreateMetaFieldsSchema = z
+  .object({
+    fields: z.array(jiraCreateMetaFieldSchema).optional(),
+    results: z.array(jiraCreateMetaFieldSchema).optional(),
+    values: z.array(jiraCreateMetaFieldSchema).optional(),
+  })
+  .loose();
+
+export type JiraCreateMetaField = z.infer<typeof jiraCreateMetaFieldSchema>;
+
+export const jiraCreatedIssueSchema = z
+  .object({ id: z.string(), key: z.string() })
+  .loose();

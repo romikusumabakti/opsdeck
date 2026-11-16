@@ -79,6 +79,25 @@ export async function sendMessage(input: Body<"send-message">) {
   return parseResponse(routes["send-message"].$post({ json: input }));
 }
 
+/** Has Claude write a BRD or Jira draft from the conversation. */
+export async function generateDraft(input: Body<"generate-draft">) {
+  return parseResponse(routes["generate-draft"].$post({ json: input }));
+}
+
+/** Saves the user's edit; refused once a Jira draft became an issue. */
+export async function saveDraft(input: Body<"save-draft">) {
+  return parseResponse(routes["save-draft"].$post({ json: input }));
+}
+
+/** Creates the Jira issue of a Jira draft (needs a push-enabled link). */
+export async function createJiraIssue(
+  draftId: Body<"create-jira-issue">["draftId"]
+) {
+  return parseResponse(
+    routes["create-jira-issue"].$post({ json: { draftId } })
+  );
+}
+
 /** The URL of an assistant message's SSE stream, for an EventSource. */
 export function messageStreamUrl(messageId: string): string {
   return `/api/assistant/stream?messageId=${encodeURIComponent(messageId)}`;
@@ -87,6 +106,7 @@ export function messageStreamUrl(messageId: string): string {
 export type Allowance = Awaited<ReturnType<typeof getAllowance>>;
 export type Conversation = Awaited<ReturnType<typeof getConversation>>;
 export type ConversationMessage = Conversation["messages"][number];
+export type ConversationDraft = Conversation["drafts"][number];
 export type ConversationSummary = Awaited<
   ReturnType<typeof listConversations>
 >[number];

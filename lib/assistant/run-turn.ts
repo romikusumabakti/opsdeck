@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type {
   BetaContentBlock,
   BetaContentBlockParam,
+  BetaJSONOutputFormat,
   BetaMessage,
   BetaMessageParam,
   BetaOutputConfig,
@@ -62,6 +63,7 @@ export type AssistantErrorCode =
   | "assistant.refused"
   | "assistant.too_many_steps"
   | "assistant.interrupted"
+  | "assistant.nothing_to_draft"
   | "assistant.failed";
 
 export type RunTurnDeps = {
@@ -78,7 +80,8 @@ export type RunTurnDeps = {
   ) => Promise<ToolResult<unknown>>;
 };
 
-class TurnError extends Error {
+/** A turn- or request-level failure carrying its stable code. */
+export class TurnError extends Error {
   constructor(readonly code: AssistantErrorCode) {
     super(code);
     this.name = "TurnError";
@@ -460,10 +463,10 @@ async function runClaimedTurn(
     });
 
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-    const message = await streamOnce(
+    const message = await streamRequest(
       runtime,
       { system, tools, messages },
-      writer,
+      (delta) => writer.append(delta),
       meter
     );
     await meter(message.model, message.usage);
@@ -521,7 +524,9 @@ async function runClaimedTurn(
   throw new TurnError("assistant.too_many_steps");
 }
 
-function effortOf(runtime: AssistantRuntime): BetaOutputConfig["effort"] {
+export function effortOf(
+  runtime: AssistantRuntime
+): BetaOutputConfig["effort"] {
   if ((ASSISTANT_EFFORTS as readonly string[]).includes(runtime.effort)) {
     return runtime.effort as AssistantEffort;
   }
@@ -531,36 +536,55 @@ function effortOf(runtime: AssistantRuntime): BetaOutputConfig["effort"] {
   return undefined;
 }
 
-type RequestBody = {
+export type RequestBody = {
   system: Array<{
     type: "text";
     text: string;
     cache_control?: { type: "ephemeral" };
   }>;
-  tools: BetaToolUnion[];
+  /** The tool loop's tools; a request without them is a one-shot answer. */
+  tools?: BetaToolUnion[];
+  /** Structured output (`output_config.format`), parsed by the caller. */
+  format?: BetaJSONOutputFormat;
   messages: BetaMessageParam[];
 };
 
-async function streamOnce(
+/**
+ * One streamed Messages request with the assistant's fixed settings (model,
+ * effort, refusal fallback, adaptive thinking, max_tokens). Text deltas go to
+ * `onText`. If the stream fails, the usage it reported so far is metered
+ * before the error is rethrown (those tokens are billed).
+ */
+export async function streamRequest(
   runtime: AssistantRuntime,
   body: RequestBody,
-  writer: ContentWriter,
+  onText: (delta: string) => void,
   meter: (model: string, usage: ResponseUsage) => Promise<number>
 ): Promise<BetaMessage> {
   const effort = effortOf(runtime);
+  const outputConfig = {
+    ...(effort ? { effort } : {}),
+    ...(body.format ? { format: body.format } : {}),
+  };
   const stream = runtime.client.beta.messages.stream({
     model: runtime.model,
     max_tokens: MAX_TOKENS,
     betas: [FALLBACK_BETA],
     fallbacks: "default",
     thinking: { type: "adaptive" },
-    ...(effort ? { output_config: { effort } } : {}),
+    ...(Object.keys(outputConfig).length > 0
+      ? { output_config: outputConfig }
+      : {}),
     system: body.system,
-    tools: body.tools,
-    tool_choice: { type: "auto" },
-    // Caches the growing conversation, so each tool-loop request re-reads
-    // the previous one's prefix instead of paying for it again.
-    cache_control: { type: "ephemeral" },
+    ...(body.tools
+      ? {
+          tools: body.tools,
+          tool_choice: { type: "auto" as const },
+          // Caches the growing conversation, so each tool-loop request
+          // re-reads the previous one's prefix instead of paying for it again.
+          cache_control: { type: "ephemeral" as const },
+        }
+      : {}),
     // A copy: the loop appends to `messages` after this request.
     messages: [...body.messages],
   });
@@ -572,7 +596,7 @@ async function streamOnce(
         event.type === "content_block_delta" &&
         event.delta.type === "text_delta"
       ) {
-        writer.append(event.delta.text);
+        onText(event.delta.text);
       }
     }
     return await stream.finalMessage();

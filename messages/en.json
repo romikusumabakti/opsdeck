@@ -2118,6 +2118,7 @@
     "someone": "Someone",
     "unknown": "{actor} did something",
     "issueCreated": "{actor} created {key}",
+    "issueCreatedFromAssistant": "{actor} created {key} ({jiraKey}) from an assistant draft",
     "issueStatusChanged": "{actor} moved {key} to {status}",
     "memberAdded": "{actor} added {user} to {project} as {role}",
     "memberAddedToProject": "{actor} added {user} to {project}",
@@ -3592,6 +3593,11 @@
     "refused": "The assistant declined to answer this request.",
     "tooManySteps": "The assistant stopped after too many steps. Try a narrower question.",
     "interrupted": "The answer was interrupted. Send your message again.",
-    "failed": "The assistant could not answer. Try again."
+    "failed": "The assistant could not answer. Try again.",
+    "nothingToDraft": "There is no answer in this conversation to draft from yet. Ask the assistant first.",
+    "invalidDraft": "This draft is incomplete or too long. Check the fields and try again.",
+    "jiraPushDisabled": "This project's Jira link does not allow creating issues. Ask an admin to turn on writing back to Jira.",
+    "draftAlreadyCreated": "A Jira issue was already created from this draft.",
+    "jiraCreateFailed": "Jira could not create the issue. Try again in a moment."
   }
 }

@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { loadAssistantRuntime } from "@/lib/assistant/client";
+import {
+  type AssistantRuntime,
+  loadAssistantRuntime,
+} from "@/lib/assistant/client";
 import {
   type ConversationDetail,
   type ConversationOwner,
@@ -16,10 +19,21 @@ import {
   loadConversationDetail,
 } from "@/lib/assistant/conversation-store";
 import {
+  type DraftKind,
+  type DraftOwner,
+  findDraftOwner,
+  updateDraftContent,
+} from "@/lib/assistant/draft-store";
+import {
+  generateDraft as defaultGenerateDraft,
+  draftContentSchema,
+} from "@/lib/assistant/drafts";
+import {
   ASSISTANT_ERROR_MESSAGE_KEYS,
   type AssistantErrorCodeKey,
 } from "@/lib/assistant/errors";
 import { enqueueAssistantTurn } from "@/lib/assistant/queue";
+import { classifyError } from "@/lib/assistant/run-turn";
 import {
   type IssueAttachment,
   listIssueAttachments,
@@ -30,6 +44,7 @@ import { quotaDayResetsAt, spentTodayUsd } from "@/lib/assistant/usage";
 import { loadAssistantViewer } from "@/lib/assistant/viewer";
 import { requireSession } from "@/lib/auth-session";
 import { ForbiddenError, requireProjectPermission } from "@/lib/authz";
+import { createJiraIssueFromDraft, JiraCreateError } from "@/lib/jira/create";
 import { uuidSchema } from "@/lib/validation";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
@@ -59,7 +74,7 @@ export const sendMessageInputSchema = z.object({
 export type SendMessageInput = z.infer<typeof sendMessageInputSchema>;
 
 async function refusal(
-  status: 409 | 429 | 503,
+  status: 400 | 409 | 422 | 429 | 502 | 503,
   code: AssistantErrorCodeKey,
   params?: { capUsd: number; resetsAt: Date }
 ): Promise<CodedHTTPException> {
@@ -143,6 +158,35 @@ export async function getConversation(
   return detail;
 }
 
+/** The usable runtime, else the assistant.not_configured refusal. */
+async function requireRuntime(): Promise<AssistantRuntime> {
+  let runtime: AssistantRuntime | null;
+  try {
+    runtime = await loadAssistantRuntime();
+  } catch (error) {
+    // A key the current SECRETS_KEY cannot decrypt is as good as none.
+    console.error("[assistant] could not load the runtime:", error);
+    runtime = null;
+  }
+  if (!runtime) throw await refusal(503, "assistant.not_configured");
+  return runtime;
+}
+
+/** Refuses once the user has spent the day's cap. */
+async function requireAllowance(
+  userId: string,
+  runtime: AssistantRuntime,
+  now: Date
+): Promise<void> {
+  const spent = await spentTodayUsd(userId, now);
+  if (spent >= runtime.dailyCapUsd) {
+    throw await refusal(429, "assistant.daily_cap_reached", {
+      capUsd: runtime.dailyCapUsd,
+      resetsAt: quotaDayResetsAt(now),
+    });
+  }
+}
+
 /**
  * Stores the question and a queued answer, then queues the turn. Refuses when
  * the assistant is off or has no usable key, when the caller has spent the
@@ -153,24 +197,8 @@ export async function sendMessage(
 ): Promise<CreatedTurn> {
   const { conversation, userId } = await ownConversation(input.conversationId);
 
-  let runtime: Awaited<ReturnType<typeof loadAssistantRuntime>>;
-  try {
-    runtime = await loadAssistantRuntime();
-  } catch (error) {
-    // A key the current SECRETS_KEY cannot decrypt is as good as none.
-    console.error("[assistant] could not load the runtime:", error);
-    runtime = null;
-  }
-  if (!runtime) throw await refusal(503, "assistant.not_configured");
-
   const now = new Date();
-  const spent = await spentTodayUsd(userId, now);
-  if (spent >= runtime.dailyCapUsd) {
-    throw await refusal(429, "assistant.daily_cap_reached", {
-      capUsd: runtime.dailyCapUsd,
-      resetsAt: quotaDayResetsAt(now),
-    });
-  }
+  await requireAllowance(userId, await requireRuntime(), now);
 
   const turn = await insertTurn({
     conversationId: conversation.id,
@@ -254,4 +282,123 @@ export async function listIssueAttachmentsForPicker(
   if (!visible) notFound();
   const { attachments, error } = await listIssueAttachments(visible);
   return { key, attachments, unavailable: error !== null };
+}
+
+// --- drafts -----------------------------------------------------------------
+
+export const generateDraftInputSchema = z.object({
+  conversationId: uuidSchema,
+  kind: z.enum(["brd", "jira"]),
+});
+
+export const saveDraftInputSchema = z.object({
+  draftId: uuidSchema,
+  // Checked against the draft's own kind in saveDraft.
+  content: z.record(z.string(), z.unknown()),
+});
+
+export const draftIdInputSchema = z.object({ draftId: uuidSchema });
+
+/** HTTP status of each code a draft request can fail with. */
+const DRAFT_FAILURE_STATUS: Partial<
+  Record<AssistantErrorCodeKey, 409 | 422 | 502 | 503>
+> = {
+  "assistant.not_configured": 503,
+  "assistant.credit_exhausted": 503,
+  "assistant.unavailable": 503,
+  "assistant.refused": 422,
+  "assistant.nothing_to_draft": 409,
+  "assistant.failed": 502,
+};
+
+/** The caller's own draft, by its conversation; otherwise 404. */
+async function ownDraft(
+  draftId: string
+): Promise<{ draft: DraftOwner; userId: string }> {
+  const found: { draft?: DraftOwner } = {};
+  const { userId } = await requireOwnConversation(async () => {
+    if (!uuidSchema.safeParse(draftId).success) return null;
+    found.draft = (await findDraftOwner(draftId)) ?? undefined;
+    return found.draft?.conversation ?? null;
+  });
+  if (!found.draft) notFound();
+  return { draft: found.draft, userId };
+}
+
+export type GenerateDraftDeps = {
+  generateDraft?: typeof defaultGenerateDraft;
+};
+
+/**
+ * Writes a BRD or Jira draft from the caller's conversation: one metered
+ * request, refused like a message when the assistant is off or the day's cap
+ * is spent.
+ */
+export async function generateConversationDraft(
+  input: z.infer<typeof generateDraftInputSchema>,
+  deps: GenerateDraftDeps = {}
+): Promise<{ draftId: string }> {
+  const { conversation, userId } = await ownConversation(input.conversationId);
+  const runtime = await requireRuntime();
+  await requireAllowance(userId, runtime, new Date());
+  try {
+    return await (deps.generateDraft ?? defaultGenerateDraft)(
+      conversation.id,
+      input.kind as DraftKind,
+      userId,
+      { runtime }
+    );
+  } catch (error) {
+    const code = classifyError(error);
+    if (code === "assistant.failed") {
+      console.error("[assistant] draft generation failed:", error);
+    }
+    throw await refusal(DRAFT_FAILURE_STATUS[code] ?? 502, code);
+  }
+}
+
+/** Saves the user's edit of a draft, validated against its kind's shape. */
+export async function saveDraft(
+  input: z.infer<typeof saveDraftInputSchema>
+): Promise<{ id: string }> {
+  const { draft } = await ownDraft(input.draftId);
+  const parsed = draftContentSchema(draft.kind).safeParse(input.content);
+  if (!parsed.success) throw await refusal(400, "assistant.invalid_draft");
+  if (draft.issueId)
+    throw await refusal(409, "assistant.draft_already_created");
+  if (!(await updateDraftContent(input.draftId, parsed.data))) {
+    throw await refusal(409, "assistant.draft_already_created");
+  }
+  return { id: input.draftId };
+}
+
+/**
+ * Creates the Jira issue of the caller's Jira draft. Besides owning the
+ * conversation, the caller needs issue:write on its project: the issue lands
+ * in the Panel's issue list too.
+ */
+export async function createJiraIssue(
+  input: z.infer<typeof draftIdInputSchema>
+): Promise<{ issueId: string; jiraKey: string }> {
+  const { draft, userId } = await ownDraft(input.draftId);
+  await requireProjectPermission(
+    { projectId: draft.conversation.projectId },
+    { issue: ["write"] }
+  );
+  if (draft.kind !== "jira")
+    throw await refusal(400, "assistant.invalid_draft");
+  if (draft.issueId)
+    throw await refusal(409, "assistant.draft_already_created");
+  try {
+    return await createJiraIssueFromDraft(input.draftId, userId);
+  } catch (error) {
+    if (error instanceof JiraCreateError) {
+      throw await refusal(
+        error.code === "assistant.invalid_draft" ? 400 : 409,
+        error.code
+      );
+    }
+    console.error("[assistant] Jira issue creation failed:", error);
+    throw await refusal(502, "assistant.jira_create_failed");
+  }
 }

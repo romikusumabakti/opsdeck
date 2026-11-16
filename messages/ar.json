@@ -2118,6 +2118,7 @@
     "someone": "شخص ما",
     "unknown": "{actor} قام بإجراء ما",
     "issueCreated": "أنشأ {actor} {key}",
+    "issueCreatedFromAssistant": "أنشأ {actor} {key} ({jiraKey}) من مسودة المساعد",
     "issueStatusChanged": "نقل {actor} {key} إلى {status}",
     "memberAdded": "أضاف {actor} {user} إلى {project} بدور {role}",
     "memberAddedToProject": "أضاف {actor} {user} إلى {project}",
@@ -3592,6 +3593,11 @@
     "refused": "رفض المساعد الإجابة عن هذا الطلب.",
     "tooManySteps": "توقف المساعد بعد عدد كبير جدًا من الخطوات. جرّب سؤالًا أكثر تحديدًا.",
     "interrupted": "انقطعت الإجابة. أرسل رسالتك مرة أخرى.",
-    "failed": "تعذّر على المساعد الإجابة. حاول مرة أخرى."
+    "failed": "تعذّر على المساعد الإجابة. حاول مرة أخرى.",
+    "nothingToDraft": "لا توجد إجابة في هذه المحادثة بعد لإنشاء مسودة منها. اسأل المساعد أولًا.",
+    "invalidDraft": "هذه المسودة غير مكتملة أو طويلة جدًا. تحقّق من الحقول وحاول مرة أخرى.",
+    "jiraPushDisabled": "لا يسمح ربط Jira لهذا المشروع بإنشاء المهام. اطلب من المسؤول تفعيل الكتابة إلى Jira.",
+    "draftAlreadyCreated": "تم إنشاء مهمة Jira من هذه المسودة مسبقًا.",
+    "jiraCreateFailed": "تعذّر على Jira إنشاء المهمة. حاول مرة أخرى بعد قليل."
   }
 }

@@ -2118,6 +2118,7 @@
     "someone": "Alguien",
     "unknown": "{actor} hizo algo",
     "issueCreated": "{actor} creó {key}",
+    "issueCreatedFromAssistant": "{actor} creó {key} ({jiraKey}) a partir de un borrador del asistente",
     "issueStatusChanged": "{actor} movió {key} a {status}",
     "memberAdded": "{actor} añadió a {user} a {project} como {role}",
     "memberAddedToProject": "{actor} añadió a {user} a {project}",
@@ -3592,6 +3593,11 @@
     "refused": "El asistente se negó a responder esta solicitud.",
     "tooManySteps": "El asistente se detuvo tras demasiados pasos. Prueba con una pregunta más concreta.",
     "interrupted": "La respuesta se interrumpió. Envía tu mensaje de nuevo.",
-    "failed": "El asistente no pudo responder. Inténtalo de nuevo."
+    "failed": "El asistente no pudo responder. Inténtalo de nuevo.",
+    "nothingToDraft": "Todavía no hay ninguna respuesta en esta conversación para redactar un borrador. Pregunta primero al asistente.",
+    "invalidDraft": "Este borrador está incompleto o es demasiado largo. Revisa los campos e inténtalo de nuevo.",
+    "jiraPushDisabled": "El enlace de Jira de este proyecto no permite crear incidencias. Pide a un administrador que active la escritura en Jira.",
+    "draftAlreadyCreated": "Ya se creó una incidencia de Jira a partir de este borrador.",
+    "jiraCreateFailed": "Jira no pudo crear la incidencia. Inténtalo de nuevo en un momento."
   }
 }

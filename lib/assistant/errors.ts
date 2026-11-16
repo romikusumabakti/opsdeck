@@ -14,6 +14,11 @@ export const ASSISTANT_ERROR_MESSAGE_KEYS = {
   "assistant.too_many_steps": "tooManySteps",
   "assistant.interrupted": "interrupted",
   "assistant.failed": "failed",
+  "assistant.nothing_to_draft": "nothingToDraft",
+  "assistant.invalid_draft": "invalidDraft",
+  "assistant.jira_push_disabled": "jiraPushDisabled",
+  "assistant.draft_already_created": "draftAlreadyCreated",
+  "assistant.jira_create_failed": "jiraCreateFailed",
 } as const;
 
 export type AssistantErrorCodeKey = keyof typeof ASSISTANT_ERROR_MESSAGE_KEYS;

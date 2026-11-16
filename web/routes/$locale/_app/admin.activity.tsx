@@ -64,6 +64,12 @@ function message(
   switch (row.action) {
     case "issue.created":
       return t("issueCreated", { actor, key: String(d.key) });
+    case "issue.created_from_assistant":
+      return t("issueCreatedFromAssistant", {
+        actor,
+        key: String(d.key),
+        jiraKey: String(d.jiraKey),
+      });
     case "issue.status_changed":
       return t("issueStatusChanged", {
         actor,
