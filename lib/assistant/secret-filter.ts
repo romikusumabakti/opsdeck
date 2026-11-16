@@ -107,7 +107,10 @@ function split(path: string): { dirs: string[]; base: string } {
 /** Classifies a path by extension; "other" is treated like "config" for key rules. */
 export function fileKind(path: string): FileKind {
   const { base } = split(path);
-  if (base.startsWith(".env") || base === ".npmrc") return "config";
+  if (base === ".env" || base.startsWith(".env.") || base === ".envrc") {
+    return "config";
+  }
+  if (base === ".npmrc") return "config";
   const dot = base.lastIndexOf(".");
   const ext = dot > 0 ? base.slice(dot + 1) : "";
   if (CODE_EXTENSIONS.has(ext)) return "code";
@@ -159,6 +162,16 @@ const CONFIG_KEY_VALUE = new RegExp(
   "gi"
 );
 
+// Spring XML: <property name="KEY" value="VALUE"> with either attribute order.
+const XML_PROPERTY_NAME_FIRST = new RegExp(
+  `<property\\s+name\\s*=\\s*["'][\\w.-]*${KEY_NAMES}["']\\s+value\\s*=\\s*["']([^"'\\s]{3,})["']`,
+  "gi"
+);
+const XML_PROPERTY_VALUE_FIRST = new RegExp(
+  `<property\\s+value\\s*=\\s*["']([^"'\\s]{3,})["']\\s+name\\s*=\\s*["'][\\w.-]*${KEY_NAMES}["']`,
+  "gi"
+);
+
 /** `${VAR}`, `$VAR`, `{{ var }}` and `<placeholder>` are references, not literals. */
 function isPlaceholder(value: string): boolean {
   return (
@@ -169,12 +182,31 @@ function isPlaceholder(value: string): boolean {
   );
 }
 
+/** Words that name the secret itself (UI labels, field-name constants), not its value. */
+const LABEL_WORDS = new Set([
+  "password",
+  "passwd",
+  "pwd",
+  "secret",
+  "clientsecret",
+  "secretkey",
+  "token",
+  "authtoken",
+  "apikey",
+  "accesskey",
+  "accesskeyid",
+  "privatekey",
+]);
+
 function isCodeSecretValue(value: string): boolean {
-  return value.length >= 6 && !isPlaceholder(value);
+  if (value.length < 6 || isPlaceholder(value)) return false;
+  // A value with whitespace is prose (i18n text), not a credential.
+  if (/\s/.test(value)) return false;
+  return !LABEL_WORDS.has(value.toLowerCase().replace(/[_-]/g, ""));
 }
 
 function isConfigSecretValue(value: string): boolean {
-  if (value.length < 3) return false;
+  if (value.length < 3 || /\s/.test(value)) return false;
   if (/^(?:true|false|null)$/i.test(value)) return false;
   if (value.startsWith("ENC(")) return false; // encrypted (Jasypt)
   if (value.startsWith("${")) {
@@ -209,7 +241,9 @@ export function containsSecret(
   if (hasLiteral(URL_CREDENTIALS, text, (v) => !isPlaceholder(v))) return true;
   return kind === "code"
     ? hasLiteral(CODE_KEY_VALUE, text, isCodeSecretValue)
-    : hasLiteral(CONFIG_KEY_VALUE, text, isConfigSecretValue);
+    : hasLiteral(CONFIG_KEY_VALUE, text, isConfigSecretValue) ||
+        hasLiteral(XML_PROPERTY_NAME_FIRST, text, isConfigSecretValue) ||
+        hasLiteral(XML_PROPERTY_VALUE_FIRST, text, isConfigSecretValue);
 }
 
 function isBinary(content: string): boolean {

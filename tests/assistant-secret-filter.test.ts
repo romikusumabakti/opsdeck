@@ -300,3 +300,42 @@ describe("fileVerdict by kind", () => {
     );
   });
 });
+
+describe("labels and Spring XML properties (R8)", () => {
+  it.each([
+    ["locales/id.json", '{ "password": "Kata Sandi" }'],
+    ["locales/en.json", '"token": "Token expired"'],
+    ["src/locales/id.ts", "password: 'Kata sandi wajib diisi'"],
+    ["src/Login.vue", "password: 'Password'"],
+    ["src/Login.vue", 'token: "API key"'],
+    ["src/a.ts", 'const secret = "api_key"'],
+    ["src/environment.ts", "const x = 1"],
+    ["a/.environment.ts", 'export const env = { name: "dev" }'],
+    ["a/beans.xml", '<property name="dbPassword" value="${db.password}"/>'],
+    ["a/beans.xml", '<property name="password" value="${db.password}"/>'],
+    ["a/beans.xml", '<property name="password" value="ab"/>'],
+    ["a/beans.xml", '<property name="passwordEncoder" value="bcrypt"/>'],
+    ["a/beans.xml", '<property name="password" value="two words"/>'],
+    ["a/app.yml", "password: 'Kata sandi wajib diisi'"],
+  ])("allows %s: %s", (path, content) => {
+    expect(fileVerdict(path, content)).toBe("allowed");
+  });
+
+  it.each([
+    ["a/beans.xml", '<property name="password" value="s3cretPw"/>'],
+    ["a/beans.xml", "<property name='jdbc.password' value='s3cretPw'/>"],
+    ["a/beans.xml", '<property value="s3cretPw" name="password"/>'],
+    ["a/beans.xml", '<property name="apiKey" value="abc123"/>'],
+    ["a/beans.xml", '<property name="password" value="${db.pw:changeme}"/>'],
+    ["src/a.ts", 'const pw = { password: "Sup3rS3cret!" }'],
+  ])("withholds %s: %s", (path, content) => {
+    expect(fileVerdict(path, content)).toBe("withheld");
+  });
+
+  it("classifies dotenv names strictly", () => {
+    expect(fileKind("a/.environment.ts")).toBe("code");
+    expect(fileKind("a/.env")).toBe("config");
+    expect(fileKind("a/.env.local")).toBe("config");
+    expect(fileKind("a/.envrc")).toBe("config");
+  });
+});
