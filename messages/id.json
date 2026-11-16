@@ -3584,7 +3584,19 @@
     "test": "Tes koneksi",
     "testing": "Menguji…",
     "testOk": "Terhubung ke Anthropic",
-    "keepKey": "Pertahankan key"
+    "keepKey": "Pertahankan key",
+    "usageTitle": "Penggunaan",
+    "usageDescription": "Biaya per hari dan pengguna, 30 hari terakhir (zona waktu instance).",
+    "usageRangeTotal": "30 hari terakhir: {amount}",
+    "usageMonthToDate": "Bulan ini: {amount}",
+    "usageEmpty": "Belum ada penggunaan pada periode ini.",
+    "usageDay": "Hari",
+    "usageUser": "Pengguna",
+    "usageTurns": "Jawaban",
+    "usageDrafts": "Draf",
+    "usageCost": "Biaya",
+    "creditHint": "Kredit bulanan Ultra $200.",
+    "creditHintLink": "Cek saldo di Console"
   },
   "assistantErrors": {
     "notConfigured": "Asisten belum disiapkan. Minta admin mengaktifkannya dan menyimpan API key Anthropic.",

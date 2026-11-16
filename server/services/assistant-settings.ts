@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import {
@@ -8,9 +8,10 @@ import {
   type AssistantModel,
   createAnthropicClient,
 } from "@/lib/assistant/client";
+import { quotaDay } from "@/lib/assistant/usage";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { instanceSettings } from "@/lib/db/schema";
+import { assistantUsage, instanceSettings, users } from "@/lib/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import type { ActionResponse } from "@/lib/types";
 
@@ -129,4 +130,94 @@ export async function testAssistantConnection(): Promise<ActionResponse> {
         : "";
     return { success: false, message: `Connection failed${status}` };
   }
+}
+
+const MAX_USAGE_DAYS = 92;
+const DAY_MS = 86_400_000;
+const isoDay = z.iso.date();
+
+const dayNumber = (day: string) => Date.parse(`${day}T00:00:00Z`) / DAY_MS;
+
+// Days are APP_TIMEZONE calendar dates, like assistant_usage.day. Default: the
+// last 30 days up to today; at most 92 days.
+export const assistantUsageQuerySchema = z
+  .object({ from: isoDay.optional(), to: isoDay.optional() })
+  .transform(({ from, to }, ctx) => {
+    const end = to ?? quotaDay();
+    const start =
+      from ?? quotaDay(new Date(Date.parse(`${end}T12:00:00Z`) - 29 * DAY_MS));
+    const span = dayNumber(end) - dayNumber(start);
+    if (span < 0 || span >= MAX_USAGE_DAYS) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Range must be 1 to ${MAX_USAGE_DAYS} days`,
+      });
+      return z.NEVER;
+    }
+    return { from: start, to: end };
+  });
+
+export type AssistantUsageQuery = z.input<typeof assistantUsageQuerySchema>;
+
+export type AssistantUsage = {
+  /** One row per day and user. `turns` = distinct assistant answers with
+   * usage; `drafts` = usage rows of Jira draft generations (no message). */
+  rows: {
+    day: string;
+    userId: string;
+    userName: string;
+    turns: number;
+    drafts: number;
+    costUsd: number;
+  }[];
+  totalUsd: number;
+  monthToDateUsd: number;
+};
+
+export async function getAssistantUsage(
+  input: AssistantUsageQuery
+): Promise<AssistantUsage> {
+  await requireOrgPermission({ assistant: ["manage"] });
+  const { from, to } = assistantUsageQuerySchema.parse(input);
+  const rows = await db
+    .select({
+      day: assistantUsage.day,
+      userId: assistantUsage.userId,
+      userName: users.name,
+      turns: sql<number>`count(distinct ${assistantUsage.messageId})::int`,
+      drafts: sql<number>`(count(*) filter (where ${assistantUsage.messageId} is null))::int`,
+      costUsd: sql<string>`sum(${assistantUsage.costUsd})`,
+    })
+    .from(assistantUsage)
+    .innerJoin(users, eq(users.id, assistantUsage.userId))
+    .where(and(gte(assistantUsage.day, from), lte(assistantUsage.day, to)))
+    .groupBy(assistantUsage.day, assistantUsage.userId, users.name)
+    .orderBy(desc(assistantUsage.day), asc(users.name));
+
+  const today = quotaDay();
+  const [month] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${assistantUsage.costUsd}), 0)`,
+    })
+    .from(assistantUsage)
+    .where(
+      and(
+        gte(assistantUsage.day, `${today.slice(0, 8)}01`),
+        lte(assistantUsage.day, today)
+      )
+    );
+
+  const mapped = rows.map((r) => ({
+    day: r.day,
+    userId: r.userId,
+    userName: r.userName,
+    turns: r.turns,
+    drafts: r.drafts,
+    costUsd: Number(r.costUsd),
+  }));
+  return {
+    rows: mapped,
+    totalUsd: Number(mapped.reduce((sum, r) => sum + r.costUsd, 0).toFixed(6)),
+    monthToDateUsd: Number(month?.total ?? 0),
+  };
 }

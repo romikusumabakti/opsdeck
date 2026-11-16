@@ -14,6 +14,16 @@ export const getAssistantSettingsQuery = () =>
     queryFn: getAssistantSettings,
   });
 
+export async function getAssistantUsage() {
+  return parseResponse(routes.usage.$get({ query: {} }));
+}
+
+export const getAssistantUsageQuery = () =>
+  queryOptions({
+    queryKey: ["assistant-settings", "getAssistantUsage"],
+    queryFn: getAssistantUsage,
+  });
+
 export async function saveAssistantSettings(
   input: Parameters<typeof routes.$put>[0]["json"]
 ) {
@@ -33,3 +43,5 @@ export async function testAssistantConnection() {
 export type AssistantSettings = Awaited<
   ReturnType<typeof getAssistantSettings>
 >;
+
+export type AssistantUsage = Awaited<ReturnType<typeof getAssistantUsage>>;

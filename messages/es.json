@@ -3584,7 +3584,19 @@
     "test": "Probar conexión",
     "testing": "Probando…",
     "testOk": "Conectado con Anthropic",
-    "keepKey": "Conservar la clave"
+    "keepKey": "Conservar la clave",
+    "usageTitle": "Uso",
+    "usageDescription": "Gasto por día y usuario, últimos 30 días (zona horaria de la instancia).",
+    "usageRangeTotal": "Últimos 30 días: {amount}",
+    "usageMonthToDate": "Este mes: {amount}",
+    "usageEmpty": "Sin uso en este período.",
+    "usageDay": "Día",
+    "usageUser": "Usuario",
+    "usageTurns": "Respuestas",
+    "usageDrafts": "Borradores",
+    "usageCost": "Costo",
+    "creditHint": "El crédito mensual Ultra es de $200.",
+    "creditHintLink": "Consulta el saldo en la Console"
   },
   "assistantErrors": {
     "notConfigured": "El asistente no está configurado. Pide a un administrador que lo active y guarde una clave de API de Anthropic.",

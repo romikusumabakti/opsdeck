@@ -3584,7 +3584,19 @@
     "test": "اختبار الاتصال",
     "testing": "جارٍ الاختبار…",
     "testOk": "تم الاتصال بـ Anthropic",
-    "keepKey": "الاحتفاظ بالمفتاح"
+    "keepKey": "الاحتفاظ بالمفتاح",
+    "usageTitle": "الاستخدام",
+    "usageDescription": "الإنفاق لكل يوم ومستخدم، آخر 30 يومًا (المنطقة الزمنية للنظام).",
+    "usageRangeTotal": "آخر 30 يومًا: {amount}",
+    "usageMonthToDate": "هذا الشهر: {amount}",
+    "usageEmpty": "لا يوجد استخدام في هذه الفترة.",
+    "usageDay": "اليوم",
+    "usageUser": "المستخدم",
+    "usageTurns": "الإجابات",
+    "usageDrafts": "المسودات",
+    "usageCost": "التكلفة",
+    "creditHint": "الرصيد الشهري لخطة Ultra هو 200 دولار.",
+    "creditHintLink": "تحقق من الرصيد في Console"
   },
   "assistantErrors": {
     "notConfigured": "المساعد غير مُعدّ. اطلب من المسؤول تفعيله وحفظ مفتاح Anthropic API.",

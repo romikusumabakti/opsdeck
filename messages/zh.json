@@ -3584,7 +3584,19 @@
     "test": "测试连接",
     "testing": "测试中…",
     "testOk": "已连接到 Anthropic",
-    "keepKey": "保留密钥"
+    "keepKey": "保留密钥",
+    "usageTitle": "用量",
+    "usageDescription": "按天和用户统计的花费，最近 30 天（实例时区）。",
+    "usageRangeTotal": "最近 30 天：{amount}",
+    "usageMonthToDate": "本月：{amount}",
+    "usageEmpty": "此期间没有用量。",
+    "usageDay": "日期",
+    "usageUser": "用户",
+    "usageTurns": "回答",
+    "usageDrafts": "草稿",
+    "usageCost": "费用",
+    "creditHint": "Ultra 每月额度为 $200。",
+    "creditHintLink": "在 Console 中查看余额"
   },
   "assistantErrors": {
     "notConfigured": "助手尚未设置。请管理员启用它并保存 Anthropic API 密钥。",

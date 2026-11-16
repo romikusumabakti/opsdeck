@@ -33,8 +33,18 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   type AssistantSettings,
+  type AssistantUsage,
   getAssistantSettingsQuery,
+  getAssistantUsageQuery,
   saveAssistantSettings,
   testAssistantConnection,
 } from "@/web/api/assistant-settings";
@@ -49,13 +59,17 @@ export const Route = createFileRoute("/$locale/_app/admin/assistant")({
     await requireOrgRole(queryClient, { assistant: ["manage"] });
   },
   loader: ({ context: { queryClient } }) =>
-    loaderQuery(queryClient, getAssistantSettingsQuery()),
+    Promise.all([
+      loaderQuery(queryClient, getAssistantSettingsQuery()),
+      loaderQuery(queryClient, getAssistantUsageQuery()),
+    ]),
   component: AssistantPage,
 });
 
 function AssistantPage() {
   const t = useTranslations("assistantSettings");
   const settings = useSuspenseQuery(getAssistantSettingsQuery()).data;
+  const usage = useSuspenseQuery(getAssistantUsageQuery()).data;
   return (
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
@@ -72,8 +86,76 @@ function AssistantPage() {
             <AssistantForm settings={settings} />
           </CardContent>
         </Card>
+        <UsageCard usage={usage} />
       </div>
     </>
+  );
+}
+
+const usd = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value);
+
+function UsageCard({ usage }: { usage: AssistantUsage }) {
+  const t = useTranslations("assistantSettings");
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t("usageTitle")}</CardTitle>
+        <CardDescription>{t("usageDescription")}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          <span>{t("usageRangeTotal", { amount: usd(usage.totalUsd) })}</span>
+          <span>
+            {t("usageMonthToDate", { amount: usd(usage.monthToDateUsd) })}
+          </span>
+        </div>
+        {usage.rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("usageEmpty")}</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("usageDay")}</TableHead>
+                <TableHead>{t("usageUser")}</TableHead>
+                <TableHead className="text-right">{t("usageTurns")}</TableHead>
+                <TableHead className="text-right">{t("usageDrafts")}</TableHead>
+                <TableHead className="text-right">{t("usageCost")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {usage.rows.map((row) => (
+                <TableRow key={`${row.day}-${row.userId}`}>
+                  <TableCell>{row.day}</TableCell>
+                  <TableCell>{row.userName}</TableCell>
+                  <TableCell className="text-right">{row.turns}</TableCell>
+                  <TableCell className="text-right">{row.drafts}</TableCell>
+                  <TableCell className="text-right">
+                    {usd(row.costUsd)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        <p className="text-sm text-muted-foreground">
+          {t("creditHint")}{" "}
+          <a
+            href="https://platform.claude.com/settings/billing"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="underline underline-offset-4"
+          >
+            {t("creditHintLink")}
+          </a>
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

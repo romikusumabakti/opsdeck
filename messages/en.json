@@ -3584,7 +3584,19 @@
     "test": "Test connection",
     "testing": "Testing…",
     "testOk": "Connected to Anthropic",
-    "keepKey": "Keep the key"
+    "keepKey": "Keep the key",
+    "usageTitle": "Usage",
+    "usageDescription": "Spend per day and user, last 30 days (instance time zone).",
+    "usageRangeTotal": "Last 30 days: {amount}",
+    "usageMonthToDate": "This month: {amount}",
+    "usageEmpty": "No usage in this period.",
+    "usageDay": "Day",
+    "usageUser": "User",
+    "usageTurns": "Answers",
+    "usageDrafts": "Drafts",
+    "usageCost": "Cost",
+    "creditHint": "The monthly Ultra credit is $200.",
+    "creditHintLink": "Check the balance in the Console"
   },
   "assistantErrors": {
     "notConfigured": "The assistant is not set up. Ask an admin to enable it and save an Anthropic API key.",
