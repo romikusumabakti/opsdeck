@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,17 +54,11 @@ export function SearchSelect({
   triggerProps?: Record<`data-${string}`, string>;
 }) {
   const t = useTranslations("common");
-  const byValue = useMemo(
-    () => new Map(options.map((o) => [o.value, o])),
-    [options]
-  );
-  const items = useMemo<(string | null)[]>(
-    () => [
-      ...(noneLabel === undefined ? [] : [null]),
-      ...options.map((o) => o.value),
-    ],
-    [options, noneLabel]
-  );
+  const byValue = new Map(options.map((o) => [o.value, o]));
+  const items: (string | null)[] = [
+    ...(noneLabel === undefined ? [] : [null]),
+    ...options.map((o) => o.value),
+  ];
 
   function triggerContent() {
     if (value === null || value === "") {
@@ -76,8 +69,13 @@ export function SearchSelect({
       );
     }
     const option = byValue.get(value);
-    // A value outside the list (e.g. a stored name since removed) stays visible.
-    if (!option) return <span className="truncate">{value}</span>;
+    // A value outside the list (still loading, or since removed) shows the
+    // placeholder rather than a raw id.
+    if (!option) {
+      return (
+        <span className="truncate text-muted-foreground">{placeholder}</span>
+      );
+    }
     return <OptionText option={option} />;
   }
 

@@ -18,7 +18,7 @@ let root: Root;
 
 const OPTIONS: SearchSelectOption[] = [
   { value: "s1", label: "app-alpha", hint: "192.0.2.10" },
-  { value: "s2", label: "db-bravo", hint: "192.168.10.129" },
+  { value: "s2", label: "db-bravo", hint: "198.51.100.129" },
   { value: "s3", label: "edge-charlie", keywords: "42" },
 ];
 
@@ -98,13 +98,19 @@ describe("SearchSelect", () => {
     expect(trigger()?.textContent).toContain("Pick one");
     await render({ value: "s2" });
     expect(trigger()?.textContent).toContain("db-bravo");
-    expect(trigger()?.textContent).toContain("192.168.10.129");
+    expect(trigger()?.textContent).toContain("198.51.100.129");
+  });
+
+  it("shows the placeholder for a value with no matching option", async () => {
+    await render({ value: "0190a0b2-gone" });
+    expect(trigger()?.textContent).toContain("Pick one");
+    expect(trigger()?.textContent).not.toContain("0190a0b2-gone");
   });
 
   it("finds an option by part of its hint", async () => {
     await render();
     await open();
-    await type("10.129");
+    await type("100.129");
     const items = itemEls();
     expect(items).toHaveLength(1);
     expect(items[0]?.textContent).toContain("db-bravo");
