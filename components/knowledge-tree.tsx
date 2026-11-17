@@ -253,13 +253,14 @@ export function KnowledgeTree({
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(
     null
   );
-  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(
-    null
-  );
+  // The document count is captured when the dialog opens so it doesn't shift
+  // while the refetch after a delete lands.
+  const [deleting, setDeleting] = useState<{
+    id: string;
+    name: string;
+    docCount: number;
+  } | null>(null);
   const [deletePending, startDelete] = useTransition();
-  const deletingDocCount = deleting
-    ? nodes.filter((n) => n.collectionId === deleting.id).length
-    : 0;
 
   function confirmDelete() {
     if (!deleting) return;
@@ -602,6 +603,9 @@ export function KnowledgeTree({
                             setDeleting({
                               id: collection.id,
                               name: collection.name,
+                              docCount: nodes.filter(
+                                (n) => n.collectionId === collection.id
+                              ).length,
                             })
                           }
                         >
@@ -651,10 +655,10 @@ export function KnowledgeTree({
             <AlertDialogTitle>{t("deleteCollection")}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting &&
-                (deletingDocCount > 0
+                (deleting.docCount > 0
                   ? t("deleteCollectionNotEmpty", {
                       name: deleting.name,
-                      count: deletingDocCount,
+                      count: deleting.docCount,
                     })
                   : t("deleteCollectionConfirm", { name: deleting.name }))}
             </AlertDialogDescription>

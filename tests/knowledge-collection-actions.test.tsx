@@ -16,6 +16,7 @@ const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 const api = vi.hoisted(() => ({
   updateCollection: vi.fn(),
   deleteCollection: vi.fn(),
+  createDocument: vi.fn(),
 }));
 
 vi.mock("@/i18n/navigation", () => ({
@@ -37,7 +38,7 @@ vi.mock("@/i18n/navigation", () => ({
 vi.mock("@/web/api/knowledge", () => ({
   moveCollection: vi.fn(),
   moveDocument: vi.fn(),
-  createDocument: vi.fn(),
+  createDocument: api.createDocument,
   updateDocument: vi.fn(),
   deleteDocument: vi.fn(),
   updateCollection: api.updateCollection,
@@ -254,5 +255,41 @@ describe("document form collection picker", () => {
       />
     );
     expect(document.querySelector("#doc-collection")).not.toBeNull();
+  });
+});
+
+describe("new document page", () => {
+  it("files into the chosen collection when ?collection= changes", async () => {
+    const { NewDocumentView } = await import(
+      "../web/routes/$locale/_app/knowledge.new"
+    );
+    api.createDocument.mockResolvedValue({
+      success: true,
+      data: { slug: "x" },
+    });
+    const view = (id: string) => (
+      <NewDocumentView
+        collections={collections}
+        nodes={nodes}
+        requestedCollectionId={id}
+      />
+    );
+    await render(view(COL_A));
+    expect(document.body.textContent).toContain("Handbook");
+    await render(view(COL_B));
+    expect(document.body.textContent).toContain("Runbooks");
+    const title = document.querySelector("#doc-title") as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(title, "Hello");
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const save = Array.from(document.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "Save"
+    ) as Element;
+    await click(save);
+    expect(api.createDocument.mock.calls[0]?.[0]?.collectionId).toBe(COL_B);
   });
 });
