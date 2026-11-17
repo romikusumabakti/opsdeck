@@ -69,6 +69,7 @@ export async function seedDeploys(ctx: SeedContext): Promise<void> {
   }
 
   const planned = planBuilds(ctx.now, ctx.emailDomain);
+  if (planned.length === 0) return;
   const insertedBuilds = await tx
     .insert(builds)
     .values(planned)
@@ -132,6 +133,8 @@ export async function seedDeploys(ctx: SeedContext): Promise<void> {
       finishedAt: d.finishedAt,
     });
   }
+  // Every deployment row carries its run, so the two lists are the same
+  // length; drizzle refuses an empty values().
   if (runRows.length === 0) return;
   await tx.insert(runs).values(runRows);
   await tx.insert(deployments).values(deploymentRows);

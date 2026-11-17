@@ -17,7 +17,10 @@ import {
   planDeployments,
   plannedTargets,
 } from "@/scripts/cli/seed-data/deploys";
-import { PROJECT_ISSUES } from "@/scripts/cli/seed-data/issues";
+import {
+  ORIGINAL_ISSUES,
+  PROJECT_ISSUES,
+} from "@/scripts/cli/seed-data/issues";
 import { DEMO_STAFF } from "@/scripts/cli/seed-data/people";
 
 // The seed against a real Postgres: a throwaway database made in the local
@@ -163,7 +166,8 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     await migrate(db, { migrationsFolder: "drizzle" });
     // Rows that exist before seeding: a real project under the DEMO key
     // (with a Dev environment without an app and a real DEMO-1), a real
-    // NPMB, DEMOPORTAL as the first seed wrote it (no client: demo data), a
+    // NPMB, DEMOPORTAL as the first seed wrote it (no client, its 4 sample
+    // issues: demo data), a
     // real collection named like a demo one, and someone else already
     // called Joko Santoso.
     await sql`insert into projects (key, name) values ('DEMO', 'Customer Demo')`;
@@ -171,6 +175,12 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
       insert into projects (key, name, client)
       values ('NPMB', 'Membership (in-house)', 'In-house')`;
     await sql`insert into projects (key, name) values ('DEMOPORTAL', 'Demo Portal')`;
+    for (const issue of ORIGINAL_ISSUES) {
+      await sql`
+        insert into issues (project_id, number, title, status, type, priority)
+        select id, ${issue.number}, ${issue.title}, ${issue.status}, ${issue.type}, ${issue.priority}
+        from projects where key = 'DEMOPORTAL'`;
+    }
     await sql`
       insert into knowledge_collections (name, description, rank)
       values ('Catatan Teknis', 'Our own notes', 'a0')`;
@@ -232,7 +242,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     expect(first.notifications).toBeGreaterThan(0);
     expect(first.activity).toBeGreaterThan(40);
     expect(inserted.projects).toBe(2);
-    expect(inserted.issues).toBe(38);
+    expect(inserted.issues).toBe(34);
     expect(lines).toEqual(
       expect.arrayContaining([
         "skipped DEMO (not demo data)",
@@ -247,7 +257,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
         (l) => l.startsWith("created") && l.includes("password: ")
       )
     ).toBe(true);
-    expect(lines.at(-1)).toMatch(/^demo data added: .*issues 38/);
+    expect(lines.at(-1)).toMatch(/^demo data added: .*issues 34/);
   });
 
   it("inserts nothing on a second run", async () => {
@@ -493,6 +503,53 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     ).toBe(true);
     const statuses = await sql`select distinct status from issues`;
     expect(statuses.length).toBeGreaterThan(1);
+  });
+
+  it("completes when both demo projects are real, hand-made ones", async () => {
+    // A database of its own: DEMO is someone's project, and DEMOPORTAL a
+    // hand-made "Demo Portal" with no client, no demo app and no sample
+    // issues, which must not pass for the first seed's.
+    const otherName = `${dbName}_b`;
+    await admin.unsafe(`create database ${otherName}`);
+    const other = postgres(`${base}/${otherName}`, {
+      max: 2,
+      onnotice: () => {},
+      connection: { TimeZone: "UTC" },
+    });
+    try {
+      const otherDb = drizzle({ client: other });
+      await migrate(otherDb, { migrationsFolder: "drizzle" });
+      await other`insert into projects (key, name) values ('DEMO', 'Customer Demo')`;
+      await other`insert into projects (key, name) values ('DEMOPORTAL', 'Demo Portal')`;
+      await other`
+        insert into issues (project_id, number, title)
+        select id, 1, 'Our first issue' from projects where key = 'DEMOPORTAL'`;
+      lines.length = 0;
+      await seedDemo(otherDb, options());
+      expect(lines).toEqual(
+        expect.arrayContaining([
+          "skipped DEMO (not demo data)",
+          "skipped DEMOPORTAL (not demo data)",
+        ])
+      );
+      const accounts = await other`
+        select u.email, count(m.project_id)::int as memberships
+        from users u left join project_members m on m.user_id = u.id
+        where u.email like 'demo-%' group by u.email`;
+      expect(accounts).toHaveLength(5);
+      expect(accounts.every((a) => a.memberships === 0)).toBe(true);
+      const [row] = await other`
+        select
+          (select count(*) from environments e join projects p on p.id = e.project_id
+            where p.key in ('DEMO', 'DEMOPORTAL'))::int as environments,
+          (select count(*) from issues i join projects p on p.id = i.project_id
+            where p.key in ('DEMO', 'DEMOPORTAL'))::int as issues,
+          (select count(*) from projects)::int as projects`;
+      expect(row).toEqual({ environments: 0, issues: 1, projects: 5 });
+    } finally {
+      await other.end();
+      await admin.unsafe(`drop database if exists ${otherName} with (force)`);
+    }
   });
 
   it("skips a demo account whose name someone else holds", async () => {

@@ -1,10 +1,11 @@
 // Servers, projects, apps with their components, and environments.
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import {
   appComponents,
   apps,
   ciConnections,
   environments,
+  issues,
   projectApps,
   projectComponentBranches,
   projects,
@@ -17,8 +18,10 @@ import {
   DEMO_ENVIRONMENTS,
   DEMO_PROJECTS,
   DEMO_SERVERS,
+  type DemoProject,
   environmentUrl,
 } from "../seed-data/catalog";
+import { ORIGINAL_ISSUES } from "../seed-data/issues";
 import { addDays } from "../seed-data/random";
 import { count, type SeedContext } from "./context";
 
@@ -53,10 +56,11 @@ export async function seedServers(ctx: SeedContext): Promise<void> {
 
 /**
  * The demo projects. A project with a demo key that this run did not create
- * is seeded further only when it is recognisably demo data: the name the
- * seed gives it with the seed's client (or none, as the first seed wrote
- * it), or the demo app already among its sources. Any other project with
- * that key belongs to someone; nothing is added under it.
+ * is seeded further only when it is recognisably demo data: the demo app is
+ * already among its sources, or it carries the seed's name and either the
+ * seed's client or (as the first seed wrote it, without a client) one of
+ * the first seed's sample issues. Any other project with that key belongs
+ * to someone; nothing is added under it.
  */
 export async function seedProjects(ctx: SeedContext): Promise<void> {
   const { tx } = ctx;
@@ -91,15 +95,32 @@ export async function seedProjects(ctx: SeedContext): Promise<void> {
       .where(
         and(eq(projectApps.projectId, row.id), eq(apps.appKey, project.app))
       );
-    const named =
-      row.name === project.name &&
-      (row.client === null || row.client === project.client);
-    if (!named && !source) {
+    if (!source && !(await isOldDemoProject(ctx, row, project))) {
       ctx.lines.push(`skipped ${project.key} (not demo data)`);
       continue;
     }
     ctx.projects.set(project.key, { id: row.id, name: row.name });
   }
+}
+
+/** Seed name plus the seed's client, or no client and a first-seed issue. */
+async function isOldDemoProject(
+  ctx: SeedContext,
+  row: { id: string; name: string; client: string | null },
+  project: DemoProject
+): Promise<boolean> {
+  if (row.name !== project.name) return false;
+  if (row.client === project.client) return true;
+  if (row.client !== null) return false;
+  const original = ORIGINAL_ISSUES.map((i) =>
+    and(eq(issues.number, i.number), eq(issues.title, i.title))
+  );
+  const [match] = await ctx.tx
+    .select({ id: issues.id })
+    .from(issues)
+    .where(and(eq(issues.projectId, row.id), or(...original)))
+    .limit(1);
+  return match !== undefined;
 }
 
 /**
@@ -163,16 +184,16 @@ export async function seedApps(ctx: SeedContext): Promise<void> {
       .onConflictDoNothing()
       .returning({ appId: projectApps.appId });
     count(ctx, "projectApps", source.length);
+    const branchRows = appByKey(project.app).components.map((c) => ({
+      projectId,
+      componentKey: c.componentKey,
+      branch: project.branch,
+      updatedAt: addDays(ctx.now, -35),
+    }));
+    if (branchRows.length === 0) continue;
     const branches = await tx
       .insert(projectComponentBranches)
-      .values(
-        appByKey(project.app).components.map((c) => ({
-          projectId,
-          componentKey: c.componentKey,
-          branch: project.branch,
-          updatedAt: addDays(ctx.now, -35),
-        }))
-      )
+      .values(branchRows)
       .onConflictDoNothing()
       .returning({ key: projectComponentBranches.componentKey });
     count(ctx, "projectComponentBranches", branches.length);
@@ -186,16 +207,16 @@ export async function seedEnvironments(ctx: SeedContext): Promise<void> {
     const projectId = ctx.projects.get(project.key)?.id;
     if (!projectId) continue;
     const appId = ctx.apps.get(project.app) ?? null;
+    const rows = DEMO_ENVIRONMENTS.map((e) => ({
+      ...e,
+      projectId,
+      appId,
+      url: environmentUrl(project, e.slug),
+    }));
+    if (rows.length === 0) continue;
     const inserted = await tx
       .insert(environments)
-      .values(
-        DEMO_ENVIRONMENTS.map((e) => ({
-          ...e,
-          projectId,
-          appId,
-          url: environmentUrl(project, e.slug),
-        }))
-      )
+      .values(rows)
       .onConflictDoNothing()
       .returning({ id: environments.id });
     count(ctx, "environments", inserted.length);

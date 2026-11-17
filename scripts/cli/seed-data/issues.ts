@@ -65,7 +65,7 @@ export const DEMO_LABELS = [
 
 // The original four sample issues (no people attached), kept exactly as the
 // first seed wrote them, for both demo projects.
-const ORIGINAL_ISSUES: readonly DemoIssue[] = [
+export const ORIGINAL_ISSUES: readonly DemoIssue[] = [
   {
     number: 1,
     title: "Member import rejects empty rows",

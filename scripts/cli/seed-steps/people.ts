@@ -93,6 +93,9 @@ export async function seedAccounts(
       const projectIds = ACCOUNT_PROJECTS.flatMap(
         (key) => ctx.projects.get(key)?.id ?? []
       );
+      // Both demo projects may be skipped (held by real projects), and
+      // drizzle refuses an empty values().
+      if (projectIds.length === 0) continue;
       const added = await tx
         .insert(projectMembers)
         .values(projectIds.map((projectId) => ({ projectId, userId })))
