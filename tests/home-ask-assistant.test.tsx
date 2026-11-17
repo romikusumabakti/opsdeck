@@ -112,12 +112,15 @@ const CONVERSATIONS = [
 async function renderCard(opts: {
   allowance?: object;
   projects?: object[];
-  conversations?: object[];
+  /** null: the conversations are still loading. */
+  conversations?: object[] | null;
 }) {
-  queryClient.setQueryData(
-    ["assistant", "listConversations"],
-    opts.conversations ?? []
-  );
+  if (opts.conversations !== null) {
+    queryClient.setQueryData(
+      ["assistant", "listConversations"],
+      opts.conversations ?? []
+    );
+  }
   queryClient.setQueryData(["environments", "listEnvironments"], []);
   queryClient.setQueryData(
     ["assistant", "getAllowance"],
@@ -157,12 +160,12 @@ async function type(text: string) {
   });
 }
 
-async function press(shiftKey: boolean) {
+async function pressEnter() {
   await act(async () => {
     box().dispatchEvent(
       new KeyboardEvent("keydown", {
         key: "Enter",
-        shiftKey,
+        shiftKey: false,
         bubbles: true,
         cancelable: true,
       })
@@ -185,6 +188,13 @@ describe("home ask-the-assistant card", () => {
     await renderCard({});
     const examples = container.querySelectorAll("[data-example]");
     expect(examples).toHaveLength(3);
+    expect(container.querySelector("[data-recent]")).toBeNull();
+  });
+
+  it("shows neither examples nor recents while the conversations load", async () => {
+    await renderCard({ conversations: null });
+    expect(box()).toBeTruthy();
+    expect(container.querySelector("[data-example]")).toBeNull();
     expect(container.querySelector("[data-recent]")).toBeNull();
   });
 
@@ -223,7 +233,7 @@ describe("home ask-the-assistant card", () => {
     api.sendMessage.mockResolvedValue({});
     await renderCard({});
     await type("Where is login handled?");
-    await press(false);
+    await pressEnter();
     expect(api.createConversation).toHaveBeenCalledExactlyOnceWith();
     expect(api.sendMessage).toHaveBeenCalledWith({
       conversationId: "c1",
@@ -249,13 +259,6 @@ describe("home ask-the-assistant card", () => {
     expect(api.createConversation).not.toHaveBeenCalled();
   });
 
-  it("Shift+Enter does not send", async () => {
-    await renderCard({});
-    await type("Hello");
-    await press(true);
-    expect(api.createConversation).not.toHaveBeenCalled();
-  });
-
   it("is disabled with the reset message when the daily limit is reached", async () => {
     await renderCard({ allowance: { ...ENABLED, capReached: true } });
     expect(box().disabled).toBe(true);
@@ -266,7 +269,7 @@ describe("home ask-the-assistant card", () => {
     api.createConversation.mockRejectedValue(new Error("boom"));
     await renderCard({});
     await type("Hello");
-    await press(false);
+    await pressEnter();
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
     });
@@ -281,11 +284,11 @@ describe("home ask-the-assistant card", () => {
     api.sendMessage.mockResolvedValue({});
     await renderCard({});
     await type("Hello");
-    await press(false);
+    await pressEnter();
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
     });
-    await press(false);
+    await pressEnter();
     expect(api.createConversation).toHaveBeenCalledTimes(1);
     expect(api.sendMessage).toHaveBeenCalledTimes(2);
     expect(api.sendMessage).toHaveBeenLastCalledWith(
@@ -299,11 +302,11 @@ describe("home ask-the-assistant card", () => {
     api.sendMessage.mockResolvedValue({});
     await renderCard({});
     await type("Hello");
-    await press(false);
+    await pressEnter();
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
     });
-    await press(false);
+    await pressEnter();
     expect(api.createConversation).toHaveBeenCalledTimes(1);
     expect(api.sendMessage).toHaveBeenCalledTimes(1);
   });

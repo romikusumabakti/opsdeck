@@ -94,7 +94,7 @@ export function AskAssistantCard() {
       ? errorText(ask.error)
       : null;
   const locked = capped || ask.isPending;
-  const recents = (conversations ?? []).slice(0, MAX_RECENTS);
+  const recents = conversations?.slice(0, MAX_RECENTS);
 
   return (
     <section className="flex flex-col gap-3">
@@ -167,7 +167,8 @@ export function AskAssistantCard() {
           {message}
         </p>
       ) : null}
-      {recents.length > 0 ? (
+      {/* Nothing until the conversations load: examples must not flash. */}
+      {recents === undefined ? null : recents.length > 0 ? (
         <div className="flex flex-col gap-1">
           <h2 className="px-1 text-xs font-medium text-muted-foreground">
             {t("askRecent")}
