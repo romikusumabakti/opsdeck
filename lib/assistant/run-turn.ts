@@ -474,7 +474,7 @@ function projectAccess(
   const byKey = new Map(projects.map((p) => [p.key, p]));
   const sourcesOf = new Map<string, Promise<AssistantSource[]>>();
   const snapsOf = new Map<string, Promise<SnapshotRef[]>>();
-  const opened: AssistantSource[] = [];
+  let opened: AssistantSource[] = [];
   let saving: Promise<void> = Promise.resolve();
 
   const sources = (project: ProjectEntry) =>
@@ -487,19 +487,22 @@ function projectAccess(
       await sources(project),
       deps.ensureSnapshot
     );
-    opened.push(
-      ...prompt.map((source) => ({
-        ...storedSource(source),
-        projectKey: project.key,
-        projectName: project.name,
-      }))
-    );
-    const snapshot = [...opened];
-    // Chained, so an older list never lands after a newer one. A failed
-    // write fails only its own read (the next write carries the full list).
+    const tagged = prompt.map((source) => ({
+      ...storedSource(source),
+      projectKey: project.key,
+      projectName: project.name,
+    }));
+    // Chained, so writes run one at a time and each extends the last list
+    // written. A project joins the list only once its write succeeded: a
+    // failed write fails its own read, and the retried load adds it again
+    // without a duplicate.
     const write = saving
       .catch(() => {})
-      .then(() => saveSources(messageId, snapshot));
+      .then(async () => {
+        const next = [...opened, ...tagged];
+        await saveSources(messageId, next);
+        opened = next;
+      });
     saving = write;
     await write;
     return snaps;

@@ -46,6 +46,8 @@ const state = vi.hoisted(() => ({
     resultMeta: Record<string, unknown>;
   }>,
   recordToolCallFails: false,
+  /** Writes of a non-empty source list that fail before one succeeds. */
+  sourceWriteFailures: 0,
   usage: [] as Array<Record<string, unknown>>,
 }));
 
@@ -71,6 +73,14 @@ vi.mock("@/lib/assistant/turn-store", () => ({
     state.message.content = content;
   }),
   saveSources: vi.fn(async (_id: string, sources: unknown) => {
+    if (
+      Array.isArray(sources) &&
+      sources.length > 0 &&
+      state.sourceWriteFailures > 0
+    ) {
+      state.sourceWriteFailures -= 1;
+      throw new Error("db blip");
+    }
     state.message.sources = sources;
   }),
   finishMessage: vi.fn(
@@ -434,6 +444,7 @@ beforeEach(() => {
   state.contentWrites = [];
   state.toolCalls = [];
   state.recordToolCallFails = false;
+  state.sourceWriteFailures = 0;
   state.usage = [];
 });
 
@@ -1376,6 +1387,56 @@ describe("runTurn", () => {
         commitSha: "kst0000000001",
         projectKey: "KST",
         projectName: "Kestrel Membership",
+      },
+    ]);
+    expect(state.message.status).toBe("done");
+  });
+
+  it("lists a project's sources once when writing them failed and the load was retried", async () => {
+    state.turn = autoTurn();
+    state.sourceWriteFailures = 1;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const read = (id: string, project: string) => ({
+      id,
+      name: "read_file",
+      input: {
+        project,
+        path: "backend/src/Iuran.java",
+        start_line: null,
+        end_line: null,
+      },
+    });
+    const { model, calls } = mockModel([
+      { toolCalls: [read("tu_1", "KST")], finish: "tool-calls" },
+      { toolCalls: [read("tu_2", "KST")], finish: "tool-calls" },
+      { toolCalls: [read("tu_3", "OSP")], finish: "tool-calls" },
+      { text: ["ok"], finish: "stop" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        resolveProjectSources: sourcesOfProject,
+        ensureSnapshot: snapshotOf,
+        loadProjects: async () => PROJECTS,
+        executeTool: undefined,
+      })
+    );
+    spy.mockRestore();
+    expect(JSON.stringify(calls[1]?.prompt)).toContain(
+      "read_file failed unexpectedly"
+    );
+    expect(state.message.sources).toEqual([
+      {
+        ...PROJECT_SOURCE,
+        commitSha: "kst0000000001",
+        projectKey: "KST",
+        projectName: "Kestrel Membership",
+      },
+      {
+        ...OSP_SOURCE,
+        commitSha: "osp0000000001",
+        projectKey: "OSP",
+        projectName: "Osprey",
       },
     ]);
     expect(state.message.status).toBe("done");
