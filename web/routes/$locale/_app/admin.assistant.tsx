@@ -42,8 +42,15 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  PROVIDERS,
+  type Prices,
+  type Provider,
+  suggestedModels,
+} from "@/lib/assistant/providers";
+import {
   type AssistantSettings,
   type AssistantUsage,
+  type ConnectionTest,
   getAssistantSettingsQuery,
   getAssistantUsageQuery,
   saveAssistantSettings,
@@ -52,9 +59,9 @@ import {
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 
-// Admin → Assistant: the code assistant's switch, Anthropic API key, model,
-// effort, per-user daily cap and organisation context. The key is write-only
-// (only `hasApiKey` is read back).
+// Admin → Assistant: the code assistant's switch, provider, API key, model,
+// effort, base URL and prices, per-user daily cap and organisation context.
+// The key is write-only (only `hasApiKey` is read back).
 export const Route = createFileRoute("/$locale/_app/admin/assistant")({
   beforeLoad: async ({ context: { queryClient } }) => {
     await requireOrgRole(queryClient, { assistant: ["manage"] });
@@ -145,47 +152,124 @@ function UsageCard({ usage }: { usage: AssistantUsage }) {
             </TableBody>
           </Table>
         )}
-        <p className="text-sm text-muted-foreground">
-          {t("creditHint")}{" "}
-          <a
-            href="https://platform.claude.com/settings/billing"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="underline underline-offset-4"
-          >
-            {t("creditHintLink")}
-          </a>
-        </p>
+        {usage.estimatedRows > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {t("estimatedNotice")}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
 }
 
+const PROVIDER_LABEL_KEYS = {
+  anthropic: "providerAnthropic",
+  openai: "providerOpenai",
+  google: "providerGoogle",
+  "openai-compatible": "providerOpenaiCompatible",
+} as const satisfies Record<Provider, string>;
+
+const TEST_ERROR_KEYS = {
+  auth: "testErrorAuth",
+  quota: "testErrorQuota",
+  unreachable: "testErrorUnreachable",
+  model_not_found: "testErrorModelNotFound",
+  failed: "testErrorFailed",
+} as const satisfies Record<NonNullable<ConnectionTest["error"]>, string>;
+
+const PRICE_FIELDS = [
+  { key: "input", id: "assistant-price-input", label: "priceInput" },
+  { key: "output", id: "assistant-price-output", label: "priceOutput" },
+  {
+    key: "cacheRead",
+    id: "assistant-price-cache-read",
+    label: "priceCacheRead",
+  },
+  {
+    key: "cacheWrite",
+    id: "assistant-price-cache-write",
+    label: "priceCacheWrite",
+  },
+] as const;
+
+type PriceText = Record<keyof Prices, string>;
+
+const priceText = (prices: Prices | null): PriceText => ({
+  input: prices ? String(prices.input) : "",
+  output: prices ? String(prices.output) : "",
+  cacheRead: prices ? String(prices.cacheRead) : "",
+  cacheWrite: prices ? String(prices.cacheWrite) : "",
+});
+
+const validPrice = (text: string) => {
+  const value = Number(text);
+  return text.trim() !== "" && value >= 0 && value <= 1000;
+};
+
+/** The four prices as numbers; null when all are blank; "invalid" otherwise. */
+function parsePrices(text: PriceText): Prices | null | "invalid" {
+  const values = Object.values(text);
+  if (values.every((value) => value.trim() === "")) return null;
+  if (!values.every(validPrice)) return "invalid";
+  return {
+    input: Number(text.input),
+    output: Number(text.output),
+    cacheRead: Number(text.cacheRead),
+    cacheWrite: Number(text.cacheWrite),
+  };
+}
+
 function AssistantForm({ settings }: { settings: AssistantSettings }) {
   const t = useTranslations("assistantSettings");
   const [enabled, setEnabled] = useState(settings.enabled);
+  const [provider, setProvider] = useState<Provider | null>(settings.provider);
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
-  const [model, setModel] = useState(settings.model);
+  const [baseUrl, setBaseUrl] = useState(settings.baseUrl ?? "");
+  const [model, setModel] = useState(settings.model ?? "");
   const [effort, setEffort] = useState(settings.effort);
+  const [prices, setPrices] = useState(priceText(settings.prices));
   const [dailyCap, setDailyCap] = useState(String(settings.dailyCapUsd));
   const [orgContext, setOrgContext] = useState(settings.orgContext ?? "");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ConnectionTest | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   const cap = Number(dailyCap);
   const capValid = dailyCap.trim() !== "" && cap >= 0 && cap <= 1000;
   const keyPresent = settings.hasApiKey && !clearKey;
+  const suggestions = provider ? suggestedModels(provider) : [];
+  const compatible = provider === "openai-compatible";
+  const parsedPrices = parsePrices(prices);
+  const pricesValid = parsedPrices !== "invalid";
+
+  function onProviderChange(next: Provider) {
+    if (next === provider) return;
+    setProvider(next);
+    // A base URL belongs to its provider (the server clears it as well).
+    setBaseUrl("");
+  }
+
+  function onModelChange(value: string) {
+    setModel(value);
+    const known = suggestions.find((m) => m.id === value.trim());
+    if (known) setPrices(priceText(known.prices));
+  }
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!capValid) return;
+    setAttempt((n) => n + 1);
+    if (!capValid || parsedPrices === "invalid") return;
     setSaving(true);
     try {
       const result = await saveAssistantSettings({
         enabled,
-        model,
+        ...(provider && { provider }),
+        baseUrl: baseUrl.trim() || null,
+        ...(model.trim() && { model: model.trim() }),
         effort,
+        ...(parsedPrices && { prices: parsedPrices }),
         dailyCapUsd: cap,
         orgContext,
         ...(clearKey ? { apiKey: null } : apiKey.trim() && { apiKey }),
@@ -204,14 +288,36 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
 
   async function onTest() {
     setTesting(true);
+    setTestResult(null);
     try {
       const result = await testAssistantConnection();
-      if (result.success) toast.success(t("testOk"));
-      else toast.error(result.message);
+      if ("message" in result) {
+        toast.error(result.message);
+        return;
+      }
+      setTestResult(result);
+      if (result.ok) toast.success(t("testOk"));
     } finally {
       setTesting(false);
     }
   }
+
+  const baseUrlField = (
+    <Field>
+      <FieldLabel htmlFor="assistant-base-url">{t("baseUrl")}</FieldLabel>
+      <Input
+        id="assistant-base-url"
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        required={compatible}
+        placeholder="https://llm.example.com/v1"
+        value={baseUrl}
+        onChange={(event) => setBaseUrl(event.target.value)}
+      />
+      <FieldDescription>{t("baseUrlHint")}</FieldDescription>
+    </Field>
+  );
 
   return (
     <form onSubmit={onSubmit}>
@@ -229,6 +335,25 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
             <FieldDescription>{t("enabledDescription")}</FieldDescription>
           </FieldContent>
         </Field>
+        <Field>
+          <FieldLabel htmlFor="assistant-provider">{t("provider")}</FieldLabel>
+          <Select
+            value={provider}
+            onValueChange={(value) => value && onProviderChange(value)}
+          >
+            <SelectTrigger id="assistant-provider">
+              <SelectValue placeholder={t("providerPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              {PROVIDERS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(PROVIDER_LABEL_KEYS[value])}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        {compatible && baseUrlField}
         <Field>
           <div className="flex items-center gap-2">
             <FieldLabel htmlFor="assistant-api-key">{t("apiKey")}</FieldLabel>
@@ -260,21 +385,73 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
         </Field>
         <Field>
           <FieldLabel htmlFor="assistant-model">{t("model")}</FieldLabel>
-          <Select
+          <Input
+            id="assistant-model"
+            list="assistant-model-suggestions"
+            autoComplete="off"
+            maxLength={200}
             value={model}
-            onValueChange={(value) => value && setModel(value)}
+            onChange={(event) => onModelChange(event.target.value)}
+          />
+          <datalist id="assistant-model-suggestions">
+            {suggestions.map((m) => (
+              <option key={m.id} value={m.id} />
+            ))}
+          </datalist>
+          <FieldDescription>{t("modelDescription")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="assistant-effort">{t("effort")}</FieldLabel>
+          <Select
+            value={effort}
+            onValueChange={(value) => value && setEffort(value)}
           >
-            <SelectTrigger id="assistant-model">
+            <SelectTrigger id="assistant-effort">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="claude-opus-5-5">{t("modelOpus")}</SelectItem>
-              <SelectItem value="claude-sonnet-5-5">
-                {t("modelSonnet")}
-              </SelectItem>
+              <SelectItem value="low">{t("effortLow")}</SelectItem>
+              <SelectItem value="medium">{t("effortMedium")}</SelectItem>
+              <SelectItem value="high">{t("effortHigh")}</SelectItem>
             </SelectContent>
           </Select>
+          <FieldDescription>{t("effortDescription")}</FieldDescription>
         </Field>
+        <AdvancedOptions invalid={!pricesValid} attempt={attempt}>
+          {!compatible && baseUrlField}
+          <Field>
+            <FieldLabel>{t("prices")}</FieldLabel>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {PRICE_FIELDS.map(({ key, id, label }) => {
+                const invalid = !pricesValid && !validPrice(prices[key]);
+                return (
+                  <Field key={key} data-invalid={invalid}>
+                    <FieldLabel htmlFor={id} className="font-normal">
+                      {t(label)}
+                    </FieldLabel>
+                    <Input
+                      id={id}
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      max={1000}
+                      step="any"
+                      value={prices[key]}
+                      aria-invalid={invalid}
+                      onChange={(event) =>
+                        setPrices((current) => ({
+                          ...current,
+                          [key]: event.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                );
+              })}
+            </div>
+            <FieldDescription>{t("pricesHint")}</FieldDescription>
+          </Field>
+        </AdvancedOptions>
         <Field data-invalid={!capValid}>
           <FieldLabel htmlFor="assistant-daily-cap">{t("dailyCap")}</FieldLabel>
           <Input
@@ -303,25 +480,9 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
           />
           <FieldDescription>{t("orgContextDescription")}</FieldDescription>
         </Field>
-        <AdvancedOptions>
-          <Field>
-            <FieldLabel htmlFor="assistant-effort">{t("effort")}</FieldLabel>
-            <Select
-              value={effort}
-              onValueChange={(value) => value && setEffort(value)}
-            >
-              <SelectTrigger id="assistant-effort">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">{t("effortLow")}</SelectItem>
-                <SelectItem value="medium">{t("effortMedium")}</SelectItem>
-                <SelectItem value="high">{t("effortHigh")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <FieldDescription>{t("effortDescription")}</FieldDescription>
-          </Field>
-        </AdvancedOptions>
+        <div role="status" aria-live="polite">
+          {testResult && <ConnectionTestResult result={testResult} />}
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           {settings.hasApiKey && (
             <Button
@@ -339,5 +500,32 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
         </div>
       </FieldGroup>
     </form>
+  );
+}
+
+function ConnectionTestResult({ result }: { result: ConnectionTest }) {
+  const t = useTranslations("assistantSettings");
+  if (result.error) {
+    return (
+      <p className="text-sm text-destructive">
+        {t(TEST_ERROR_KEYS[result.error])}
+      </p>
+    );
+  }
+  const rows = [
+    { label: t("testTools"), supported: result.tools },
+    { label: t("testDrafts"), supported: result.structuredOutput },
+  ];
+  return (
+    <ul className="flex flex-col gap-1 text-sm">
+      {rows.map(({ label, supported }) => (
+        <li key={label} className="flex items-center gap-2">
+          <span>{label}</span>
+          <Badge variant={supported ? "secondary" : "outline"}>
+            {supported ? t("testSupported") : t("testUnsupported")}
+          </Badge>
+        </li>
+      ))}
+    </ul>
   );
 }

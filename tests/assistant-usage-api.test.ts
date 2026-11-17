@@ -62,6 +62,7 @@ describe("GET /usage", () => {
           userName: "Ana",
           turns: 3,
           costUsd: "0.412300",
+          estimated: 2,
         },
         {
           day: "2026-11-16",
@@ -69,6 +70,7 @@ describe("GET /usage", () => {
           userName: "Budi",
           turns: 1,
           costUsd: "0.100000",
+          estimated: 0,
         },
       ],
       [{ total: "7.250000" }],
@@ -94,6 +96,7 @@ describe("GET /usage", () => {
       ],
       totalUsd: 0.5123,
       monthToDateUsd: 7.25,
+      estimatedRows: 2,
     });
   });
 
@@ -104,6 +107,7 @@ describe("GET /usage", () => {
       rows: [],
       totalUsd: 0,
       monthToDateUsd: 0,
+      estimatedRows: 0,
     });
   });
 

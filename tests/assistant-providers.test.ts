@@ -187,3 +187,41 @@ describe("loadProviderRuntime", () => {
     expect(await loadProviderRuntime()).toBeNull();
   });
 });
+
+// Transitional: the old Anthropic-only runtime the turn loop still uses reads
+// the key the settings now store (assistant_api_key), for provider anthropic.
+describe("loadAssistantRuntime (transitional)", () => {
+  const row = (patch: Record<string, unknown> = {}) => ({
+    id: 1,
+    assistantEnabled: true,
+    anthropicApiKey: null,
+    assistantProvider: "anthropic",
+    assistantApiKey: encryptSecret("sk-test"),
+    assistantModel: "claude-sonnet-5-5",
+    assistantEffort: "medium",
+    assistantDailyCapUsd: "1.50",
+    assistantOrgContext: null,
+    ...patch,
+  });
+
+  it("uses the stored assistant key for an Anthropic provider", async () => {
+    state.row = row();
+    const { loadAssistantRuntime } = await import("@/lib/assistant/client");
+    const runtime = await loadAssistantRuntime();
+    expect(runtime?.model).toBe("claude-sonnet-5-5");
+    expect(runtime?.client.apiKey).toBe("sk-test");
+  });
+
+  it.each([
+    ["another provider", { assistantProvider: "openai" }],
+    ["no assistant key", { assistantApiKey: null }],
+    [
+      "only the superseded key",
+      { assistantApiKey: null, anthropicApiKey: encryptSecret("sk-old") },
+    ],
+  ])("is null with %s", async (_label, patch) => {
+    state.row = row(patch);
+    const { loadAssistantRuntime } = await import("@/lib/assistant/client");
+    expect(await loadAssistantRuntime()).toBeNull();
+  });
+});

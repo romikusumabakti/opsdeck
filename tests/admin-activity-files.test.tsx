@@ -183,6 +183,17 @@ describe("activity page assistant events", () => {
         keyChanged: "true",
         orgContextChanged: "true",
       }),
+      row("4", "assistant.configured", {
+        enabled: "true",
+        model: "gpt-6-luna",
+        effort: "low",
+        dailyCapUsd: 1,
+        providerChanged: "true",
+        keyChanged: "true",
+        modelChanged: "true",
+        pricesChanged: "true",
+        orgContextChanged: "false",
+      }),
       row("2", "assistant.configured", {
         enabled: "false",
         model: "claude-opus-5-5",
@@ -206,6 +217,10 @@ describe("activity page assistant events", () => {
       "disabled, claude-opus-5-5, effort low, limit 2 USD per user per day"
     );
     expect(text.match(/organisation context changed/g)).toHaveLength(1);
+    expect(text).toContain(
+      "enabled, gpt-6-luna, effort low, limit 1 USD per user per day, API key changed, provider changed, prices changed"
+    );
+    expect(text.match(/provider changed/g)).toHaveLength(1);
     expect(text).toContain(
       "disabled, claude-opus-5-5, effort high, limit 3 USD per user per day"
     );

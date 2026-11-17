@@ -43,10 +43,17 @@ export async function loadAssistantRuntime(): Promise<AssistantRuntime | null> {
     .from(instanceSettings)
     .where(eq(instanceSettings.id, 1))
     .limit(1);
-  if (!row?.assistantEnabled || !row.anthropicApiKey || !row.assistantModel)
+  // Transitional (until the turn loop moves to the AI SDK): the settings now
+  // store the key in assistant_api_key, so only an Anthropic one fits here.
+  if (
+    !row?.assistantEnabled ||
+    row.assistantProvider !== "anthropic" ||
+    !row.assistantApiKey ||
+    !row.assistantModel
+  )
     return null;
   return {
-    client: createAnthropicClient(decryptSecret(row.anthropicApiKey)),
+    client: createAnthropicClient(decryptSecret(row.assistantApiKey)),
     model: row.assistantModel,
     effort: row.assistantEffort,
     dailyCapUsd: Number(row.assistantDailyCapUsd),

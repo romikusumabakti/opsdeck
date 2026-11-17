@@ -39,7 +39,7 @@ export async function loadAssistantLimits(): Promise<{
   const [row] = await db
     .select({
       enabled: instanceSettings.assistantEnabled,
-      apiKey: instanceSettings.anthropicApiKey,
+      apiKey: instanceSettings.assistantApiKey,
       dailyCapUsd: instanceSettings.assistantDailyCapUsd,
     })
     .from(instanceSettings)

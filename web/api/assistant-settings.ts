@@ -33,10 +33,17 @@ export async function saveAssistantSettings(
   );
 }
 
+const postConnectionTest = () =>
+  parseResponse(routes.test.$post({}, NO_REFETCH));
+
+/** Per-capability result; `error` is the class of a failure. */
+export type ConnectionTest = Awaited<ReturnType<typeof postConnectionTest>>;
+
+/** The result, or the refusal (e.g. settings incomplete) as `{ message }`. */
 export async function testAssistantConnection() {
-  return orFailure(
-    () => parseResponse(routes.test.$post({}, NO_REFETCH)),
-    (message) => ({ success: false, message }) as const
+  return orFailure<ConnectionTest | { success: false; message: string }>(
+    postConnectionTest,
+    (message) => ({ success: false, message })
   );
 }
 
