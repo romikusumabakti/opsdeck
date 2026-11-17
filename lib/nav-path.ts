@@ -18,6 +18,7 @@ const PROJECT_KEY = /^[A-Z][A-Z0-9]{1,9}$/;
 const ENV_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
 export type ProjectPage =
+  | "assistant"
   | "environments"
   | "issues"
   | "issue"
@@ -48,6 +49,7 @@ export type NavProject = { id: string; key: string; name: string };
 
 // A project's own sub-routes, keyed by their reserved second segment.
 const PROJECT_PAGES: Record<string, ProjectPage> = {
+  assistant: "assistant",
   settings: "settings",
   issues: "issues",
   releases: "releases",
@@ -175,13 +177,13 @@ export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
   "databases",
   "mock-time",
   "mail",
-  "assistant",
   "history",
   "settings",
 ]);
 
-// Project permission each gated environment section needs. The sidebar hides
-// the same entries with this map, so a switch never lands on a 403.
+// Project permission each gated section needs. The sidebar hides the same
+// entries with this map, so a switch never lands on a 403. `assistant` is a
+// project page (`/KEY/assistant`), gated the same way.
 // `satisfies` keeps the known keys non-optional under noUncheckedIndexedAccess.
 export const SECTION_PERMS = {
   "mock-time": { clock: ["control"] },
@@ -191,28 +193,37 @@ export const SECTION_PERMS = {
   variables: { variable: ["read"] },
 } satisfies Record<string, ProjectPermissions>;
 
-export type ProjectNavKey = "environments" | "issues" | "releases" | "settings";
+export type ProjectNavKey =
+  | "environments"
+  | "issues"
+  | "assistant"
+  | "releases"
+  | "settings";
 
 /**
  * The project-level pages a role may open, in sidebar order. `releasable` is
- * whether the project has any environment that deploys releases.
+ * whether the project has any environment that deploys releases;
+ * `assistantEnabled` whether an admin has the code assistant switched on.
  */
 export function projectNavItems(
   projectKey: string,
   role: ProjectRole | null,
-  releasable: boolean
+  releasable: boolean,
+  assistantEnabled = false
 ): { key: ProjectNavKey; href: string }[] {
   if (!role) return [];
   const base = `/${projectKey}`;
   const allowed: Record<ProjectNavKey, boolean> = {
     environments: true,
     issues: true,
+    assistant: assistantEnabled && canProject(role, SECTION_PERMS.assistant),
     releases: releasable && canProject(role, { deploy: ["view"] }),
     settings: canProject(role, SECTION_PERMS.settings),
   };
   const keys: ProjectNavKey[] = [
     "environments",
     "issues",
+    "assistant",
     "releases",
     "settings",
   ];

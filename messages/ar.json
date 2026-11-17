@@ -3659,7 +3659,7 @@
   },
   "assistant": {
     "title": "المساعد",
-    "subtitle": "اسأل عن الشيفرة والمشكلات التي تعمل في {name}.",
+    "subtitle": "اسأل عن الشيفرة والمشكلات في {name}.",
     "remaining": "المتبقي اليوم: ${amount}",
     "remainingUnderCent": "المتبقي اليوم: < $0.01",
     "remainingHint": "حصتك من المساعد لهذا اليوم.",
@@ -3669,7 +3669,7 @@
     "noConversations": "لا توجد محادثات بعد.",
     "untitled": "بلا عنوان",
     "emptyThreadTitle": "ابدأ بالسؤال",
-    "emptyThreadDescription": "اسأل عن التدفقات أو قواعد العمل أو مكان الشيفرة في هذه البيئة. تعتمد الإجابات على الشيفرة التي تعمل هنا.",
+    "emptyThreadDescription": "اسأل عن التدفقات أو قواعد العمل أو مكان الشيفرة في هذا المشروع. اختر المصدر أدناه: فروع المشروع، أو الشيفرة التي تعمل في بيئة ما.",
     "placeholder": "اكتب سؤالًا…",
     "send": "إرسال",
     "sendHint": "Enter للإرسال، Shift+Enter لسطر جديد",
@@ -3726,6 +3726,12 @@
     "confirmCreate": "إنشاء المشكلة",
     "jiraCreated": "أُنشئت المشكلة {jiraKey}.",
     "jiraCreatedAs": "أُنشئت باسم {jiraKey}.",
-    "openPanelIssue": "فتح المشكلة في اللوحة"
+    "openPanelIssue": "فتح المشكلة في اللوحة",
+    "sourceProjectBranches": "فروع المشروع",
+    "sourceLabel": "المصدر",
+    "environmentDeleted": "(محذوفة)",
+    "newDraft": "مسودة جديدة",
+    "newDraftBrd": "BRD",
+    "newDraftIssue": "مشكلة"
   }
 }

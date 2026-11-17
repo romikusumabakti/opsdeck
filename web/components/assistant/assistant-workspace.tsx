@@ -1,14 +1,28 @@
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { Bot, FileText, MessagesSquare } from "lucide-react";
+import {
+  Bot,
+  ChevronDown,
+  FilePlus2,
+  FileText,
+  MessagesSquare,
+  Ticket,
+} from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import { cn } from "@/lib/utils";
 import {
+  type Conversation,
   createConversation,
   getAllowanceQuery,
   getConversationQuery,
@@ -18,7 +32,13 @@ import { AllowanceBadge, capReached } from "./allowance-badge";
 import { ChatThread, pendingAnswer } from "./chat-thread";
 import { Composer } from "./composer";
 import { ConversationList } from "./conversation-list";
-import { DraftPanel } from "./draft-panel";
+import {
+  canDraftFrom,
+  type DraftKind,
+  DraftPanel,
+  useDraftGeneration,
+} from "./draft-panel";
+import { SourceChip, useSourceEnvironments } from "./source-chip";
 
 const LARGE = "(min-width: 64rem)"; // Tailwind `lg`
 
@@ -34,40 +54,104 @@ function useIsLarge() {
   );
 }
 
+/** The source of the conversation's last question; a deleted one is gone. */
+function lastSourceOf(conversation: Conversation): string | null | undefined {
+  const last = conversation.messages.findLast((m) => m.role === "user");
+  return last ? last.environmentId : undefined;
+}
+
 /**
  * The Assistant: the caller's conversations about the project, the open
  * thread with its question box, and, on demand, the drafts of that
- * conversation. Questions ask about `environmentId` (its running commits) or,
- * when null, the project branches; the source picker arrives with the
- * project page. It fills the height its route gives it: the conversation
- * list and the thread scroll on their own while the question box stays at
- * the bottom. A new conversation is created by its first question.
+ * conversation. Each question asks about the source in the composer's chip:
+ * the project branches (null) or one of its environments. The chip starts at
+ * `initialEnvironmentId`, and an opened conversation moves it to the source of
+ * its last question. It fills the height its route gives it: the conversation
+ * list and the thread scroll on their own while the question box stays at the
+ * bottom. A new conversation is created by its first question.
  */
 export function AssistantWorkspace({
   projectId,
-  environmentId,
-  environmentName,
+  projectName,
   projectKey,
   canCreateIssue,
+  initialEnvironmentId = null,
+  conversationId = null,
+  onConversationChange,
 }: {
   projectId: string;
-  environmentId: string | null;
-  environmentName: string;
+  projectName: string;
   projectKey: string;
   canCreateIssue: boolean;
+  /** The chip's first value (an environment of this project), e.g. `?env=`. */
+  initialEnvironmentId?: string | null;
+  /** The open conversation, e.g. `?c=`; a change from outside opens it. */
+  conversationId?: string | null;
+  /** Called with the conversation the user opens, or null for a new one. */
+  onConversationChange?: (id: string | null) => void;
 }) {
   const t = useTranslations("assistant");
   const tErrors = useTranslations("assistantErrors");
   const allowance = useSuspenseQuery(getAllowanceQuery()).data;
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [selectedId, setSelectedIdState] = React.useState(conversationId);
+  // A new `conversationId` from the URL opens that conversation.
+  const [seenProp, setSeenProp] = React.useState(conversationId);
+  // The chip. `seededFor` is the conversation whose last question set it, so
+  // opening a conversation moves the chip once and the user's pick then
+  // stands. A ?env preselection counts as seeding the opened conversation.
+  const [source, setSource] = React.useState<string | null>(
+    initialEnvironmentId
+  );
+  const [seededFor, setSeededFor] = React.useState<string | null>(
+    initialEnvironmentId ? conversationId : null
+  );
+  // A new `initialEnvironmentId` (an old environment link followed while
+  // here) moves the chip; dropping it from the URL does not.
+  const [seenEnv, setSeenEnv] = React.useState(initialEnvironmentId);
+  if (initialEnvironmentId !== seenEnv) {
+    setSeenEnv(initialEnvironmentId);
+    if (initialEnvironmentId) setSource(initialEnvironmentId);
+  }
+  if (conversationId !== seenProp) {
+    setSeenProp(conversationId);
+    if (conversationId !== selectedId) {
+      setSelectedIdState(conversationId);
+      setSeededFor(null);
+    }
+  }
+  const select = (id: string | null) => {
+    if (id !== selectedId) setSeededFor(null);
+    setSelectedIdState(id);
+    onConversationChange?.(id);
+  };
   const conversation = useQuery({
     ...getConversationQuery(selectedId ?? ""),
     enabled: selectedId !== null,
   }).data;
 
+  if (
+    conversation &&
+    conversation.id === selectedId &&
+    seededFor !== selectedId
+  ) {
+    const last = lastSourceOf(conversation);
+    setSeededFor(selectedId);
+    if (last !== undefined) setSource(last);
+  }
+  // A preselected id this project does not have (or no longer has) is the
+  // project branches.
+  const sources = useSourceEnvironments(projectId);
+  const environmentId =
+    source &&
+    sources.loaded &&
+    !sources.environments.some((e) => e.id === source)
+      ? null
+      : source;
+
   const isLarge = useIsLarge();
   const [draftsOpen, setDraftsOpen] = React.useState(false);
   const draftCount = conversation?.drafts.length ?? 0;
+  const drafts = useDraftGeneration(selectedId ?? "");
 
   // A new draft in the open conversation opens the panel. Adjusted during
   // render (not in an effect): switching conversations only resets the base.
@@ -90,23 +174,30 @@ export function AssistantWorkspace({
   const capped = capReached(allowance);
 
   const send = async (text: string, attachments: AttachmentRef[]) => {
-    let conversationId = selectedId;
-    if (!conversationId) {
-      conversationId = (await createConversation({ projectId })).id;
-      setSelectedId(conversationId);
+    let id = selectedId;
+    if (!id) {
+      id = (await createConversation({ projectId })).id;
+      select(id);
+      // Its first question is still being sent: the chip holds its source.
+      setSeededFor(id);
     }
     await sendMessage({
-      conversationId,
+      conversationId: id,
       text,
       environmentId,
       ...(attachments.length > 0 ? { attachments } : {}),
     });
   };
 
+  const newDraft = (kind: DraftKind) => {
+    setDraftsOpen(true);
+    drafts.generate(kind);
+  };
+
   const header = (
     <PageHeader
       title={t("title")}
-      subtitle={t("subtitle", { name: environmentName })}
+      subtitle={t("subtitle", { name: projectName })}
       action={allowance.enabled && <AllowanceBadge allowance={allowance} />}
     />
   );
@@ -147,14 +238,47 @@ export function AssistantWorkspace({
           <ConversationList
             projectId={projectId}
             selectedId={selectedId}
-            onSelect={setSelectedId}
-            onNew={() => setSelectedId(null)}
+            onSelect={select}
+            onNew={() => {
+              select(null);
+              setSource(null);
+            }}
           />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
           {selectedId ? (
             <>
-              <div className="flex shrink-0 justify-end">
+              <div className="flex shrink-0 justify-end gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          busy ||
+                          capped ||
+                          !canDraftFrom(conversation) ||
+                          drafts.generating !== null
+                        }
+                      />
+                    }
+                  >
+                    <FilePlus2 data-icon="inline-start" />
+                    {t("newDraft")}
+                    <ChevronDown data-icon="inline-end" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => newDraft("brd")}>
+                      <FileText />
+                      {t("newDraftBrd")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => newDraft("jira")}>
+                      <Ticket />
+                      {t("newDraftIssue")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   variant="outline"
                   size="sm"
@@ -165,7 +289,11 @@ export function AssistantWorkspace({
                   {t("drafts", { count: draftCount })}
                 </Button>
               </div>
-              <ChatThread key={selectedId} conversationId={selectedId} />
+              <ChatThread
+                key={selectedId}
+                conversationId={selectedId}
+                projectName={projectName}
+              />
             </>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">
@@ -182,6 +310,13 @@ export function AssistantWorkspace({
               disabled={busy || capped}
               onSend={send}
               focusKey={selectedId ?? "new"}
+              source={
+                <SourceChip
+                  projectId={projectId}
+                  value={environmentId}
+                  onChange={setSource}
+                />
+              }
             />
           </div>
         </div>

@@ -133,8 +133,6 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.mockTime";
     case "mail":
       return "breadcrumbs.mail";
-    case "assistant":
-      return "breadcrumbs.assistant";
     case "history":
       return "breadcrumbs.history";
     case "settings":
@@ -176,6 +174,8 @@ export function getTrailingSegments(
         return [{ kind: "static", labelKey: "breadcrumbs.settings" }];
       case "releases":
         return [{ kind: "static", labelKey: "breadcrumbs.releases" }];
+      case "assistant":
+        return [{ kind: "static", labelKey: "breadcrumbs.assistant" }];
       case "new-environment":
         return [{ kind: "static", labelKey: "breadcrumbs.newEnvironment" }];
       default:

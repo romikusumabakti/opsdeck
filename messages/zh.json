@@ -3659,7 +3659,7 @@
   },
   "assistant": {
     "title": "助手",
-    "subtitle": "询问在 {name} 中运行的代码和问题。",
+    "subtitle": "询问 {name} 的代码和问题。",
     "remaining": "今日剩余：${amount}",
     "remainingUnderCent": "今日剩余：< $0.01",
     "remainingHint": "你今天的助手使用额度。",
@@ -3669,7 +3669,7 @@
     "noConversations": "还没有对话。",
     "untitled": "无标题",
     "emptyThreadTitle": "开始提问",
-    "emptyThreadDescription": "询问此环境中的流程、业务规则或代码位置。回答基于此处正在运行的代码。",
+    "emptyThreadDescription": "询问此项目中的流程、业务规则或代码位置。在下方选择来源：项目分支，或某个环境中正在运行的代码。",
     "placeholder": "输入问题…",
     "send": "发送",
     "sendHint": "按 Enter 发送，Shift+Enter 换行",
@@ -3726,6 +3726,12 @@
     "confirmCreate": "创建问题",
     "jiraCreated": "已创建问题 {jiraKey}。",
     "jiraCreatedAs": "已创建为 {jiraKey}。",
-    "openPanelIssue": "在面板中打开问题"
+    "openPanelIssue": "在面板中打开问题",
+    "sourceProjectBranches": "项目分支",
+    "sourceLabel": "来源",
+    "environmentDeleted": "（已删除）",
+    "newDraft": "新建草稿",
+    "newDraftBrd": "BRD",
+    "newDraftIssue": "问题"
   }
 }

@@ -28,7 +28,13 @@ export function pendingAnswer(
  * answer follows its SSE stream; once it ends the conversation (sources,
  * final status) and the allowance are refetched.
  */
-export function ChatThread({ conversationId }: { conversationId: string }) {
+export function ChatThread({
+  conversationId,
+  projectName,
+}: {
+  conversationId: string;
+  projectName?: string;
+}) {
   const t = useTranslations("assistant");
   const queryClient = useQueryClient();
   const conversation = useQuery(getConversationQuery(conversationId)).data;
@@ -90,7 +96,11 @@ export function ChatThread({ conversationId }: { conversationId: string }) {
       ) : (
         <div ref={observeList} className="flex flex-col gap-6">
           {messages.map((message) => (
-            <MessageView key={message.id} message={message} />
+            <MessageView
+              key={message.id}
+              message={message}
+              projectName={projectName}
+            />
           ))}
         </div>
       )}

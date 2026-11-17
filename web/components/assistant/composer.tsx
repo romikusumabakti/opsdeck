@@ -24,6 +24,7 @@ export function Composer({
   disabled,
   onSend,
   focusKey,
+  source,
 }: {
   projectId: string;
   /** An answer is still running, or the assistant cannot take questions. */
@@ -31,6 +32,8 @@ export function Composer({
   onSend: (text: string, attachments: AttachmentRef[]) => Promise<void>;
   /** The box takes focus on mount and whenever this changes. */
   focusKey: string | null;
+  /** The question's source picker, beside the attachments button. */
+  source?: React.ReactNode;
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
@@ -138,15 +141,18 @@ export function Composer({
         className="max-h-60 resize-none"
       />
       <div className="flex items-center justify-between gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setPickerOpen(true)}
-          disabled={attachments.length >= MAX_ATTACHMENTS}
-        >
-          <Paperclip data-icon="inline-start" />
-          {t("attachments")}
-        </Button>
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPickerOpen(true)}
+            disabled={attachments.length >= MAX_ATTACHMENTS}
+          >
+            <Paperclip data-icon="inline-start" />
+            {t("attachments")}
+          </Button>
+          {source}
+        </div>
         <div className="flex items-center gap-3">
           <span className="hidden text-xs text-muted-foreground sm:inline">
             {t("sendHint")}

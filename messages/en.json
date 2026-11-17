@@ -3659,7 +3659,7 @@
   },
   "assistant": {
     "title": "Assistant",
-    "subtitle": "Ask about the code and issues running in {name}.",
+    "subtitle": "Ask about the code and issues of {name}.",
     "remaining": "Left today: ${amount}",
     "remainingUnderCent": "Left today: < $0.01",
     "remainingHint": "Your assistant allowance for today.",
@@ -3669,7 +3669,7 @@
     "noConversations": "No conversations yet.",
     "untitled": "Untitled",
     "emptyThreadTitle": "Start asking",
-    "emptyThreadDescription": "Ask about flows, business rules, or where code lives in this environment. Answers use the code running here.",
+    "emptyThreadDescription": "Ask about flows, business rules, or where code lives in this project. Pick a source below: the project branches, or the code running in an environment.",
     "placeholder": "Write a question…",
     "send": "Send",
     "sendHint": "Enter to send, Shift+Enter for a new line",
@@ -3726,6 +3726,12 @@
     "confirmCreate": "Create issue",
     "jiraCreated": "Issue {jiraKey} created.",
     "jiraCreatedAs": "Created as {jiraKey}.",
-    "openPanelIssue": "Open the issue in the Panel"
+    "openPanelIssue": "Open the issue in the Panel",
+    "sourceProjectBranches": "Project branches",
+    "sourceLabel": "Source",
+    "environmentDeleted": "(deleted)",
+    "newDraft": "New draft",
+    "newDraftBrd": "BRD",
+    "newDraftIssue": "Issue"
   }
 }

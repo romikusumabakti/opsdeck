@@ -31,6 +31,7 @@ export const RESERVED_PROJECT_KEYS = new Set([
 // so an environment slugged "issues" would be shadowed by the issues list.
 // Keep in sync with app/[locale]/[projectKey]/*.
 export const RESERVED_ENV_SLUGS = new Set([
+  "assistant",
   "environments",
   "issues",
   "members",

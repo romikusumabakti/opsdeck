@@ -95,6 +95,7 @@ async function renderSidebar(
     environments?: unknown[];
     projects?: unknown[];
     projectRoles?: Record<string, string>;
+    assistantEnabled?: boolean;
   } = {}
 ) {
   nav.pathname = pathname;
@@ -120,6 +121,7 @@ async function renderSidebar(
             } as never
           }
           logo={"menara" as never}
+          assistantEnabled={scope.assistantEnabled}
         />
       </IntlProvider>
     );
@@ -318,5 +320,38 @@ describe("project group", () => {
   it("marks Environments active on the project page", async () => {
     await renderSidebar("engineer", "/HMEM", scope(true));
     expect(linkByHref("/HMEM")?.getAttribute("data-active")).toBe("true");
+  });
+
+  it("lists Assistant in the project group only, after Issues", async () => {
+    await renderSidebar("engineer", "/HMEM/dev/deploys", {
+      ...scope(true),
+      assistantEnabled: true,
+    });
+    expect(groupRows("Heron Membership")).toEqual([
+      "Environments",
+      "Issues",
+      "Assistant",
+      "Releases",
+      "Settings",
+    ]);
+    expect(groupRows("Dev")).not.toContain("Assistant");
+    expect(hrefs()).toContain("/HMEM/assistant");
+    expect(hrefs()).not.toContain("/HMEM/dev/assistant");
+  });
+
+  it("has no Assistant entry while the assistant is off", async () => {
+    await renderSidebar("engineer", "/HMEM/issues", scope(true));
+    expect(groupRows("Heron Membership")).not.toContain("Assistant");
+  });
+
+  it("marks Assistant active on the project assistant page", async () => {
+    await renderSidebar("engineer", "/HMEM/assistant", {
+      ...scope(true),
+      assistantEnabled: true,
+    });
+    expect(linkByHref("/HMEM/assistant")?.getAttribute("data-active")).toBe(
+      "true"
+    );
+    expect(linkByHref("/HMEM")?.getAttribute("data-active")).toBeNull();
   });
 });

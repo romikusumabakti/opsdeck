@@ -3659,7 +3659,7 @@
   },
   "assistant": {
     "title": "Asistente",
-    "subtitle": "Pregunta sobre el código y las incidencias que se ejecutan en {name}.",
+    "subtitle": "Pregunta sobre el código y las incidencias de {name}.",
     "remaining": "Restante hoy: ${amount}",
     "remainingUnderCent": "Restante hoy: < $0.01",
     "remainingHint": "Tu asignación del asistente para hoy.",
@@ -3669,7 +3669,7 @@
     "noConversations": "Aún no hay conversaciones.",
     "untitled": "Sin título",
     "emptyThreadTitle": "Empieza a preguntar",
-    "emptyThreadDescription": "Pregunta por flujos, reglas de negocio o dónde está el código en este entorno. Las respuestas usan el código que se ejecuta aquí.",
+    "emptyThreadDescription": "Pregunta por flujos, reglas de negocio o dónde está el código en este proyecto. Elige la fuente abajo: las ramas del proyecto o el código que se ejecuta en un entorno.",
     "placeholder": "Escribe una pregunta…",
     "send": "Enviar",
     "sendHint": "Enter para enviar, Mayús+Enter para nueva línea",
@@ -3726,6 +3726,12 @@
     "confirmCreate": "Crear incidencia",
     "jiraCreated": "Incidencia {jiraKey} creada.",
     "jiraCreatedAs": "Creado como {jiraKey}.",
-    "openPanelIssue": "Abrir la incidencia en el Panel"
+    "openPanelIssue": "Abrir la incidencia en el Panel",
+    "sourceProjectBranches": "Ramas del proyecto",
+    "sourceLabel": "Fuente",
+    "environmentDeleted": "(eliminado)",
+    "newDraft": "Nuevo borrador",
+    "newDraftBrd": "BRD",
+    "newDraftIssue": "Incidencia"
   }
 }

@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Paperclip } from "lucide-react";
+import { Loader2, Paperclip, Server } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslations } from "use-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { stripProjectPrefix } from "@/lib/nav-path";
 import {
   type ConversationMessage,
   getAllowanceQuery,
@@ -44,8 +45,19 @@ function AnswerMarkdown({ content }: { content: string }) {
   );
 }
 
-/** One message of the thread: the user's question or the assistant's answer. */
-export function MessageView({ message }: { message: ConversationMessage }) {
+/**
+ * One message of the thread: the user's question or the assistant's answer.
+ * A question asked about an environment (not the project branches) names it,
+ * marked "(deleted)" once that environment is gone.
+ */
+export function MessageView({
+  message,
+  projectName = "",
+}: {
+  message: ConversationMessage;
+  /** Dropped from the front of environment names. */
+  projectName?: string;
+}) {
   const t = useTranslations("assistant");
   const { codeText } = useAssistantErrorText();
   // A failed message stores only its code: a turn stopped at the daily cap is
@@ -61,11 +73,25 @@ export function MessageView({ message }: { message: ConversationMessage }) {
         <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap break-words">
           {message.content}
         </div>
-        {message.attachmentIds.length > 0 && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Paperclip className="size-3" />
-            {t("attachedCount", { count: message.attachmentIds.length })}
-          </span>
+        {(message.environmentName || message.attachmentIds.length > 0) && (
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {message.environmentName && (
+              <span
+                className="flex items-center gap-1"
+                title={t("sourceLabel")}
+              >
+                <Server className="size-3" />
+                {stripProjectPrefix(message.environmentName, projectName)}
+                {message.environmentDeleted && ` ${t("environmentDeleted")}`}
+              </span>
+            )}
+            {message.attachmentIds.length > 0 && (
+              <span className="flex items-center gap-1">
+                <Paperclip className="size-3" />
+                {t("attachedCount", { count: message.attachmentIds.length })}
+              </span>
+            )}
+          </div>
         )}
       </div>
     );

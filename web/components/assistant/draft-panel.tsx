@@ -1,10 +1,15 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useMutationState,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { FileText, Loader2, Ticket, X } from "lucide-react";
-import * as React from "react";
 import { useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import {
+  type Conversation,
   generateDraft,
   getAllowanceQuery,
   getConversationQuery,
@@ -13,7 +18,54 @@ import { BrdDraftForm } from "./brd-draft-form";
 import { useAssistantErrorText } from "./error-text";
 import { JiraDraftForm } from "./jira-draft-form";
 
-type DraftKind = "brd" | "jira";
+export type DraftKind = "brd" | "jira";
+
+/** A draft is written from answers: the conversation needs a finished one. */
+export function canDraftFrom(conversation: Conversation | undefined): boolean {
+  return (
+    conversation?.messages.some(
+      (m) => m.role === "assistant" && m.status === "done"
+    ) ?? false
+  );
+}
+
+/**
+ * Has the model write a draft of the conversation. One mutation key per
+ * conversation, so the panel shows a generation started from elsewhere (the
+ * thread header's "New draft" menu) as its own: which kind is being written,
+ * and the last attempt's error.
+ */
+export function useDraftGeneration(conversationId: string) {
+  const queryClient = useQueryClient();
+  const mutationKey = ["assistant", "generateDraft", conversationId];
+  const { mutate } = useMutation({
+    mutationKey,
+    mutationFn: (kind: DraftKind) => generateDraft({ conversationId, kind }),
+    // Also after a failure: a request cut off by a proxy timeout may still
+    // have stored the draft server-side. The spend changed either way.
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: getConversationQuery(conversationId).queryKey,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: getAllowanceQuery().queryKey,
+      });
+    },
+  });
+  const latest = useMutationState({
+    filters: { mutationKey, exact: true },
+    select: (m) => ({
+      status: m.state.status,
+      kind: m.state.variables as DraftKind | undefined,
+      error: m.state.error,
+    }),
+  }).at(-1);
+  return {
+    generate: (kind: DraftKind) => mutate(kind),
+    generating: latest?.status === "pending" ? (latest.kind ?? null) : null,
+    error: latest?.status === "error" ? latest.error : null,
+  };
+}
 
 /**
  * Drafts written by the model from the conversation: a BRD section set or an
@@ -35,36 +87,12 @@ export function DraftPanel({
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
-  const queryClient = useQueryClient();
   const conversation = useQuery(getConversationQuery(conversationId)).data;
-  const [generating, setGenerating] = React.useState<DraftKind | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const generate = async (kind: DraftKind) => {
-    setGenerating(kind);
-    setError(null);
-    try {
-      await generateDraft({ conversationId, kind });
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setGenerating(null);
-      // Also after a failure: a request cut off by a proxy timeout may still
-      // have stored the draft server-side. The spend changed either way.
-      void queryClient.invalidateQueries({
-        queryKey: getConversationQuery(conversationId).queryKey,
-      });
-      void queryClient.invalidateQueries({
-        queryKey: getAllowanceQuery().queryKey,
-      });
-    }
-  };
+  const { generate, generating, error } = useDraftGeneration(conversationId);
 
   const drafts = [...(conversation?.drafts ?? [])].reverse();
   const title = t("draftsTitle");
-  const hasAnswer = conversation?.messages.some(
-    (m) => m.role === "assistant" && m.status === "done"
-  );
+  const hasAnswer = canDraftFrom(conversation);
 
   return (
     <section aria-label={title} className="flex flex-col gap-3">
@@ -107,7 +135,7 @@ export function DraftPanel({
       {generating && (
         <p className="text-sm text-muted-foreground">{t("generating")}</p>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{errorText(error)}</p>}
       {drafts.map((draft) => (
         <article
           key={draft.id}

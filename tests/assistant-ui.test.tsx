@@ -107,6 +107,11 @@ import {
   MessageSources,
   summarizeReads,
 } from "@/web/components/assistant/message-sources";
+import { MessageView } from "@/web/components/assistant/message-view";
+
+const ENV_ID = "3f0c2a52-2a7e-4d1b-9a43-6f1f6f0f0e01";
+const ENV_2 = "3f0c2a52-2a7e-4d1b-9a43-6f1f6f0f0e02";
+const CONV_ID = "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -205,7 +210,7 @@ const t = messages.assistant;
 
 // --- tests -------------------------------------------------------------------
 
-describe("Assistant tab in the environment sidebar", () => {
+describe("Assistant entry in the project sidebar", () => {
   const scope = {
     environments: [
       {
@@ -222,8 +227,8 @@ describe("Assistant tab in the environment sidebar", () => {
     ],
     projects: [{ id: "p1", key: "HMEM", name: "Heron Membership" }],
   };
-  const renderSidebar = (assistantEnabled: boolean) => {
-    nav.pathname = "/HMEM/dev/deploys";
+  const renderSidebar = (assistantEnabled: boolean, pathname: string) => {
+    nav.pathname = pathname;
     return render(
       <AppSidebar
         environments={scope.environments as never}
@@ -244,13 +249,15 @@ describe("Assistant tab in the environment sidebar", () => {
     [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
 
   it("is hidden while the assistant is disabled", async () => {
-    await renderSidebar(false);
+    await renderSidebar(false, "/HMEM/dev/deploys");
+    expect(hrefs()).not.toContain("/HMEM/assistant");
     expect(hrefs()).not.toContain("/HMEM/dev/assistant");
   });
 
-  it("is shown (to a QA too) once it is enabled", async () => {
-    await renderSidebar(true);
-    expect(hrefs()).toContain("/HMEM/dev/assistant");
+  it("is shown (to a QA too) once enabled, at project level only", async () => {
+    await renderSidebar(true, "/HMEM/dev/deploys");
+    expect(hrefs()).toContain("/HMEM/assistant");
+    expect(hrefs()).not.toContain("/HMEM/dev/assistant");
   });
 });
 
@@ -915,6 +922,10 @@ describe("draft panel", () => {
       />
     );
     await act(async () => button(t.draftBrd)?.click());
+    // React Query notifies observers on a zero-delay timer.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(api.generateDraft).toHaveBeenCalledWith({
       conversationId: "c1",
       kind: "brd",
@@ -964,8 +975,7 @@ describe("drafts panel in the workspace", () => {
     await render(
       <AssistantWorkspace
         projectId="p1"
-        environmentId="e1"
-        environmentName="Dev"
+        projectName="Heron Membership"
         projectKey="ACME"
         canCreateIssue
       />
@@ -1047,6 +1057,288 @@ describe("drafts panel in the workspace", () => {
     await act(async () => pick("Pajak")?.click());
     expect(toggle(2)).toBeDefined();
     expect(panel()).toBeNull();
+  });
+});
+
+describe("source chip", () => {
+  const project = {
+    id: "p1",
+    name: "Heron Membership",
+    environments: [
+      { id: ENV_2, name: "Heron Membership UAT", kind: "qa" },
+      { id: ENV_ID, name: "Heron Membership Dev 1", kind: "dev" },
+    ],
+  };
+  const userMessage = (
+    id: string,
+    environmentId: string | null,
+    environmentName: string | null,
+    environmentDeleted = false
+  ) => ({
+    id,
+    role: "user",
+    content: "Q",
+    status: "done",
+    errorCode: null,
+    sources: null,
+    attachmentIds: [],
+    createdAt: "2026-11-16T01:00:00Z",
+    toolCalls: [],
+    environmentId,
+    environmentName,
+    environmentDeleted,
+  });
+  const answer = {
+    ...userMessage("a1", null, null),
+    role: "assistant",
+    content: "Jawaban",
+  };
+  const chip = () =>
+    container.querySelector<HTMLElement>('[data-slot="combobox-trigger"]');
+  const settle = async () => {
+    for (let i = 0; i < 4; i++) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+    }
+  };
+
+  const renderWorkspace = async (
+    props: {
+      initialEnvironmentId?: string | null;
+      conversationId?: string | null;
+      onConversationChange?: (id: string | null) => void;
+    } = {},
+    messagesOfC1: unknown[] = []
+  ) => {
+    queryClient.setQueryData(["assistant", "getAllowance"], {
+      enabled: true,
+      capUsd: 1.5,
+      spentUsd: 0,
+      remainingUsd: 1.5,
+      resetsAt: "2026-11-16T17:00:00.000Z",
+    });
+    queryClient.setQueryData(
+      ["project-catalog", "getProjectWithEnvironments", ["p1"]],
+      project
+    );
+    queryClient.setQueryData(
+      ["assistant", "listConversations", ["p1"]],
+      [{ id: CONV_ID, title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }]
+    );
+    queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
+      id: CONV_ID,
+      title: "Iuran",
+      drafts: [],
+      jiraPushEnabled: false,
+      messages: messagesOfC1,
+    });
+    await render(
+      <AssistantWorkspace
+        projectId="p1"
+        projectName="Heron Membership"
+        projectKey="HMEM"
+        canCreateIssue
+        {...props}
+      />
+    );
+  };
+
+  const typeAndSend = async (question: string) => {
+    const box = container.querySelector("textarea");
+    if (!box) throw new Error("no textarea");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set?.call(box, question);
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => button(t.send)?.click());
+  };
+
+  it("defaults to Project branches and sends environmentId null", async () => {
+    api.createConversation.mockResolvedValue({ id: CONV_ID });
+    api.sendMessage.mockResolvedValue({});
+    await renderWorkspace();
+    expect(chip()?.textContent).toBe(t.sourceProjectBranches);
+    await typeAndSend("Di mana hitung iuran?");
+    expect(api.createConversation).toHaveBeenCalledWith({ projectId: "p1" });
+    expect(api.sendMessage).toHaveBeenCalledWith({
+      conversationId: CONV_ID,
+      text: "Di mana hitung iuran?",
+      environmentId: null,
+    });
+  });
+
+  it("starts on the ?env environment (the old URL's redirect)", async () => {
+    await renderWorkspace({ initialEnvironmentId: ENV_ID });
+    expect(chip()?.textContent).toBe("Dev 1");
+  });
+
+  it("moves to a new ?env while open, and keeps the pick when ?env is dropped", async () => {
+    await renderWorkspace();
+    const workspace = (env: string | null) => (
+      <QueryClientProvider client={queryClient}>
+        <IntlProvider
+          locale="en"
+          messages={messages}
+          timeZone="Asia/Jakarta"
+          now={new Date("2026-11-16T05:00:00Z")}
+        >
+          <AssistantWorkspace
+            projectId="p1"
+            projectName="Heron Membership"
+            projectKey="HMEM"
+            canCreateIssue
+            initialEnvironmentId={env}
+          />
+        </IntlProvider>
+      </QueryClientProvider>
+    );
+    await act(async () => root.render(workspace(ENV_2)));
+    expect(chip()?.textContent).toBe("UAT");
+    await act(async () => root.render(workspace(null)));
+    expect(chip()?.textContent).toBe("UAT");
+  });
+
+  it("lists Project branches first, then the environments in kind order", async () => {
+    await renderWorkspace();
+    await act(async () => chip()?.click());
+    await settle();
+    const items = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
+    ].map((el) => el.textContent);
+    expect(items).toEqual([t.sourceProjectBranches, "Dev 1", "UAT"]);
+  });
+
+  it("sends the environment picked in the chip", async () => {
+    api.sendMessage.mockResolvedValue({});
+    await renderWorkspace({ conversationId: CONV_ID }, [answer]);
+    await act(async () => chip()?.click());
+    await settle();
+    const uat = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
+    ].find((el) => el.textContent === "UAT");
+    await act(async () => uat?.click());
+    await settle();
+    expect(chip()?.textContent).toBe("UAT");
+    await typeAndSend("Bedanya di UAT?");
+    expect(api.createConversation).not.toHaveBeenCalled();
+    expect(api.sendMessage).toHaveBeenCalledWith({
+      conversationId: CONV_ID,
+      text: "Bedanya di UAT?",
+      environmentId: ENV_2,
+    });
+  });
+
+  it("an opened conversation starts at the source of its last question", async () => {
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", ENV_ID, "Heron Membership Dev 1"),
+      answer,
+      userMessage("u2", ENV_2, "Heron Membership UAT"),
+      { ...answer, id: "a2" },
+    ]);
+    expect(chip()?.textContent).toBe("UAT");
+  });
+
+  it("falls back to Project branches when that environment was deleted", async () => {
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", null, "Heron Membership Old", true),
+      answer,
+    ]);
+    expect(chip()?.textContent).toBe(t.sourceProjectBranches);
+  });
+
+  it("reports the selected conversation for the URL", async () => {
+    const onConversationChange = vi.fn();
+    await renderWorkspace({ onConversationChange });
+    const item = [...document.querySelectorAll("nav button")].find((b) =>
+      b.textContent?.includes("Iuran")
+    ) as HTMLButtonElement | undefined;
+    await act(async () => item?.click());
+    expect(onConversationChange).toHaveBeenLastCalledWith(CONV_ID);
+  });
+
+  it("New draft › Issue opens the panel and generates an issue draft", async () => {
+    api.generateDraft.mockResolvedValue({});
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", null, null),
+      answer,
+    ]);
+    expect(document.querySelector('section[aria-label="Drafts"]')).toBeNull();
+    await act(async () => button(t.newDraft)?.click());
+    await settle();
+    const issue = [
+      ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ].find((el) => el.textContent?.includes(t.newDraftIssue));
+    await act(async () => issue?.click());
+    await settle();
+    expect(
+      document.querySelector('section[aria-label="Drafts"]')
+    ).not.toBeNull();
+    expect(api.generateDraft).toHaveBeenCalledWith({
+      conversationId: CONV_ID,
+      kind: "jira",
+    });
+  });
+});
+
+describe("question bubble source", () => {
+  const question = {
+    id: "u1",
+    role: "user" as const,
+    content: "Q",
+    status: "done" as const,
+    errorCode: null,
+    sources: null,
+    attachmentIds: [],
+    createdAt: "2026-11-16T01:00:00Z",
+    toolCalls: [],
+    environmentId: null as string | null,
+    environmentName: null as string | null,
+    environmentDeleted: false,
+  };
+
+  it("shows no label for Project branches", async () => {
+    await render(
+      <MessageView message={question as never} projectName="Heron Membership" />
+    );
+    expect(text()).toBe("Q");
+  });
+
+  it("shows the environment it asked about", async () => {
+    await render(
+      <MessageView
+        message={
+          {
+            ...question,
+            environmentId: ENV_ID,
+            environmentName: "Heron Membership Dev 1",
+          } as never
+        }
+        projectName="Heron Membership"
+      />
+    );
+    expect(text()).toContain("Dev 1");
+    expect(text()).not.toContain(t.environmentDeleted);
+  });
+
+  it("marks a deleted environment (deleted)", async () => {
+    await render(
+      <MessageView
+        message={
+          {
+            ...question,
+            environmentName: "Heron Membership Dev 1",
+            environmentDeleted: true,
+          } as never
+        }
+        projectName="Heron Membership"
+      />
+    );
+    expect(text()).toContain(`Dev 1 ${t.environmentDeleted}`);
+    expect(t.environmentDeleted).toBe("(deleted)");
   });
 });
 
@@ -1154,7 +1446,7 @@ describe("assistant messages", () => {
     };
     const files = [
       ...readdirSync(dir).map((f) => `${dir}/${f}`),
-      "web/routes/$locale/_app/$projectKey.$envSlug.assistant.tsx",
+      "web/routes/$locale/_app/$projectKey.assistant.tsx",
     ];
     const missing: string[] = [];
     let used = 0;

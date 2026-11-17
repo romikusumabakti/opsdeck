@@ -24,6 +24,7 @@ import { Route as LocaleAppKnowledgeRouteRouteImport } from './routes/$locale/_a
 import { Route as LocaleAcceptInviteTokenRouteImport } from './routes/$locale/accept-invite.$token'
 import { Route as LocaleAppProjectKeyIndexRouteImport } from './routes/$locale/_app/$projectKey.index'
 import { Route as LocaleAppProjectKeyEnvSlugRouteRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.route'
+import { Route as LocaleAppProjectKeyAssistantRouteImport } from './routes/$locale/_app/$projectKey.assistant'
 import { Route as LocaleAppProjectKeyMembersRouteImport } from './routes/$locale/_app/$projectKey.members'
 import { Route as LocaleAppProjectKeyMilestonesRouteImport } from './routes/$locale/_app/$projectKey.milestones'
 import { Route as LocaleAppProjectKeyReleasesRouteImport } from './routes/$locale/_app/$projectKey.releases'
@@ -175,6 +176,12 @@ const LocaleAppProjectKeyEnvSlugRouteRoute =
   LocaleAppProjectKeyEnvSlugRouteRouteImport.update({
     id: '/$projectKey/$envSlug',
     path: '/$projectKey/$envSlug',
+    getParentRoute: () => LocaleAppRouteRoute,
+  } as any)
+const LocaleAppProjectKeyAssistantRoute =
+  LocaleAppProjectKeyAssistantRouteImport.update({
+    id: '/$projectKey/assistant',
+    path: '/$projectKey/assistant',
     getParentRoute: () => LocaleAppRouteRoute,
   } as any)
 const LocaleAppProjectKeyMembersRoute =
@@ -621,6 +628,7 @@ export interface FileRoutesByFullPath {
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/': typeof LocaleAppIndexRoute
   '/$locale/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  '/$locale/$projectKey/assistant': typeof LocaleAppProjectKeyAssistantRoute
   '/$locale/$projectKey/members': typeof LocaleAppProjectKeyMembersRoute
   '/$locale/$projectKey/milestones': typeof LocaleAppProjectKeyMilestonesRoute
   '/$locale/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
@@ -709,6 +717,7 @@ export interface FileRoutesByTo {
   '/$locale/$': typeof LocaleAppSplatRoute
   '/$locale/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
+  '/$locale/$projectKey/assistant': typeof LocaleAppProjectKeyAssistantRoute
   '/$locale/$projectKey/members': typeof LocaleAppProjectKeyMembersRoute
   '/$locale/$projectKey/milestones': typeof LocaleAppProjectKeyMilestonesRoute
   '/$locale/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
@@ -803,6 +812,7 @@ export interface FileRoutesById {
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/_app/': typeof LocaleAppIndexRoute
   '/$locale/_app/$projectKey/$envSlug': typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  '/$locale/_app/$projectKey/assistant': typeof LocaleAppProjectKeyAssistantRoute
   '/$locale/_app/$projectKey/members': typeof LocaleAppProjectKeyMembersRoute
   '/$locale/_app/$projectKey/milestones': typeof LocaleAppProjectKeyMilestonesRoute
   '/$locale/_app/$projectKey/releases': typeof LocaleAppProjectKeyReleasesRoute
@@ -897,6 +907,7 @@ export interface FileRouteTypes {
     | '/$locale/accept-invite/$token'
     | '/$locale/'
     | '/$locale/$projectKey/$envSlug'
+    | '/$locale/$projectKey/assistant'
     | '/$locale/$projectKey/members'
     | '/$locale/$projectKey/milestones'
     | '/$locale/$projectKey/releases'
@@ -985,6 +996,7 @@ export interface FileRouteTypes {
     | '/$locale/$'
     | '/$locale/issues'
     | '/$locale/accept-invite/$token'
+    | '/$locale/$projectKey/assistant'
     | '/$locale/$projectKey/members'
     | '/$locale/$projectKey/milestones'
     | '/$locale/$projectKey/releases'
@@ -1078,6 +1090,7 @@ export interface FileRouteTypes {
     | '/$locale/accept-invite/$token'
     | '/$locale/_app/'
     | '/$locale/_app/$projectKey/$envSlug'
+    | '/$locale/_app/$projectKey/assistant'
     | '/$locale/_app/$projectKey/members'
     | '/$locale/_app/$projectKey/milestones'
     | '/$locale/_app/$projectKey/releases'
@@ -1267,6 +1280,13 @@ declare module '@tanstack/react-router' {
       path: '/$projectKey/$envSlug'
       fullPath: '/$locale/$projectKey/$envSlug'
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/$projectKey/assistant': {
+      id: '/$locale/_app/$projectKey/assistant'
+      path: '/$projectKey/assistant'
+      fullPath: '/$locale/$projectKey/assistant'
+      preLoaderRoute: typeof LocaleAppProjectKeyAssistantRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
     '/$locale/_app/$projectKey/members': {
@@ -1956,6 +1976,7 @@ interface LocaleAppRouteRouteChildren {
   LocaleAppIssuesRoute: typeof LocaleAppIssuesRoute
   LocaleAppIndexRoute: typeof LocaleAppIndexRoute
   LocaleAppProjectKeyEnvSlugRouteRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
+  LocaleAppProjectKeyAssistantRoute: typeof LocaleAppProjectKeyAssistantRoute
   LocaleAppProjectKeyMembersRoute: typeof LocaleAppProjectKeyMembersRoute
   LocaleAppProjectKeyMilestonesRoute: typeof LocaleAppProjectKeyMilestonesRoute
   LocaleAppProjectKeyReleasesRoute: typeof LocaleAppProjectKeyReleasesRoute
@@ -1996,6 +2017,7 @@ const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
   LocaleAppIndexRoute: LocaleAppIndexRoute,
   LocaleAppProjectKeyEnvSlugRouteRoute:
     LocaleAppProjectKeyEnvSlugRouteRouteWithChildren,
+  LocaleAppProjectKeyAssistantRoute: LocaleAppProjectKeyAssistantRoute,
   LocaleAppProjectKeyMembersRoute: LocaleAppProjectKeyMembersRoute,
   LocaleAppProjectKeyMilestonesRoute: LocaleAppProjectKeyMilestonesRoute,
   LocaleAppProjectKeyReleasesRoute: LocaleAppProjectKeyReleasesRoute,

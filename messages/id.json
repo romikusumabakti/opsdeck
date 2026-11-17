@@ -3659,7 +3659,7 @@
   },
   "assistant": {
     "title": "Asisten",
-    "subtitle": "Tanyakan tentang kode dan issue yang berjalan di {name}.",
+    "subtitle": "Tanyakan tentang kode dan issue di {name}.",
     "remaining": "Sisa hari ini: ${amount}",
     "remainingUnderCent": "Sisa hari ini: < $0.01",
     "remainingHint": "Jatah pemakaian asisten Anda untuk hari ini.",
@@ -3669,7 +3669,7 @@
     "noConversations": "Belum ada percakapan.",
     "untitled": "Tanpa judul",
     "emptyThreadTitle": "Mulai bertanya",
-    "emptyThreadDescription": "Tanyakan alur, aturan bisnis, atau letak kode di environment ini. Jawaban memakai kode yang sedang berjalan di sini.",
+    "emptyThreadDescription": "Tanyakan alur, aturan bisnis, atau letak kode di project ini. Pilih sumbernya di bawah: branch project, atau kode yang berjalan di sebuah environment.",
     "placeholder": "Tulis pertanyaan…",
     "send": "Kirim",
     "sendHint": "Enter untuk mengirim, Shift+Enter untuk baris baru",
@@ -3726,6 +3726,12 @@
     "confirmCreate": "Buat issue",
     "jiraCreated": "Issue {jiraKey} dibuat.",
     "jiraCreatedAs": "Dibuat sebagai {jiraKey}.",
-    "openPanelIssue": "Buka issue di Panel"
+    "openPanelIssue": "Buka issue di Panel",
+    "sourceProjectBranches": "Branch project",
+    "sourceLabel": "Sumber",
+    "environmentDeleted": "(dihapus)",
+    "newDraft": "Draf baru",
+    "newDraftBrd": "BRD",
+    "newDraftIssue": "Issue"
   }
 }
