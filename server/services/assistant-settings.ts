@@ -172,6 +172,17 @@ export async function saveAssistantSettings(
     // key to another, or the new key to the old endpoint.
     patch.assistantBaseUrl = null;
     if (before.assistantProvider !== null) patch.assistantApiKey = null;
+    // Without a provider, a stored model is the old default, not a choice:
+    // never send it to the first provider unasked.
+    if (before.assistantProvider === null && model === undefined) {
+      patch.assistantModel = null;
+      if (prices === undefined) {
+        patch.assistantPriceInput = null;
+        patch.assistantPriceOutput = null;
+        patch.assistantPriceCacheRead = null;
+        patch.assistantPriceCacheWrite = null;
+      }
+    }
   }
   if (baseUrl !== undefined) {
     // Same rule within a provider: the stored key never goes to a new host.

@@ -324,6 +324,21 @@ describe("/admin/assistant", () => {
     expect(container.textContent).not.toContain(t.apiKeyRequired);
   });
 
+  it("sends a key typed after removing the old one and switching provider", async () => {
+    await render({ provider: "openai", hasApiKey: true });
+    await act(async () => button(t.removeKey)?.click());
+    await pickProvider(t.providerGoogle);
+    expect(button(t.keepKey)).toBeUndefined();
+    await type(byId("assistant-api-key"), "g-typed-key");
+    await type(byId("assistant-model"), "gemini-4-carbon");
+    await submit();
+    expect(api.save).toHaveBeenCalledTimes(1);
+    expect(api.save.mock.calls[0]?.[0]).toMatchObject({
+      provider: "google",
+      apiKey: "g-typed-key",
+    });
+  });
+
   it("shows no leftover model before a provider is chosen", async () => {
     await render({
       provider: null,

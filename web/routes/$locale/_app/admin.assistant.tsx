@@ -259,6 +259,8 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
   function onProviderChange(next: Provider) {
     if (next === provider) return;
     setProvider(next);
+    // The key is dropped anyway: a pending removal has nothing left to remove.
+    setClearKey(false);
     // A base URL belongs to its provider (the server clears it as well).
     setBaseUrl("");
     const known = suggestedModels(next).find((m) => m.id === model.trim());
@@ -291,7 +293,9 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
         ...(parsedPrices && { prices: parsedPrices }),
         dailyCapUsd: cap,
         orgContext,
-        ...(clearKey ? { apiKey: null } : apiKey.trim() && { apiKey }),
+        ...(apiKey.trim()
+          ? { apiKey }
+          : clearKey && { apiKey: null }),
       });
       if (result.success) {
         toast.success(t("saved"));
@@ -334,7 +338,10 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
         required={compatible}
         placeholder="https://llm.example.com/v1"
         value={baseUrl}
-        onChange={(event) => setBaseUrl(event.target.value)}
+        onChange={(event) => {
+          setBaseUrl(event.target.value);
+          setClearKey(false);
+        }}
       />
       <FieldDescription>{t("baseUrlHint")}</FieldDescription>
     </Field>

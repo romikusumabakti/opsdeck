@@ -412,6 +412,49 @@ describe("settings", () => {
     expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
   });
 
+  it("drops the old default model when the first provider comes without a model", async () => {
+    const stale = {
+      assistantModel: "legacy-default-model",
+      assistantPriceInput: "5.000000",
+      assistantPriceOutput: "25.000000",
+      assistantPriceCacheRead: "0.500000",
+      assistantPriceCacheWrite: "6.250000",
+    };
+    Object.assign(state.row ?? {}, stale);
+    await send("PUT", BASE, { provider: "google" });
+    expect(state.row).toMatchObject({
+      assistantProvider: "google",
+      assistantModel: null,
+      assistantPriceInput: null,
+    });
+
+    // An enabled save cannot carry the stale model to the new provider.
+    Object.assign(state.row ?? {}, stale, { assistantProvider: null });
+    state.lastSet = null;
+    const res = await send("PUT", BASE, {
+      provider: "google",
+      apiKey: KEY,
+      enabled: true,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: "assistant.incomplete_settings",
+    });
+    expect(state.lastSet).toBeNull();
+
+    // A model and prices sent along are kept.
+    Object.assign(state.row ?? {}, stale, { assistantProvider: null });
+    await send("PUT", BASE, {
+      provider: "google",
+      model: "gemini-4-carbon",
+      prices: PRICES,
+    });
+    expect(state.row).toMatchObject({
+      assistantModel: "gemini-4-carbon",
+      assistantPriceInput: "2.000000",
+    });
+  });
+
   it("keeps the key when it is omitted or blank, clears it on null", async () => {
     await send("PUT", BASE, { apiKey: KEY });
     await send("PUT", BASE, { apiKey: "  ", enabled: false });
