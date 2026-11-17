@@ -122,13 +122,18 @@ vi.mock("@/lib/authz", async () => {
   };
 });
 
-vi.mock("@/lib/assistant/client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/assistant/client")>()),
-  loadAssistantRuntime: vi.fn(async () => {
+vi.mock("@/lib/assistant/client", async (importOriginal) => {
+  const load = async () => {
     if (state.runtimeThrows) throw new Error("Unsupported state");
     return state.runtime;
-  }),
-}));
+  };
+  return {
+    ...(await importOriginal<typeof import("@/lib/assistant/client")>()),
+    loadAssistantRuntime: vi.fn(load),
+    // Transitional: drafts still load the Anthropic-only runtime.
+    loadLegacyDraftRuntime: vi.fn(load),
+  };
+});
 
 vi.mock("@/lib/assistant/usage", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/assistant/usage")>();

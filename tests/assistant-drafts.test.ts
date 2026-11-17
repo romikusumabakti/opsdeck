@@ -4,7 +4,7 @@ import type {
   BetaMessage,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AssistantRuntime } from "@/lib/assistant/client";
+import type { LegacyDraftRuntime } from "@/lib/assistant/client";
 import type { DraftTranscript } from "@/lib/assistant/draft-store";
 
 // generateDraft: one structured-output Messages request (no tools) over the
@@ -83,10 +83,11 @@ function fakeRuntime(
         }) as unknown as BetaMessage,
     };
   });
-  const runtime: AssistantRuntime = {
+  const runtime: LegacyDraftRuntime = {
     client: { beta: { messages: { stream } } } as unknown as Anthropic,
     model: "claude-opus-5-5",
     effort: "medium",
+    prices: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
     dailyCapUsd: 1.5,
     orgContext: null,
   };

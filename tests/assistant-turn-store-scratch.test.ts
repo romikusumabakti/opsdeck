@@ -207,31 +207,38 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     // Usage: two rows on the Jakarta day 2026-11-16 (23:30 UTC on the 15th),
     // one on the next day.
     const usage = {
-      input_tokens: 1000,
-      output_tokens: 200,
-      cache_read_input_tokens: 5000,
-      cache_creation_input_tokens: 2000,
+      input: 1000,
+      output: 200,
+      cacheRead: 5000,
+      cacheWrite: 2000,
     };
+    const prices = { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 };
     const day = new Date("2026-11-15T23:30:00Z");
     const cost = await recordUsage({
       messageId: answer.id,
       userId: user.id,
-      model: "claude-opus-5-5",
+      modelId: "claude-opus-5-5",
+      prices,
       usage,
+      estimated: false,
       now: day,
     });
     await recordUsage({
       messageId: null,
       userId: user.id,
-      model: "claude-opus-5-5",
+      modelId: "claude-opus-5-5",
+      prices,
       usage,
+      estimated: false,
       now: day,
     });
     await recordUsage({
       messageId: answer.id,
       userId: user.id,
-      model: "claude-opus-5-5",
+      modelId: "claude-opus-5-5",
+      prices,
       usage,
+      estimated: false,
       now: new Date("2026-11-16T17:30:00Z"),
     });
     expect(cost).toBeCloseTo(0.019, 6);

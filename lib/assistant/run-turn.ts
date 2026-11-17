@@ -1,22 +1,26 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type {
-  BetaContentBlock,
-  BetaContentBlockParam,
-  BetaJSONOutputFormat,
-  BetaMessage,
-  BetaMessageParam,
-  BetaOutputConfig,
-  BetaToolResultBlockParam,
-  BetaToolUnion,
-  BetaToolUseBlock,
-} from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import {
-  ASSISTANT_EFFORTS,
-  type AssistantEffort,
-  type AssistantRuntime,
-  loadAssistantRuntime,
-} from "./client";
+  APICallError,
+  type LanguageModel,
+  LoadAPIKeyError,
+  type ModelMessage,
+  RetryError,
+  type StepResult,
+  StreamProviderError,
+  type SystemModelMessage,
+  stepCountIs,
+  streamText,
+  ToolChoiceViolationError,
+  type ToolSet,
+  UnsupportedFunctionalityError,
+} from "ai";
+import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
+import { type AssistantRuntime, loadAssistantRuntime } from "./client";
+import { estimateUsage, type TokenUsage } from "./pricing";
+import {
+  cacheControlFor,
+  type ProviderOptions,
+  providerOptionsFor,
+} from "./providers";
 import {
   ensureSnapshot as defaultEnsureSnapshot,
   type Snapshot,
@@ -31,13 +35,8 @@ import {
   buildVolatileSystemNote,
   type PromptSource,
 } from "./system-prompt";
-import {
-  executeTool as defaultExecuteTool,
-  TOOL_DEFS,
-  type ToolContext,
-} from "./tool-defs";
-import type { SnapshotRef, ToolResult } from "./tools/code";
-import type { AttachmentContent } from "./tools/context";
+import { buildTools, type ToolContext, type ToolExecutor } from "./tool-defs";
+import type { SnapshotRef } from "./tools/code";
 import {
   claimMessage,
   finishMessage,
@@ -47,27 +46,26 @@ import {
   saveSources,
   type TurnContext,
 } from "./turn-store";
-import { type ResponseUsage, recordUsage, spentTodayUsd } from "./usage";
+import { recordUsage, spentTodayUsd } from "./usage";
 import { type AssistantViewer, loadAssistantViewer } from "./viewer";
 
 export const MAX_TOKENS = 32_000;
 /**
- * Messages API requests per turn. The last one is sent with tool_choice none
- * and STEP_LIMIT_NOTE, so it answers with what the tools found so far.
+ * Model requests (steps) per turn. The last one is sent with tool choice
+ * none and STEP_LIMIT_NOTE, so it answers with what the tools found so far.
  */
 export const MAX_ITERATIONS = 25;
-/** Appended to the tool results that precede the last allowed request. */
+/** Sent after the tool results that precede the last allowed request. */
 export const STEP_LIMIT_NOTE =
   "Batas langkah tercapai — jawab sekarang dengan temuan yang ada";
 /**
- * Appended before the one final tool_choice none request sent when the daily
+ * Sent before the one final tool-choice-none request made when the daily
  * cap is reached mid-turn, so the user still gets an answer for what was spent.
  */
 export const DAILY_CAP_NOTE =
   "Batas harian tercapai — jawab sekarang dengan temuan yang ada";
 /** Streamed text is written to Postgres at most this often. */
 export const FLUSH_INTERVAL_MS = 400;
-export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 export type AssistantErrorCode =
   | "assistant.not_configured"
@@ -78,10 +76,14 @@ export type AssistantErrorCode =
   | "assistant.too_many_steps"
   | "assistant.interrupted"
   | "assistant.nothing_to_draft"
+  | "assistant.model_no_tools"
+  | "assistant.model_no_drafts"
+  | "assistant.environment_gone"
   | "assistant.failed";
 
 export type RunTurnDeps = {
-  client?: Anthropic;
+  /** Replaces the runtime's model (tests inject a mock). */
+  model?: LanguageModel;
   now?: () => Date;
   loadRuntime?: () => Promise<AssistantRuntime | null>;
   resolveSources?: (environmentId: string) => Promise<AssistantSource[]>;
@@ -89,11 +91,7 @@ export type RunTurnDeps = {
   loadViewer?: (userId: string) => Promise<AssistantViewer>;
   /** The user's spend on the current quota day (USD). */
   spentToday?: (userId: string, now: Date) => Promise<number>;
-  executeTool?: (
-    name: string,
-    input: unknown,
-    ctx: ToolContext
-  ) => Promise<ToolResult<unknown>>;
+  executeTool?: ToolExecutor;
 };
 
 /** A turn- or request-level failure carrying its stable code. */
@@ -104,53 +102,69 @@ export class TurnError extends Error {
   }
 }
 
+/** The status and text of a failed provider call, if it was one. */
+function providerFailureOf(
+  error: unknown
+): { status: number | undefined; text: string; retryable: boolean } | null {
+  if (APICallError.isInstance(error)) {
+    // No status: the request never got a response (connection, DNS, reset).
+    return {
+      status: error.statusCode,
+      text: `${error.message} ${error.responseBody ?? ""}`,
+      retryable: error.statusCode === undefined || error.isRetryable,
+    };
+  }
+  if (StreamProviderError.isInstance(error)) {
+    // An error event after the response stream started.
+    return {
+      status: error.statusCode,
+      text: `${error.message} ${error.type ?? ""} ${error.code ?? ""}`,
+      retryable: error.isRetryable,
+    };
+  }
+  return null;
+}
+
+const MENTIONS_BILLING = /credit|billing|quota/i;
+const MENTIONS_API_KEY = /api[_ ]?key/i;
+const MENTIONS_TOOLS = /\btools?\b|tool[ _-]?(use|call)|function[ _-]?call/i;
+const MENTIONS_SUPPORT = /support/i;
+
 /** Maps an error thrown by the SDK (or the loop) to the message's error code. */
 export function classifyError(error: unknown): AssistantErrorCode {
   if (error instanceof TurnError) return error.code;
-  // Connection failures and timeouts are APIError subclasses without a status.
-  if (error instanceof Anthropic.APIConnectionError) {
-    return "assistant.unavailable";
+  if (RetryError.isInstance(error)) return classifyError(error.lastError);
+  if (LoadAPIKeyError.isInstance(error)) return "assistant.not_configured";
+  if (UnsupportedFunctionalityError.isInstance(error)) {
+    return MENTIONS_TOOLS.test(error.functionality)
+      ? "assistant.model_no_tools"
+      : "assistant.failed";
   }
-  if (error instanceof Anthropic.APIError) {
-    const message = `${error.apiMessage ?? ""} ${error.message}`;
-    if (
-      error.type === "billing_error" ||
-      error.status === 402 ||
-      ((error.status === 400 || error.type === "invalid_request_error") &&
-        /credit balance/i.test(message))
-    ) {
-      return "assistant.credit_exhausted";
-    }
-    if (
-      error.status === 401 ||
-      error.status === 403 ||
-      error.type === "authentication_error" ||
-      error.type === "permission_error"
-    ) {
-      return "assistant.not_configured";
-    }
-    // Mid-stream SSE errors carry a type but no HTTP status.
-    if (
-      error.status === 429 ||
-      (error.status !== undefined && error.status >= 500) ||
-      error.type === "rate_limit_error" ||
-      error.type === "overloaded_error" ||
-      error.type === "api_error" ||
-      error.type === "timeout_error"
-    ) {
-      return "assistant.unavailable";
-    }
+  const failure = providerFailureOf(error);
+  if (!failure) return "assistant.failed";
+  const { status, text } = failure;
+  if (status === 401 || status === 403) return "assistant.not_configured";
+  if (
+    status === 402 ||
+    ((status === 400 || status === 429) && MENTIONS_BILLING.test(text))
+  ) {
+    return "assistant.credit_exhausted";
   }
+  if (status === 400 && MENTIONS_API_KEY.test(text)) {
+    return "assistant.not_configured";
+  }
+  if (
+    status === 400 &&
+    MENTIONS_TOOLS.test(text) &&
+    MENTIONS_SUPPORT.test(text)
+  ) {
+    return "assistant.model_no_tools";
+  }
+  if (status === undefined) {
+    return failure.retryable ? "assistant.unavailable" : "assistant.failed";
+  }
+  if (status === 429 || status >= 500) return "assistant.unavailable";
   return "assistant.failed";
-}
-
-/** Tool definitions with the prompt-cache breakpoint on the last one. */
-function cachedTools(): BetaToolUnion[] {
-  return TOOL_DEFS.map((tool, index) =>
-    index === TOOL_DEFS.length - 1
-      ? { ...tool, cache_control: { type: "ephemeral" } }
-      : tool
-  );
 }
 
 /**
@@ -158,8 +172,8 @@ function cachedTools(): BetaToolUnion[] {
  * text and unfinished ones are skipped; consecutive same-role turns are fine
  * (the API merges them).
  */
-export function buildHistory(turn: TurnContext): BetaMessageParam[] {
-  const messages: BetaMessageParam[] = [];
+export function buildHistory(turn: TurnContext): ModelMessage[] {
+  const messages: ModelMessage[] = [];
   const lastUserIndex = turn.history.findLastIndex((m) => m.role === "user");
   const ticked = parseAttachmentRefs(turn.attachmentIds);
   turn.history.forEach((m, index) => {
@@ -181,86 +195,6 @@ export function buildHistory(turn: TurnContext): BetaMessageParam[] {
     messages.push({ role: "user", content: text });
   });
   return messages;
-}
-
-/**
- * The assistant content to send back within the tool loop. Thinking blocks go
- * back unchanged. After a mid-output refusal fallback, the thinking and
- * tool_use blocks of the declined attempt (before the last fallback block) are
- * dropped, the fallback block itself stays where it was.
- */
-export function echoContent(
-  content: BetaContentBlock[]
-): BetaContentBlockParam[] {
-  const boundary = content.findLastIndex((b) => b.type === "fallback");
-  if (boundary === -1) return content as BetaContentBlockParam[];
-  return content.filter(
-    (b, index) => index >= boundary || b.type === "text"
-  ) as BetaContentBlockParam[];
-}
-
-/** A read_attachment result as content blocks Claude reads natively. */
-function attachmentBlocks(
-  data: AttachmentContent
-): Exclude<BetaToolResultBlockParam["content"], string | undefined> {
-  switch (data.kind) {
-    case "document":
-      return [
-        {
-          type: "document",
-          source: {
-            type: "base64",
-            media_type: data.mediaType,
-            data: data.base64,
-          },
-        },
-      ];
-    case "image":
-      return [
-        {
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: data.mediaType,
-            data: data.base64,
-          },
-        },
-      ];
-    case "text":
-      return [{ type: "text", text: data.text }];
-  }
-}
-
-/**
- * One tool's result as a tool_result block: read_attachment data
- * (AttachmentContent) becomes document/image/text blocks, any other tool's
- * data JSON text, a failure an is_error result.
- */
-export function toToolResult(
-  toolName: string,
-  toolUseId: string,
-  result: ToolResult<unknown>
-): BetaToolResultBlockParam {
-  if (!result.ok) {
-    return {
-      type: "tool_result",
-      tool_use_id: toolUseId,
-      is_error: true,
-      content: result.error,
-    };
-  }
-  if (toolName === "read_attachment") {
-    return {
-      type: "tool_result",
-      tool_use_id: toolUseId,
-      content: attachmentBlocks(result.data as AttachmentContent),
-    };
-  }
-  return {
-    type: "tool_result",
-    tool_use_id: toolUseId,
-    content: JSON.stringify(result.data),
-  };
 }
 
 type ResolvedSources = { prompt: PromptSource[]; snaps: SnapshotRef[] };
@@ -360,7 +294,7 @@ class ContentWriter {
 
 /**
  * Runs one assistant turn: the message row (status queued) was created with
- * the user's question. Streams Claude's answer into the row, runs the tools
+ * the user's question. Streams the model's answer into the row, runs the tools
  * it asks for, meters every response, and ends the row done or failed with a
  * stable error code. Never throws for a turn-level failure.
  */
@@ -428,7 +362,44 @@ async function loadRuntimeOrFail(deps: RunTurnDeps): Promise<AssistantRuntime> {
     throw new TurnError("assistant.not_configured");
   }
   if (!runtime) throw new TurnError("assistant.not_configured");
-  return deps.client ? { ...runtime, client: deps.client } : runtime;
+  return deps.model ? { ...runtime, model: deps.model } : runtime;
+}
+
+/** Shallow per-provider merge: `extra` adds keys to each provider's options. */
+function mergeProviderOptions(
+  base: ProviderOptions,
+  extra: ProviderOptions | undefined
+): ProviderOptions {
+  const merged: ProviderOptions = { ...base };
+  for (const [provider, options] of Object.entries(extra ?? {})) {
+    merged[provider] = { ...merged[provider], ...options };
+  }
+  return merged;
+}
+
+/**
+ * The tokens a step reports, split the way they are billed, or null when the
+ * provider reported none.
+ */
+function reportedUsage(step: StepResult<ToolSet>): TokenUsage | null {
+  const { usage } = step;
+  if (usage.inputTokens == null && usage.outputTokens == null) return null;
+  const details = usage.inputTokenDetails;
+  const cacheRead = details?.cacheReadTokens ?? 0;
+  const cacheWrite = details?.cacheWriteTokens ?? 0;
+  const input =
+    details?.noCacheTokens ??
+    Math.max(0, (usage.inputTokens ?? 0) - cacheRead - cacheWrite);
+  return { input, cacheRead, cacheWrite, output: usage.outputTokens ?? 0 };
+}
+
+/** Characters a step produced: answer, reasoning and tool inputs. */
+function outputCharsOf(step: StepResult<ToolSet>): number {
+  return (
+    step.text.length +
+    (step.reasoningText?.length ?? 0) +
+    JSON.stringify(step.toolCalls.map((call) => call.input)).length
+  );
 }
 
 async function runClaimedTurn(
@@ -442,7 +413,7 @@ async function runClaimedTurn(
   // The cap is checked at send time too, but turns already queued (or a long
   // tool loop) can still cross it: re-checked before every request. Before the
   // first request it fails the turn (nothing spent yet); later it allows one
-  // final answer-only request (see the loop).
+  // final answer-only request (see prepareStep).
   const capReached = async () =>
     (await spentToday(turn.userId, now())) >= runtime.dailyCapUsd;
   if (await capReached()) throw new TurnError("assistant.daily_cap_reached");
@@ -461,220 +432,150 @@ async function runClaimedTurn(
     )
   );
 
-  const system = [
+  // Prompt-cache breakpoints, for the providers that need them: the stable
+  // system message, the last tool definition, and the growing conversation
+  // (request level).
+  const cache = cacheControlFor(runtime.provider);
+  const instructions: SystemModelMessage[] = [
     {
-      type: "text" as const,
-      text: buildSystemPrompt({
+      role: "system",
+      content: buildSystemPrompt({
         projectName: turn.projectName,
         environmentName: turn.environmentName,
         sources: resolved.prompt,
         userName: turn.userName,
         orgContext: runtime.orgContext,
       }),
-      cache_control: { type: "ephemeral" as const },
+      ...(cache ? { providerOptions: cache } : {}),
     },
-    { type: "text" as const, text: buildVolatileSystemNote(now()) },
+    { role: "system", content: buildVolatileSystemNote(now()) },
   ];
-  const tools = cachedTools();
-  const messages = buildHistory(turn);
   const attachments: AttachmentRef[] = parseAttachmentRefs(turn.attachmentIds);
   const toolContext: ToolContext = {
     snaps: resolved.snaps,
     viewer,
     attachments,
   };
-  const execute = deps.executeTool ?? defaultExecuteTool;
-  const meter = (model: string, usage: ResponseUsage) =>
-    recordUsage({
-      messageId: turn.messageId,
-      userId: turn.userId,
-      model,
-      usage,
-      priceModel: runtime.model,
-      now: now(),
-    });
-
+  // Set by prepareStep for the step about to run.
   let capped = false;
-  for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-    let last = iteration === MAX_ITERATIONS;
-    if (iteration > 1 && (await capReached())) {
-      // Never more than one extra request past the cap.
-      if (capped) throw new TurnError("assistant.daily_cap_reached");
-      capped = true;
-      last = true;
-      appendNote(messages, DAILY_CAP_NOTE);
-    }
-    const message = await streamRequest(
-      runtime,
-      // The same tools on the last request keep the cached prefix; "none"
-      // makes it answer instead of asking for more.
-      { system, tools, toolChoice: last ? "none" : "auto", messages },
-      (delta) => writer.append(delta),
-      meter
-    );
-    await meter(message.model, message.usage);
-    if (message.stop_reason === "tool_use") writer.discard();
+  let promptChars = 0;
+  // A tool call that could not be audited ends the turn.
+  let auditError: unknown;
+  const abort = new AbortController();
 
-    switch (message.stop_reason) {
-      case "end_turn":
-      case "stop_sequence":
-        return;
-      case "refusal":
-        throw new TurnError("assistant.refused");
-      case "pause_turn":
-        messages.push({
-          role: "assistant",
-          content: echoContent(message.content),
-        });
-        continue;
-      case "tool_use":
-        break;
-      default:
-        // max_tokens (a truncated answer or tool input), context overflow.
-        console.error(
-          `[assistant] turn ${turn.messageId} stopped: ${message.stop_reason}`
-        );
-        throw new TurnError("assistant.failed");
-    }
-
-    const toolUses = message.content
-      .slice(
-        Math.max(
-          0,
-          message.content.findLastIndex((b) => b.type === "fallback")
-        )
-      )
-      .filter((b): b is BetaToolUseBlock => b.type === "tool_use");
-    if (toolUses.length === 0) return;
-    // Still asked for tools despite tool_choice none.
-    if (last) {
-      if (capped) throw new TurnError("assistant.daily_cap_reached");
-      break;
-    }
-
-    messages.push({ role: "assistant", content: echoContent(message.content) });
-    const results = await Promise.all(
-      toolUses.map(async (use) => {
-        const result = await execute(use.name, use.input, toolContext);
+  const tools = buildTools(
+    toolContext,
+    async (call) => {
+      try {
         await recordToolCall(
           turn.messageId,
-          use.name,
-          (use.input ?? {}) as Record<string, unknown>,
-          result.meta as Record<string, unknown>
+          call.tool,
+          call.input,
+          call.resultMeta
         );
-        return toToolResult(use.name, use.id, result);
-      })
-    );
-    // All results of one response go back in a single user message; before
-    // the last allowed request, with the note that it must answer now.
-    messages.push({
-      role: "user",
-      content:
-        iteration + 1 === MAX_ITERATIONS
-          ? [...results, { type: "text", text: STEP_LIMIT_NOTE }]
-          : results,
-    });
-  }
-  throw new TurnError("assistant.too_many_steps");
-}
-
-/** Adds a text note to the trailing user message (or a new one). */
-function appendNote(messages: BetaMessageParam[], note: string): void {
-  const tail = messages.at(-1);
-  if (tail?.role === "user" && Array.isArray(tail.content)) {
-    tail.content = [...tail.content, { type: "text", text: note }];
-  } else {
-    messages.push({ role: "user", content: [{ type: "text", text: note }] });
-  }
-}
-
-export function effortOf(
-  runtime: AssistantRuntime
-): BetaOutputConfig["effort"] {
-  if ((ASSISTANT_EFFORTS as readonly string[]).includes(runtime.effort)) {
-    return runtime.effort as AssistantEffort;
-  }
-  console.warn(
-    `[assistant] unknown effort ${runtime.effort}; using the model default`
-  );
-  return undefined;
-}
-
-export type RequestBody = {
-  system: Array<{
-    type: "text";
-    text: string;
-    cache_control?: { type: "ephemeral" };
-  }>;
-  /** The tool loop's tools; a request without them is a one-shot answer. */
-  tools?: BetaToolUnion[];
-  /** With tools: "auto" (default), or "none" to force a text answer. */
-  toolChoice?: "auto" | "none";
-  /** Structured output (`output_config.format`), parsed by the caller. */
-  format?: BetaJSONOutputFormat;
-  messages: BetaMessageParam[];
-};
-
-/**
- * One streamed Messages request with the assistant's fixed settings (model,
- * effort, refusal fallback, adaptive thinking, max_tokens). Text deltas go to
- * `onText`. If the stream fails, the usage it reported so far is metered
- * before the error is rethrown (those tokens are billed).
- */
-export async function streamRequest(
-  runtime: AssistantRuntime,
-  body: RequestBody,
-  onText: (delta: string) => void,
-  meter: (model: string, usage: ResponseUsage) => Promise<number>
-): Promise<BetaMessage> {
-  const effort = effortOf(runtime);
-  const outputConfig = {
-    ...(effort ? { effort } : {}),
-    ...(body.format ? { format: body.format } : {}),
-  };
-  const stream = runtime.client.beta.messages.stream({
-    model: runtime.model,
-    max_tokens: MAX_TOKENS,
-    betas: [FALLBACK_BETA],
-    fallbacks: "default",
-    thinking: { type: "adaptive" },
-    ...(Object.keys(outputConfig).length > 0
-      ? { output_config: outputConfig }
-      : {}),
-    system: body.system,
-    ...(body.tools
-      ? {
-          tools: body.tools,
-          tool_choice: { type: body.toolChoice ?? "auto" },
-          // Caches the growing conversation, so each tool-loop request
-          // re-reads the previous one's prefix instead of paying for it again.
-          cache_control: { type: "ephemeral" as const },
-        }
-      : {}),
-    // A copy: the loop appends to `messages` after this request.
-    messages: [...body.messages],
-  });
-  try {
-    // After a mid-output refusal fallback the fallback model continues the
-    // partial text, so streamed text is never discarded.
-    for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
-        onText(event.delta.text);
+      } catch (error) {
+        auditError ??= error;
+        abort.abort(error);
+        throw error;
       }
-    }
-    return await stream.finalMessage();
-  } catch (error) {
-    // The tokens streamed before the error are billed; meter what the
-    // stream reported so far (message_start and any message_delta).
-    const partial = stream.currentMessage;
-    if (partial?.usage) {
-      await meter(partial.model, partial.usage).catch((meterError) => {
-        console.error("[assistant] failed to record partial usage", meterError);
+    },
+    { execute: deps.executeTool, lastToolProviderOptions: cache }
+  );
+  const toolsChars = JSON.stringify(
+    Object.entries(tools).map(([name, t]) => [name, t.description])
+  ).length;
+  const instructionsChars = JSON.stringify(instructions).length;
+
+  const result = streamText({
+    model: runtime.model,
+    instructions,
+    messages: buildHistory(turn),
+    tools,
+    toolChoice: "auto",
+    maxOutputTokens: MAX_TOKENS,
+    providerOptions: mergeProviderOptions(
+      providerOptionsFor(runtime.provider, runtime.effort),
+      cache
+    ),
+    abortSignal: abort.signal,
+    stopWhen: stepCountIs(MAX_ITERATIONS),
+    prepareStep: async ({ stepNumber, messages }) => {
+      promptChars =
+        instructionsChars + toolsChars + JSON.stringify(messages).length;
+      let note: string | undefined;
+      // Never more than one request past the cap: with tool choice none the
+      // capped step either answers (the loop ends) or its tool calls are a
+      // ToolChoiceViolationError.
+      if (stepNumber > 0 && (await capReached())) {
+        capped = true;
+        note = DAILY_CAP_NOTE;
+      } else if (stepNumber === MAX_ITERATIONS - 1) {
+        note = STEP_LIMIT_NOTE;
+      }
+      if (!note) return {};
+      // The same tools keep the cached prefix; "none" makes it answer.
+      return {
+        toolChoice: "none",
+        messages: [...messages, { role: "user", content: note }],
+      };
+    },
+    onStepEnd: async (step) => {
+      const reported = reportedUsage(step);
+      await recordUsage({
+        messageId: turn.messageId,
+        userId: turn.userId,
+        modelId: step.response.modelId || runtime.modelId,
+        prices: runtime.prices,
+        usage: reported ?? estimateUsage(promptChars, outputCharsOf(step)),
+        estimated: !reported,
+        now: now(),
       });
+    },
+    // Errors are read from the stream below; the default logs them.
+    onError: () => {},
+  });
+
+  let streamError: unknown;
+  for await (const part of result.fullStream) {
+    switch (part.type) {
+      case "text-delta":
+        writer.append(part.text);
+        break;
+      case "finish-step":
+        // Text of a step that asked for tools is not the answer (R11).
+        if (part.finishReason === "tool-calls") writer.discard();
+        break;
+      case "error":
+        streamError ??= part.error;
+        break;
     }
-    throw error;
+  }
+  if (auditError) throw auditError;
+  if (ToolChoiceViolationError.isInstance(streamError)) {
+    // Asked for tools on the final (tool choice none) step; the SDK runs none.
+    throw new TurnError(
+      capped ? "assistant.daily_cap_reached" : "assistant.too_many_steps"
+    );
+  }
+  if (streamError) throw streamError;
+
+  const last = (await result.steps).at(-1);
+  switch (last?.finishReason) {
+    case "stop":
+      return;
+    case "content-filter":
+      throw new TurnError("assistant.refused");
+    case "tool-calls":
+      // Out of steps while still calling tools.
+      throw new TurnError(
+        capped ? "assistant.daily_cap_reached" : "assistant.too_many_steps"
+      );
+    default:
+      // A truncated answer or tool input, a context overflow, or a reason
+      // the provider does not map.
+      console.error(
+        `[assistant] turn ${turn.messageId} stopped: ${last?.rawFinishReason ?? last?.finishReason}`
+      );
+      throw new TurnError("assistant.failed");
   }
 }

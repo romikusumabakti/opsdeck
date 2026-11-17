@@ -1,43 +1,43 @@
-// USD per million tokens. One table, so a price change is a one-line edit.
-// `cacheWrite` is the 5-minute cache write price. The fallback models
-// (claude-opus-4-8, claude-sonnet-5) are here because a refused request is
-// re-run on one of them and the response reports the model that served it.
-export const MODEL_PRICES = {
-  "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
-  "claude-sonnet-5-5": {
-    input: 2,
-    output: 10,
-    cacheRead: 0.1,
-    cacheWrite: 2.5,
-  },
-  "claude-opus-4-8": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
-  "claude-sonnet-5": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
-} as const;
+import type { Prices } from "./providers";
 
+/** Tokens of one model response, split the way providers bill them. */
 export type TokenUsage = {
+  /** Input tokens not served from (or written to) the prompt cache. */
   input: number;
   cacheRead: number;
   cacheWrite: number;
   output: number;
 };
 
-export class UnknownModelPriceError extends Error {
-  constructor(model: string) {
-    super(`No price known for model "${model}"`);
-    this.name = "UnknownModelPriceError";
-  }
-}
+/**
+ * A rough characters-per-token ratio for a response whose provider reported
+ * no usage. It errs towards more tokens for code and non-English text, so the
+ * daily cap is reached early rather than late.
+ */
+export const CHARS_PER_TOKEN = 3;
 
-export function costUsd(model: string, usage: TokenUsage): number {
-  const price = Object.hasOwn(MODEL_PRICES, model)
-    ? MODEL_PRICES[model as keyof typeof MODEL_PRICES]
-    : undefined;
-  if (!price) throw new UnknownModelPriceError(model);
+/** The cost in USD of `usage` at `prices` (USD per million tokens). */
+export function costUsd(prices: Prices, usage: TokenUsage): number {
   return (
-    (usage.input * price.input +
-      usage.cacheRead * price.cacheRead +
-      usage.cacheWrite * price.cacheWrite +
-      usage.output * price.output) /
+    (usage.input * prices.input +
+      usage.cacheRead * prices.cacheRead +
+      usage.cacheWrite * prices.cacheWrite +
+      usage.output * prices.output) /
     1_000_000
   );
+}
+
+/** Token usage estimated from the characters sent and received. */
+export function estimateUsage(
+  inputChars: number,
+  outputChars: number
+): TokenUsage {
+  const tokens = (chars: number) =>
+    Math.max(0, Math.ceil(chars / CHARS_PER_TOKEN));
+  return {
+    input: tokens(inputChars),
+    cacheRead: 0,
+    cacheWrite: 0,
+    output: tokens(outputChars),
+  };
 }

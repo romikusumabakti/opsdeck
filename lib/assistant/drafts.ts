@@ -2,16 +2,21 @@ import type { AnthropicError } from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z } from "zod";
-import type { AssistantRuntime } from "./client";
+import type { LegacyDraftRuntime } from "./client";
 import {
   type DraftKind,
   type DraftTranscript,
   insertDraft,
   loadDraftTranscript,
 } from "./draft-store";
-import { streamRequest, TurnError } from "./run-turn";
+import {
+  legacyTokenUsage,
+  type ResponseUsage,
+  streamRequest,
+} from "./legacy-draft-request";
+import { TurnError } from "./run-turn";
 import { GENERIC_ORGANISATION } from "./system-prompt";
-import { type ResponseUsage, recordUsage } from "./usage";
+import { recordUsage } from "./usage";
 
 /**
  * Drafts: a BRD section or a Jira ticket written from an assistant
@@ -230,7 +235,7 @@ export function parseDraftResponse(
 }
 
 export type GenerateDraftDeps = {
-  runtime: AssistantRuntime;
+  runtime: LegacyDraftRuntime;
   now?: () => Date;
 };
 
@@ -238,7 +243,7 @@ export type GenerateDraftDeps = {
  * Writes a draft of `kind` from the conversation's text turns with one
  * Messages request and stores it. The caller has authorized the user, loaded
  * the runtime and checked the daily cap. Throws TurnError with a stable code
- * (classifyError maps SDK errors) when no draft could be written.
+ * (classifyLegacyDraftError maps SDK errors) when no draft could be written.
  */
 export async function generateDraft(
   conversationId: string,
@@ -258,9 +263,10 @@ export async function generateDraft(
     recordUsage({
       messageId: null,
       userId,
-      model,
-      usage,
-      priceModel: runtime.model,
+      modelId: model,
+      prices: runtime.prices,
+      usage: legacyTokenUsage(usage),
+      estimated: false,
       now: now(),
     });
   // The format without its parse hook: the SDK would parse in finalMessage(),
@@ -281,7 +287,6 @@ export async function generateDraft(
         { role: "user", content: buildDraftUserMessage(kind, transcript) },
       ],
     },
-    () => {},
     meter
   );
   await meter(message.model, message.usage);

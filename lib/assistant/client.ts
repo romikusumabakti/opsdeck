@@ -23,28 +23,30 @@ export function createAnthropicClient(apiKey: string): Anthropic {
   return new Anthropic({ apiKey });
 }
 
-export type AssistantRuntime = {
+/**
+ * Transitional (deleted with the draft move to the AI SDK): the Anthropic
+ * client drafts still use, priced at the configured prices.
+ */
+export type LegacyDraftRuntime = {
   client: Anthropic;
   model: string;
   effort: string;
+  prices: Prices;
   dailyCapUsd: number;
   /** Admin → Assistant organisation context; null = the generic one. */
   orgContext: string | null;
 };
 
 /**
- * The configured client and limits, or null when the assistant is disabled or
- * has no key. No permission check: the worker calls it, and the caller has
- * already authorized the turn.
+ * Transitional: the draft runtime, or null unless the assistant is enabled
+ * with an Anthropic key, a model and all four prices.
  */
-export async function loadAssistantRuntime(): Promise<AssistantRuntime | null> {
+export async function loadLegacyDraftRuntime(): Promise<LegacyDraftRuntime | null> {
   const [row] = await db
     .select()
     .from(instanceSettings)
     .where(eq(instanceSettings.id, 1))
     .limit(1);
-  // Transitional (until the turn loop moves to the AI SDK): the settings now
-  // store the key in assistant_api_key, so only an Anthropic one fits here.
   if (
     !row?.assistantEnabled ||
     row.assistantProvider !== "anthropic" ||
@@ -52,16 +54,19 @@ export async function loadAssistantRuntime(): Promise<AssistantRuntime | null> {
     !row.assistantModel
   )
     return null;
+  const prices = pricesOf(row);
+  if (!prices) return null;
   return {
     client: createAnthropicClient(decryptSecret(row.assistantApiKey)),
     model: row.assistantModel,
     effort: row.assistantEffort,
+    prices,
     dailyCapUsd: Number(row.assistantDailyCapUsd),
     orgContext: row.assistantOrgContext,
   };
 }
 
-export type ProviderRuntime = {
+export type AssistantRuntime = {
   model: LanguageModel;
   provider: Provider;
   modelId: string;
@@ -79,7 +84,7 @@ export type ProviderRuntime = {
  * base URL for an OpenAI-compatible endpoint). No permission check: the worker
  * calls it, and the caller has already authorized the turn.
  */
-export async function loadProviderRuntime(): Promise<ProviderRuntime | null> {
+export async function loadAssistantRuntime(): Promise<AssistantRuntime | null> {
   const [row] = await db
     .select()
     .from(instanceSettings)
@@ -94,6 +99,40 @@ export async function loadProviderRuntime(): Promise<ProviderRuntime | null> {
   } = row;
   if (!provider || !apiKey || !modelId) return null;
   if (provider === "openai-compatible" && !baseUrl) return null;
+  const prices = pricesOf(row);
+  if (!prices) return null;
+  return {
+    model: createLanguageModel({
+      provider,
+      apiKey: decryptSecret(apiKey),
+      baseUrl,
+      model: modelId,
+    }),
+    provider,
+    modelId,
+    effort: asEffort(row.assistantEffort),
+    prices,
+    dailyCapUsd: Number(row.assistantDailyCapUsd),
+    orgContext: row.assistantOrgContext,
+  };
+}
+
+function asEffort(value: string): AssistantEffort {
+  return (ASSISTANT_EFFORTS as readonly string[]).includes(value)
+    ? (value as AssistantEffort)
+    : "medium";
+}
+
+type PriceColumns = Pick<
+  typeof instanceSettings.$inferSelect,
+  | "assistantPriceInput"
+  | "assistantPriceOutput"
+  | "assistantPriceCacheRead"
+  | "assistantPriceCacheWrite"
+>;
+
+/** The four stored prices, or null unless all are set. */
+function pricesOf(row: PriceColumns): Prices | null {
   const input = row.assistantPriceInput;
   const output = row.assistantPriceOutput;
   const cacheRead = row.assistantPriceCacheRead;
@@ -106,28 +145,9 @@ export async function loadProviderRuntime(): Promise<ProviderRuntime | null> {
   )
     return null;
   return {
-    model: createLanguageModel({
-      provider,
-      apiKey: decryptSecret(apiKey),
-      baseUrl,
-      model: modelId,
-    }),
-    provider,
-    modelId,
-    effort: asEffort(row.assistantEffort),
-    prices: {
-      input: Number(input),
-      output: Number(output),
-      cacheRead: Number(cacheRead),
-      cacheWrite: Number(cacheWrite),
-    },
-    dailyCapUsd: Number(row.assistantDailyCapUsd),
-    orgContext: row.assistantOrgContext,
+    input: Number(input),
+    output: Number(output),
+    cacheRead: Number(cacheRead),
+    cacheWrite: Number(cacheWrite),
   };
-}
-
-function asEffort(value: string): AssistantEffort {
-  return (ASSISTANT_EFFORTS as readonly string[]).includes(value)
-    ? (value as AssistantEffort)
-    : "medium";
 }

@@ -122,7 +122,7 @@ describe("suggestedModels", () => {
   });
 });
 
-describe("loadProviderRuntime", () => {
+describe("loadAssistantRuntime", () => {
   const configured = () => ({
     id: 1,
     assistantEnabled: true,
@@ -144,8 +144,8 @@ describe("loadProviderRuntime", () => {
   });
 
   it("returns the configured model, prices and limits", async () => {
-    const { loadProviderRuntime } = await import("@/lib/assistant/client");
-    const runtime = await loadProviderRuntime();
+    const { loadAssistantRuntime } = await import("@/lib/assistant/client");
+    const runtime = await loadAssistantRuntime();
     expect(runtime).not.toBeNull();
     if (!runtime || typeof runtime.model === "string")
       throw new Error("expected a runtime with a model object");
@@ -177,20 +177,20 @@ describe("loadProviderRuntime", () => {
     ],
   ])("is null when %s", async (_label, patch) => {
     state.row = { ...configured(), ...patch };
-    const { loadProviderRuntime } = await import("@/lib/assistant/client");
-    expect(await loadProviderRuntime()).toBeNull();
+    const { loadAssistantRuntime } = await import("@/lib/assistant/client");
+    expect(await loadAssistantRuntime()).toBeNull();
   });
 
   it("is null without a settings row", async () => {
     state.row = null;
-    const { loadProviderRuntime } = await import("@/lib/assistant/client");
-    expect(await loadProviderRuntime()).toBeNull();
+    const { loadAssistantRuntime } = await import("@/lib/assistant/client");
+    expect(await loadAssistantRuntime()).toBeNull();
   });
 });
 
-// Transitional: the old Anthropic-only runtime the turn loop still uses reads
-// the key the settings now store (assistant_api_key), for provider anthropic.
-describe("loadAssistantRuntime (transitional)", () => {
+// Transitional: the old Anthropic-only runtime drafts still use reads the key
+// the settings now store (assistant_api_key), for provider anthropic.
+describe("loadLegacyDraftRuntime (transitional)", () => {
   const row = (patch: Record<string, unknown> = {}) => ({
     id: 1,
     assistantEnabled: true,
@@ -201,27 +201,38 @@ describe("loadAssistantRuntime (transitional)", () => {
     assistantEffort: "medium",
     assistantDailyCapUsd: "1.50",
     assistantOrgContext: null,
+    assistantPriceInput: "2.000000",
+    assistantPriceOutput: "10.000000",
+    assistantPriceCacheRead: "0.100000",
+    assistantPriceCacheWrite: "2.500000",
     ...patch,
   });
 
   it("uses the stored assistant key for an Anthropic provider", async () => {
     state.row = row();
-    const { loadAssistantRuntime } = await import("@/lib/assistant/client");
-    const runtime = await loadAssistantRuntime();
+    const { loadLegacyDraftRuntime } = await import("@/lib/assistant/client");
+    const runtime = await loadLegacyDraftRuntime();
     expect(runtime?.model).toBe("claude-sonnet-5-5");
     expect(runtime?.client.apiKey).toBe("sk-test");
+    expect(runtime?.prices).toEqual({
+      input: 2,
+      output: 10,
+      cacheRead: 0.1,
+      cacheWrite: 2.5,
+    });
   });
 
   it.each([
     ["another provider", { assistantProvider: "openai" }],
     ["no assistant key", { assistantApiKey: null }],
+    ["no prices", { assistantPriceOutput: null }],
     [
       "only the superseded key",
       { assistantApiKey: null, anthropicApiKey: encryptSecret("sk-old") },
     ],
   ])("is null with %s", async (_label, patch) => {
     state.row = row(patch);
-    const { loadAssistantRuntime } = await import("@/lib/assistant/client");
-    expect(await loadAssistantRuntime()).toBeNull();
+    const { loadLegacyDraftRuntime } = await import("@/lib/assistant/client");
+    expect(await loadLegacyDraftRuntime()).toBeNull();
   });
 });

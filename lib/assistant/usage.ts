@@ -1,18 +1,9 @@
-import type { BetaUsage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { assistantUsage } from "@/lib/db/schema";
 import { APP_TIMEZONE } from "@/lib/timezone";
-import { costUsd, type TokenUsage, UnknownModelPriceError } from "./pricing";
-
-/** The usage fields of one Messages API response that cost money. */
-export type ResponseUsage = Pick<
-  BetaUsage,
-  | "input_tokens"
-  | "output_tokens"
-  | "cache_read_input_tokens"
-  | "cache_creation_input_tokens"
-> & { iterations?: BetaUsage["iterations"] };
+import { costUsd, type TokenUsage } from "./pricing";
+import type { Prices } from "./providers";
 
 /** The quota day (YYYY-MM-DD) `now` falls on in APP_TIMEZONE. */
 export function quotaDay(now: Date = new Date()): string {
@@ -61,91 +52,32 @@ export function quotaDayResetsAt(now: Date = new Date()): Date {
   return new Date(at);
 }
 
-type PricedAttempt = { model: string; tokens: TokenUsage };
-
 /**
- * The billed attempts of one response. Normally the top-level usage. After a
- * server-side refusal fallback the top-level usage covers only the attempt that
- * produced the message, while `usage.iterations` lists every attempt (the
- * declined one included) with the model that ran it, so those are priced
- * one by one.
- */
-function attemptsOf(model: string, usage: ResponseUsage): PricedAttempt[] {
-  const iterations = usage.iterations ?? [];
-  if (iterations.some((i) => i.type === "fallback_message")) {
-    return iterations.flatMap((i) =>
-      i.type === "message" || i.type === "fallback_message"
-        ? [
-            {
-              model: i.model ?? model,
-              tokens: {
-                input: i.input_tokens,
-                cacheRead: i.cache_read_input_tokens,
-                cacheWrite: i.cache_creation_input_tokens,
-                output: i.output_tokens,
-              },
-            },
-          ]
-        : []
-    );
-  }
-  return [
-    {
-      model,
-      tokens: {
-        input: usage.input_tokens,
-        cacheRead: usage.cache_read_input_tokens ?? 0,
-        cacheWrite: usage.cache_creation_input_tokens ?? 0,
-        output: usage.output_tokens,
-      },
-    },
-  ];
-}
-
-function priceAttempt(attempt: PricedAttempt, priceModel?: string): number {
-  try {
-    return costUsd(attempt.model, attempt.tokens);
-  } catch (error) {
-    if (!(error instanceof UnknownModelPriceError) || !priceModel) throw error;
-    // A model missing from the price table (a new fallback target) must not
-    // lose the row or the cap; price it like the configured model and say so.
-    console.warn(
-      `[assistant] no price for model ${attempt.model}; using ${priceModel} prices`
-    );
-    return costUsd(priceModel, attempt.tokens);
-  }
-}
-
-/**
- * Records one API response's usage and returns its cost in USD.
- * `model` is the model the response reports (a fallback may have switched it);
- * `priceModel` is the configured model, whose prices are used for any model
- * the price table does not know.
+ * Records one model response's usage, priced at the configured `prices`, and
+ * returns its cost in USD. `estimated` marks tokens estimated because the
+ * provider reported none.
  */
 export async function recordUsage(params: {
   messageId: string | null;
   userId: string;
-  model: string;
-  usage: ResponseUsage;
-  priceModel?: string;
+  /** The model that served the response. */
+  modelId: string;
+  prices: Prices;
+  usage: TokenUsage;
+  estimated: boolean;
   now?: Date;
 }): Promise<number> {
-  const attempts = attemptsOf(params.model, params.usage);
-  const cost = attempts.reduce(
-    (sum, a) => sum + priceAttempt(a, params.priceModel),
-    0
-  );
-  const total = (key: keyof TokenUsage) =>
-    attempts.reduce((sum, a) => sum + a.tokens[key], 0);
+  const cost = costUsd(params.prices, params.usage);
   await db.insert(assistantUsage).values({
     messageId: params.messageId,
     userId: params.userId,
-    model: params.model,
-    inputTokens: total("input"),
-    cacheReadTokens: total("cacheRead"),
-    cacheWriteTokens: total("cacheWrite"),
-    outputTokens: total("output"),
+    model: params.modelId,
+    inputTokens: params.usage.input,
+    cacheReadTokens: params.usage.cacheRead,
+    cacheWriteTokens: params.usage.cacheWrite,
+    outputTokens: params.usage.output,
     costUsd: cost.toFixed(6),
+    estimated: params.estimated,
     day: quotaDay(params.now),
   });
   return cost;
