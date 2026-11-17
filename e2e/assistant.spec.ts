@@ -5,15 +5,16 @@ test.use({ storageState: AUTH_FILE });
 
 // Runs only against a local stub of an OpenAI-compatible chat-completions
 // API: set ASSISTANT_E2E_BASE_URL to the stub's base URL (e.g.
-// http://127.0.0.1:8787/v1). The stub must stream one answer that cites a
-// source. Never run it against a real provider: it costs money.
+// http://127.0.0.1:8787/v1). The stub must stream one text answer (it may
+// call a tool first). The project has no code sources, so the answer has no
+// "Sources" list. Never run it against a real provider: it costs money.
 const STUB_BASE_URL = process.env.ASSISTANT_E2E_BASE_URL;
 test.skip(
   !STUB_BASE_URL,
   "needs a local OpenAI-compatible stub (set ASSISTANT_E2E_BASE_URL)"
 );
 
-test("an admin enables the assistant and gets a streamed answer with sources", async ({
+test("an admin enables the assistant and gets a streamed answer", async ({
   page,
 }) => {
   const key = "EASST";
@@ -46,7 +47,8 @@ test("an admin enables the assistant and gets a streamed answer with sources", a
   await page.getByPlaceholder("Write a question…").fill("Where is login?");
   await page.getByRole("button", { name: "Send" }).click();
 
-  await expect(page.getByText("Sources", { exact: true })).toBeVisible({
-    timeout: 30_000,
-  });
+  // Shown under an answer once it has finished streaming.
+  await expect(
+    page.getByText("The model can be wrong — check its sources.")
+  ).toBeVisible({ timeout: 30_000 });
 });
