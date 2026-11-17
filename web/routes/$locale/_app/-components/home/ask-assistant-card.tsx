@@ -185,7 +185,11 @@ export function AskAssistantCard() {
                   </span>
                   <span className="flex min-w-0 items-baseline gap-1.5 text-xs text-muted-foreground">
                     <span className="truncate">
-                      {c.lastContextLabel ?? tAssistant("contextAuto")}
+                      {c.lastContextLabel === null
+                        ? tAssistant("contextAuto")
+                        : c.lastContextDeleted
+                          ? `${c.lastContextLabel} ${tAssistant("contextDeleted")}`
+                          : c.lastContextLabel}
                     </span>
                     <span aria-hidden>·</span>
                     <RelativeTime date={c.updatedAt} className="shrink-0" />

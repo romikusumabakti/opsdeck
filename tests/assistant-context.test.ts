@@ -111,19 +111,23 @@ describe("contextListLabel", () => {
   };
 
   it("names an environment with its project, as the question bubble does", () => {
-    expect(contextListLabel(row)).toBe("Kestrel Membership · Dev 1");
+    expect(contextListLabel(row)).toEqual({
+      label: "Kestrel Membership · Dev 1",
+      deleted: false,
+    });
   });
 
   it("drops the project prefix an environment name repeats", () => {
     expect(
       contextListLabel({ ...row, environmentName: "Kestrel Membership Dev 1" })
-    ).toBe("Kestrel Membership · Dev 1");
+    ).toEqual({ label: "Kestrel Membership · Dev 1", deleted: false });
   });
 
   it("keeps the project name for a deleted environment and marks it", () => {
-    expect(contextListLabel({ ...row, environmentId: null })).toBe(
-      "Kestrel Membership · Dev 1 (deleted)"
-    );
+    expect(contextListLabel({ ...row, environmentId: null })).toEqual({
+      label: "Kestrel Membership · Dev 1",
+      deleted: true,
+    });
   });
 
   it("marks a deleted project", () => {
@@ -134,12 +138,15 @@ describe("contextListLabel", () => {
         environmentId: null,
         environmentName: null,
       })
-    ).toBe("Kestrel Membership (deleted)");
+    ).toEqual({ label: "Kestrel Membership", deleted: true });
   });
 
   it("a project, a deleted project and automatic", () => {
     const project = { ...row, environmentId: null, environmentName: null };
-    expect(contextListLabel(project)).toBe("Kestrel Membership");
+    expect(contextListLabel(project)).toEqual({
+      label: "Kestrel Membership",
+      deleted: false,
+    });
     expect(
       contextListLabel({
         projectId: null,
@@ -147,6 +154,6 @@ describe("contextListLabel", () => {
         environmentId: null,
         environmentName: null,
       })
-    ).toBeNull();
+    ).toEqual({ label: null, deleted: false });
   });
 });

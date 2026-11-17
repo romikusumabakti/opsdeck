@@ -264,12 +264,14 @@ describe.skipIf(!enabled)(
           title: "Bagaimana iuran dihitung? Jelaskan.",
           updatedAt: expect.any(Date),
           lastContextLabel: "Kestrel Membership",
+          lastContextDeleted: false,
         },
         {
           id: empty,
           title: "",
           updatedAt: expect.any(Date),
           lastContextLabel: null,
+          lastContextDeleted: false,
         },
       ]);
       const detail = await store.loadConversationDetail(conversationId);

@@ -1784,12 +1784,21 @@ describe("context picker", () => {
           title: "Iuran",
           updatedAt: "2026-11-16T01:00:00Z",
           lastContextLabel: "Heron Membership",
+          lastContextDeleted: false,
         },
         {
           id: "c2",
           title: "Tagihan",
           updatedAt: "2026-11-16T00:00:00Z",
           lastContextLabel: null,
+          lastContextDeleted: false,
+        },
+        {
+          id: "c3",
+          title: "Klaim",
+          updatedAt: "2026-11-15T00:00:00Z",
+          lastContextLabel: "Initech Payroll",
+          lastContextDeleted: true,
         },
       ]
     );
@@ -1797,7 +1806,9 @@ describe("context picker", () => {
       (li) => li.textContent ?? ""
     );
     expect(rows[0]).toContain("Heron Membership");
+    expect(rows[0]).not.toContain(t.contextDeleted);
     expect(rows[1]).toContain(t.contextAuto);
+    expect(rows[2]).toContain(`Initech Payroll ${t.contextDeleted}`);
   });
 
   it("reports the selected conversation for the URL", async () => {

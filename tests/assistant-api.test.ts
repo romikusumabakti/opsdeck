@@ -255,7 +255,8 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
             id: c.id,
             title: c.title,
             updatedAt: c.updatedAt,
-            lastContextLabel: last ? contextListLabel(last) : null,
+            lastContextLabel: last ? contextListLabel(last).label : null,
+            lastContextDeleted: last ? contextListLabel(last).deleted : false,
           };
         }),
     insertConversation: async (v: { userId: string }) => {

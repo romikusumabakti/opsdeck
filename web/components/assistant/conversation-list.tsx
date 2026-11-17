@@ -58,7 +58,11 @@ export function ConversationList({
                 </span>
                 <span className="flex w-full min-w-0 items-baseline gap-1.5 text-xs font-normal text-muted-foreground">
                   <span className="truncate">
-                    {c.lastContextLabel ?? t("contextAuto")}
+                    {c.lastContextLabel === null
+                      ? t("contextAuto")
+                      : c.lastContextDeleted
+                        ? `${c.lastContextLabel} ${t("contextDeleted")}`
+                        : c.lastContextLabel}
                   </span>
                   <span aria-hidden>·</span>
                   <RelativeTime date={c.updatedAt} className="shrink-0" />

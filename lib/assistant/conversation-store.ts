@@ -102,6 +102,8 @@ export type ConversationSummary = {
    * question yet.
    */
   lastContextLabel: string | null;
+  /** The latest question's project or environment was deleted since. */
+  lastContextDeleted: boolean;
 };
 
 /** The user's conversations, all projects, newest first. */
@@ -143,7 +145,8 @@ export async function listConversationsOf(
   );
   return conversations.map((c) => ({
     ...c,
-    lastContextLabel: labelOf.get(c.id) ?? null,
+    lastContextLabel: labelOf.get(c.id)?.label ?? null,
+    lastContextDeleted: labelOf.get(c.id)?.deleted ?? false,
   }));
 }
 

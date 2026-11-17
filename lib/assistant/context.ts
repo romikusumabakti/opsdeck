@@ -154,14 +154,17 @@ export function messageContextOf(row: ContextRow): MessageContext {
  * A question's context as a conversation list names it: an environment with
  * its project ("Kestrel Membership · Dev 1"), as the question bubble does,
  * since every project may have a "Dev"; null for an automatic question. A
- * deleted project or environment is marked "(deleted)", as in the bubble.
+ * deleted project or environment keeps its name; `deleted` tells the client
+ * to mark it (localised, as the question bubble does).
  */
-export function contextListLabel(row: ContextRow): string | null {
+export function contextListLabel(row: ContextRow): {
+  label: string | null;
+  deleted: boolean;
+} {
   const context = messageContextOf(row);
   let label = context.label;
   if (row.environmentName !== null && row.projectName) {
     label = qualifiedEnvName(row.environmentName, row.projectName);
   }
-  // The same marker the question bubble shows (messages: contextDeleted).
-  return label !== null && context.deleted ? `${label} (deleted)` : label;
+  return { label, deleted: label !== null && context.deleted };
 }
