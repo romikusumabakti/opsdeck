@@ -52,7 +52,7 @@ import {
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
-  /** The coded refusal's values (`{ capUsd, resetsAt }`), if it sent any. */
+  /** The coded refusal's values (`{ resetsAt }`), if it sent any. */
   readonly params: Record<string, string | number> | undefined;
 
   constructor(

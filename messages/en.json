@@ -3640,7 +3640,7 @@
   },
   "assistantErrors": {
     "notConfigured": "The assistant is not set up. Ask an admin to enable it and save a model provider API key.",
-    "dailyCapReached": "You have used today's assistant allowance of {capUsd, number} USD. It resets at {resetsAt, time, short}.",
+    "dailyCapReached": "You've reached today's limit. It resets at {resetsAt, time, short}.",
     "busy": "The assistant is still answering your previous message. Wait for it to finish.",
     "unavailable": "The assistant could not take your message right now. Try again in a moment.",
     "creditExhausted": "The assistant's model provider credit has run out. Ask an admin to top it up.",
@@ -3660,9 +3660,10 @@
   "assistant": {
     "title": "Assistant",
     "subtitle": "Ask about the code and issues of {name}.",
-    "remaining": "Left today: ${amount}",
-    "remainingUnderCent": "Left today: < $0.01",
-    "remainingHint": "Your assistant allowance for today.",
+    "usageUsed": "{percent}% of today's limit used",
+    "usageResets": "Resets {time, time, short}",
+    "usageCapReached": "You've reached today's limit. It resets at {time, time, short}.",
+    "usageHint": "Your assistant usage for today.",
     "notEnabledTitle": "The assistant is not on",
     "conversations": "Conversations",
     "newConversation": "New conversation",

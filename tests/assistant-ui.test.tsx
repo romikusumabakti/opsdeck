@@ -269,39 +269,54 @@ describe("Assistant entry in the project sidebar", () => {
 describe("daily cap", () => {
   const allowance = {
     enabled: true,
-    capUsd: 1.5,
-    spentUsd: 1.6,
-    remainingUsd: 0,
+    usedFraction: 1,
+    capReached: true,
     // Midnight in Asia/Jakarta.
     resetsAt: "2026-11-16T17:00:00.000Z",
   };
 
-  it("the badge shows what is left today", async () => {
+  it("the meter shows the share used and the reset time, without dollars", async () => {
     await render(
       <AllowanceBadge
-        allowance={{ ...allowance, spentUsd: 0.25, remainingUsd: 1.25 }}
+        allowance={{ ...allowance, usedFraction: 0.4, capReached: false }}
       />
     );
-    expect(text()).toBe("Left today: $1.25");
+    expect(text()).toContain("40% of today's limit used");
+    expect(text()).toMatch(/Resets (12:00|00:00)/);
+    expect(text()).not.toMatch(/\$|USD/);
+    const bar = container.querySelector("[role=progressbar]");
+    expect(bar?.getAttribute("aria-valuenow")).toBe("40");
+    expect(
+      container.querySelector("[data-slot=progress-indicator]")?.className
+    ).not.toMatch(/amber|destructive/);
   });
 
-  it("the badge never rounds a last fraction of a cent to $0.00", async () => {
+  it("the meter turns amber from 80% used", async () => {
     await render(
-      <AllowanceBadge allowance={{ ...allowance, remainingUsd: 0.004 }} />
+      <AllowanceBadge
+        allowance={{ ...allowance, usedFraction: 0.85, capReached: false }}
+      />
     );
-    expect(text()).toBe("Left today: < $0.01");
+    expect(text()).toContain("85% of today's limit used");
+    expect(
+      container.querySelector("[data-slot=progress-indicator]")?.className
+    ).toContain("amber");
   });
 
-  it("the badge shows the cap message with the reset in local time", async () => {
+  it("at the cap the meter turns destructive and says when it resets", async () => {
     await render(<AllowanceBadge allowance={allowance} />);
-    expect(text()).toContain("allowance of 1.5 USD");
-    expect(text()).toMatch(/resets at (12:00|00:00)/);
+    expect(text()).toMatch(
+      /You've reached today's limit\. It resets at (12:00|00:00)/
+    );
+    expect(text()).not.toMatch(/\$|USD/);
+    expect(
+      container.querySelector("[data-slot=progress-indicator]")?.className
+    ).toContain("destructive");
   });
 
   it("a refused send words assistant.daily_cap_reached", async () => {
     const onSend = vi.fn().mockRejectedValue(
       new ApiError(429, "server text", "assistant.daily_cap_reached", {
-        capUsd: 1.5,
         resetsAt: allowance.resetsAt,
       })
     );
@@ -325,8 +340,10 @@ describe("daily cap", () => {
     });
     await act(async () => button(t.send)?.click());
     expect(onSend).toHaveBeenCalledWith("Bagaimana iuran dihitung?", []);
-    expect(text()).toContain("allowance of 1.5 USD");
-    expect(text()).not.toContain("server text");
+    expect(text()).toMatch(
+      /reached today's limit\. It resets at (12:00|00:00)/
+    );
+    expect(text()).not.toMatch(/USD|server text/);
     // Kept so it can be sent again tomorrow.
     expect(box.value).toBe("Bagaimana iuran dihitung?");
   });
@@ -675,9 +692,8 @@ describe("answer stream", () => {
   it("words a turn stopped at the daily cap with the current allowance", async () => {
     queryClient.setQueryData(["assistant", "getAllowance"], {
       enabled: true,
-      capUsd: 1.5,
-      spentUsd: 1.6,
-      remainingUsd: 0,
+      usedFraction: 1,
+      capReached: true,
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
     queryClient.setQueryData(key, {
@@ -687,8 +703,10 @@ describe("answer stream", () => {
       ),
     });
     await render(<ChatThread conversationId="c1" />);
-    expect(text()).toContain("allowance of 1.5 USD");
-    expect(text()).toMatch(/resets at (12:00|00:00)/);
+    expect(text()).toMatch(
+      /reached today's limit\. It resets at (12:00|00:00)/
+    );
+    expect(text()).not.toContain("USD");
   });
 
   it("renders no raw HTML from an answer", async () => {
@@ -1041,9 +1059,8 @@ describe("drafts panel in the workspace", () => {
   const renderWorkspace = async () => {
     queryClient.setQueryData(["assistant", "getAllowance"], {
       enabled: true,
-      capUsd: 1.5,
-      spentUsd: 0,
-      remainingUsd: 1.5,
+      usedFraction: 0,
+      capReached: false,
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
     queryClient.setQueryData(
@@ -1193,9 +1210,8 @@ describe("source chip", () => {
   ) => {
     queryClient.setQueryData(["assistant", "getAllowance"], {
       enabled: true,
-      capUsd: 1.5,
-      spentUsd: 0,
-      remainingUsd: 1.5,
+      usedFraction: 0,
+      capReached: false,
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
     queryClient.setQueryData(

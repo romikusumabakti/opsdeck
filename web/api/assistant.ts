@@ -5,7 +5,7 @@ import { api, type PostJson } from "@/web/api/client";
 // The code assistant chat. Every call returns plain data, so a refusal
 // rejects with an ApiError (rule 2 of web/api/client.ts's error contract):
 // a refused send carries `code` (`assistant.busy`, …) and, for the daily cap,
-// `params` `{ capUsd, resetsAt }`, worded with the `assistantErrors` messages.
+// `params` `{ resetsAt }`, worded with the `assistantErrors` messages.
 
 const routes = api.api.assistant;
 type Body<K extends keyof typeof routes> = PostJson<typeof routes, K>;

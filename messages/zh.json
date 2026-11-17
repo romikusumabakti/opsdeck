@@ -3640,7 +3640,7 @@
   },
   "assistantErrors": {
     "notConfigured": "助手尚未设置。请管理员启用它并保存模型提供商的 API 密钥。",
-    "dailyCapReached": "你今天的助手额度 {capUsd, number} 美元已用完，将于 {resetsAt, time, short} 重置。",
+    "dailyCapReached": "你已达到今天的助手使用上限，将于 {resetsAt, time, short} 重置。",
     "busy": "助手仍在回答你的上一条消息，请等待其完成。",
     "unavailable": "助手暂时无法接收你的消息，请稍后再试。",
     "creditExhausted": "助手的模型提供商额度已用完，请管理员充值。",
@@ -3660,9 +3660,10 @@
   "assistant": {
     "title": "助手",
     "subtitle": "询问 {name} 的代码和问题。",
-    "remaining": "今日剩余：${amount}",
-    "remainingUnderCent": "今日剩余：< $0.01",
-    "remainingHint": "你今天的助手使用额度。",
+    "usageUsed": "今日额度已用 {percent}%",
+    "usageResets": "{time, time, short} 重置",
+    "usageCapReached": "你已达到今天的使用上限，将于 {time, time, short} 重置。",
+    "usageHint": "你今天的助手使用情况。",
     "notEnabledTitle": "助手尚未启用",
     "conversations": "对话",
     "newConversation": "新对话",

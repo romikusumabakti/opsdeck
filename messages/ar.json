@@ -3640,7 +3640,7 @@
   },
   "assistantErrors": {
     "notConfigured": "المساعد غير مُعدّ. اطلب من المسؤول تفعيله وحفظ مفتاح API لمزوّد النموذج.",
-    "dailyCapReached": "لقد استهلكت حصة المساعد اليومية البالغة {capUsd, number} دولار أمريكي. تُعاد الحصة عند {resetsAt, time, short}.",
+    "dailyCapReached": "لقد بلغت حد المساعد اليومي. يُعاد التعيين عند {resetsAt, time, short}.",
     "busy": "لا يزال المساعد يجيب عن رسالتك السابقة. انتظر حتى ينتهي.",
     "unavailable": "تعذّر على المساعد استلام رسالتك الآن. حاول مرة أخرى بعد قليل.",
     "creditExhausted": "نفد رصيد مزوّد النموذج الخاص بالمساعد. اطلب من المسؤول إعادة شحنه.",
@@ -3660,9 +3660,10 @@
   "assistant": {
     "title": "المساعد",
     "subtitle": "اسأل عن الشيفرة والمشكلات في {name}.",
-    "remaining": "المتبقي اليوم: ${amount}",
-    "remainingUnderCent": "المتبقي اليوم: < $0.01",
-    "remainingHint": "حصتك من المساعد لهذا اليوم.",
+    "usageUsed": "تم استخدام {percent}٪ من حد اليوم",
+    "usageResets": "يُعاد التعيين عند {time, time, short}",
+    "usageCapReached": "لقد بلغت حد اليوم. يُعاد التعيين عند {time, time, short}.",
+    "usageHint": "استخدامك للمساعد اليوم.",
     "notEnabledTitle": "المساعد غير مفعّل",
     "conversations": "المحادثات",
     "newConversation": "محادثة جديدة",

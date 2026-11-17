@@ -115,9 +115,7 @@ export function MessageView({
           <AlertDescription>
             {codeText(
               message.errorCode,
-              allowance
-                ? { capUsd: allowance.capUsd, resetsAt: allowance.resetsAt }
-                : undefined
+              allowance ? { resetsAt: allowance.resetsAt } : undefined
             )}
           </AlertDescription>
         </Alert>

@@ -90,7 +90,7 @@ export type SendMessageInput = z.infer<typeof sendMessageInputSchema>;
 async function refusal(
   status: 400 | 409 | 422 | 429 | 502 | 503,
   code: AssistantErrorCodeKey,
-  params?: { capUsd: number; resetsAt: Date }
+  params?: { resetsAt: Date }
 ): Promise<CodedHTTPException> {
   const t = await getServerTranslator("assistantErrors");
   const message = t(ASSISTANT_ERROR_MESSAGE_KEYS[code], params);
@@ -98,9 +98,7 @@ async function refusal(
     status,
     code,
     message,
-    params
-      ? { capUsd: params.capUsd, resetsAt: params.resetsAt.toISOString() }
-      : undefined
+    params ? { resetsAt: params.resetsAt.toISOString() } : undefined
   );
 }
 
@@ -190,7 +188,6 @@ async function requireAllowance(
   const spent = await spentTodayUsd(userId, now);
   if (spent >= runtime.dailyCapUsd) {
     throw await refusal(429, "assistant.daily_cap_reached", {
-      capUsd: runtime.dailyCapUsd,
       resetsAt: quotaDayResetsAt(now),
     });
   }
@@ -254,14 +251,18 @@ export async function authorizeMessageStream(messageId: string): Promise<void> {
 export type Allowance = {
   /** Switched on by an admin and holding an API key. */
   enabled: boolean;
-  capUsd: number;
-  spentUsd: number;
-  remainingUsd: number;
+  /** Share of today's limit spent, 0..1. A cap of 0 reads as fully used. */
+  usedFraction: number;
+  capReached: boolean;
   /** The next quota-day start (APP_TIMEZONE midnight), ISO. */
   resetsAt: string;
 };
 
-/** The caller's daily allowance; any signed-in user may ask (no project). */
+/**
+ * The caller's daily allowance as a share of the limit, never in dollars
+ * (admins see those on Admin > Assistant); any signed-in user may ask (no
+ * project).
+ */
 export async function getAllowance(): Promise<Allowance> {
   const session = await requireSession();
   const now = new Date();
@@ -269,12 +270,13 @@ export async function getAllowance(): Promise<Allowance> {
     loadAssistantLimits(),
     spentTodayUsd(session.user.id, now),
   ]);
-  const round = (usd: number) => Math.round(usd * 1e6) / 1e6;
+  const cap = limits.dailyCapUsd;
+  const usedFraction = cap > 0 ? Math.min(1, Math.max(0, spent / cap)) : 1;
   return {
     enabled: limits.enabled && limits.hasApiKey,
-    capUsd: limits.dailyCapUsd,
-    spentUsd: round(spent),
-    remainingUsd: round(Math.max(0, limits.dailyCapUsd - spent)),
+    usedFraction: Math.round(usedFraction * 1e4) / 1e4,
+    // Same test as requireAllowance, which refuses the send.
+    capReached: spent >= cap,
     resetsAt: quotaDayResetsAt(now).toISOString(),
   };
 }

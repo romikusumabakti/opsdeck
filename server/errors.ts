@@ -25,7 +25,7 @@ export class CodedHTTPException extends HTTPException {
     status: ContentfulStatusCode,
     readonly code: string,
     message: string,
-    /** Values the client needs to word the refusal itself (`{ capUsd }`). */
+    /** Values the client needs to word the refusal itself (`{ resetsAt }`). */
     readonly params?: Record<string, string | number>
   ) {
     super(status, { message });

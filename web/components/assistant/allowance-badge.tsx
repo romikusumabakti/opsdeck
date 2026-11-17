@@ -1,33 +1,49 @@
 import { useTranslations } from "use-intl";
-import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 import type { Allowance } from "@/web/api/assistant";
-import { useAssistantErrorText } from "./error-text";
 
-/** Whether the caller has spent the day's cap. */
-export const capReached = (allowance: Allowance) => allowance.remainingUsd <= 0;
+/** Whether the caller has used up the day's limit. */
+export const capReached = (allowance: Allowance) => allowance.capReached;
+
+/** Used share from which the meter warns. */
+const WARN_AT = 0.8;
 
 /**
- * "Left today: $x.xx", or the cap-reached message with the reset time in the
- * reader's zone once the day's allowance is spent.
+ * A compact meter of today's limit: the share used and when it resets (in the
+ * reader's zone, via the intl time format), amber from 80%, destructive once
+ * the limit is reached. Never shows dollars.
  */
 export function AllowanceBadge({ allowance }: { allowance: Allowance }) {
   const t = useTranslations("assistant");
-  const { codeText } = useAssistantErrorText();
-  if (capReached(allowance)) {
-    return (
-      <p className="max-w-sm text-sm text-destructive" role="status">
-        {codeText("assistant.daily_cap_reached", {
-          capUsd: allowance.capUsd,
-          resetsAt: allowance.resetsAt,
-        })}
-      </p>
-    );
-  }
+  const reached = allowance.capReached;
+  const percent = Math.round(allowance.usedFraction * 100);
+  const time = new Date(allowance.resetsAt);
   return (
-    <Badge variant="outline" title={t("remainingHint")}>
-      {allowance.remainingUsd < 0.005
-        ? t("remainingUnderCent")
-        : t("remaining", { amount: allowance.remainingUsd.toFixed(2) })}
-    </Badge>
+    <div
+      className="flex w-44 flex-col gap-1"
+      title={t("usageHint")}
+      role="status"
+    >
+      <Progress
+        value={percent}
+        aria-label={t("usageHint")}
+        indicatorClassName={cn(
+          reached
+            ? "bg-destructive"
+            : allowance.usedFraction >= WARN_AT && "bg-amber-500"
+        )}
+      />
+      <p
+        className={cn(
+          "text-xs leading-tight text-muted-foreground",
+          reached && "text-destructive"
+        )}
+      >
+        {reached
+          ? t("usageCapReached", { time })
+          : `${t("usageUsed", { percent })} · ${t("usageResets", { time })}`}
+      </p>
+    </div>
   );
 }

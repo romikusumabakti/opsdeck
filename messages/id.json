@@ -3640,7 +3640,7 @@
   },
   "assistantErrors": {
     "notConfigured": "Asisten belum disiapkan. Minta admin mengaktifkannya dan menyimpan API key penyedia model.",
-    "dailyCapReached": "Jatah asisten hari ini sebesar {capUsd, number} USD sudah terpakai. Jatah direset pukul {resetsAt, time, short}.",
+    "dailyCapReached": "Batas pemakaian asisten hari ini sudah tercapai. Direset pukul {resetsAt, time, short}.",
     "busy": "Asisten masih menjawab pesan sebelumnya. Tunggu sampai selesai.",
     "unavailable": "Asisten tidak dapat menerima pesan saat ini. Coba lagi sebentar lagi.",
     "creditExhausted": "Kredit penyedia model untuk asisten sudah habis. Minta admin untuk mengisinya.",
@@ -3660,9 +3660,10 @@
   "assistant": {
     "title": "Asisten",
     "subtitle": "Tanyakan tentang kode dan issue di {name}.",
-    "remaining": "Sisa hari ini: ${amount}",
-    "remainingUnderCent": "Sisa hari ini: < $0.01",
-    "remainingHint": "Jatah pemakaian asisten Anda untuk hari ini.",
+    "usageUsed": "{percent}% dari batas hari ini terpakai",
+    "usageResets": "Direset {time, time, short}",
+    "usageCapReached": "Batas hari ini sudah tercapai. Direset pukul {time, time, short}.",
+    "usageHint": "Pemakaian asisten Anda hari ini.",
     "notEnabledTitle": "Asisten belum aktif",
     "conversations": "Percakapan",
     "newConversation": "Percakapan baru",

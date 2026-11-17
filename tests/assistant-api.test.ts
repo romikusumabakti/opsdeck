@@ -702,7 +702,7 @@ describe("send-message", () => {
     expect(store.messages).toHaveLength(2);
   });
 
-  it("refuses at the daily cap: assistant.daily_cap_reached with capUsd and resetsAt", async () => {
+  it("refuses at the daily cap: assistant.daily_cap_reached with resetsAt only", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // 2026-11-16 10:00 WIB
     vi.setSystemTime(new Date("2026-11-16T03:00:00Z"));
@@ -715,9 +715,9 @@ describe("send-message", () => {
     const body = await res.json();
     expect(body).toMatchObject({
       code: "assistant.daily_cap_reached",
-      params: { capUsd: 1.5, resetsAt: "2026-11-16T17:00:00.000Z" },
+      params: { resetsAt: "2026-11-16T17:00:00.000Z" },
     });
-    expect(body.error).toContain("1.5");
+    expect(JSON.stringify(body)).not.toMatch(/capUsd|USD|1\.5/);
     expect(queue.enqueue).not.toHaveBeenCalled();
     expect(store.messages).toEqual([]);
   });
@@ -833,22 +833,21 @@ describe("allowance", () => {
     state.limits = { enabled: true, hasApiKey: false, dailyCapUsd: 1.5 };
     const res = await get("/allowance");
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ enabled: false, capUsd: 1.5 });
+    expect(await res.json()).toMatchObject({ enabled: false });
   });
 
-  it("counts spend at 23:59 WIB for that day and resets at 00:01 WIB", async () => {
+  it("reports a share of the limit, counting 23:59 WIB for that day and resetting at 00:01 WIB", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // 23:59 WIB on 2026-11-16 is 16:59 UTC.
     state.spend = [
-      { userId: QA, at: new Date("2026-11-16T16:59:00Z"), costUsd: 0.4 },
+      { userId: QA, at: new Date("2026-11-16T16:59:00Z"), costUsd: 0.6 },
       { userId: OTHER, at: new Date("2026-11-16T16:59:00Z"), costUsd: 1 },
     ];
     vi.setSystemTime(new Date("2026-11-16T16:59:30Z"));
     expect(await (await get("/allowance")).json()).toEqual({
       enabled: true,
-      capUsd: 1.5,
-      spentUsd: 0.4,
-      remainingUsd: 1.1,
+      usedFraction: 0.4,
+      capReached: false,
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
 
@@ -856,18 +855,29 @@ describe("allowance", () => {
     vi.setSystemTime(new Date("2026-11-16T17:01:00Z"));
     expect(await (await get("/allowance")).json()).toEqual({
       enabled: true,
-      capUsd: 1.5,
-      spentUsd: 0,
-      remainingUsd: 1.5,
+      usedFraction: 0,
+      capReached: false,
       resetsAt: "2026-11-17T17:00:00.000Z",
     });
   });
 
-  it("never reports a negative remainder", async () => {
+  it("has no dollar amounts, even over the cap, and clamps the fraction to 1", async () => {
     state.spend = [{ userId: QA, at: new Date(), costUsd: 2.25 }];
+    const res = await get("/allowance");
+    const raw = await res.text();
+    expect(raw).not.toMatch(/capUsd|spentUsd|remainingUsd/);
+    expect(JSON.parse(raw)).toMatchObject({
+      usedFraction: 1,
+      capReached: true,
+    });
+  });
+
+  it("treats a cap of 0 as fully used", async () => {
+    state.limits = { enabled: true, hasApiKey: true, dailyCapUsd: 0 };
+    state.spend = [];
     expect(await (await get("/allowance")).json()).toMatchObject({
-      spentUsd: 2.25,
-      remainingUsd: 0,
+      usedFraction: 1,
+      capReached: true,
     });
   });
 });
@@ -982,7 +992,7 @@ describe("drafts", () => {
     expect(capped.status).toBe(429);
     expect(await capped.json()).toMatchObject({
       code: "assistant.daily_cap_reached",
-      params: { capUsd: 1.5 },
+      params: { resetsAt: expect.any(String) },
     });
     state.spend = [];
     state.runtime = null;

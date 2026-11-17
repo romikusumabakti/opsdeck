@@ -25,7 +25,6 @@ export function useAssistantErrorText() {
       code && isKnownCode(code) ? ASSISTANT_ERROR_MESSAGE_KEYS[code] : "failed";
     if (key === "dailyCapReached") {
       return t(key, {
-        capUsd: Number(params?.capUsd ?? 0),
         resetsAt: new Date(String(params?.resetsAt ?? Date.now())),
       });
     }

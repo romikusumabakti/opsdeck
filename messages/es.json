@@ -3640,7 +3640,7 @@
   },
   "assistantErrors": {
     "notConfigured": "El asistente no está configurado. Pide a un administrador que lo active y guarde una clave de API del proveedor del modelo.",
-    "dailyCapReached": "Has usado la asignación diaria del asistente de {capUsd, number} USD. Se restablece a las {resetsAt, time, short}.",
+    "dailyCapReached": "Has alcanzado el límite del asistente de hoy. Se restablece a las {resetsAt, time, short}.",
     "busy": "El asistente todavía está respondiendo tu mensaje anterior. Espera a que termine.",
     "unavailable": "El asistente no pudo recibir tu mensaje ahora. Inténtalo de nuevo en un momento.",
     "creditExhausted": "Se agotó el crédito del proveedor del modelo del asistente. Pide a un administrador que lo recargue.",
@@ -3660,9 +3660,10 @@
   "assistant": {
     "title": "Asistente",
     "subtitle": "Pregunta sobre el código y las incidencias de {name}.",
-    "remaining": "Restante hoy: ${amount}",
-    "remainingUnderCent": "Restante hoy: < $0.01",
-    "remainingHint": "Tu asignación del asistente para hoy.",
+    "usageUsed": "{percent}% del límite de hoy usado",
+    "usageResets": "Se restablece a las {time, time, short}",
+    "usageCapReached": "Has alcanzado el límite de hoy. Se restablece a las {time, time, short}.",
+    "usageHint": "Tu uso del asistente hoy.",
     "notEnabledTitle": "El asistente no está activado",
     "conversations": "Conversaciones",
     "newConversation": "Nueva conversación",
