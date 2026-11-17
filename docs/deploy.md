@@ -392,7 +392,9 @@ Values an instance sets for itself, outside any app's `.env`:
 - `ACCESS_DEFAULT_POLICY_NAME` (instance `.env`): the Cloudflare Access policy
   the New environment wizard preselects when the copy source has none, matched
   by name, case-insensitively. Unset: no policy is preselected and the wizard
-  asks for one.
+  asks for one. Both compose files (`compose.yaml`, `ops/install/compose.yaml`)
+  pass it through to the app container, and `install.sh` adopts it from an
+  older `.env`.
 - `BRAND` (instance `.env`): an unknown value no longer fails boot; the app
   logs one warning and uses the `default` brand.
 - Assistant organisation context (Admin → Assistant): a paragraph about the

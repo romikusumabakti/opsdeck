@@ -63,6 +63,8 @@ services:
       # Brand — logo and colour theme: one of lib/branding.ts BRANDS.
       # Read by the server at runtime, so changing it takes a restart, not a rebuild.
       BRAND: ${BRAND-}
+      # Cloudflare Access policy (by name) the New environment wizard preselects.
+      ACCESS_DEFAULT_POLICY_NAME: ${ACCESS_DEFAULT_POLICY_NAME-}
       # Email (Resend) — optional; email features disabled if empty.
       # When EMAIL_FROM is unset, lib/branding.ts derives a default from
       # APP_NAME + ALLOWED_EMAIL_DOMAIN.

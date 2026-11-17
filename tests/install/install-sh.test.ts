@@ -162,6 +162,7 @@ const OLD_ENV = [
   `MICROSOFT_CLIENT_SECRET=${OLD_SECRETS.MICROSOFT_CLIENT_SECRET}`,
   `RESEND_API_KEY=${OLD_SECRETS.RESEND_API_KEY}`,
   "BRAND=acme",
+  "ACCESS_DEFAULT_POLICY_NAME=Example Internal",
   "S3_ACCESS_KEY=GKold0123456789abcdef0123",
   `S3_SECRET_KEY=${OLD_SECRETS.S3_SECRET_KEY}`,
   `GARAGE_RPC_SECRET=${OLD_SECRETS.GARAGE_RPC_SECRET}`,
@@ -613,6 +614,7 @@ describe("install.sh --adopt --dry-run", () => {
       "MICROSOFT_CLIENT_SECRET",
       "RESEND_API_KEY",
       "BRAND",
+      "ACCESS_DEFAULT_POLICY_NAME",
       "S3_ACCESS_KEY",
       "S3_SECRET_KEY",
       "DATABASE_URL",
@@ -1074,6 +1076,10 @@ describe("product compose", () => {
       "service_completed_successfully"
     );
     expect(app?.environment?.COMPOSE_PROJECT_NAME).toBe("menara");
+    // Instance settings the app reads from its own environment.
+    for (const key of ["BRAND", "ACCESS_DEFAULT_POLICY_NAME"]) {
+      expect(app?.environment, key).toHaveProperty(key);
+    }
     expect(app?.volumes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
