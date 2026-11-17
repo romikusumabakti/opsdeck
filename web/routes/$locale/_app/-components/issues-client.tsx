@@ -502,7 +502,7 @@ export function IssuesClient({
                       aria-label={t("selectAll")}
                     />
                   </TableHead>
-                  <TableHead className="w-24">{t("columnKey")}</TableHead>
+                  <TableHead className="w-32">{t("columnKey")}</TableHead>
                   <TableHead>{t("columnTitle")}</TableHead>
                   <TableHead className="w-36">{t("columnStatus")}</TableHead>
                   <TableHead className="w-32">{t("columnPriority")}</TableHead>
@@ -531,6 +531,7 @@ export function IssuesClient({
                     <TableCell className="truncate font-mono text-sm text-muted-foreground">
                       <Link
                         href={`/${projectKey}/issues/${issue.number}`}
+                        title={`${projectKey}-${issue.number}`}
                         className="hover:text-foreground hover:underline"
                       >
                         {projectKey}-{issue.number}

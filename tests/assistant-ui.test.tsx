@@ -1016,7 +1016,7 @@ describe("drafts panel in the workspace", () => {
     await act(async () => toggle(0)?.click());
     expect(panel()?.querySelector("h2")?.textContent).toBe(t.draftsTitle);
     expect(t.draftsTitle).toBe("Drafts");
-    expect(toggle(0)).toBeDefined();
+    expect(toggle(0)?.textContent).toContain("(0)");
   });
   it("does not open when switching to a conversation that already has drafts", async () => {
     await renderWorkspace();

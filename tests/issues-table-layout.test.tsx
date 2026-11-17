@@ -39,4 +39,21 @@ describe("issue tables use a fixed layout", () => {
     const hidden = source.match(/hidden [^"]*xl:table-cell/g) ?? [];
     expect(hidden.length).toBe(4);
   });
+
+  // Keys are up to 10 letters + "-" + number; w-32 shows DEMOPORTAL-12 whole.
+  it("gives the key column w-32 and the full key as a tooltip", () => {
+    const project = readFileSync(
+      "web/routes/$locale/_app/-components/issues-client.tsx",
+      "utf8"
+    );
+    expect(project).toContain('<TableHead className="w-32">{t("columnKey")}');
+    expect(project).toMatch(/title=\{`\$\{projectKey\}-\$\{issue\.number\}`\}/);
+    const global = readFileSync("components/global-issues-client.tsx", "utf8");
+    expect(global).toMatch(
+      /headClassName: "w-32",\s*cellClassName: "truncate",\s*label: t\("columnKey"\)/
+    );
+    expect(global).toMatch(
+      /title=\{`\$\{row\.original\.project\.key\}-\$\{row\.original\.number\}`\}/
+    );
+  });
 });

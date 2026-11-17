@@ -305,6 +305,7 @@ export function GlobalIssuesClient({
         cell: ({ row }) => (
           <Link
             href={issueHref(row.original)}
+            title={`${row.original.project.key}-${row.original.number}`}
             className="font-mono text-sm text-muted-foreground hover:text-foreground hover:underline"
           >
             {row.original.project.key}-{row.original.number}
@@ -312,7 +313,7 @@ export function GlobalIssuesClient({
         ),
         enableHiding: false,
         meta: {
-          headClassName: "w-24",
+          headClassName: "w-32",
           cellClassName: "truncate",
           label: t("columnKey"),
         },
