@@ -2703,7 +2703,8 @@ export const assistantDraftKindEnum = pgEnum("assistant_draft_kind", [
 
 // One chat of a user. Each question carries its own context (on the user
 // message); `projectId` is set only on Stage 2 conversations, which were
-// bound to one project, and the environment fields are Stage 1 leftovers.
+// bound to one project (set null when it is deleted: the conversation stays),
+// and the environment fields are Stage 1 leftovers.
 export const assistantConversations = pgTable(
   "assistant_conversations",
   {
@@ -2716,7 +2717,7 @@ export const assistantConversations = pgTable(
       }),
     projectId: uuid("project_id").references(() => projects.id, {
       name: "assistant_conversations_project_id_projects_id_fk",
-      onDelete: "cascade",
+      onDelete: "set null",
     }),
     environmentId: uuid("environment_id").references(() => environments.id, {
       name: "assistant_conversations_environment_id_environments_id_fk",

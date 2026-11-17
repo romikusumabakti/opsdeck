@@ -81,7 +81,13 @@ describe("global assistant migration, as text", () => {
   });
 
   it("is expand only: relaxes the conversation's project, adds nullable columns", () => {
+    // The one allowed drop: the conversation's project FK is swapped from
+    // CASCADE to SET NULL in a single statement.
+    const swap =
+      'ALTER TABLE "assistant_conversations" DROP CONSTRAINT "assistant_conversations_project_id_projects_id_fk", ADD CONSTRAINT "assistant_conversations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL;';
+    expect(globalSql.split(swap)).toHaveLength(2);
     const withoutRelaxing = globalSql
+      .replace(swap, "")
       .replace(/\bDROP NOT NULL\b/g, "")
       .replace(/\bON DELETE SET NULL\b/g, "");
     expect(withoutRelaxing).not.toMatch(/\b(DROP|RENAME|TRUNCATE|DELETE)\b/);
@@ -428,24 +434,41 @@ describe.skipIf(!enabled)(
       expect(draft).toEqual({ project_id: PROJECT });
     });
 
-    it("allows a conversation without a project, and nulls a deleted project's ids", async () => {
+    it("allows a conversation without a project, and keeps conversations when their project is deleted", async () => {
+      const { contextFromRow } = await import("@/lib/assistant/context");
       const fresh = id(61);
       await sql`insert into assistant_conversations (id, user_id)
         values (${fresh}, ${USER})`;
-      // Deleting the project still removes its Stage 2 conversations (FK
-      // cascade, unchanged); a question of a global conversation keeps its
-      // name snapshot.
       const q = id(62);
       await sql`insert into assistant_messages
         (id, conversation_id, role, status, project_id, project_name)
         values (${q}, ${fresh}, 'user', 'done', ${PROJECT}, 'Acme')`;
       await sql`delete from projects where id = ${PROJECT}`;
+      // The Stage 2 conversation stays, its project nulled (SET NULL).
       expect(
-        await sql`select id from assistant_conversations order by id`
-      ).toEqual([{ id: fresh }]);
-      const [row] = await sql`select project_id, project_name
-        from assistant_messages where id = ${q}`;
-      expect(row).toEqual({ project_id: null, project_name: "Acme" });
+        await sql`select id, project_id from assistant_conversations order by id`
+      ).toEqual([
+        { id: STAGE2, project_id: null },
+        { id: fresh, project_id: null },
+      ]);
+      const [draft] =
+        await sql`select project_id from assistant_drafts where id = ${DRAFT}`;
+      expect(draft).toEqual({ project_id: null });
+      // Every question keeps its name snapshot and reads as gone.
+      const rows = await sql`select project_id as "projectId",
+        project_name as "projectName", environment_id as "environmentId",
+        environment_name as "environmentName" from assistant_messages
+        where role = 'user' order by id`;
+      expect(
+        rows.map((row) =>
+          contextFromRow(row as unknown as Parameters<typeof contextFromRow>[0])
+        )
+      ).toEqual([
+        { kind: "gone", of: "project", label: "Acme" },
+        { kind: "gone", of: "environment", label: "Staging" },
+        { kind: "gone", of: "environment", label: "Old" },
+        { kind: "gone", of: "project", label: "Acme" },
+      ]);
     });
   }
 );

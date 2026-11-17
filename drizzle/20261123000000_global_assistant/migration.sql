@@ -5,6 +5,7 @@ ALTER TABLE "assistant_messages" ADD COLUMN "project_name" text;--> statement-br
 ALTER TABLE "assistant_conversations" ALTER COLUMN "project_id" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "assistant_drafts" ADD CONSTRAINT "assistant_drafts_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "assistant_messages" ADD CONSTRAINT "assistant_messages_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "assistant_conversations" DROP CONSTRAINT "assistant_conversations_project_id_projects_id_fk", ADD CONSTRAINT "assistant_conversations_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE SET NULL;--> statement-breakpoint
 UPDATE "assistant_messages" AS m SET
 	"project_id" = c."project_id",
 	"project_name" = p."name"

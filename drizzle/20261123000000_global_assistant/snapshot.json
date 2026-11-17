@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "82e591dc-7fb2-4f9b-a911-aebcb4f5d709",
+  "id": "1d635c00-e223-41b0-a6ed-8bbeed54e1d8",
   "prevIds": [
     "ab6ea8d8-2d33-48dc-99f9-a7b44b531794"
   ],
@@ -124,6 +124,30 @@
         "n|col|public.projects.id",
         "e|uniqueness|public.projects.id"
       ]
+    },
+    {
+      "statementType": "recreate_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "assistant_conversations"
+      ],
+      "writes": [
+        "s|fk|public.assistant_conversations.assistant_conversations_project_id_projects_id_fk",
+        "n|fk|public.assistant_conversations.assistant_conversations_project_id_projects_id_fk",
+        "e|fk|public.assistant_conversations.assistant_conversations_project_id_projects_id_fk",
+        "n|con|public.assistant_conversations.assistant_conversations_project_id_projects_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_conversations",
+        "n|sch|public",
+        "n|tbl|public.projects",
+        "n|sch|public",
+        "n|col|public.assistant_conversations.project_id",
+        "n|col|public.projects.id",
+        "e|uniqueness|public.projects.id"
+      ],
+      "sqlHash": "c4b7fbe6bc39a6f8"
     }
   ],
   "deltas": [
@@ -220,6 +244,13 @@
       "key": "columns\u0000[\"public\",\"assistant_conversations\",\"project_id\"]",
       "set": {
         "notNull": false
+      }
+    },
+    {
+      "op": "alter",
+      "key": "fks\u0000[\"public\",\"assistant_conversations\",\"assistant_conversations_project_id_projects_id_fk\"]",
+      "set": {
+        "onDelete": "SET NULL"
       }
     }
   ]
