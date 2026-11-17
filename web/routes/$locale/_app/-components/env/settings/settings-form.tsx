@@ -206,7 +206,16 @@ export function environmentPayload(
   { canManageServers, hasDomain }: PayloadOptions
 ) {
   const { targets: _targets, ...environment } = values;
-  const { url, ...full } = buildEnvironmentPayload(environment, "edit");
+  const { url, ...payload } = buildEnvironmentPayload(environment, "edit");
+  // An environment without a backend service has blank backend fields, which
+  // the update schema rejects; leave them out so the other tabs still save.
+  const {
+    backendServerId: _serverId,
+    backendServiceType: _serviceType,
+    backendServiceName: _serviceName,
+    ...withoutBackend
+  } = payload;
+  const full = values.backendServerId ? payload : withoutBackend;
   const withUrl = hasDomain ? full : { ...full, url };
   if (canManageServers) return withUrl;
   const info = Object.fromEntries(

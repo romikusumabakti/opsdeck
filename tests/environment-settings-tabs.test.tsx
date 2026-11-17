@@ -90,6 +90,7 @@ vi.mock(
 );
 
 import { ProjectRoleProvider } from "@/components/project-role";
+import { environmentUpdateSchema } from "@/lib/validation";
 import {
   environmentPayload,
   settingsValues,
@@ -855,6 +856,18 @@ describe("settingsSearch", () => {
 });
 
 describe("environmentPayload", () => {
+  it("an admin's save of an environment without a backend service passes the update schema", () => {
+    const saved = settingsValues({ ...environment, services: [] }, []);
+    const payload = environmentPayload({ ...saved, name: "Dev 2" }, saved, {
+      canManageServers: true,
+      hasDomain: false,
+    });
+    expect(payload).not.toHaveProperty("backendServerId");
+    expect(payload).not.toHaveProperty("backendServiceType");
+    expect(payload).not.toHaveProperty("backendServiceName");
+    expect(environmentUpdateSchema.safeParse(payload).success).toBe(true);
+  });
+
   it("sends an engineer's changed server ids only, never other bindings", () => {
     const saved = settingsValues(environment, [target(false)]);
     const moved = { ...saved, backendServerId: OTHER_SERVER };
