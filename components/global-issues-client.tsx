@@ -383,7 +383,7 @@ export function GlobalIssuesClient({
             onChange={(p) => onPriorityChange(row.original.id, p)}
           />
         ),
-        meta: { headClassName: "w-28", label: t("columnPriority") },
+        meta: { headClassName: "w-32", label: t("columnPriority") },
       },
       {
         id: "assignee",
@@ -400,7 +400,7 @@ export function GlobalIssuesClient({
             onChange={(a) => onAssigneeChange(row.original.id, a)}
           />
         ),
-        meta: { headClassName: "w-32", label: t("columnAssignee") },
+        meta: { headClassName: "w-44", label: t("columnAssignee") },
       },
       {
         id: "createdAt",

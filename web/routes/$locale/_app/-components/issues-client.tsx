@@ -498,12 +498,12 @@ export function IssuesClient({
                   </TableHead>
                   <TableHead className="w-24">{t("columnKey")}</TableHead>
                   <TableHead>{t("columnTitle")}</TableHead>
-                  <TableHead className="w-40">{t("columnStatus")}</TableHead>
-                  <TableHead className="w-36">{t("columnPriority")}</TableHead>
-                  <TableHead className="w-40">
+                  <TableHead className="w-36">{t("columnStatus")}</TableHead>
+                  <TableHead className="w-32">{t("columnPriority")}</TableHead>
+                  <TableHead className="w-36">
                     {t("columnEnvironment")}
                   </TableHead>
-                  <TableHead className="w-32">{t("columnAssignee")}</TableHead>
+                  <TableHead className="w-44">{t("columnAssignee")}</TableHead>
                   <TableHead className="w-32">{t("columnCreated")}</TableHead>
                 </TableRow>
               </TableHeader>

@@ -1,5 +1,8 @@
+// Shared by the Select trigger and the ghost Button of the person picker so
+// both read as the same pill: the Select base adds shadow-xs, dark fill and
+// h-9 via a data attribute, the Button adds font-medium; neutralised here.
 // "compact" sizes to content with no resting border, for dense rows and cards;
 // max-w-full only bounds the trigger by its container; in an auto-layout table
 // callers also pass an absolute cap (e.g. max-w-32) so a long value truncates.
 export const COMPACT_TRIGGER =
-  "h-7 w-auto max-w-full gap-1.5 border-transparent bg-transparent px-2 hover:bg-muted";
+  "h-7 w-auto max-w-full gap-1.5 rounded-md border-transparent bg-transparent px-2 font-normal shadow-none hover:bg-muted data-[size=default]:h-7 dark:bg-transparent dark:hover:bg-muted";
