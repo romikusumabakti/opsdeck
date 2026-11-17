@@ -36,7 +36,11 @@ const str = (description: string) => z.string().describe(description);
 const nullable = <T extends z.ZodType>(type: T, description: string) =>
   type.nullable().describe(description);
 
-/** What the model sees: names, descriptions and input schemas. */
+/**
+ * What the model sees in a pinned context (a project's branches or an
+ * environment): names, descriptions and input schemas. Unchanged since
+ * Stage 2 (tests/__snapshots__/assistant-tool-defs.test.ts.snap).
+ */
 const DEFINITIONS = {
   list_files: {
     description: `List file paths in the selected source snapshot (the project branches or an environment's running commits), matching a glob (e.g. "backend/src/**/*.java"). Paths are prefixed with the component key. At most ${MAX_LIST_PATHS} paths, so use a specific glob. Files that may hold secrets are withheld: counted in "withheld" and named (up to ${MAX_WITHHELD_PATHS}) in "withheldPaths", never readable.`,
@@ -114,6 +118,48 @@ const DEFINITIONS = {
   },
 } as const;
 
+const project = str(
+  'Key of the project to read, as listed in the question\'s context note or by list_projects (e.g. "KST").'
+);
+
+/**
+ * The automatic context: list_projects first, and the code tools take the
+ * project to read. The issue and knowledge tools are the pinned ones.
+ */
+const AUTO_DEFINITIONS = {
+  list_projects: {
+    description:
+      "List the projects the user can see: key, name, short description and component keys. Use it when the context note does not make clear which project a question is about; the code tools take one of these keys as project.",
+    inputSchema: z.strictObject({}),
+  },
+  list_files: {
+    description: `List file paths in one project's branches (the project given by key), matching a glob (e.g. "backend/src/**/*.java"). Paths are prefixed with the component key and are relative to that project. At most ${MAX_LIST_PATHS} paths, so use a specific glob. Files that may hold secrets are withheld: counted in "withheld" and named (up to ${MAX_WITHHELD_PATHS}) in "withheldPaths", never readable.`,
+    inputSchema: z.strictObject({
+      project,
+      ...DEFINITIONS.list_files.inputSchema.shape,
+    }),
+  },
+  search_code: {
+    description: `Search file contents of one project's branches (the project given by key). Returns at most ${MAX_SEARCH_MATCHES} matches (${MAX_SEARCH_BYTES / 1024} KiB in total) with path, line number and ±2 lines of context; narrow it with a specific glob. Literal match unless regex is true. Files that may hold secrets are never searched; "withheld" counts them.`,
+    inputSchema: z.strictObject({
+      project,
+      ...DEFINITIONS.search_code.inputSchema.shape,
+    }),
+  },
+  read_file: {
+    description: `Read a file of one project's branches (the project given by key) by its component-prefixed path, optionally a 1-based line range. At most ${MAX_READ_LINES} lines or ${MAX_READ_BYTES / 1024} KiB per call; read only the range you need and page with start_line for more. Files that may hold secrets are withheld and return an error saying so.`,
+    inputSchema: z.strictObject({
+      project,
+      ...DEFINITIONS.read_file.inputSchema.shape,
+    }),
+  },
+  get_issue: DEFINITIONS.get_issue,
+  read_attachment: DEFINITIONS.read_attachment,
+  search_knowledge: DEFINITIONS.search_knowledge,
+  read_knowledge: DEFINITIONS.read_knowledge,
+} as const;
+
+/** The tools of a pinned context, in order. */
 export const TOOL_NAMES = Object.keys(DEFINITIONS) as ToolName[];
 
 /** One executed tool call, as written to the audit trail. */
@@ -177,9 +223,9 @@ export function buildTools(
   } = {}
 ): ToolSet {
   const execute = options.execute ?? executeTool;
-  const entries = Object.entries(DEFINITIONS) as Array<
-    [ToolName, (typeof DEFINITIONS)[ToolName]]
-  >;
+  const entries = Object.entries(
+    ctx.mode === "auto" ? AUTO_DEFINITIONS : DEFINITIONS
+  ) as Array<[ToolName, { description: string; inputSchema: z.ZodType }]>;
   return Object.fromEntries(
     entries.map(([name, definition], index) => [
       name,
@@ -237,17 +283,60 @@ const INPUTS = {
   read_knowledge: z.strictObject({ slug: z.string() }),
 } as const;
 
-export type ToolName = keyof typeof INPUTS;
+/** The automatic context's inputs: the code tools also name the project. */
+const AUTO_INPUTS = {
+  list_projects: z.strictObject({}),
+  list_files: INPUTS.list_files.extend({ project: z.string() }),
+  search_code: INPUTS.search_code.extend({ project: z.string() }),
+  read_file: INPUTS.read_file.extend({ project: z.string() }),
+  get_issue: INPUTS.get_issue,
+  read_attachment: INPUTS.read_attachment,
+  search_knowledge: INPUTS.search_knowledge,
+  read_knowledge: INPUTS.read_knowledge,
+} as const;
 
-export type ToolContext = {
-  snaps: SnapshotRef[];
+export type ToolName = keyof typeof AUTO_INPUTS;
+
+/** A project as list_projects returns it. */
+export type ListedProject = {
+  key: string;
+  name: string;
+  description: string | null;
+  components: string[];
+};
+
+type BaseToolContext = {
   viewer: AssistantViewer;
   /** Jira attachments the user ticked on the message being answered. */
   attachments: AttachmentRef[];
 };
 
-function isToolName(name: string): name is ToolName {
-  return Object.hasOwn(INPUTS, name);
+/**
+ * What the tools of one turn read. Pinned (a project's branches or an
+ * environment): the question's snapshots, resolved up front. Automatic: the
+ * code tools name a project, resolved by `snapshotsFor` against the user's
+ * visible projects only (loaded once per project per turn).
+ */
+export type ToolContext =
+  | (BaseToolContext & { mode: "pinned"; snaps: SnapshotRef[] })
+  | (BaseToolContext & {
+      mode: "auto";
+      snapshotsFor: (
+        projectKey: string
+      ) => Promise<SnapshotRef[] | { error: "unknown_project" }>;
+      listProjects: () => Promise<ListedProject[]>;
+    });
+
+const inputsOf = (ctx: ToolContext) =>
+  (ctx.mode === "auto" ? AUTO_INPUTS : INPUTS) as Partial<
+    Record<ToolName, z.ZodType>
+  >;
+
+function isToolName(
+  name: string,
+  inputs: Partial<Record<ToolName, z.ZodType>>
+): name is ToolName {
+  return Object.hasOwn(inputs, name);
 }
 
 const orUndefined = <T>(value: T | null | undefined): T | undefined =>
@@ -258,10 +347,11 @@ export async function executeTool(
   input: unknown,
   ctx: ToolContext
 ): Promise<ToolResult<unknown>> {
-  if (!isToolName(name)) {
+  const inputs = inputsOf(ctx);
+  if (!isToolName(name, inputs)) {
     return { ok: false, error: `unknown tool: ${name}`, meta: {} };
   }
-  const parsed = INPUTS[name].safeParse(input);
+  const parsed = (inputs[name] as z.ZodType).safeParse(input);
   if (!parsed.success) {
     return {
       ok: false,
@@ -279,19 +369,21 @@ export async function executeTool(
   }
 }
 
-async function run(
-  name: ToolName,
+type CodeToolName = "list_files" | "search_code" | "read_file";
+
+function runCode(
+  name: CodeToolName,
   data: unknown,
-  ctx: ToolContext
+  snaps: SnapshotRef[]
 ): Promise<ToolResult<unknown>> {
   switch (name) {
     case "list_files": {
       const i = data as z.infer<typeof INPUTS.list_files>;
-      return listFiles(ctx.snaps, i.glob);
+      return listFiles(snaps, i.glob);
     }
     case "search_code": {
       const i = data as z.infer<typeof INPUTS.search_code>;
-      return searchCode(ctx.snaps, {
+      return searchCode(snaps, {
         pattern: i.pattern,
         regex: orUndefined(i.regex),
         glob: orUndefined(i.glob),
@@ -300,12 +392,66 @@ async function run(
     }
     case "read_file": {
       const i = data as z.infer<typeof INPUTS.read_file>;
-      return readFile(ctx.snaps, {
+      return readFile(snaps, {
         path: i.path,
         startLine: orUndefined(i.start_line),
         endLine: orUndefined(i.end_line),
       });
     }
+  }
+}
+
+/**
+ * A code tool of the automatic context: only a project the user can see
+ * (snapshotsFor checks) is read, and the audit records which project each
+ * read belonged to, since paths are relative to it.
+ */
+async function runProjectCode(
+  name: CodeToolName,
+  data: unknown,
+  ctx: Extract<ToolContext, { mode: "auto" }>
+): Promise<ToolResult<unknown>> {
+  const { project, ...input } = data as { project: string };
+  const snaps = await ctx.snapshotsFor(project);
+  if ("error" in snaps) {
+    return {
+      ok: false,
+      error: `Unknown project ${project}. Call list_projects.`,
+      meta: { project },
+    };
+  }
+  if (snaps.length === 0) {
+    return {
+      ok: false,
+      error: `No source code of project ${project} can be read.`,
+      meta: { project },
+    };
+  }
+  const result = await runCode(name, input, snaps);
+  return { ...result, meta: { ...result.meta, project } };
+}
+
+async function run(
+  name: ToolName,
+  data: unknown,
+  ctx: ToolContext
+): Promise<ToolResult<unknown>> {
+  switch (name) {
+    case "list_projects": {
+      if (ctx.mode !== "auto") break;
+      const projects = await ctx.listProjects();
+      return {
+        ok: true,
+        data: { projects },
+        meta: { projectKeys: projects.map((p) => p.key) },
+      };
+    }
+    case "list_files":
+    case "search_code":
+    case "read_file":
+      return ctx.mode === "auto"
+        ? runProjectCode(name, data, ctx)
+        : runCode(name, data, ctx.snaps);
     case "get_issue": {
       const i = data as z.infer<typeof INPUTS.get_issue>;
       return getIssueTool(ctx.viewer, i.key);
@@ -326,4 +472,5 @@ async function run(
       return readKnowledgeTool(ctx.viewer, i.slug);
     }
   }
+  return { ok: false, error: `unknown tool: ${name}`, meta: {} };
 }

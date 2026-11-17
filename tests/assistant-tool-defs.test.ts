@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantViewer } from "@/lib/assistant/viewer";
 
 const calls = vi.hoisted(() => [] as { fn: string; args: unknown[] }[]);
@@ -36,7 +36,30 @@ const viewer: AssistantViewer = {
   canManageKnowledge: false,
 };
 const ticked = [{ issueKey: "KST-1", attachmentId: "900" }];
-const ctx = { snaps: [], viewer, attachments: ticked };
+const ctx = { mode: "pinned" as const, snaps: [], viewer, attachments: ticked };
+
+const KST_SNAPS = [
+  { componentKey: "backend", dir: "/cache/kst", commitSha: "abc123" },
+];
+const snapshotsFor = vi.fn(async (key: string) =>
+  key === "KST" ? KST_SNAPS : ({ error: "unknown_project" } as const)
+);
+const listProjects = vi.fn(async () => [
+  {
+    key: "KST",
+    name: "Kestrel",
+    description: "Membership",
+    components: ["backend"],
+  },
+]);
+const autoCtx = {
+  mode: "auto" as const,
+  viewer,
+  attachments: ticked,
+  snapshotsFor,
+  listProjects,
+};
+const CODE_TOOLS = ["list_files", "search_code", "read_file"] as const;
 
 type JsonSchema = {
   type?: unknown;
@@ -65,7 +88,63 @@ const run = (
   return execute(input, execOptions);
 };
 
+/** Every tool's description and JSON input schema, as sent to the model. */
+const wireOf = async (tools: ReturnType<typeof buildTools>) =>
+  Object.fromEntries(
+    await Promise.all(
+      Object.entries(tools).map(async ([name, t]) => [
+        name,
+        {
+          description: t.description,
+          schema: await asSchema(t.inputSchema).jsonSchema,
+        },
+      ])
+    )
+  );
+
 describe("buildTools", () => {
+  it("sends the Stage 2 tool set and schemas in a pinned context", async () => {
+    expect(await wireOf(buildTools(ctx, noRecord))).toMatchSnapshot();
+  });
+
+  it("adds list_projects and a required project key to the code tools in automatic context", async () => {
+    const pinned = await wireOf(buildTools(ctx, noRecord));
+    const auto = await wireOf(buildTools(autoCtx, noRecord));
+    expect(Object.keys(auto)).toEqual([
+      "list_projects",
+      ...Object.keys(pinned),
+    ]);
+    expect(auto.list_projects?.schema).toEqual(
+      expect.objectContaining({
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      })
+    );
+    for (const name of CODE_TOOLS) {
+      const schema = auto[name]?.schema as JsonSchema;
+      const base = pinned[name]?.schema as JsonSchema;
+      expect(schema.properties?.project, name).toEqual({
+        type: "string",
+        description: expect.stringContaining("list_projects"),
+      });
+      expect(schema.required, name).toEqual([
+        "project",
+        ...(base.required ?? []),
+      ]);
+      expect(String(auto[name]?.description), name).toContain("project");
+    }
+    // Issue and knowledge tools are the same in both modes.
+    for (const name of [
+      "get_issue",
+      "read_attachment",
+      "search_knowledge",
+      "read_knowledge",
+    ]) {
+      expect(auto[name], name).toEqual(pinned[name]);
+    }
+  });
+
   it("defines the seven tools in order", () => {
     const names = [
       "list_files",
@@ -114,21 +193,33 @@ describe("buildTools", () => {
         walk(value, `${path}.${key}`);
       }
     };
-    for (const [name, tool] of Object.entries(buildTools(ctx, noRecord))) {
-      walk(await asSchema(tool.inputSchema).jsonSchema, name);
+    for (const context of [ctx, autoCtx]) {
+      for (const [name, tool] of Object.entries(
+        buildTools(context, noRecord)
+      )) {
+        walk(
+          await asSchema(tool.inputSchema).jsonSchema,
+          `${context.mode}.${name}`
+        );
+      }
     }
     expect(found).toEqual([]);
   });
 
   it("is strict: closed objects with every property required and described", async () => {
-    for (const [name, tool] of Object.entries(buildTools(ctx, noRecord))) {
+    const all = [
+      ...Object.entries(buildTools(ctx, noRecord)),
+      ...Object.entries(buildTools(autoCtx, noRecord)),
+    ];
+    for (const [name, tool] of all) {
       expect((tool as { strict?: boolean }).strict, name).toBe(true);
       expect(String(tool.description).length, name).toBeGreaterThan(20);
       const schema = (await asSchema(tool.inputSchema)
         .jsonSchema) as JsonSchema;
       expect(schema.type, name).toBe("object");
       expect(schema.additionalProperties, name).toBe(false);
-      expect(schema.required, name).toEqual(
+      // An object without properties (list_projects) has no required list.
+      expect(schema.required ?? [], name).toEqual(
         Object.keys(schema.properties ?? {})
       );
       for (const [prop, def] of Object.entries(schema.properties ?? {})) {
@@ -139,11 +230,13 @@ describe("buildTools", () => {
 
   it("marks only the last tool with the given provider options", () => {
     const cache = { acme: { cacheControl: { type: "ephemeral" } } };
-    const tools = Object.values(
-      buildTools(ctx, noRecord, { lastToolProviderOptions: cache })
-    );
-    expect(tools.at(-1)?.providerOptions).toEqual(cache);
-    expect(tools.slice(0, -1).some((t) => t.providerOptions)).toBe(false);
+    for (const context of [ctx, autoCtx]) {
+      const tools = Object.values(
+        buildTools(context, noRecord, { lastToolProviderOptions: cache })
+      );
+      expect(tools.at(-1)?.providerOptions).toEqual(cache);
+      expect(tools.slice(0, -1).some((t) => t.providerOptions)).toBe(false);
+    }
     expect(
       Object.values(buildTools(ctx, noRecord)).some((t) => t.providerOptions)
     ).toBe(false);
@@ -314,5 +407,115 @@ describe("executeTool", () => {
       meta: {},
     });
     spy.mockRestore();
+  });
+});
+
+describe("executeTool in automatic context", () => {
+  beforeEach(() => {
+    calls.length = 0;
+    snapshotsFor.mockClear();
+    listProjects.mockClear();
+  });
+
+  it("lists the visible projects", async () => {
+    const result = await executeTool("list_projects", {}, autoCtx);
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        projects: [
+          {
+            key: "KST",
+            name: "Kestrel",
+            description: "Membership",
+            components: ["backend"],
+          },
+        ],
+      },
+      meta: { projectKeys: ["KST"] },
+    });
+  });
+
+  it("reads the chosen project's snapshots and records the project", async () => {
+    const result = await executeTool(
+      "list_files",
+      { project: "KST", glob: "backend/**" },
+      autoCtx
+    );
+    expect(snapshotsFor).toHaveBeenCalledExactlyOnceWith("KST");
+    expect(calls).toEqual([
+      { fn: "listFiles", args: [KST_SNAPS, "backend/**"] },
+    ]);
+    expect(result).toEqual({
+      ok: true,
+      data: null,
+      meta: { project: "KST" },
+    });
+  });
+
+  it("refuses a project the user cannot see without reading anything", async () => {
+    for (const [name, input] of [
+      ["list_files", { project: "SECRET", glob: "**" }],
+      [
+        "search_code",
+        {
+          project: "SECRET",
+          pattern: "x",
+          regex: null,
+          glob: null,
+          ignore_case: null,
+        },
+      ],
+      [
+        "read_file",
+        { project: "SECRET", path: "a/b", start_line: null, end_line: null },
+      ],
+    ] as const) {
+      const result = await executeTool(name, input, autoCtx);
+      expect(result, name).toEqual({
+        ok: false,
+        error: "Unknown project SECRET. Call list_projects.",
+        meta: { project: "SECRET" },
+      });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("says so when no code of the project can be read", async () => {
+    const empty = { ...autoCtx, snapshotsFor: async () => [] };
+    const result = await executeTool(
+      "list_files",
+      { project: "KST", glob: "**" },
+      empty
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "No source code of project KST can be read.",
+      meta: { project: "KST" },
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("requires the project argument on code tools", async () => {
+    const result = await executeTool("list_files", { glob: "**" }, autoCtx);
+    expect(result.ok).toBe(false);
+    expect(snapshotsFor).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeTool in a pinned context", () => {
+  it("offers no list_projects and refuses a project argument", async () => {
+    calls.length = 0;
+    expect(await executeTool("list_projects", {}, ctx)).toEqual({
+      ok: false,
+      error: "unknown tool: list_projects",
+      meta: {},
+    });
+    const result = await executeTool(
+      "list_files",
+      { project: "KST", glob: "**" },
+      ctx
+    );
+    expect(result.ok).toBe(false);
+    expect(calls).toEqual([]);
   });
 });

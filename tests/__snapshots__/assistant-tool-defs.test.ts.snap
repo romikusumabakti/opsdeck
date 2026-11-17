@@ -1,0 +1,170 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildTools > sends the Stage 2 tool set and schemas in a pinned context 1`] = `
+{
+  "get_issue": {
+    "description": "Get a Jira issue mirrored in the Panel for a project the user can see: title, status, type, description, comments (latest 100) and the attachment list (names, types, sizes only). Unknown or invisible keys return not found.",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Jira issue key, e.g. "KST-123".",
+          "type": "string",
+        },
+      },
+      "required": [
+        "key",
+      ],
+      "type": "object",
+    },
+  },
+  "list_files": {
+    "description": "List file paths in the selected source snapshot (the project branches or an environment's running commits), matching a glob (e.g. "backend/src/**/*.java"). Paths are prefixed with the component key. At most 150 paths, so use a specific glob. Files that may hold secrets are withheld: counted in "withheld" and named (up to 50) in "withheldPaths", never readable.",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "glob": {
+          "description": "Glob over component-prefixed paths, as narrow as possible (e.g. "backend/src/**/*Iuran*.java"); avoid "**/*".",
+          "type": "string",
+        },
+      },
+      "required": [
+        "glob",
+      ],
+      "type": "object",
+    },
+  },
+  "read_attachment": {
+    "description": "Read the content of one Jira attachment the user ticked for this message (other attachments are refused). PDF (≤15 MiB) and PNG/JPEG/GIF/WebP images (≤5 MiB) are returned as-is; XLSX is converted to CSV text per sheet (≤200 KiB) with yellow-highlighted cells marked [highlight] and cell notes as [note: …]. Other formats are not supported.",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "attachment_id": {
+          "description": "Attachment id, as listed with the ticked attachments (or in get_issue's attachment list).",
+          "type": "string",
+        },
+        "issue_key": {
+          "description": "Key of the issue the attachment belongs to, as listed with the ticked attachments.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "issue_key",
+        "attachment_id",
+      ],
+      "type": "object",
+    },
+  },
+  "read_file": {
+    "description": "Read a file from the selected source snapshot by its component-prefixed path, optionally a 1-based line range. At most 250 lines or 48 KiB per call; read only the range you need and page with start_line for more. Files that may hold secrets are withheld and return an error saying so.",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "end_line": {
+          "description": "Last line to read, inclusive (whole number).",
+          "type": [
+            "number",
+            "null",
+          ],
+        },
+        "path": {
+          "description": "Component-prefixed path as returned by list_files/search_code.",
+          "type": "string",
+        },
+        "start_line": {
+          "description": "First line to read (1-based whole number). Default 1.",
+          "type": [
+            "number",
+            "null",
+          ],
+        },
+      },
+      "required": [
+        "path",
+        "start_line",
+        "end_line",
+      ],
+      "type": "object",
+    },
+  },
+  "read_knowledge": {
+    "description": "Read a knowledge-base document by slug as markdown (at most 64 KiB). Drafts the user cannot see return not found.",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "slug": {
+          "description": "Document slug from search_knowledge.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "slug",
+      ],
+      "type": "object",
+    },
+  },
+  "search_code": {
+    "description": "Search file contents of the selected source snapshot. Returns at most 40 matches (32 KiB in total) with path, line number and ±2 lines of context; narrow it with a specific glob. Literal match unless regex is true. Files that may hold secrets are never searched; "withheld" counts them.",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "glob": {
+          "description": "Only search paths matching this glob.",
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "ignore_case": {
+          "description": "Case-insensitive match. Default false.",
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+        "pattern": {
+          "description": "Text (or regular expression when regex is true) to find.",
+          "type": "string",
+        },
+        "regex": {
+          "description": "Treat pattern as a regular expression. Default false.",
+          "type": [
+            "boolean",
+            "null",
+          ],
+        },
+      },
+      "required": [
+        "pattern",
+        "regex",
+        "glob",
+        "ignore_case",
+      ],
+      "type": "object",
+    },
+  },
+  "search_knowledge": {
+    "description": "Full-text search of the Panel knowledge base (documents the user can read). Returns up to 20 hits with slug, title and a snippet.",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "description": "Search terms; supports quoted phrases, OR and -exclusion.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "query",
+      ],
+      "type": "object",
+    },
+  },
+}
+`;

@@ -39,9 +39,14 @@ import {
   buildVolatileSystemNote,
   type PromptSource,
   type QuestionSource,
-  questionSourceLabel,
+  questionContextLabel,
 } from "./system-prompt";
-import { buildTools, type ToolContext, type ToolExecutor } from "./tool-defs";
+import {
+  buildTools,
+  type ListedProject,
+  type ToolContext,
+  type ToolExecutor,
+} from "./tool-defs";
 import type { SnapshotRef } from "./tools/code";
 import {
   claimMessage,
@@ -53,7 +58,14 @@ import {
   type TurnContext,
 } from "./turn-store";
 import { recordUsage, spentTodayUsd } from "./usage";
-import { type AssistantViewer, loadAssistantViewer } from "./viewer";
+import {
+  type AssistantViewer,
+  loadAssistantViewer,
+  loadProjectEntries,
+  type ProjectEntry,
+  viewerSees,
+  visibleProjects,
+} from "./viewer";
 
 /**
  * Model requests (steps) per turn. The last one is sent with tool choice
@@ -97,6 +109,8 @@ export type RunTurnDeps = {
   /** The project branches. */
   resolveProjectSources?: (projectId: string) => Promise<AssistantSource[]>;
   ensureSnapshot?: (source: AssistantSource) => Promise<Snapshot>;
+  /** Every project (an automatic question filters them by the viewer). */
+  loadProjects?: () => Promise<ProjectEntry[]>;
   loadViewer?: (userId: string) => Promise<AssistantViewer>;
   /** The user's spend on the current quota day (USD). */
   spentToday?: (userId: string, now: Date) => Promise<number>;
@@ -232,7 +246,7 @@ export function buildHistory(
     if (index !== lastUserIndex) {
       messages.push({
         role: "user",
-        content: `${questionSourceLabel(m.context)}\n${m.content}`,
+        content: `${questionContextLabel(m.context)}\n${m.content}`,
       });
       return;
     }
@@ -256,23 +270,30 @@ export function buildHistory(
   return messages;
 }
 
-type ResolvedSources = {
-  question: QuestionSource;
+type ResolvedSources = QuestionSources & {
   prompt: PromptSource[];
   snaps: SnapshotRef[];
+};
+
+/**
+ * The question and the sources read up front (pinned), or the projects the
+ * viewer can see (automatic, read lazily).
+ */
+type QuestionSources = {
+  question: QuestionSource;
+  sources: AssistantSource[];
+  projects: ProjectEntry[];
 };
 
 type SourceDeps = Required<
   Pick<
     RunTurnDeps,
-    "resolveSources" | "resolveProjectSources" | "ensureSnapshot"
+    | "resolveSources"
+    | "resolveProjectSources"
+    | "ensureSnapshot"
+    | "loadProjects"
   >
 >;
-
-/** The viewer may still use the assistant on the project (every role that sees it may). */
-function viewerSees(viewer: AssistantViewer, projectId: string): boolean {
-  return viewer.projectIds === "all" || viewer.projectIds.includes(projectId);
-}
 
 /**
  * The source the turn's question asked about, from its user message: the
@@ -286,7 +307,7 @@ async function resolveQuestionSources(
   turn: TurnContext,
   viewer: AssistantViewer,
   deps: SourceDeps
-): Promise<{ question: QuestionSource; sources: AssistantSource[] }> {
+): Promise<QuestionSources> {
   const { context } = turn;
   switch (context.kind) {
     case "gone":
@@ -295,15 +316,18 @@ async function resolveQuestionSources(
           ? "assistant.environment_gone"
           : "assistant.context_gone"
       );
-    case "auto":
-      return { question: { kind: "auto" }, sources: [] };
+    case "auto": {
+      const projects = visibleProjects(viewer, await deps.loadProjects());
+      return { question: { kind: "auto", projects }, sources: [], projects };
+    }
     case "project":
       if (!viewerSees(viewer, context.projectId)) {
         throw new TurnError("assistant.context_gone");
       }
       return {
-        question: { kind: "project" },
+        question: { kind: "project", projectName: context.projectName },
         sources: await deps.resolveProjectSources(context.projectId),
+        projects: [],
       };
     case "environment":
       if (!viewerSees(viewer, context.projectId)) {
@@ -313,22 +337,23 @@ async function resolveQuestionSources(
         question: {
           kind: "environment",
           environmentName: context.environmentName,
+          projectName: context.projectName,
         },
         sources: await deps.resolveSources(context.environmentId),
+        projects: [],
       };
   }
 }
 
-async function resolveSnapshots(
-  turn: TurnContext,
-  viewer: AssistantViewer,
-  deps: SourceDeps
-): Promise<ResolvedSources> {
-  const { question, sources } = await resolveQuestionSources(
-    turn,
-    viewer,
-    deps
-  );
+/**
+ * Downloads (or finds in the cache) the snapshot of each source, in
+ * parallel, keeping their order: the prompt line of each (with the commit
+ * read, or why it is unavailable) and the snapshots the tools may read.
+ */
+async function snapshotSources(
+  sources: AssistantSource[],
+  ensureSnapshot: SourceDeps["ensureSnapshot"]
+): Promise<{ prompt: PromptSource[]; snaps: SnapshotRef[] }> {
   // Downloads run in parallel; the order of the sources is kept.
   type Outcome =
     | { source: AssistantSource; snap: Snapshot }
@@ -336,7 +361,7 @@ async function resolveSnapshots(
   const outcomes = await Promise.all(
     sources.map(async (source): Promise<Outcome> => {
       try {
-        return { source, snap: await deps.ensureSnapshot(source) };
+        return { source, snap: await ensureSnapshot(source) };
       } catch (error) {
         if (error instanceof SnapshotUnavailableError) {
           return { source, reason: error.reason };
@@ -364,7 +389,107 @@ async function resolveSnapshots(
       prompt.push({ ...source, unavailableReason: outcome.reason });
     }
   }
-  return { question, prompt, snaps };
+  return { prompt, snaps };
+}
+
+async function resolveSnapshots(
+  turn: TurnContext,
+  viewer: AssistantViewer,
+  deps: SourceDeps
+): Promise<ResolvedSources> {
+  const resolved = await resolveQuestionSources(turn, viewer, deps);
+  return {
+    ...resolved,
+    ...(await snapshotSources(resolved.sources, deps.ensureSnapshot)),
+  };
+}
+
+/** A source as stored on the answer: unavailable ones keep a null commit. */
+function storedSource({
+  unavailableReason,
+  ...source
+}: PromptSource): AssistantSource {
+  return unavailableReason ? { ...source, commitSha: null } : source;
+}
+
+/**
+ * The automatic context's project access for one turn. A key resolves only
+ * against the viewer's visible projects (`projects`, already filtered); each
+ * project's sources are resolved, and its snapshots fetched, once per turn
+ * however many calls name it. The sources of every project opened are
+ * written to the answer as they are opened, tagged with their project, so
+ * the answer lists what was read even if the turn fails later; a read waits
+ * for that write.
+ */
+function projectAccess(
+  messageId: string,
+  projects: ProjectEntry[],
+  deps: SourceDeps
+): Pick<
+  Extract<ToolContext, { mode: "auto" }>,
+  "snapshotsFor" | "listProjects"
+> {
+  const byKey = new Map(projects.map((p) => [p.key, p]));
+  const sourcesOf = new Map<string, Promise<AssistantSource[]>>();
+  const snapsOf = new Map<string, Promise<SnapshotRef[]>>();
+  const opened: AssistantSource[] = [];
+  let saving: Promise<void> = Promise.resolve();
+
+  const sources = (project: ProjectEntry) => {
+    let pending = sourcesOf.get(project.id);
+    if (!pending) {
+      pending = deps.resolveProjectSources(project.id);
+      sourcesOf.set(project.id, pending);
+    }
+    return pending;
+  };
+
+  const open = async (project: ProjectEntry): Promise<SnapshotRef[]> => {
+    const { prompt, snaps } = await snapshotSources(
+      await sources(project),
+      deps.ensureSnapshot
+    );
+    opened.push(
+      ...prompt.map((source) => ({
+        ...storedSource(source),
+        projectKey: project.key,
+        projectName: project.name,
+      }))
+    );
+    const snapshot = [...opened];
+    // Chained, so an older list never lands after a newer one. A failed
+    // write fails only its own read (the next write carries the full list).
+    const write = saving
+      .catch(() => {})
+      .then(() => saveSources(messageId, snapshot));
+    saving = write;
+    await write;
+    return snaps;
+  };
+
+  return {
+    snapshotsFor: (projectKey) => {
+      const project = byKey.get(projectKey);
+      if (!project) return Promise.resolve({ error: "unknown_project" });
+      let pending = snapsOf.get(project.id);
+      if (!pending) {
+        pending = open(project);
+        snapsOf.set(project.id, pending);
+      }
+      return pending;
+    },
+    listProjects: () =>
+      Promise.all(
+        projects.map(
+          async (project): Promise<ListedProject> => ({
+            key: project.key,
+            name: project.name,
+            description: project.description,
+            components: (await sources(project)).map((s) => s.componentKey),
+          })
+        )
+      ),
+  };
 }
 
 /**
@@ -585,21 +710,18 @@ async function runClaimedTurn(
     (await spentToday(turn.userId, now())) >= runtime.dailyCapUsd;
   if (await capReached()) throw new TurnError("assistant.daily_cap_reached");
   const viewer = await (deps.loadViewer ?? loadAssistantViewer)(turn.userId);
-  const resolved = await resolveSnapshots(turn, viewer, {
+  const sourceDeps: SourceDeps = {
     resolveSources: deps.resolveSources ?? defaultResolveSources,
     resolveProjectSources:
       deps.resolveProjectSources ?? defaultResolveProjectSources,
     ensureSnapshot:
       deps.ensureSnapshot ?? ((source) => defaultEnsureSnapshot(source)),
-  });
-  // Stored without the turn-only unavailableReason; unavailable components
-  // keep a null commit.
-  await saveSources(
-    turn.messageId,
-    resolved.prompt.map(({ unavailableReason, ...source }) =>
-      unavailableReason ? { ...source, commitSha: null } : source
-    )
-  );
+    loadProjects: deps.loadProjects ?? loadProjectEntries,
+  };
+  const resolved = await resolveSnapshots(turn, viewer, sourceDeps);
+  // Stored without the turn-only unavailableReason. An automatic question
+  // starts empty; the projects it opens are added as it reads them.
+  await saveSources(turn.messageId, resolved.prompt.map(storedSource));
 
   // Prompt-cache breakpoints, for the providers that need them: the stable
   // system message, the last tool definition, and the growing conversation
@@ -611,10 +733,6 @@ async function runClaimedTurn(
     {
       role: "system",
       content: buildSystemPrompt({
-        projectName:
-          turn.context.kind === "project" || turn.context.kind === "environment"
-            ? turn.context.projectName
-            : null,
         userName: turn.userName,
         orgContext: runtime.orgContext,
       }),
@@ -623,11 +741,15 @@ async function runClaimedTurn(
     { role: "system", content: buildVolatileSystemNote(now()) },
   ];
   const attachments: AttachmentRef[] = parseAttachmentRefs(turn.attachmentIds);
-  const toolContext: ToolContext = {
-    snaps: resolved.snaps,
-    viewer,
-    attachments,
-  };
+  const toolContext: ToolContext =
+    resolved.question.kind === "auto"
+      ? {
+          mode: "auto",
+          viewer,
+          attachments,
+          ...projectAccess(turn.messageId, resolved.projects, sourceDeps),
+        }
+      : { mode: "pinned", snaps: resolved.snaps, viewer, attachments };
   // Set by prepareStep for the step about to run.
   let capped = false;
   let promptChars = 0;

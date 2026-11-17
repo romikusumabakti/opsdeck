@@ -19,7 +19,9 @@ const strings = (value: unknown): string[] =>
 /**
  * What an answer read, from its tool calls' result metadata: files (a read
  * range where there is one, else the path a search hit), Jira issues,
- * knowledge documents, and how many files the secret filter withheld.
+ * knowledge documents, and how many files the secret filter withheld. A
+ * read of an automatic answer names its project (`KEY path`): paths are
+ * relative to the project, so two projects may share one.
  */
 export function summarizeReads(toolCalls: ToolCall[]) {
   const ranges = new Set<string>();
@@ -28,8 +30,9 @@ export function summarizeReads(toolCalls: ToolCall[]) {
   const docSlugs = new Set<string>();
   let withheld = 0;
   for (const { meta } of toolCalls) {
-    for (const r of strings(meta.ranges)) ranges.add(r);
-    for (const p of strings(meta.paths)) paths.add(p);
+    const prefix = typeof meta.project === "string" ? `${meta.project} ` : "";
+    for (const r of strings(meta.ranges)) ranges.add(prefix + r);
+    for (const p of strings(meta.paths)) paths.add(prefix + p);
     for (const k of strings(meta.issueKeys)) issueKeys.add(k);
     for (const s of strings(meta.docSlugs)) docSlugs.add(s);
     if (typeof meta.withheld === "number") withheld += meta.withheld;
@@ -78,6 +81,7 @@ function SourceLine({
   return (
     <li className="flex flex-col">
       <span className="font-mono text-xs">
+        {source.projectKey ? `${source.projectKey} · ` : ""}
         {source.repoFullName} @ {at}
       </span>
       <span

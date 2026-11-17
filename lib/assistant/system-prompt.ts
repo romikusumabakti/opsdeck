@@ -13,22 +13,26 @@ export type PromptSource = AssistantSource & {
 };
 
 export type SystemPromptContext = {
-  /** The question's project; null for an automatic question. */
-  projectName: string | null;
   userName: string;
   /** The admin's organisation context (Admin → Assistant), or null. */
   orgContext: string | null;
 };
 
+/** A project an automatic question may read, as its note lists it. */
+export type NoteProject = { key: string; name: string; client: string | null };
+
 /**
- * What a question asks about: the project's branches, the commits running
- * in one environment of the project, or (automatic) no project yet. Chosen
- * per question.
+ * What a question asks about: the branches of a pinned project, the commits
+ * running in one environment of a project, or (automatic) whichever of the
+ * user's visible projects the model chooses to read. Chosen per question.
  */
 export type QuestionSource =
-  | { kind: "project" }
-  | { kind: "environment"; environmentName: string }
-  | { kind: "auto" };
+  | { kind: "project"; projectName: string }
+  | { kind: "environment"; environmentName: string; projectName: string }
+  | { kind: "auto"; projects: NoteProject[] };
+
+/** Projects an automatic question's note lists; list_projects has the rest. */
+export const AUTO_NOTE_PROJECT_LIMIT = 50;
 
 /** The per-question part of the prompt: the source and its components. */
 export type SourceNoteContext = {
@@ -95,13 +99,13 @@ function componentLine(source: PromptSource, question: QuestionSource): string {
 }
 
 /**
- * The stable part of the system prompt. It depends only on the conversation's
- * project and user and on the instance's organisation context — never on the
- * source a question asks about — so it is byte-identical across the requests
- * of a turn and across the turns of a conversation, whichever source each
- * question picks; the prompt-cache breakpoint sits right after it. Today's
- * date follows in the volatile system message; the question's source travels
- * with the question (buildSourceNote).
+ * The stable part of the system prompt. It depends only on the user and on
+ * the instance's organisation context — never on the context (project,
+ * environment or automatic) a question asks about — so it is byte-identical
+ * across the requests of a turn and across the turns and conversations of a
+ * user, whichever context each question picks; the prompt-cache breakpoint
+ * sits right after it. Today's date follows in the volatile system message;
+ * the question's context travels with the question (buildSourceNote).
  */
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const intro = ctx.orgContext
@@ -117,17 +121,16 @@ ${DOMAIN_GLOSSARY}
 
 You are talking with ${ctx.userName}.
 
-# Scope
-Project: ${ctx.projectName ?? "none selected (automatic context)"}
-
-Each question asks about one source. The question you are answering starts with a "# Source of this question" note naming it and the components you can read for it; only that latest note applies. Earlier questions start with a short "(Source: …)" line instead: their answers may cite other commits than the ones you can read now.
-- "Source: project branches": each component at the head of the project's branch for it. That is the code being developed, which may differ from what any environment runs.
-- "Environment: <name>": the components of that environment. The state of each tells you which code you are reading: "deployed at" means the exact commit running in the environment; "deployed but running commit unknown" and "never deployed" mean the head of the source branch, which may differ from what runs.
-When the answer depends on it (a recent change, a bug report, a difference between environments), say which source and state apply to the component you cite. Never claim to read code of a component marked unavailable.
+# Context
+Each question has its own context, chosen by the user. The question you are answering starts with a "# Context of this question" note naming it; only that latest note applies. Earlier questions start with a short "(Context: …)" line instead: their answers may cite other projects or commits than the ones you can read now.
+- "Context: automatic": no project is pinned. The note lists the projects the user can see (key — name, client group). Decide which project the question is about and pass its key as \`project\` to list_files, search_code and read_file; each project is read at the head of its branches, like "Source: project branches". list_projects gives each project's description and component keys. Read only the projects the question needs; when the question and the list do not make the project clear, ask the user or say which project you assumed. Never guess a key that neither the note nor list_projects gives.
+- "Project: <name>" with "Source: project branches": each component of that project at the head of the project's branch for it. That is the code being developed, which may differ from what any environment runs.
+- "Project: <name>" with "Environment: <name>": the components of that environment. The state of each tells you which code you are reading: "deployed at" means the exact commit running in the environment; "deployed but running commit unknown" and "never deployed" mean the head of the source branch, which may differ from what runs.
+A pinned context lists the components you can read in its note, and the code tools read that project only (they take no \`project\` argument). When the answer depends on it (a recent change, a bug report, a difference between environments), say which source and state apply to the component you cite. Never claim to read code of a component marked unavailable.
 
 # How to answer
 - Write your answers in Indonesian. Keep file paths, code, identifiers, class and method names, configuration keys, SQL, log lines and error messages verbatim in their original language. DPLK terms (Iuran, Kepesertaan, Manfaat Pensiun) stay as they are.
-- Base every statement about system behaviour on what you read with the tools. Cite the evidence as \`component/path:line\` or \`component/path:start-end\`, using the component-prefixed paths the tools return.
+- Base every statement about system behaviour on what you read with the tools. Cite the evidence as \`component/path:line\` or \`component/path:start-end\`, using the component-prefixed paths the tools return. When an answer reads more than one project, name the project key with each citation (\`KEY component/path:line\`).
 - Investigate before answering: search for the relevant names, then read the code paths that decide the behaviour (controllers, services, queries, validation, scheduled jobs) rather than stopping at the first match.
 - When you cannot find something in the code, say "tidak ditemukan di kode" and state what you searched for. Do not fill gaps with how such systems usually work.
 - When the question is about behaviour, structure the answer with two headed parts: "Yang dilakukan kode" (only what the cited code does) and "Asumsi" (anything you infer but did not see in code, or "tidak ada" when there is none).
@@ -137,7 +140,8 @@ When the answer depends on it (a recent change, a bug report, a difference betwe
 Some files are withheld because they may hold secrets or real participant data (environment files, keystores, credential files, configuration with passwords, data dumps). The tools report them as withheld: list_files counts and names them, search_code counts them, read_file says "File withheld". A withheld file exists; it is not missing. Never try to reveal, reconstruct or guess their content, and do not ask the user to paste it. You may say that a value is configured in a withheld file.
 
 # Tools
-- list_files, search_code, read_file read the source snapshots listed in the source note. Paths start with the component key.
+- list_files, search_code, read_file read source snapshots: in a pinned context the ones listed in the note, in the automatic context the branches of the project named by their \`project\` argument. Paths start with the component key and are relative to that project.
+- list_projects (automatic context only) lists the projects the user can see with their description and component keys.
 - get_issue reads a Jira issue of a project the user can see: description, comments and the attachment list. Use it when the user mentions an issue key or when the ticket explains the expected behaviour.
 - read_attachment reads the content of a Jira attachment, and only of attachments the user ticked for the current question (their ids are given with the question). Never request any other attachment; when an unticked attachment looks relevant, tell the user to tick it.
 - search_knowledge and read_knowledge read the Panel knowledge base. Use them for business rules, procedures and client-specific context that the code does not explain.
@@ -159,44 +163,55 @@ export function buildVolatileSystemNote(now: Date): string {
   return `Today's date is ${today} (${APP_TIMEZONE}).`;
 }
 
-/** How a replayed earlier question names the source it asked about. */
-export function questionSourceLabel(
+/** How a replayed earlier question names the context it asked about. */
+export function questionContextLabel(
   context: StoredQuestionContext | null
 ): string {
   switch (context?.kind) {
+    case "project":
+      return `(Context: project ${context.projectName})`;
     case "environment":
-      return `(Source: environment ${context.environmentName})`;
+      return `(Context: environment ${context.environmentName})`;
     case "gone":
-      return context.of === "environment"
-        ? `(Source: environment ${context.label})`
-        : "(Source: project branches)";
-    case "auto":
-      return "(Source: automatic)";
+      return `(Context: ${context.label}, deleted)`;
     default:
-      return "(Source: project branches)";
+      return "(Context: automatic)";
   }
 }
 
+function autoNote(projects: NoteProject[]): string {
+  const lines = projects
+    .slice(0, AUTO_NOTE_PROJECT_LIMIT)
+    .map((p) => `- ${p.key} — ${p.name}${p.client ? ` (${p.client})` : ""}`);
+  const more = projects.length - AUTO_NOTE_PROJECT_LIMIT;
+  if (more > 0) lines.push(`- +${more} more, call list_projects`);
+  if (lines.length === 0) lines.push("- (the user can see no project)");
+  return `# Context of this question
+Context: automatic
+
+No project is pinned. Choose the project the question is about and pass its key as \`project\` to the code tools. Projects the user can see (key — name):
+${lines.join("\n")}`;
+}
+
 /**
- * The source of the question being answered, with its components. Sent as
- * the first part of that question (lib/assistant/run-turn buildHistory), not
- * as a system message: the messages before it stay byte-identical when the
- * next question picks another source, so the cached history still holds.
+ * The context of the question being answered: the visible projects of an
+ * automatic question, or the pinned project with the components to read.
+ * Sent as the first part of that question (lib/assistant/run-turn
+ * buildHistory), not as a system message: the messages before it stay
+ * byte-identical when the next question picks another context, so the
+ * cached history still holds.
  */
 export function buildSourceNote(note: SourceNoteContext): string {
   const { source, sources } = note;
+  if (source.kind === "auto") return autoNote(source.projects);
   const heading =
     source.kind === "project"
       ? "Source: project branches"
-      : source.kind === "environment"
-        ? `Environment: ${source.environmentName}`
-        : "Context: automatic (no project selected)";
-  const empty = {
-    project: "- (this project has no components in its Sources)",
-    environment:
-      "- (this environment has no deploy targets with a source repository)",
-    auto: "- (no project is selected for this question, so no code is selected to read)",
-  }[source.kind];
+      : `Environment: ${source.environmentName}`;
+  const empty =
+    source.kind === "project"
+      ? "- (this project has no components in its Sources)"
+      : "- (this environment has no deploy targets with a source repository)";
   const components =
     sources.length === 0
       ? empty
@@ -204,7 +219,8 @@ export function buildSourceNote(note: SourceNoteContext): string {
   const codeNote = sources.some((s) => !s.unavailableReason)
     ? ""
     : "\n\nNo source code is available for this question. Say so when it needs the code, and answer only from Jira issues and the knowledge base, labelling everything else as an assumption.";
-  return `# Source of this question
+  return `# Context of this question
+Project: ${source.projectName}
 ${heading}
 
 Components and the source you can read for each:

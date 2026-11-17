@@ -75,3 +75,42 @@ export async function loadAssistantViewer(
     memberships.map((m) => m.projectId)
   );
 }
+
+/** A project as an automatic question names it to the model. */
+export type ProjectEntry = {
+  id: string;
+  key: string;
+  name: string;
+  client: string | null;
+  description: string | null;
+};
+
+/** The viewer may still use the assistant on the project (every role that sees it may). */
+export function viewerSees(
+  viewer: AssistantViewer,
+  projectId: string
+): boolean {
+  return viewer.projectIds === "all" || viewer.projectIds.includes(projectId);
+}
+
+/** Every project, ordered by key. Filter with visibleProjects before use. */
+export async function loadProjectEntries(): Promise<ProjectEntry[]> {
+  return db.query.projects.findMany({
+    columns: {
+      id: true,
+      key: true,
+      name: true,
+      client: true,
+      description: true,
+    },
+    orderBy: { key: "asc" },
+  });
+}
+
+/** The projects the viewer can see, in the given order. */
+export function visibleProjects(
+  viewer: AssistantViewer,
+  projects: ProjectEntry[]
+): ProjectEntry[] {
+  return projects.filter((project) => viewerSees(viewer, project.id));
+}

@@ -109,6 +109,9 @@ const {
 const { buildSourceNote, buildSystemPrompt, buildVolatileSystemNote } =
   await import("@/lib/assistant/system-prompt");
 const { SnapshotUnavailableError } = await import("@/lib/assistant/snapshot");
+const { executeTool: realExecuteTool } = await import(
+  "@/lib/assistant/tool-defs"
+);
 
 // --- scripted mock model -----------------------------------------------------
 
@@ -259,6 +262,67 @@ const PROJECT_CONTEXT = {
   projectName: "Kestrel Membership",
 } as const;
 
+/** Another project's component with the same key, in another repo. */
+const OSP_SOURCE: AssistantSource = {
+  ...PROJECT_SOURCE,
+  repoFullName: "acme/osprey",
+  ref: "osprey/development",
+};
+
+/** Every project; the viewer sees project-1 and project-2 only. */
+const PROJECTS = [
+  {
+    id: "project-1",
+    key: "KST",
+    name: "Kestrel Membership",
+    client: "Acme",
+    description: "Membership",
+  },
+  {
+    id: "project-2",
+    key: "OSP",
+    name: "Osprey",
+    client: null,
+    description: null,
+  },
+  {
+    id: "project-secret",
+    key: "SEC",
+    name: "Secret Ledger",
+    client: null,
+    description: "Hidden",
+  },
+];
+
+const sourcesOfProject = async (projectId: string) =>
+  projectId === "project-1"
+    ? [PROJECT_SOURCE]
+    : projectId === "project-2"
+      ? [OSP_SOURCE]
+      : [{ ...PROJECT_SOURCE, repoFullName: "acme/secret" }];
+
+const snapshotOf = async (source: AssistantSource) => {
+  const sha =
+    source.repoFullName === "acme/osprey" ? "osp0000000001" : "kst0000000001";
+  return { dir: `/nonexistent/${sha}`, commitSha: sha, withheld: 0 };
+};
+
+/** An automatic question. */
+function autoTurn(): TurnContext {
+  return {
+    ...baseTurn(),
+    context: { kind: "auto" },
+    history: [
+      {
+        role: "user",
+        content: "Bagaimana Iuran dihitung?",
+        status: "done",
+        context: { kind: "auto" },
+      },
+    ],
+  };
+}
+
 /** A question pinned to an environment of the turn's project. */
 function envContext(environmentName: string, environmentId = "env-x") {
   return {
@@ -338,12 +402,13 @@ function deps(
     loadViewer: async () => ({
       userId: USER_ID,
       orgRole: "qa",
-      projectIds: ["project-1"],
+      projectIds: ["project-1", "project-2"],
       canManageKnowledge: false,
     }),
     spentToday: async () => 0,
     resolveSources: async () => [SOURCE],
     resolveProjectSources: async () => [PROJECT_SOURCE],
+    loadProjects: async () => PROJECTS,
     ensureSnapshot: async () => ({
       dir: "/cache/acme__acme-membership/abcdef1234567890",
       commitSha: "abcdef1234567890",
@@ -981,8 +1046,10 @@ describe("runTurn", () => {
       ...baseTurn(),
       context: PROJECT_CONTEXT,
     });
+    const auto = await cachedOf(autoTurn());
     expect(environment).toMatchObject({ providerOptions: CACHE });
     expect(project).toEqual(environment);
+    expect(auto).toEqual(environment);
     expect(String(project?.content)).not.toContain("Dev 1");
     expect(String(project?.content)).not.toContain("kestrel/development");
   });
@@ -1110,35 +1177,166 @@ describe("runTurn", () => {
     expect(state.message.errorCode).toBe("assistant.context_gone");
   });
 
-  it("runs an automatic question with no code sources, saying no code is selected", async () => {
-    state.turn = {
-      ...baseTurn(),
-      context: { kind: "auto" },
-      history: [
-        {
-          role: "user",
-          content: "Apa saja?",
-          status: "done",
-          context: { kind: "auto" },
-        },
-      ],
-    };
-    const resolveSources = vi.fn(async () => [SOURCE]);
-    const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
-    const ensureSnapshot = vi.fn();
+  it("sends pinned questions the Stage 2 tools, without list_projects or a project argument", async () => {
+    const loadProjects = vi.fn(async () => PROJECTS);
     const { model, calls } = mockModel([{ text: ["ok"], finish: "stop" }]);
+    await runTurn(MESSAGE_ID, deps(model, { loadProjects }));
+    const tools = toolsOf(calls[0]) as Array<{
+      name: string;
+      inputSchema: { properties: Record<string, unknown> };
+    }>;
+    expect(tools.map((t) => t.name)).not.toContain("list_projects");
+    for (const t of tools)
+      expect(t.inputSchema.properties).not.toHaveProperty("project");
+    expect(loadProjects).not.toHaveBeenCalled();
+  });
+
+  it("lists only the visible projects in an automatic question's note and in list_projects", async () => {
+    state.turn = autoTurn();
+    const resolveSources = vi.fn(async () => [SOURCE]);
+    const resolveProjectSources = vi.fn(sourcesOfProject);
+    const ensureSnapshot = vi.fn(snapshotOf);
+    const { model, calls } = mockModel([
+      {
+        toolCalls: [{ id: "tu_1", name: "list_projects", input: {} }],
+        finish: "tool-calls",
+      },
+      { text: ["ok"], finish: "stop" },
+    ]);
     await runTurn(
       MESSAGE_ID,
-      deps(model, { resolveSources, resolveProjectSources, ensureSnapshot })
+      deps(model, {
+        resolveSources,
+        resolveProjectSources,
+        ensureSnapshot,
+        loadProjects: async () => PROJECTS,
+        executeTool: undefined,
+      })
     );
-    expect(resolveSources).not.toHaveBeenCalled();
-    expect(resolveProjectSources).not.toHaveBeenCalled();
-    expect(ensureSnapshot).not.toHaveBeenCalled();
     const note = sourceNoteOf(calls[0]);
     expect(note).toContain("Context: automatic");
-    expect(note).toContain("No source code is available");
+    expect(note).toContain("- KST — Kestrel Membership (Acme)\n- OSP — Osprey");
+    expect(note).not.toContain("SEC");
+    expect(note).not.toContain("Secret Ledger");
+    expect(toolsOf(calls[0]).map((t) => t.name)).toContain("list_projects");
+    const listed = JSON.stringify(calls[1]?.prompt);
+    expect(listed).toContain("Kestrel Membership");
+    expect(listed).toContain('\\"components\\":[\\"backend\\"]');
+    expect(listed).not.toContain("Secret Ledger");
+    expect(resolveProjectSources).not.toHaveBeenCalledWith("project-secret");
+    expect(resolveSources).not.toHaveBeenCalled();
+    // Listing reads no code.
+    expect(ensureSnapshot).not.toHaveBeenCalled();
     expect(state.message.sources).toEqual([]);
     expect(state.message.status).toBe("done");
+  });
+
+  it("refuses an invisible project and loads a visible one's snapshots once per turn", async () => {
+    state.turn = autoTurn();
+    const resolveProjectSources = vi.fn(sourcesOfProject);
+    const ensureSnapshot = vi.fn(snapshotOf);
+    const read = (id: string, project: string) => ({
+      id,
+      name: "read_file",
+      input: {
+        project,
+        path: "backend/src/Iuran.java",
+        start_line: null,
+        end_line: null,
+      },
+    });
+    const { model, calls } = mockModel([
+      {
+        toolCalls: [
+          read("tu_1", "SEC"),
+          read("tu_2", "KST"),
+          read("tu_3", "KST"),
+        ],
+        finish: "tool-calls",
+      },
+      { toolCalls: [read("tu_4", "KST")], finish: "tool-calls" },
+      { text: ["ok"], finish: "stop" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        resolveProjectSources,
+        ensureSnapshot,
+        loadProjects: async () => PROJECTS,
+        executeTool: undefined,
+      })
+    );
+    expect(resolveProjectSources).toHaveBeenCalledExactlyOnceWith("project-1");
+    expect(ensureSnapshot).toHaveBeenCalledExactlyOnceWith(PROJECT_SOURCE);
+    expect(JSON.stringify(calls[1]?.prompt)).toContain(
+      "Unknown project SEC. Call list_projects."
+    );
+    expect(state.toolCalls.map((c) => c.resultMeta.project)).toEqual([
+      "SEC",
+      "KST",
+      "KST",
+      "KST",
+    ]);
+    // The answer's sources are the projects actually opened.
+    expect(state.message.sources).toEqual([
+      {
+        ...PROJECT_SOURCE,
+        commitSha: "kst0000000001",
+        projectKey: "KST",
+        projectName: "Kestrel Membership",
+      },
+    ]);
+    expect(state.message.status).toBe("done");
+  });
+
+  it("keeps the sources of two projects apart when they share a component key", async () => {
+    state.turn = autoTurn();
+    const read = (id: string, project: string) => ({
+      id,
+      name: "list_files",
+      input: { project, glob: "backend/**" },
+    });
+    const executeTool = vi.fn(realExecuteTool);
+    const { model } = mockModel([
+      { toolCalls: [read("tu_1", "KST")], finish: "tool-calls" },
+      { toolCalls: [read("tu_2", "OSP")], finish: "tool-calls" },
+      { text: ["ok"], finish: "stop" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        resolveProjectSources: sourcesOfProject,
+        ensureSnapshot: snapshotOf,
+        loadProjects: async () => PROJECTS,
+        executeTool,
+      })
+    );
+    expect(state.message.sources).toEqual([
+      {
+        ...PROJECT_SOURCE,
+        commitSha: "kst0000000001",
+        projectKey: "KST",
+        projectName: "Kestrel Membership",
+      },
+      {
+        ...OSP_SOURCE,
+        commitSha: "osp0000000001",
+        projectKey: "OSP",
+        projectName: "Osprey",
+      },
+    ]);
+    expect(state.toolCalls).toEqual([
+      expect.objectContaining({
+        tool: "list_files",
+        input: { project: "KST", glob: "backend/**" },
+        resultMeta: expect.objectContaining({ project: "KST" }),
+      }),
+      expect.objectContaining({
+        tool: "list_files",
+        input: { project: "OSP", glob: "backend/**" },
+        resultMeta: expect.objectContaining({ project: "OSP" }),
+      }),
+    ]);
   });
 
   it("rebuilds the history as text and skips empty failed answers", async () => {
@@ -1185,9 +1383,12 @@ describe("runTurn", () => {
     // Earlier questions name the source they asked about, so the model
     // knows their answers may cite other commits.
     expect(conversationOf(calls[0])).toEqual([
-      { role: "user", content: text("(Source: environment UAT)\nQ1") },
+      { role: "user", content: text("(Context: environment UAT)\nQ1") },
       { role: "assistant", content: text("A1") },
-      { role: "user", content: text("(Source: project branches)\nQ2") },
+      {
+        role: "user",
+        content: text("(Context: project Kestrel Membership)\nQ2"),
+      },
       {
         role: "user",
         content: [
@@ -1199,7 +1400,7 @@ describe("runTurn", () => {
         ],
       },
     ]);
-    expect(sourceNoteOf(calls[0])).toMatch(/^# Source of this question\n/);
+    expect(sourceNoteOf(calls[0])).toMatch(/^# Context of this question\n/);
   });
 
   it("fails a redelivered turn that was already streaming as interrupted", async () => {
@@ -1364,7 +1565,6 @@ describe("classifyError", () => {
 describe("buildSystemPrompt", () => {
   const prompt = (orgContext: string | null = null) =>
     buildSystemPrompt({
-      projectName: "Kestrel Membership",
       userName: "Widya",
       orgContext,
     });
@@ -1372,11 +1572,18 @@ describe("buildSystemPrompt", () => {
   type NoteSources = Parameters<typeof buildSourceNote>[0]["sources"];
   const environmentNote = (sources: NoteSources) =>
     buildSourceNote({
-      source: { kind: "environment", environmentName: "Dev 1" },
+      source: {
+        kind: "environment",
+        environmentName: "Dev 1",
+        projectName: "Kestrel Membership",
+      },
       sources,
     });
   const projectNote = (sources: NoteSources) =>
-    buildSourceNote({ source: { kind: "project" }, sources });
+    buildSourceNote({
+      source: { kind: "project", projectName: "Kestrel Membership" },
+      sources,
+    });
 
   const GENERIC =
     "an internal operations portal of a company that builds and runs pension-fund (DPLK/DPPK) systems";
@@ -1409,9 +1616,9 @@ describe("buildSystemPrompt", () => {
     expect(prompt("Example Org runs pension funds.")).toBe(text);
   });
 
-  it("names the project and the answer rules, but no source", () => {
+  it("names the answer rules, but no project and no source", () => {
     const text = prompt();
-    expect(text).toContain("Project: Kestrel Membership");
+    expect(text).not.toContain("Kestrel Membership");
     // Both sources are explained; which one applies is in the volatile note.
     expect(text).toContain('"Source: project branches"');
     expect(text).toContain('"Environment: <name>"');

@@ -1,0 +1,110 @@
+import { describe, expect, it } from "vitest";
+import {
+  AUTO_NOTE_PROJECT_LIMIT,
+  buildSourceNote,
+  buildSystemPrompt,
+  questionContextLabel,
+} from "@/lib/assistant/system-prompt";
+
+const project = (n: number, client: string | null = null) => ({
+  key: `P${String(n).padStart(3, "0")}`,
+  name: `Project ${n}`,
+  client,
+});
+
+describe("buildSystemPrompt", () => {
+  it("names no project: the cached part depends only on the user and the organisation", () => {
+    const text = buildSystemPrompt({ userName: "Widya", orgContext: null });
+    expect(text).not.toMatch(/^Project:/m);
+    expect(text).toContain("You are talking with Widya.");
+    // All three contexts are explained; which one applies is in the note.
+    expect(text).toContain('"Context: automatic"');
+    expect(text).toContain('"Source: project branches"');
+    expect(text).toContain('"Environment: <name>"');
+    expect(text).toContain("# Context of this question");
+    expect(text).toContain('"(Context: …)"');
+    expect(text).toContain("list_projects");
+  });
+});
+
+describe("buildSourceNote", () => {
+  it("lists the projects of an automatic question with their client group", () => {
+    const note = buildSourceNote({
+      source: {
+        kind: "auto",
+        projects: [
+          { key: "KST", name: "Kestrel", client: "Acme" },
+          { key: "OSP", name: "Osprey", client: null },
+        ],
+      },
+      sources: [],
+    });
+    expect(note).toMatch(/^# Context of this question\nContext: automatic\n/);
+    expect(note).toContain("- KST — Kestrel (Acme)\n- OSP — Osprey");
+    expect(note).toContain("project");
+    expect(note).not.toContain("No source code is available");
+    expect(note).not.toContain("more, call list_projects");
+  });
+
+  it(`caps the project list at ${AUTO_NOTE_PROJECT_LIMIT} lines`, () => {
+    const projects = Array.from({ length: 53 }, (_, i) => project(i + 1));
+    const note = buildSourceNote({
+      source: { kind: "auto", projects },
+      sources: [],
+    });
+    const lines = note.split("\n").filter((l) => /^- P\d{3} — /.test(l));
+    expect(lines).toHaveLength(50);
+    expect(note).toContain("- P050 — Project 50");
+    expect(note).not.toContain("P051");
+    expect(note).toContain("+3 more, call list_projects");
+  });
+
+  it("names the pinned project for project branches and for an environment", () => {
+    const branches = buildSourceNote({
+      source: { kind: "project", projectName: "Kestrel" },
+      sources: [],
+    });
+    expect(branches).toMatch(
+      /^# Context of this question\nProject: Kestrel\nSource: project branches\n/
+    );
+    const environment = buildSourceNote({
+      source: {
+        kind: "environment",
+        environmentName: "Dev 1",
+        projectName: "Kestrel",
+      },
+      sources: [],
+    });
+    expect(environment).toMatch(
+      /^# Context of this question\nProject: Kestrel\nEnvironment: Dev 1\n/
+    );
+  });
+});
+
+describe("questionContextLabel", () => {
+  it("labels each replayed question with its context", () => {
+    expect(questionContextLabel({ kind: "auto" })).toBe("(Context: automatic)");
+    expect(
+      questionContextLabel({
+        kind: "project",
+        projectId: "p",
+        projectName: "Kestrel",
+      })
+    ).toBe("(Context: project Kestrel)");
+    expect(
+      questionContextLabel({
+        kind: "environment",
+        environmentId: "e",
+        environmentName: "Dev 1",
+        projectId: "p",
+        projectName: "Kestrel",
+      })
+    ).toBe("(Context: environment Dev 1)");
+    expect(
+      questionContextLabel({ kind: "gone", of: "project", label: "Kestrel" })
+    ).toBe("(Context: Kestrel, deleted)");
+    expect(
+      questionContextLabel({ kind: "gone", of: "environment", label: "Old" })
+    ).toBe("(Context: Old, deleted)");
+  });
+});

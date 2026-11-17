@@ -28,6 +28,10 @@ export type ToolMeta = {
   /** Jira attachment ids whose content was sent (audit). */
   attachmentIds?: string[];
   withheld?: number;
+  /** Automatic context: the project key a code tool read (audit). */
+  project?: string;
+  /** Automatic context: the project keys list_projects returned (audit). */
+  projectKeys?: string[];
 };
 
 export type ToolResult<T> =

@@ -619,6 +619,89 @@ describe("sources", () => {
     );
   });
 
+  it("names the project of each source and read of an automatic answer", async () => {
+    expect(
+      summarizeReads([
+        {
+          tool: "read_file",
+          meta: { project: "KST", ranges: ["backend/a.ts:1-9"] },
+        },
+        {
+          tool: "search_code",
+          meta: { project: "OSP", paths: ["backend/a.ts"] },
+        },
+      ]).files
+    ).toEqual(["KST backend/a.ts:1-9", "OSP backend/a.ts"]);
+    await render(
+      <MessageSources
+        sources={[
+          {
+            ...source,
+            commitSha: "0123456789abcdef",
+            deployed: false,
+            deployedAt: null,
+            projectKey: "KST",
+            projectName: "Kestrel",
+          },
+        ]}
+        toolCalls={[]}
+        projectBranches
+      />
+    );
+    await act(async () => button(t.sources)?.click());
+    expect(text()).toContain("KST · acme/membership @ 0123456");
+  });
+
+  it("labels an automatic answer's sources as branch heads", async () => {
+    const auto = {
+      kind: "auto",
+      label: null,
+      deleted: false,
+      projectId: null,
+      environmentId: null,
+    };
+    const base = {
+      content: "Q",
+      status: "done",
+      errorCode: null,
+      attachmentIds: [],
+      createdAt: "2026-11-16T01:00:00Z",
+      toolCalls: [],
+    };
+    queryClient.setQueryData(["assistant", "getConversation", ["c1"]], {
+      id: "c1",
+      title: "Iuran",
+      drafts: [],
+      jiraPushEnabled: false,
+      messages: [
+        { ...base, id: "u1", role: "user", sources: null, context: auto },
+        {
+          ...base,
+          id: "a1",
+          role: "assistant",
+          content: "A",
+          context: null,
+          sources: [
+            {
+              ...source,
+              commitSha: "0123456789abcdef",
+              deployed: false,
+              deployedAt: null,
+              projectKey: "KST",
+              projectName: "Kestrel",
+            },
+          ],
+        },
+      ],
+    });
+    await render(<ChatThread conversationId="c1" />);
+    await act(async () => button(t.sources)?.click());
+    expect(text()).toContain(
+      t.sourceBranchHead.replace("{ref}", "kestrel/development")
+    );
+    expect(text()).not.toContain("never deployed");
+  });
+
   it("lists what the tools read, with the withheld count", () => {
     expect(
       summarizeReads([

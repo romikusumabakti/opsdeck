@@ -16,9 +16,16 @@ import { useMessageStream } from "./use-message-stream";
 const isPending = (m: ConversationMessage) =>
   m.role === "assistant" && (m.status === "queued" || m.status === "streaming");
 
-/** The question asked about the project branches (a project still there). */
+/**
+ * The question read project branches: a pinned project still there, or an
+ * automatic question (it reads the branches of the projects it opens).
+ */
 function isProjectBranches(question: ConversationMessage | undefined) {
-  return question?.context?.kind === "project" && !question.context.deleted;
+  const context = question?.context;
+  return (
+    context?.kind === "auto" ||
+    (context?.kind === "project" && !context.deleted)
+  );
 }
 
 /** The conversation's unfinished answer, if any (at most one at a time). */
