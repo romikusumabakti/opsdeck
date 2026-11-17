@@ -53,8 +53,8 @@ import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 
 // Admin → Assistant: the code assistant's switch, Anthropic API key, model,
-// effort, per-user daily cap and organisation context. The key is write-only (only `hasApiKey` is
-// read back).
+// effort, per-user daily cap and organisation context. The key is write-only
+// (only `hasApiKey` is read back).
 export const Route = createFileRoute("/$locale/_app/admin/assistant")({
   beforeLoad: async ({ context: { queryClient } }) => {
     await requireOrgRole(queryClient, { assistant: ["manage"] });

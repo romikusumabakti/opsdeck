@@ -18,15 +18,13 @@ describe("addAttribution", () => {
 describe("stripAttribution", () => {
   it("removes the line addAttribution added", () => {
     const body = "Fixed on staging.\n\n- step one";
-    expect(stripAttribution(addAttribution(body, "Rafi Pratama"))).toBe(
-      body
-    );
+    expect(stripAttribution(addAttribution(body, "Jane Doe"))).toBe(body);
   });
 
   it("survives the Markdown -> ADF -> Markdown round trip through Jira", () => {
     const body = "Fixed on **staging**.";
     const roundTripped = adfToMarkdown(
-      markdownToAdf(addAttribution(body, "Ajeng"))
+      markdownToAdf(addAttribution(body, "John Roe"))
     );
     expect(stripAttribution(roundTripped)).toBe(body);
   });
