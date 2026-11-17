@@ -1991,6 +1991,9 @@
     "sourcesDescription": "Las aplicaciones que despliega este proyecto y la rama con la que arranca cada componente en un entorno nuevo. Cada entorno conserva su propia rama, definida en sus ajustes de Source & Deploy."
   },
   "homePage": {
+    "askTitle": "Pregunta al asistente",
+    "askPlaceholder": "Pregunta sobre el código o las incidencias de un proyecto…",
+    "askProject": "Proyecto",
     "title": "Inicio",
     "subtitle": "Tu trabajo y lo que necesita atención.",
     "greeting": {

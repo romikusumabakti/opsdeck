@@ -35,6 +35,17 @@ export const listConversationsQuery = (
     queryFn: () => listConversations(...args),
   });
 
+/** The project of the caller's latest conversation, or null. */
+export async function getLastProject() {
+  return parseResponse(routes["last-project"].$get());
+}
+
+export const getLastProjectQuery = () =>
+  queryOptions({
+    queryKey: ["assistant", "getLastProject"],
+    queryFn: getLastProject,
+  });
+
 export async function getConversation(conversationId: string) {
   return parseResponse(
     routes["get-conversation"].$get({ query: { conversationId } })

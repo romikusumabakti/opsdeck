@@ -11,6 +11,7 @@ import {
   generateDraftInputSchema,
   getAllowance,
   getConversation,
+  getLastProject,
   listConversations,
   listIssueAttachmentsForPicker,
   saveDraft,
@@ -35,6 +36,7 @@ export const assistantRouter = sessionRouter()
   .get("/list-conversations", query(projectIdInput), async (c) =>
     c.json(await listConversations(c.req.valid("query")))
   )
+  .get("/last-project", async (c) => c.json(await getLastProject()))
   .post("/create-conversation", json(projectIdInput), async (c) =>
     c.json(await createConversation(c.req.valid("json")))
   )

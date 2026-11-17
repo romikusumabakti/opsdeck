@@ -1991,6 +1991,9 @@
     "sourcesDescription": "本项目部署的应用，以及每个组件在新环境中起始使用的分支。每个环境保留各自的分支，在其“Source & Deploy”设置中配置。"
   },
   "homePage": {
+    "askTitle": "向助手提问",
+    "askPlaceholder": "询问某个项目的代码或 issue……",
+    "askProject": "项目",
     "title": "主页",
     "subtitle": "你的工作与需要关注的事项。",
     "greeting": {

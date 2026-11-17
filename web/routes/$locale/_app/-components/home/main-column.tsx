@@ -12,6 +12,7 @@ import {
   listMyOpenIssuesQuery,
   type MyIssue,
 } from "@/web/api/home";
+import { AskAssistantCard } from "./ask-assistant-card";
 import { AttentionList } from "./attention-list";
 import { CompactSection, HomeSection } from "./home-section";
 import { MyIssuesList } from "./my-issues-list";
@@ -40,7 +41,16 @@ export function MainColumn() {
   // Not waited for: a failure or a slow answer only leaves the item out.
   const instanceBackup =
     useQuery(getInstanceBackupAttentionQuery()).data ?? null;
-  if (!(attention && issues && access)) return <MainColumnSkeleton />;
+  // The ask card leads: it hides itself unless the assistant is on, and does
+  // not wait for the three queries above.
+  if (!(attention && issues && access)) {
+    return (
+      <>
+        <AskAssistantCard />
+        <MainColumnSkeleton />
+      </>
+    );
+  }
 
   const order = sectionOrder({
     hasOpsAccess: access.ok && access.value.hasOpsAccess,
@@ -51,6 +61,7 @@ export function MainColumn() {
 
   return (
     <>
+      <AskAssistantCard />
       {order.map((s) =>
         s.id === "attention" ? (
           <AttentionSection

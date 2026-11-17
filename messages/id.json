@@ -1991,6 +1991,9 @@
     "sourcesDescription": "Aplikasi yang di-deploy proyek ini dan branch awal setiap komponen di environment baru. Setiap environment menyimpan branch-nya sendiri, diatur di pengaturan Source & Deploy-nya."
   },
   "homePage": {
+    "askTitle": "Tanya asisten",
+    "askPlaceholder": "Tanya soal kode atau issue sebuah proyek…",
+    "askProject": "Proyek",
     "title": "Beranda",
     "subtitle": "Pekerjaan Anda dan yang perlu perhatian.",
     "greeting": {

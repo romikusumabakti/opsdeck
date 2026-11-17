@@ -91,6 +91,19 @@ export async function listConversationsOf(
     .orderBy(desc(assistantConversations.updatedAt));
 }
 
+/** The project of the user's most recently updated conversation, if any. */
+export async function latestConversationProjectOf(
+  userId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ projectId: assistantConversations.projectId })
+    .from(assistantConversations)
+    .where(eq(assistantConversations.userId, userId))
+    .orderBy(desc(assistantConversations.updatedAt))
+    .limit(1);
+  return row?.projectId ?? null;
+}
+
 /**
  * A project conversation. Its environment fields stay null: the source is
  * chosen per question (insertTurn).

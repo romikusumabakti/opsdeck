@@ -204,6 +204,11 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       store.conversations
         .filter((c) => c.userId === userId && c.projectId === projectId)
         .map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt })),
+    latestConversationProjectOf: async (userId: string) =>
+      store.conversations
+        .filter((c) => c.userId === userId)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]
+        ?.projectId ?? null,
     insertConversation: async (v: { userId: string; projectId: string }) => {
       const id = nextId();
       store.conversations.push({
@@ -878,6 +883,51 @@ describe("allowance", () => {
     expect(await (await get("/allowance")).json()).toMatchObject({
       usedFraction: 1,
       capReached: true,
+    });
+  });
+});
+
+describe("last-project", () => {
+  it("is the project of the caller's most recently updated conversation", async () => {
+    as(QA, "qa");
+    store.conversations.push(
+      {
+        id: "c1",
+        userId: QA,
+        projectId: PROJECT_KMEM,
+        environmentId: null,
+        environmentName: null,
+        title: "",
+        updatedAt: new Date("2026-11-16T01:00:00Z"),
+      },
+      {
+        id: "c2",
+        userId: QA,
+        projectId: PROJECT_HMEM,
+        environmentId: null,
+        environmentName: null,
+        title: "",
+        updatedAt: new Date("2026-11-16T02:00:00Z"),
+      },
+      {
+        id: "c3",
+        userId: OTHER,
+        projectId: PROJECT_KMEM,
+        environmentId: null,
+        environmentName: null,
+        title: "",
+        updatedAt: new Date("2026-11-16T03:00:00Z"),
+      }
+    );
+    const res = await get("/last-project");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ projectId: PROJECT_HMEM });
+  });
+
+  it("is null when the caller has no conversation", async () => {
+    as(QA, "qa");
+    expect(await (await get("/last-project")).json()).toEqual({
+      projectId: null,
     });
   });
 });

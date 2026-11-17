@@ -19,6 +19,7 @@ import {
   findConversation,
   insertConversation,
   insertTurn,
+  latestConversationProjectOf,
   listConversationsOf,
   loadAssistantLimits,
   loadConversationDetail,
@@ -142,6 +143,18 @@ export async function listConversations(input: {
     { assistant: ["use"] }
   );
   return listConversationsOf(session.user.id, projectId);
+}
+
+/**
+ * The project of the caller's latest conversation, for Home's ask card. Only
+ * the caller's own row; the client keeps it only if the project is still one
+ * they can see.
+ */
+export async function getLastProject(): Promise<{ projectId: string | null }> {
+  const session = await requireSession();
+  return {
+    projectId: await latestConversationProjectOf(session.user.id),
+  };
 }
 
 /** A new conversation about a project; the source is picked per question. */
