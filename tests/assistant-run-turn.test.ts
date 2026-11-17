@@ -947,6 +947,24 @@ describe("buildSystemPrompt", () => {
     expect(text).not.toContain("# Organisation");
   });
 
+  it("explains the pension-fund domain with or without a context", () => {
+    for (const text of [
+      prompt([SOURCE]),
+      prompt([SOURCE], "Example Org runs pension funds."),
+    ]) {
+      expect(text).toContain("# Domain");
+      for (const term of [
+        "DPLK (Dana Pensiun Lembaga Keuangan)",
+        "DPPK (Dana Pensiun Pemberi Kerja)",
+        "participant membership (Kepesertaan)",
+        "contributions (Iuran)",
+        "pension benefits (Manfaat Pensiun)",
+      ]) {
+        expect(text).toContain(term);
+      }
+    }
+  });
+
   it("includes the configured organisation context instead", () => {
     const text = prompt([SOURCE], "Example Org runs pension funds.");
     expect(text).toContain("# Organisation\nExample Org runs pension funds.");

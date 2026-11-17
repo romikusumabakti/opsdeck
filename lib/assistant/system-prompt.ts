@@ -27,6 +27,13 @@ export type SystemPromptContext = {
 export const GENERIC_ORGANISATION =
   "a company that builds and runs pension-fund (DPLK/DPPK) systems";
 
+/**
+ * The pension-fund domain, independent of the organisation: always in the
+ * prompt, whether or not the admin set an organisation context.
+ */
+const DOMAIN_GLOSSARY = `# Domain
+The systems are pension systems for Indonesian DPLK (Dana Pensiun Lembaga Keuangan) and DPPK (Dana Pensiun Pemberi Kerja) funds. Their modules typically cover participant membership (Kepesertaan), contributions (Iuran), investment, pension benefits (Manfaat Pensiun), accounting and the customer portal.`;
+
 function formatDeployedAt(iso: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIMEZONE,
@@ -94,6 +101,8 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     : "";
 
   return `${intro} You help project managers, business analysts, QA testers and engineers understand how the system behaves today, so that their requirements, BRD sections and Jira tickets match the real code.${organisation}
+
+${DOMAIN_GLOSSARY}
 
 You are talking with ${ctx.userName}.
 
