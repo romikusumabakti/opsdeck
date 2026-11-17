@@ -25,6 +25,7 @@ export function Composer({
   onSend,
   focusKey,
   source,
+  capResetsAt,
 }: {
   projectId: string;
   /** An answer is still running, or the assistant cannot take questions. */
@@ -34,6 +35,8 @@ export function Composer({
   focusKey: string | null;
   /** The question's source picker, beside the attachments button. */
   source?: React.ReactNode;
+  /** Set (ISO) when today's limit is reached: says when it resets. */
+  capResetsAt?: string | null;
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
@@ -116,6 +119,11 @@ export function Composer({
             {t("attachmentWarning")}
           </p>
         </div>
+      )}
+      {capResetsAt && (
+        <p className="text-sm text-destructive" role="status">
+          {t("usageCapReached", { time: new Date(capResetsAt) })}
+        </p>
       )}
       <Textarea
         ref={textareaRef}

@@ -17,21 +17,24 @@ const WARN_AT = 0.8;
 export function AllowanceBadge({ allowance }: { allowance: Allowance }) {
   const t = useTranslations("assistant");
   const reached = allowance.capReached;
-  const percent = Math.round(allowance.usedFraction * 100);
+  // Rounded down, so 100% means the limit is really reached.
+  const percent = reached ? 100 : Math.floor(allowance.usedFraction * 100);
   const time = new Date(allowance.resetsAt);
   return (
     <div
       className="flex w-44 flex-col gap-1"
       title={t("usageHint")}
-      role="status"
+      role={reached ? "status" : undefined}
     >
       <Progress
         value={percent}
         aria-label={t("usageHint")}
-        indicatorClassName={cn(
+        className={cn(
+          "gap-0",
           reached
-            ? "bg-destructive"
-            : allowance.usedFraction >= WARN_AT && "bg-amber-500"
+            ? "[&_[data-slot=progress-indicator]]:bg-destructive"
+            : allowance.usedFraction >= WARN_AT &&
+                "[&_[data-slot=progress-indicator]]:bg-amber-500"
         )}
       />
       <p
@@ -40,9 +43,7 @@ export function AllowanceBadge({ allowance }: { allowance: Allowance }) {
           reached && "text-destructive"
         )}
       >
-        {reached
-          ? t("usageCapReached", { time })
-          : `${t("usageUsed", { percent })} · ${t("usageResets", { time })}`}
+        {t("usageUsed", { percent })} · {t("usageResets", { time })}
       </p>
     </div>
   );

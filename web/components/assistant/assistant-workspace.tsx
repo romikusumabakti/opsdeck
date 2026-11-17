@@ -322,6 +322,7 @@ export function AssistantWorkspace({
             <Composer
               projectId={projectId}
               disabled={busy || capped}
+              capResetsAt={capped ? allowance.resetsAt : null}
               onSend={send}
               focusKey={selectedId ?? "new"}
               source={

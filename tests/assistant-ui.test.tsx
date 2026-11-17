@@ -287,7 +287,7 @@ describe("daily cap", () => {
     const bar = container.querySelector("[role=progressbar]");
     expect(bar?.getAttribute("aria-valuenow")).toBe("40");
     expect(
-      container.querySelector("[data-slot=progress-indicator]")?.className
+      container.querySelector("[data-slot=progress]")?.className
     ).not.toMatch(/amber|destructive/);
   });
 
@@ -299,19 +299,44 @@ describe("daily cap", () => {
     );
     expect(text()).toContain("85% of today's limit used");
     expect(
-      container.querySelector("[data-slot=progress-indicator]")?.className
+      container.querySelector("[data-slot=progress]")?.className
     ).toContain("amber");
   });
 
-  it("at the cap the meter turns destructive and says when it resets", async () => {
+  it("at the cap the meter turns destructive and role=status; 100% only then", async () => {
     await render(<AllowanceBadge allowance={allowance} />);
-    expect(text()).toMatch(
-      /You've reached today's limit\. It resets at (12:00|00:00)/
-    );
+    expect(text()).toContain("100% of today's limit used");
     expect(text()).not.toMatch(/\$|USD/);
     expect(
-      container.querySelector("[data-slot=progress-indicator]")?.className
+      container.querySelector("[data-slot=progress]")?.className
     ).toContain("destructive");
+    expect(container.querySelector("[role=status]")).not.toBeNull();
+  });
+
+  it("rounds the percent down and has no status role below the cap", async () => {
+    await render(
+      <AllowanceBadge
+        allowance={{ ...allowance, usedFraction: 0.9996, capReached: false }}
+      />
+    );
+    expect(text()).toContain("99% of today's limit used");
+    expect(container.querySelector("[role=status]")).toBeNull();
+  });
+
+  it("the composer explains the limit with the reset time at the cap", async () => {
+    await render(
+      <Composer
+        projectId="p1"
+        disabled
+        onSend={vi.fn()}
+        focusKey="new"
+        capResetsAt={allowance.resetsAt}
+      />
+    );
+    expect(container.querySelector("form, div")?.textContent).toMatch(
+      /You've reached today's limit\. It resets at (12:00|00:00)/
+    );
+    expect(button(t.send)?.disabled).toBe(true);
   });
 
   it("a refused send words assistant.daily_cap_reached", async () => {
