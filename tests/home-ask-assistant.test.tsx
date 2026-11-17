@@ -16,6 +16,7 @@ const messages = applyBranding(enMessages, {
 const api = vi.hoisted(() => ({
   createConversation: vi.fn(),
   sendMessage: vi.fn(),
+  listConversations: vi.fn(() => new Promise(() => {})),
 }));
 const nav = vi.hoisted(() => ({ push: vi.fn() }));
 
@@ -26,7 +27,7 @@ vi.mock("@/web/api/assistant", () => ({
   }),
   listConversationsQuery: () => ({
     queryKey: ["assistant", "listConversations"],
-    queryFn: () => new Promise(() => {}),
+    queryFn: api.listConversations,
   }),
   ...api,
 }));
@@ -74,6 +75,7 @@ beforeEach(() => {
   });
   api.createConversation.mockReset();
   api.sendMessage.mockReset();
+  api.listConversations.mockClear();
   nav.push.mockReset();
 });
 
@@ -177,6 +179,42 @@ describe("home ask-the-assistant card", () => {
   it("is hidden when the assistant is not enabled", async () => {
     await renderCard({ allowance: { ...ENABLED, enabled: false } });
     expect(container.textContent).toBe("");
+  });
+
+  it("does not load conversations when the assistant is off or no project is visible", async () => {
+    // Nothing cached, so an enabled query would call the (mocked) endpoint.
+    queryClient.setQueryData(["environments", "listEnvironments"], []);
+    queryClient.setQueryData(["assistant", "getAllowance"], {
+      ...ENABLED,
+      enabled: false,
+    });
+    queryClient.setQueryData(["project-catalog", "listProjects", []], PROJECTS);
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <IntlProvider locale="en" messages={messages} timeZone="UTC">
+            <AskAssistantCard />
+          </IntlProvider>
+        </QueryClientProvider>
+      );
+    });
+    expect(api.listConversations).not.toHaveBeenCalled();
+    await act(async () => {
+      queryClient.setQueryData(["assistant", "getAllowance"], ENABLED);
+      queryClient.setQueryData(["project-catalog", "listProjects", []], []);
+    });
+    expect(api.listConversations).not.toHaveBeenCalled();
+    await act(async () => {
+      queryClient.setQueryData(
+        ["project-catalog", "listProjects", []],
+        PROJECTS
+      );
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(api.listConversations).toHaveBeenCalledTimes(1);
   });
 
   it("is hidden when the user sees no project", async () => {
@@ -295,6 +333,37 @@ describe("home ask-the-assistant card", () => {
       expect.objectContaining({ conversationId: "c1" })
     );
     expect(nav.push).toHaveBeenCalledWith("/assistant?c=c1");
+  });
+
+  it("reuses the created conversation when the context changed before the retry", async () => {
+    api.createConversation.mockResolvedValue({ id: "c1" });
+    api.sendMessage.mockRejectedValueOnce(new Error("boom"));
+    api.sendMessage.mockResolvedValue({});
+    await renderCard({});
+    await type("Hello");
+    await pressEnter();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await act(async () =>
+      container.querySelector<HTMLElement>('[aria-label^="Context"]')?.click()
+    );
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const option = [
+      ...document.querySelectorAll<HTMLElement>('[role="option"]'),
+    ].find((o) => o.textContent === "Acme Shop");
+    if (!option) throw new Error("no project option");
+    await act(async () => option.click());
+    await pressEnter();
+    expect(api.sendMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conversationId: "c1",
+        context: { kind: "project", projectId: "p1" },
+      })
+    );
+    expect(api.createConversation).toHaveBeenCalledTimes(1);
   });
 
   it("sends once when Enter is pressed again before the page changes", async () => {

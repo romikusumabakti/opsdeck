@@ -222,7 +222,6 @@ export function ContextPicker({
                   <ComboboxItem
                     key={entry.item}
                     value={entry}
-                    className={cn(entry.kind === "environment" && "pl-8")}
                     aria-label={
                       entry.kind === "environment"
                         ? t("contextEnvironmentLabel", {
@@ -232,13 +231,23 @@ export function ContextPicker({
                         : undefined
                     }
                   >
-                    <EntryIcon kind={entry.kind} />
-                    <span className="truncate">
-                      {entry.kind === "auto"
-                        ? t("contextAuto")
-                        : entry.kind === "project"
-                          ? entry.project.name
-                          : entry.environment.name}
+                    {/* A logical margin on the content, not padding on the item:
+                        it indents the start side in RTL too and cannot lose to
+                        the item's own padding in tailwind-merge. */}
+                    <span
+                      className={cn(
+                        "flex min-w-0 items-center gap-2",
+                        entry.kind === "environment" && "ms-6"
+                      )}
+                    >
+                      <EntryIcon kind={entry.kind} />
+                      <span className="truncate">
+                        {entry.kind === "auto"
+                          ? t("contextAuto")
+                          : entry.kind === "project"
+                            ? entry.project.name
+                            : entry.environment.name}
+                      </span>
                     </span>
                   </ComboboxItem>
                 )}

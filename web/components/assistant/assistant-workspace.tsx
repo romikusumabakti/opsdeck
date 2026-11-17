@@ -210,6 +210,12 @@ export function AssistantWorkspace({
   // retry sends into it rather than leaving another empty one behind.
   const created = React.useRef<string | null>(null);
 
+  // The current selection, for a send that resolves after the user moved on.
+  const selectedRef = React.useRef(selectedId);
+  React.useEffect(() => {
+    selectedRef.current = selectedId;
+  }, [selectedId]);
+
   const send = async (text: string, attachments: AttachmentRef[]) => {
     let id = selectedId;
     if (!id) {
@@ -222,13 +228,17 @@ export function AssistantWorkspace({
       context,
       ...(attachments.length > 0 ? { attachments } : {}),
     });
-    if (id !== selectedId) {
+    if (id !== selectedRef.current) {
       created.current = null;
-      // Opened only once its first question is stored: a read racing the
-      // send could come back empty, and nothing would read it again.
-      select(id);
-      // The chip keeps the context just sent.
-      setSeededFor(id);
+      // Only if the user is still on the new-conversation view: one who
+      // opened another conversation while the send ran stays there.
+      if (selectedRef.current === null) {
+        // Opened only once its first question is stored: a read racing the
+        // send could come back empty, and nothing would read it again.
+        select(id);
+        // The chip keeps the context just sent.
+        setSeededFor(id);
+      }
     }
   };
 

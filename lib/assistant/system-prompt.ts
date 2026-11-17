@@ -171,7 +171,7 @@ export function questionContextLabel(
     case "project":
       return `(Context: project ${context.projectName})`;
     case "environment":
-      return `(Context: environment ${context.environmentName})`;
+      return `(Context: environment ${context.projectName} / ${context.environmentName})`;
     case "gone":
       return `(Context: ${context.label}, deleted)`;
     default:

@@ -120,18 +120,26 @@ describe("contextListLabel", () => {
     ).toBe("Kestrel Membership · Dev 1");
   });
 
-  it("keeps the project name for a deleted environment", () => {
+  it("keeps the project name for a deleted environment and marks it", () => {
     expect(contextListLabel({ ...row, environmentId: null })).toBe(
-      "Kestrel Membership · Dev 1"
+      "Kestrel Membership · Dev 1 (deleted)"
     );
+  });
+
+  it("marks a deleted project", () => {
+    expect(
+      contextListLabel({
+        projectId: null,
+        projectName: "Kestrel Membership",
+        environmentId: null,
+        environmentName: null,
+      })
+    ).toBe("Kestrel Membership (deleted)");
   });
 
   it("a project, a deleted project and automatic", () => {
     const project = { ...row, environmentId: null, environmentName: null };
     expect(contextListLabel(project)).toBe("Kestrel Membership");
-    expect(contextListLabel({ ...project, projectId: null })).toBe(
-      "Kestrel Membership"
-    );
     expect(
       contextListLabel({
         projectId: null,

@@ -99,7 +99,7 @@ describe("questionContextLabel", () => {
         projectId: "p",
         projectName: "Kestrel",
       })
-    ).toBe("(Context: environment Dev 1)");
+    ).toBe("(Context: environment Kestrel / Dev 1)");
     expect(
       questionContextLabel({ kind: "gone", of: "project", label: "Kestrel" })
     ).toBe("(Context: Kestrel, deleted)");

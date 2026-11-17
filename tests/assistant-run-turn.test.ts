@@ -1536,7 +1536,10 @@ describe("runTurn", () => {
     // Earlier questions name the source they asked about, so the model
     // knows their answers may cite other commits.
     expect(conversationOf(calls[0])).toEqual([
-      { role: "user", content: text("(Context: environment UAT)\nQ1") },
+      {
+        role: "user",
+        content: text("(Context: environment Kestrel Membership / UAT)\nQ1"),
+      },
       { role: "assistant", content: text("A1") },
       {
         role: "user",

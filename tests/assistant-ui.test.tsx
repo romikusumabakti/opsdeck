@@ -1461,6 +1461,34 @@ describe("context picker", () => {
     });
   });
 
+  it("stays on a conversation opened while the first send was pending", async () => {
+    const NEW_ID = "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4a5c";
+    let finishSend = () => {};
+    api.createConversation.mockResolvedValue({ id: NEW_ID });
+    api.sendMessage.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishSend = () => resolve({});
+        })
+    );
+    const onConversationChange = vi.fn();
+    await renderWorkspace({ onConversationChange });
+    await typeAndSend("Di mana?");
+    await settle();
+    const row = [
+      ...document.querySelectorAll<HTMLButtonElement>("nav button"),
+    ].find((b) => b.textContent?.includes("Iuran"));
+    await act(async () => row?.click());
+    expect(onConversationChange).toHaveBeenLastCalledWith(CONV_ID);
+    onConversationChange.mockClear();
+    await act(async () => finishSend());
+    await settle();
+    expect(onConversationChange).not.toHaveBeenCalled();
+    expect(
+      container.querySelector('[aria-current="true"]')?.textContent
+    ).toContain("Iuran");
+  });
+
   it("opens a new conversation only once its first question is stored", async () => {
     // A read of the conversation racing its first send came back empty, and
     // nothing read it again: the thread stayed on "Start asking".
@@ -1567,12 +1595,18 @@ describe("context picker", () => {
         ...document.querySelectorAll<HTMLElement>('[role="option"]'),
       ].find((o) => o.textContent === name);
       if (!option) throw new Error(`no option ${name}`);
-      // The item's own start padding must lose to the indent (twMerge keeps
-      // the last of one property; pl-* and ps-* are different ones).
-      return option.className.split(" ").filter((c) => /^p[ls]-/.test(c));
+      // The indent is a logical margin (ms-*) on the content, so it sits on
+      // the start side in RTL (Arabic) too and the item's own padding cannot
+      // override it; no physical pl-*/ml-* is involved.
+      const content = option.firstElementChild;
+      if (!content) throw new Error("no content");
+      return [
+        option.className.match(/\b(?:pl|ml)-\S+/g) ?? [],
+        content.className.split(" ").filter((c) => /^m[se]-/.test(c)),
+      ];
     };
-    expect(indent("Heron Membership")).toEqual(["pl-2"]);
-    expect(indent("Dev 1")).toEqual(["pl-8"]);
+    expect(indent("Heron Membership")).toEqual([["pl-2"], []]);
+    expect(indent("Dev 1")).toEqual([["pl-2"], ["ms-6"]]);
   });
 
   it("searches projects and environments together", async () => {

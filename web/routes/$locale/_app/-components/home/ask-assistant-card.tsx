@@ -43,17 +43,20 @@ export function AskAssistantCard() {
   const router = useRouter();
   const allowance = useQuery(getAllowanceQuery()).data;
   const projects = useQuery(listProjectsQuery()).data;
-  const conversations = useQuery(listConversationsQuery()).data;
+  const conversations = useQuery({
+    ...listConversationsQuery(),
+    enabled: allowance?.enabled === true && (projects?.length ?? 0) > 0,
+  }).data;
   const options = useContextOptions();
   const [picked, setPicked] = React.useState<QuestionContextInput>(AUTO);
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [text, setText] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
-  // The conversation made for a send that then failed: a retry for the same
-  // context reuses it instead of leaving another empty one behind. Changing
-  // the context starts over.
-  const created = React.useRef<{ contextKey: string; id: string } | null>(null);
+  // The conversation made for a send that then failed: a retry reuses it
+  // instead of leaving another empty one behind. Conversations are global,
+  // so a changed context does not matter.
+  const created = React.useRef<string | null>(null);
 
   const context = visibleContext(picked, options);
 
@@ -62,12 +65,8 @@ export function AskAssistantCard() {
       context: QuestionContextInput;
       text: string;
     }) => {
-      const contextKey = JSON.stringify(input.context);
-      if (created.current?.contextKey !== contextKey) {
-        const { id } = await createConversation();
-        created.current = { contextKey, id };
-      }
-      const { id } = created.current;
+      const id = created.current ?? (await createConversation()).id;
+      created.current = id;
       await sendMessage({
         conversationId: id,
         text: input.text,
