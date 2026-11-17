@@ -63,6 +63,8 @@ export async function loadDraftTranscript(
     .orderBy(asc(assistantMessages.id));
   return {
     ...conversation,
+    // Transitional until project-level conversations reach the drafts.
+    environmentName: conversation.environmentName ?? "",
     messages: rows.filter((m) => m.content.trim() !== ""),
   };
 }

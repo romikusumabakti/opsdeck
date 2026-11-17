@@ -1,0 +1,477 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "ab6ea8d8-2d33-48dc-99f9-a7b44b531794",
+  "prevIds": [
+    "367aec02-9a13-4c2a-8016-785eecd97101"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_messages",
+        "environment_id"
+      ],
+      "writes": [
+        "s|col|public.assistant_messages.environment_id",
+        "n|col|public.assistant_messages.environment_id",
+        "e|col|public.assistant_messages.environment_id"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_messages",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_messages",
+        "environment_name"
+      ],
+      "writes": [
+        "s|col|public.assistant_messages.environment_name",
+        "n|col|public.assistant_messages.environment_name",
+        "e|col|public.assistant_messages.environment_name"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_messages",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_usage",
+        "estimated"
+      ],
+      "writes": [
+        "s|col|public.assistant_usage.estimated",
+        "n|col|public.assistant_usage.estimated",
+        "e|col|public.assistant_usage.estimated"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_usage",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "assistant_provider"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.assistant_provider",
+        "n|col|public.instance_settings.assistant_provider",
+        "e|col|public.instance_settings.assistant_provider"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "assistant_api_key"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.assistant_api_key",
+        "n|col|public.instance_settings.assistant_api_key",
+        "e|col|public.instance_settings.assistant_api_key"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "assistant_base_url"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.assistant_base_url",
+        "n|col|public.instance_settings.assistant_base_url",
+        "e|col|public.instance_settings.assistant_base_url"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "assistant_price_input"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.assistant_price_input",
+        "n|col|public.instance_settings.assistant_price_input",
+        "e|col|public.instance_settings.assistant_price_input"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "assistant_price_output"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.assistant_price_output",
+        "n|col|public.instance_settings.assistant_price_output",
+        "e|col|public.instance_settings.assistant_price_output"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "assistant_price_cache_read"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.assistant_price_cache_read",
+        "n|col|public.instance_settings.assistant_price_cache_read",
+        "e|col|public.instance_settings.assistant_price_cache_read"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "assistant_price_cache_write"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.assistant_price_cache_write",
+        "n|col|public.instance_settings.assistant_price_cache_write",
+        "e|col|public.instance_settings.assistant_price_cache_write"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_conversations",
+        "environment_name"
+      ],
+      "writes": [
+        "s|colprop|public.assistant_conversations.environment_name.notNull"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_conversations",
+        "n|sch|public",
+        "n|col|public.assistant_conversations.environment_name"
+      ],
+      "sqlHash": "39de7227ecd40e93"
+    },
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "assistant_model"
+      ],
+      "writes": [
+        "s|colprop|public.instance_settings.assistant_model.notNull",
+        "s|colprop|public.instance_settings.assistant_model.default"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public",
+        "n|col|public.instance_settings.assistant_model"
+      ],
+      "sqlHash": "3f5ec856511fabe8"
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "assistant_messages"
+      ],
+      "writes": [
+        "s|fk|public.assistant_messages.assistant_messages_environment_id_environments_id_fk",
+        "n|fk|public.assistant_messages.assistant_messages_environment_id_environments_id_fk",
+        "e|fk|public.assistant_messages.assistant_messages_environment_id_environments_id_fk",
+        "n|con|public.assistant_messages.assistant_messages_environment_id_environments_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_messages",
+        "n|sch|public",
+        "n|tbl|public.environments",
+        "n|sch|public",
+        "n|col|public.assistant_messages.environment_id",
+        "n|col|public.environments.id",
+        "e|uniqueness|public.environments.id"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "instance_settings"
+      ],
+      "writes": [
+        "s|ck|public.instance_settings.instance_settings_assistant_provider_check",
+        "n|ck|public.instance_settings.instance_settings_assistant_provider_check",
+        "e|ck|public.instance_settings.instance_settings_assistant_provider_check",
+        "n|con|public.instance_settings.instance_settings_assistant_provider_check"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public",
+        "n|col|public.instance_settings.assistant_provider"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_messages",
+        "name": "environment_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_messages",
+        "name": "environment_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_usage",
+        "name": "estimated",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "assistant_provider",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "assistant_api_key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "assistant_base_url",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "assistant_price_input",
+        "type": "numeric(12,6)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "assistant_price_output",
+        "type": "numeric(12,6)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "assistant_price_cache_read",
+        "type": "numeric(12,6)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "assistant_price_cache_write",
+        "type": "numeric(12,6)",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_messages",
+        "name": "assistant_messages_environment_id_environments_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "environment_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "environments",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "instance_settings_assistant_provider_check",
+        "value": "\"assistant_provider\" in ('anthropic', 'openai', 'google', 'openai-compatible')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"assistant_conversations\",\"environment_name\"]",
+      "set": {
+        "notNull": false
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"instance_settings\",\"assistant_model\"]",
+      "set": {
+        "notNull": false,
+        "default": null
+      }
+    }
+  ]
+}

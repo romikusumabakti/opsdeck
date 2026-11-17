@@ -272,6 +272,8 @@ export async function loadConversationDetail(
   );
   return {
     ...head,
+    // Transitional until project-level conversations reach the UI.
+    environmentName: head.environmentName ?? "",
     messages: messages.map((m) => ({ ...m, toolCalls: calls.get(m.id) ?? [] })),
     drafts,
     jiraPushEnabled: !!(link?.enabled && link.pushEnabled),

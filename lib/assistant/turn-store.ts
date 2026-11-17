@@ -94,7 +94,8 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
     userName: row.userName,
     projectName: row.projectName,
     environmentId: row.environmentId,
-    environmentName: row.environmentName,
+    // Transitional until project-level conversations reach the worker.
+    environmentName: row.environmentName ?? "",
     history: earlier.map((m) => ({
       role: m.role,
       content: m.content,

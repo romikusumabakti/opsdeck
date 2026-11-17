@@ -115,7 +115,7 @@ export async function saveAssistantSettings(
       entityType: "instance",
       data: {
         enabled: String(row.assistantEnabled),
-        model: row.assistantModel,
+        model: row.assistantModel ?? "",
         effort: row.assistantEffort,
         dailyCapUsd: Number(row.assistantDailyCapUsd),
         keyChanged: String(apiKey !== undefined && apiKey !== ""),
@@ -133,7 +133,7 @@ export async function saveAssistantSettings(
 export async function testAssistantConnection(): Promise<ActionResponse> {
   await requireOrgPermission({ assistant: ["manage"] });
   const row = await loadRow();
-  if (!row.anthropicApiKey) {
+  if (!row.anthropicApiKey || !row.assistantModel) {
     return { success: false, message: "Save an API key first" };
   }
   try {

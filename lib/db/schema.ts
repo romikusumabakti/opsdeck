@@ -2478,12 +2478,36 @@ export const instanceSettings = pgTable(
     autoUpdate: boolean("auto_update").notNull().default(false),
     // HH:MM in the instance time zone.
     autoUpdateWindow: text("auto_update_window").notNull().default("03:00"),
-    // Code assistant. The API key is stored as ciphertext (encryptSecret).
+    // Code assistant. The API keys are stored as ciphertext (encryptSecret).
     assistantEnabled: boolean("assistant_enabled").notNull().default(false),
+    // Superseded by assistantApiKey (copied by the migration); kept unused
+    // until a later release drops it.
     anthropicApiKey: text("anthropic_api_key"),
-    assistantModel: text("assistant_model")
-      .notNull()
-      .default("claude-opus-5-5"),
+    // null = not configured yet.
+    assistantProvider: text("assistant_provider", {
+      enum: ["anthropic", "openai", "google", "openai-compatible"],
+    }),
+    assistantApiKey: text("assistant_api_key"),
+    // Required for openai-compatible; overrides the endpoint for the others.
+    assistantBaseUrl: text("assistant_base_url"),
+    assistantModel: text("assistant_model"),
+    // USD per million tokens, for the configured model.
+    assistantPriceInput: numeric("assistant_price_input", {
+      precision: 12,
+      scale: 6,
+    }),
+    assistantPriceOutput: numeric("assistant_price_output", {
+      precision: 12,
+      scale: 6,
+    }),
+    assistantPriceCacheRead: numeric("assistant_price_cache_read", {
+      precision: 12,
+      scale: 6,
+    }),
+    assistantPriceCacheWrite: numeric("assistant_price_cache_write", {
+      precision: 12,
+      scale: 6,
+    }),
     assistantEffort: text("assistant_effort").notNull().default("medium"),
     // Per-user daily spend cap in USD (quota day in APP_TIMEZONE).
     assistantDailyCapUsd: numeric("assistant_daily_cap_usd", {
@@ -2501,6 +2525,10 @@ export const instanceSettings = pgTable(
     check(
       "instance_settings_update_channel_check",
       sql`${t.updateChannel} in ('stable', 'beta')`
+    ),
+    check(
+      "instance_settings_assistant_provider_check",
+      sql`${t.assistantProvider} in ('anthropic', 'openai', 'google', 'openai-compatible')`
     ),
   ]
 );
@@ -2695,7 +2723,8 @@ export const assistantConversations = pgTable(
       name: "assistant_conversations_environment_id_environments_id_fk",
       onDelete: "set null",
     }),
-    environmentName: text("environment_name").notNull(),
+    // null for a project-level conversation.
+    environmentName: text("environment_name"),
     title: text("title").notNull().default(""),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -2725,6 +2754,13 @@ export const assistantMessages = pgTable(
     sources: jsonb("sources").$type<AssistantSource[]>(),
     // Jira attachment ids the user ticked for this question.
     attachmentIds: text("attachment_ids").array().notNull().default(sql`'{}'`),
+    // The environment a user message was asked in; the name is a snapshot
+    // that survives the environment being deleted.
+    environmentId: uuid("environment_id").references(() => environments.id, {
+      name: "assistant_messages_environment_id_environments_id_fk",
+      onDelete: "set null",
+    }),
+    environmentName: text("environment_name"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     finishedAt: timestamp("finished_at"),
   },
@@ -2776,6 +2812,8 @@ export const assistantUsage = pgTable(
     cacheWriteTokens: integer("cache_write_tokens"),
     outputTokens: integer("output_tokens"),
     costUsd: numeric("cost_usd", { precision: 10, scale: 6 }).notNull(),
+    // The provider reported no usage, so the tokens were estimated.
+    estimated: boolean("estimated").notNull().default(false),
     // The quota day, in APP_TIMEZONE.
     day: date("day").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
