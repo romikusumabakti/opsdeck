@@ -1,20 +1,35 @@
-import type { AnthropicError } from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import {
+  type ContentPart,
+  JSONParseError,
+  type LanguageModel,
+  type LanguageModelUsage,
+  NoObjectGeneratedError,
+  Output,
+  type SystemModelMessage,
+  streamText,
+  type ToolSet,
+} from "ai";
 import { z } from "zod";
-import type { LegacyDraftRuntime } from "./client";
+import type { AssistantRuntime } from "./client";
 import {
   type DraftKind,
   type DraftTranscript,
   insertDraft,
   loadDraftTranscript,
 } from "./draft-store";
+import { estimateUsage } from "./pricing";
 import {
-  legacyTokenUsage,
-  type ResponseUsage,
-  streamRequest,
-} from "./legacy-draft-request";
-import { TurnError } from "./run-turn";
+  cacheControlFor,
+  outputTokenLimitFor,
+  providerOptionsFor,
+} from "./providers";
+import {
+  mergeProviderOptions,
+  outputCharsOf,
+  promptCharsOf,
+  reportedUsage,
+  TurnError,
+} from "./run-turn";
 import { GENERIC_ORGANISATION } from "./system-prompt";
 import { recordUsage } from "./usage";
 
@@ -56,7 +71,7 @@ export const BRD_SECTION_HEADINGS = [
   "Import Data",
 ] as const;
 
-/** What Claude returns for a Jira draft (no length limits: clamped after). */
+/** What the model returns for a Jira draft (no length limits: clamped after). */
 const jiraOutputSchema = z.object({
   summary: z.string(),
   issueType: z.enum(JIRA_ISSUE_TYPES),
@@ -102,7 +117,7 @@ export function draftContentSchema(kind: DraftKind) {
 const clip = (value: string, max: number) =>
   Array.from(value.trim()).slice(0, max).join("");
 
-/** Claude's draft cut to the stored limits, so a long answer is not lost. */
+/** The model's draft cut to the stored limits, so a long answer is not lost. */
 export function clampJiraDraft(raw: z.infer<typeof jiraOutputSchema>) {
   return jiraDraftSchema.parse({
     summary: clip(raw.summary, JIRA_SUMMARY_MAX) || "Draft",
@@ -197,53 +212,25 @@ export function buildDraftUserMessage(
   return `Project: ${transcript.projectName}\nEnvironment: ${transcript.environmentName}\n\n<conversation>\n${turns}\n</conversation>\n\n${ask}`;
 }
 
-const FORMATS = {
-  jira: betaZodOutputFormat(jiraOutputSchema),
-  brd: betaZodOutputFormat(brdOutputSchema),
+const OUTPUT_SCHEMAS = {
+  jira: jiraOutputSchema,
+  brd: brdOutputSchema,
 };
 
-/**
- * The structured output of a finished response. The stop reason is checked
- * before any parsing: a refusal or a truncated answer never reaches the
- * schema. After a mid-output refusal fallback the fallback model continues
- * the declined text, so every text block is part of the JSON.
- */
-export function parseDraftResponse(
-  kind: DraftKind,
-  message: Pick<BetaMessage, "stop_reason" | "content">
-): JiraDraft | BrdDraft {
-  if (message.stop_reason === "refusal")
-    throw new TurnError("assistant.refused");
-  if (message.stop_reason !== "end_turn") {
-    console.error(`[assistant] draft stopped: ${message.stop_reason}`);
-    throw new TurnError("assistant.failed");
-  }
-  const text = message.content
-    .flatMap((b) => (b.type === "text" ? [b.text] : []))
-    .join("");
-  try {
-    return kind === "jira"
-      ? clampJiraDraft(FORMATS.jira.parse(text))
-      : clampBrdDraft(FORMATS.brd.parse(text));
-  } catch (error) {
-    console.error(
-      "[assistant] draft output did not match its schema",
-      (error as AnthropicError | Error).message
-    );
-    throw new TurnError("assistant.failed");
-  }
-}
-
 export type GenerateDraftDeps = {
-  runtime: LegacyDraftRuntime;
+  runtime: AssistantRuntime;
+  /** Replaces the runtime's model (tests inject a mock). */
+  model?: LanguageModel;
   now?: () => Date;
 };
 
 /**
  * Writes a draft of `kind` from the conversation's text turns with one
- * Messages request and stores it. The caller has authorized the user, loaded
- * the runtime and checked the daily cap. Throws TurnError with a stable code
- * (classifyLegacyDraftError maps SDK errors) when no draft could be written.
+ * structured-output request and stores it. The caller has authorized the
+ * user, loaded the runtime and checked the daily cap. Throws TurnError with a
+ * stable code, or the SDK's error for classifyError, when no draft could be
+ * written. The request is metered like a turn step: the reported usage, else
+ * an estimate.
  */
 export async function generateDraft(
   conversationId: string,
@@ -259,38 +246,105 @@ export async function generateDraft(
   }
 
   const { runtime } = deps;
-  const meter = (model: string, usage: ResponseUsage) =>
-    recordUsage({
+  const cache = cacheControlFor(runtime.provider);
+  const instructions: SystemModelMessage[] = [
+    {
+      role: "system",
+      content: buildDraftSystemPrompt(kind, runtime.orgContext),
+      // The prompt is byte-stable per kind: a cache breakpoint after it.
+      providerOptions: cache,
+    },
+  ];
+  const messages = [
+    {
+      role: "user" as const,
+      content: buildDraftUserMessage(kind, transcript),
+    },
+  ];
+  const promptChars = promptCharsOf(instructions) + promptCharsOf(messages);
+
+  let metered = false;
+  const meter = (
+    modelId: string,
+    usage: LanguageModelUsage,
+    content: ReadonlyArray<ContentPart<ToolSet>>
+  ) => {
+    metered = true;
+    const reported = reportedUsage(usage);
+    return recordUsage({
       messageId: null,
       userId,
-      modelId: model,
+      modelId: modelId || runtime.modelId,
       prices: runtime.prices,
-      usage: legacyTokenUsage(usage),
-      estimated: false,
+      usage: reported ?? estimateUsage(promptChars, outputCharsOf(content)),
+      estimated: !reported,
       now: now(),
     });
-  // The format without its parse hook: the SDK would parse in finalMessage(),
-  // before the stop reason can be checked.
-  const { parse: _parse, ...format } = FORMATS[kind];
-  const message = await streamRequest(
-    runtime,
-    {
-      system: [
-        {
-          type: "text",
-          text: buildDraftSystemPrompt(kind, runtime.orgContext),
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      format,
-      messages: [
-        { role: "user", content: buildDraftUserMessage(kind, transcript) },
-      ],
+  };
+
+  // Streamed, not one blocking call: a long answer with reasoning can take
+  // minutes, which a non-streaming request may not survive.
+  const result = streamText({
+    model: deps.model ?? runtime.model,
+    instructions,
+    messages,
+    output: Output.object({ schema: OUTPUT_SCHEMAS[kind] }),
+    maxOutputTokens: outputTokenLimitFor(runtime.provider),
+    providerOptions: mergeProviderOptions(
+      providerOptionsFor(runtime.provider, runtime.effort),
+      cache
+    ),
+    onLanguageModelCallEnd: async (event) => {
+      await meter(event.modelId, event.usage, event.content);
     },
-    meter
-  );
-  await meter(message.model, message.usage);
-  const content = parseDraftResponse(kind, message);
+    onStepEnd: async (step) => {
+      // A call that ended in a stream error reaches no call end.
+      if (!metered) {
+        await meter(step.response.modelId, step.usage, step.content);
+      }
+    },
+    // Errors are read from the stream below; the default logs them.
+    onError: () => {},
+  });
+
+  let streamError: unknown;
+  for await (const part of result.fullStream) {
+    if (part.type === "error") streamError ??= part.error;
+  }
+  if (streamError) throw streamError;
+
+  // Checked before any parsing: a refusal or a truncated answer never reaches
+  // the schema.
+  const finishReason = await result.finishReason;
+  if (finishReason === "content-filter") {
+    throw new TurnError("assistant.refused");
+  }
+  if (finishReason !== "stop") {
+    console.error(`[assistant] draft stopped: ${finishReason}`);
+    throw new TurnError("assistant.failed");
+  }
+  let content: JiraDraft | BrdDraft;
+  try {
+    const output = await result.output;
+    content =
+      kind === "jira"
+        ? clampJiraDraft(output as z.infer<typeof jiraOutputSchema>)
+        : clampBrdDraft(output as z.infer<typeof brdOutputSchema>);
+  } catch (error) {
+    if (
+      NoObjectGeneratedError.isInstance(error) &&
+      JSONParseError.isInstance(error.cause)
+    ) {
+      // Not JSON at all: the endpoint ignored the requested format.
+      console.error("[assistant] draft answer was not JSON");
+      throw new TurnError("assistant.model_no_drafts");
+    }
+    console.error(
+      "[assistant] draft output did not match its schema",
+      (error as Error).message
+    );
+    throw new TurnError("assistant.failed");
+  }
   const draftId = await insertDraft({ conversationId, kind, content });
   return { draftId };
 }

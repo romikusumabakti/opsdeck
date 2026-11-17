@@ -3676,7 +3676,7 @@
     "attachments": "Lampiran issue",
     "removeAttachment": "Hapus lampiran {name}",
     "attachedCount": "{count, plural, other {# lampiran}}",
-    "attachmentWarning": "Lampiran issue bisa berisi data peserta (NIK, nama, rekening). Isinya dikirim ke Claude (Anthropic). Centang hanya lampiran yang benar-benar diperlukan.",
+    "attachmentWarning": "Lampiran issue bisa berisi data peserta (NIK, nama, rekening). Isinya dikirim ke penyedia AI yang dikonfigurasi. Centang hanya lampiran yang benar-benar diperlukan.",
     "pickerTitle": "Lampiran issue",
     "pickerDescription": "Masukkan kunci issue, lalu centang lampiran yang boleh dibaca asisten (maks. {max}).",
     "issueKey": "Kunci issue",

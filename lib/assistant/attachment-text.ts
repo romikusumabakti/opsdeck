@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 
 /**
  * Attachment conversion for the assistant: which formats v1 reads, and the
- * xlsx → CSV text that Claude reads in place of a spreadsheet.
+ * xlsx → CSV text that the model reads in place of a spreadsheet.
  */
 
 export const MAX_ATTACHMENT_TEXT_BYTES = 200 * 1024;
@@ -44,7 +44,7 @@ export function attachmentFormat(meta: {
   return "unsupported";
 }
 
-/** The image type the bytes actually are; Anthropic rejects a mismatch. */
+/** The image type the bytes actually are; providers reject a mismatch. */
 export function sniffImage(bytes: Uint8Array): ImageMediaType | null {
   const b = bytes;
   if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {

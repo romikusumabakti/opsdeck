@@ -13,13 +13,11 @@ import { recordActivity } from "@/lib/activity";
 import {
   ASSISTANT_EFFORTS,
   type AssistantEffort,
-} from "@/lib/assistant/client";
-import {
   createLanguageModel,
   PROVIDERS,
   type Prices,
   type Provider,
-  type ProviderOptions,
+  probeOptionsFor,
 } from "@/lib/assistant/providers";
 import { quotaDay } from "@/lib/assistant/usage";
 import { requireOrgPermission } from "@/lib/authz";
@@ -296,15 +294,6 @@ async function probe(
 
 const okSchema = z.object({ ok: z.boolean() });
 
-// The lowest reasoning for the probes. None for Anthropic: thinking conflicts
-// with the forced tool choice. None for an OpenAI-compatible endpoint.
-const PROBE_OPTIONS: Record<Provider, ProviderOptions | undefined> = {
-  anthropic: undefined,
-  openai: { openai: { reasoningEffort: "low" } },
-  google: { google: { thinkingConfig: { thinkingLevel: "low" } } },
-  "openai-compatible": undefined,
-};
-
 /**
  * Two tiny calls with the stored settings: one forcing a `ping` tool call, one
  * structured (JSON) answer, each capped at 512 output tokens at the lowest
@@ -353,7 +342,7 @@ export async function testAssistantConnection(
     // Room for a reasoning model to think a little before it answers.
     maxOutputTokens: 512,
     maxRetries: 0,
-    providerOptions: PROBE_OPTIONS[provider],
+    providerOptions: probeOptionsFor(provider),
   } as const;
 
   const tools = await probe(async () => {

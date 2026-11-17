@@ -79,7 +79,7 @@ export async function sendMessage(input: Body<"send-message">) {
   return parseResponse(routes["send-message"].$post({ json: input }));
 }
 
-/** Has Claude write a BRD or Jira draft from the conversation. */
+/** Has the model write a BRD or Jira draft from the conversation. */
 export async function generateDraft(input: Body<"generate-draft">) {
   return parseResponse(routes["generate-draft"].$post({ json: input }));
 }

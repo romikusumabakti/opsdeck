@@ -3676,7 +3676,7 @@
     "attachments": "Issue attachments",
     "removeAttachment": "Remove attachment {name}",
     "attachedCount": "{count, plural, one {# attachment} other {# attachments}}",
-    "attachmentWarning": "Issue attachments can contain participant data (NIK, names, bank accounts). Their content is sent to Claude (Anthropic). Tick only the attachments you really need.",
+    "attachmentWarning": "Issue attachments can contain participant data (NIK, names, bank accounts). Their content is sent to the configured AI provider. Tick only the attachments you really need.",
     "pickerTitle": "Issue attachments",
     "pickerDescription": "Enter an issue key, then tick the attachments the assistant may read (up to {max}).",
     "issueKey": "Issue key",

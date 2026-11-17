@@ -103,7 +103,7 @@ describe("buildTools", () => {
   });
 
   it("marks only the last tool with the given provider options", () => {
-    const cache = { anthropic: { cacheControl: { type: "ephemeral" } } };
+    const cache = { acme: { cacheControl: { type: "ephemeral" } } };
     const tools = Object.values(
       buildTools(ctx, noRecord, { lastToolProviderOptions: cache })
     );

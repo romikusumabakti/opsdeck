@@ -1,7 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { LanguageModel } from "ai";
 import { eq } from "drizzle-orm";
 import {
+  ASSISTANT_EFFORTS,
+  type AssistantEffort,
   createLanguageModel,
   type Prices,
   type Provider,
@@ -9,62 +10,6 @@ import {
 import { db } from "@/lib/db";
 import { instanceSettings } from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/secrets";
-
-export const ASSISTANT_MODELS = [
-  "claude-opus-5-5",
-  "claude-sonnet-5-5",
-] as const;
-export const ASSISTANT_EFFORTS = ["low", "medium", "high"] as const;
-
-export type AssistantModel = (typeof ASSISTANT_MODELS)[number];
-export type AssistantEffort = (typeof ASSISTANT_EFFORTS)[number];
-
-export function createAnthropicClient(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey });
-}
-
-/**
- * Transitional (deleted with the draft move to the AI SDK): the Anthropic
- * client drafts still use, priced at the configured prices.
- */
-export type LegacyDraftRuntime = {
-  client: Anthropic;
-  model: string;
-  effort: string;
-  prices: Prices;
-  dailyCapUsd: number;
-  /** Admin → Assistant organisation context; null = the generic one. */
-  orgContext: string | null;
-};
-
-/**
- * Transitional: the draft runtime, or null unless the assistant is enabled
- * with an Anthropic key, a model and all four prices.
- */
-export async function loadLegacyDraftRuntime(): Promise<LegacyDraftRuntime | null> {
-  const [row] = await db
-    .select()
-    .from(instanceSettings)
-    .where(eq(instanceSettings.id, 1))
-    .limit(1);
-  if (
-    !row?.assistantEnabled ||
-    row.assistantProvider !== "anthropic" ||
-    !row.assistantApiKey ||
-    !row.assistantModel
-  )
-    return null;
-  const prices = pricesOf(row);
-  if (!prices) return null;
-  return {
-    client: createAnthropicClient(decryptSecret(row.assistantApiKey)),
-    model: row.assistantModel,
-    effort: row.assistantEffort,
-    prices,
-    dailyCapUsd: Number(row.assistantDailyCapUsd),
-    orgContext: row.assistantOrgContext,
-  };
-}
 
 export type AssistantRuntime = {
   model: LanguageModel;

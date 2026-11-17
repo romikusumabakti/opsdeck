@@ -12,7 +12,7 @@ import { loaderQuery } from "@/web/query-client";
 import { AssistantPending } from "./-components/env/skeletons";
 
 // The environment's Assistant tab: questions about the code and issues of
-// what runs in this environment, answered by Claude with read-only tools.
+// what runs in this environment, answered by the model with read-only tools.
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/assistant"
 )({

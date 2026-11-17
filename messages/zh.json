@@ -3676,7 +3676,7 @@
     "attachments": "问题附件",
     "removeAttachment": "移除附件 {name}",
     "attachedCount": "{count, plural, other {# 个附件}}",
-    "attachmentWarning": "问题附件可能包含参与者数据（NIK、姓名、银行账户）。其内容会发送给 Claude（Anthropic）。只勾选确实需要的附件。",
+    "attachmentWarning": "问题附件可能包含参与者数据（NIK、姓名、银行账户）。其内容会发送给已配置的 AI 提供商。只勾选确实需要的附件。",
     "pickerTitle": "问题附件",
     "pickerDescription": "输入问题键，然后勾选助手可以读取的附件（最多 {max} 个）。",
     "issueKey": "问题键",

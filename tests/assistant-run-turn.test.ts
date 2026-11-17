@@ -8,7 +8,14 @@ import {
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantRuntime } from "@/lib/assistant/client";
-import type { Provider } from "@/lib/assistant/providers";
+import {
+  cacheControlFor,
+  outputTokenLimitFor,
+  PROVIDERS,
+  type Provider,
+  type ProviderOptions,
+  providerOptionsFor,
+} from "@/lib/assistant/providers";
 import type { AssistantSource } from "@/lib/assistant/sources";
 import type { TurnContext } from "@/lib/assistant/turn-store";
 
@@ -96,7 +103,6 @@ const {
   classifyError,
   TurnError,
   MAX_ITERATIONS,
-  MAX_TOKENS,
   STEP_LIMIT_NOTE,
   DAILY_CAP_NOTE,
 } = await import("@/lib/assistant/run-turn");
@@ -152,7 +158,7 @@ type Step =
 function chunksOf(step: Step): LanguageModelV4StreamPart[] {
   if ("error" in step) return [];
   const chunks: LanguageModelV4StreamPart[] = [
-    { type: "response-metadata", modelId: "claude-opus-5-5" },
+    { type: "response-metadata", modelId: "served-model-1" },
   ];
   if (step.text?.length) {
     chunks.push({ type: "text-start", id: "t" });
@@ -183,7 +189,7 @@ function chunksOf(step: Step): LanguageModelV4StreamPart[] {
 function mockModel(steps: Step[]) {
   const model = new MockLanguageModelV4({
     provider: "mock.provider",
-    modelId: "claude-opus-5-5",
+    modelId: "configured-model",
     doStream: async () => {
       const step = steps.shift();
       if (!step) throw new Error("no scripted step left");
@@ -240,6 +246,20 @@ function baseTurn(): TurnContext {
   };
 }
 
+// The provider whose requests carry prompt-cache breakpoints (the default
+// runtime's), and its cache options.
+const CACHING = PROVIDERS.find((p) => cacheControlFor(p)) as Provider;
+const CACHE = cacheControlFor(CACHING) as ProviderOptions;
+
+/** The request-level options: the provider's, plus its cache control. */
+function requestOptions(provider: Provider, effort: "low" | "medium" | "high") {
+  const options = providerOptionsFor(provider, effort);
+  for (const [name, extra] of Object.entries(cacheControlFor(provider) ?? {})) {
+    options[name] = { ...options[name], ...extra };
+  }
+  return options;
+}
+
 // Prices set apart from any list price, so the test proves they are used.
 const PRICES = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 };
 
@@ -247,8 +267,8 @@ function runtime(overrides: Partial<AssistantRuntime> = {}): AssistantRuntime {
   return {
     // Replaced by the injected mock in every test.
     model: "unused-model-id",
-    provider: "anthropic",
-    modelId: "claude-opus-5-5",
+    provider: CACHING,
+    modelId: "configured-model",
     effort: "medium",
     prices: PRICES,
     dailyCapUsd: 1.5,
@@ -365,7 +385,7 @@ describe("runTurn", () => {
     expect(state.usage[0]).toMatchObject({
       messageId: MESSAGE_ID,
       userId: USER_ID,
-      model: "claude-opus-5-5",
+      model: "served-model-1",
       inputTokens: 1000,
       cacheReadTokens: 5000,
       cacheWriteTokens: 2000,
@@ -509,13 +529,13 @@ describe("runTurn", () => {
     }
   );
 
-  it("sends a token limit only to Anthropic", async () => {
+  it.each(PROVIDERS)("sends the token limit of %s", async (provider) => {
     const { model, calls } = mockModel([{ text: ["Halo"], finish: "stop" }]);
     await runTurn(
       MESSAGE_ID,
-      deps(model, { loadRuntime: async () => runtime({ provider: "openai" }) })
+      deps(model, { loadRuntime: async () => runtime({ provider }) })
     );
-    expect(calls[0]?.maxOutputTokens).toBeUndefined();
+    expect(calls[0]?.maxOutputTokens).toBe(outputTokenLimitFor(provider));
   });
 
   it("audits invalid tool calls without running them", async () => {
@@ -558,35 +578,27 @@ describe("runTurn", () => {
     expect(state.usage[0]).toMatchObject({ estimated: true });
   });
 
-  it("sends auto tool choice, the effort, the token limit and Anthropic cache control", async () => {
+  it("sends auto tool choice, the effort, the token limit and cache control", async () => {
     const { model, calls } = mockModel([{ text: ["Halo"], finish: "stop" }]);
     await runTurn(MESSAGE_ID, deps(model));
 
     const call = calls[0]!;
     expect(call.toolChoice).toEqual({ type: "auto" });
-    expect(call.maxOutputTokens).toBe(MAX_TOKENS);
+    expect(call.maxOutputTokens).toBe(outputTokenLimitFor(CACHING));
     expect(call.temperature).toBeUndefined();
-    expect(call.providerOptions?.anthropic).toMatchObject({
-      thinking: { type: "adaptive" },
-      effort: "medium",
-      // The growing conversation is cached too.
-      cacheControl: { type: "ephemeral" },
-    });
+    // The effort, and the cache control (the growing conversation is cached
+    // too).
+    expect(call.providerOptions).toEqual(requestOptions(CACHING, "medium"));
     // Cache breakpoints: the stable system message and the last tool.
     const [cached, volatile] = call.prompt;
-    expect(cached).toMatchObject({
-      role: "system",
-      providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
-    });
+    expect(cached).toMatchObject({ role: "system", providerOptions: CACHE });
     expect(String(cached?.content)).not.toContain("2026-11-16");
     expect(volatile?.role).toBe("system");
     expect(volatile?.providerOptions).toBeUndefined();
     expect(String(volatile?.content)).toContain("2026-11-16");
     const tools = toolsOf(call);
     expect(tools).toHaveLength(7);
-    expect(tools.at(-1)?.providerOptions).toEqual({
-      anthropic: { cacheControl: { type: "ephemeral" } },
-    });
+    expect(tools.at(-1)?.providerOptions).toEqual(CACHE);
     expect(tools.slice(0, -1).some((t) => t.providerOptions)).toBe(false);
     expect(conversationOf(call)).toEqual([
       {
@@ -596,7 +608,7 @@ describe("runTurn", () => {
     ]);
   });
 
-  it("sends no Anthropic options for an OpenAI runtime", async () => {
+  it("sends no cache options for a provider without breakpoints", async () => {
     const { model, calls } = mockModel([{ text: ["Halo"], finish: "stop" }]);
     await runTurn(
       MESSAGE_ID,
@@ -609,7 +621,9 @@ describe("runTurn", () => {
     expect(call.providerOptions).toEqual({
       openai: { reasoningEffort: "high" },
     });
-    expect(JSON.stringify(call)).not.toContain("anthropic");
+    for (const name of Object.keys(CACHE)) {
+      expect(JSON.stringify(call)).not.toContain(`"${name}"`);
+    }
     expect(call.prompt[0]?.providerOptions).toBeUndefined();
     expect(toolsOf(call).some((t) => t.providerOptions)).toBe(false);
     expect(state.message.status).toBe("done");

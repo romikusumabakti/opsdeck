@@ -5,8 +5,8 @@ import {
   JIRA_KEY_PATTERN,
 } from "@/lib/assistant/attachment-refs";
 import {
+  type AssistantRuntime,
   loadAssistantRuntime,
-  loadLegacyDraftRuntime,
 } from "@/lib/assistant/client";
 import {
   type ConversationDetail,
@@ -37,8 +37,8 @@ import {
   ASSISTANT_ERROR_MESSAGE_KEYS,
   type AssistantErrorCodeKey,
 } from "@/lib/assistant/errors";
-import { classifyLegacyDraftError } from "@/lib/assistant/legacy-draft-request";
 import { enqueueAssistantTurn } from "@/lib/assistant/queue";
+import { classifyError } from "@/lib/assistant/run-turn";
 import {
   type IssueAttachment,
   listIssueAttachments,
@@ -169,12 +169,10 @@ export async function getConversation(
 }
 
 /** The usable runtime, else the assistant.not_configured refusal. */
-async function requireRuntime<T extends { dailyCapUsd: number }>(
-  load: () => Promise<T | null>
-): Promise<T> {
-  let runtime: T | null;
+async function requireRuntime(): Promise<AssistantRuntime> {
+  let runtime: AssistantRuntime | null;
   try {
-    runtime = await load();
+    runtime = await loadAssistantRuntime();
   } catch (error) {
     // A key the current SECRETS_KEY cannot decrypt is as good as none.
     console.error("[assistant] could not load the runtime:", error);
@@ -210,11 +208,7 @@ export async function sendMessage(
   const { conversation, userId } = await ownConversation(input.conversationId);
 
   const now = new Date();
-  await requireAllowance(
-    userId,
-    await requireRuntime(loadAssistantRuntime),
-    now
-  );
+  await requireAllowance(userId, await requireRuntime(), now);
 
   const turn = await insertTurn({
     conversationId: conversation.id,
@@ -325,6 +319,7 @@ const DRAFT_FAILURE_STATUS: Partial<
   "assistant.not_configured": 503,
   "assistant.credit_exhausted": 503,
   "assistant.unavailable": 503,
+  "assistant.model_no_drafts": 503,
   "assistant.refused": 422,
   "assistant.nothing_to_draft": 409,
   "assistant.failed": 502,
@@ -358,8 +353,7 @@ export async function generateConversationDraft(
   deps: GenerateDraftDeps = {}
 ): Promise<{ draftId: string }> {
   const { conversation, userId } = await ownConversation(input.conversationId);
-  // Transitional: drafts still run on the Anthropic-only runtime.
-  const runtime = await requireRuntime(loadLegacyDraftRuntime);
+  const runtime = await requireRuntime();
   await requireAllowance(userId, runtime, new Date());
   try {
     return await (deps.generateDraft ?? defaultGenerateDraft)(
@@ -369,7 +363,7 @@ export async function generateConversationDraft(
       { runtime }
     );
   } catch (error) {
-    const code = classifyLegacyDraftError(error);
+    const code = classifyError(error);
     if (code === "assistant.failed") {
       console.error("[assistant] draft generation failed:", error);
     }

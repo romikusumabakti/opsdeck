@@ -2482,7 +2482,7 @@ export const instanceSettings = pgTable(
     assistantEnabled: boolean("assistant_enabled").notNull().default(false),
     // Superseded by assistantApiKey (copied by the migration); kept unused
     // until a later release drops it.
-    anthropicApiKey: text("anthropic_api_key"),
+    legacyApiKey: text("anthropic_api_key"),
     // null = not configured yet.
     assistantProvider: text("assistant_provider", {
       enum: ["anthropic", "openai", "google", "openai-compatible"],

@@ -11,7 +11,7 @@ import { failStaleAssistantMessages } from "./turn-store";
 // (minutes each) never occupies the deploy/ops worker's slots, and vice versa.
 export const ASSISTANT_QUEUE = "menara-assistant";
 export const ASSISTANT_TURN_JOB = "assistant/turn";
-// Each turn streams one Claude conversation at a time; two in parallel keep
+// Each turn streams one model conversation at a time; two in parallel keep
 // the team from waiting on each other without multiplying API spend bursts.
 const ASSISTANT_CONCURRENCY = 2;
 

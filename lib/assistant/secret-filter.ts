@@ -1,5 +1,5 @@
 /**
- * Decides which repository files may ever be sent to the Anthropic API.
+ * Decides which repository files may ever be sent to the model provider.
  * Pure module, no I/O. Paths are repo-relative POSIX; matching is
  * case-insensitive and applies at any depth.
  *

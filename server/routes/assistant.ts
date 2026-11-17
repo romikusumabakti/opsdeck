@@ -50,7 +50,7 @@ export const assistantRouter = sessionRouter()
   .post("/send-message", json(sendMessageInputSchema), async (c) =>
     c.json(await sendMessage(c.req.valid("json")))
   )
-  // Drafts: written by Claude from the conversation, edited by the user, and
+  // Drafts: written by the model from the conversation, edited by the user, and
   // (Jira drafts) created as an issue on an explicit request.
   .post("/generate-draft", json(generateDraftInputSchema), async (c) =>
     c.json(await generateConversationDraft(c.req.valid("json")))

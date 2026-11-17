@@ -3676,7 +3676,7 @@
     "attachments": "Adjuntos de la incidencia",
     "removeAttachment": "Quitar el adjunto {name}",
     "attachedCount": "{count, plural, one {# adjunto} other {# adjuntos}}",
-    "attachmentWarning": "Los adjuntos de las incidencias pueden contener datos de participantes (NIK, nombres, cuentas bancarias). Su contenido se envía a Claude (Anthropic). Marca solo los adjuntos que de verdad necesites.",
+    "attachmentWarning": "Los adjuntos de las incidencias pueden contener datos de participantes (NIK, nombres, cuentas bancarias). Su contenido se envía al proveedor de IA configurado. Marca solo los adjuntos que de verdad necesites.",
     "pickerTitle": "Adjuntos de la incidencia",
     "pickerDescription": "Introduce una clave de incidencia y marca los adjuntos que el asistente puede leer (hasta {max}).",
     "issueKey": "Clave de incidencia",

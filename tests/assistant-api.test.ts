@@ -1,3 +1,4 @@
+import { APICallError } from "ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The assistant chat API end to end through the Hono app, over an in-memory
@@ -130,8 +131,6 @@ vi.mock("@/lib/assistant/client", async (importOriginal) => {
   return {
     ...(await importOriginal<typeof import("@/lib/assistant/client")>()),
     loadAssistantRuntime: vi.fn(load),
-    // Transitional: drafts still load the Anthropic-only runtime.
-    loadLegacyDraftRuntime: vi.fn(load),
   };
 });
 
@@ -836,6 +835,7 @@ describe("drafts", () => {
     const cases = [
       ["assistant.refused", 422],
       ["assistant.nothing_to_draft", 409],
+      ["assistant.model_no_drafts", 503],
       ["assistant.failed", 502],
     ] as const;
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -849,6 +849,28 @@ describe("drafts", () => {
       expect(await res.json()).toMatchObject({ code });
     }
     log.mockRestore();
+  });
+
+  it("classifies a provider error with the turn loop's mapping", async () => {
+    const id = await newConversation();
+    drafting.generate.mockRejectedValueOnce(
+      new APICallError({
+        message: "Bad Request",
+        url: "https://llm.example.invalid/v1",
+        requestBodyValues: {},
+        statusCode: 400,
+        responseBody:
+          '{"error":{"message":"response_format json_schema is not supported"}}',
+      })
+    );
+    const res = await post("/generate-draft", {
+      conversationId: id,
+      kind: "brd",
+    });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({
+      code: "assistant.model_no_drafts",
+    });
   });
 
   it("another user's draft and conversation are 404 on every draft route", async () => {

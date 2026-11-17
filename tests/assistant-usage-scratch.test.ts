@@ -136,7 +136,7 @@ describe.skipIf(!enabled)("getAssistantUsage on a real Postgres", () => {
       day: string,
       messageId: string | null,
       costUsd: string
-    ) => ({ userId, day, messageId, costUsd, model: "claude-opus-5-5" });
+    ) => ({ userId, day, messageId, costUsd, model: "acme-max" });
     await d.insert(schema.assistantUsage).values([
       // Ana, 2026-11-16: one message metered in two iterations, plus another.
       usage(ana.id, "2026-11-16", m1, "0.100000"),

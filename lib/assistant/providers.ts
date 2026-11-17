@@ -4,9 +4,11 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import type { LanguageModel } from "ai";
-import type { AssistantEffort } from "@/lib/assistant/client";
 
 export type { ProviderOptions };
+
+export const ASSISTANT_EFFORTS = ["low", "medium", "high"] as const;
+export type AssistantEffort = (typeof ASSISTANT_EFFORTS)[number];
 
 export const PROVIDERS = [
   "anthropic",
@@ -15,6 +17,14 @@ export const PROVIDERS = [
   "openai-compatible",
 ] as const;
 export type Provider = (typeof PROVIDERS)[number];
+
+/** The provider picker's label, in the `assistantSettings` messages. */
+export const PROVIDER_LABEL_KEYS = {
+  anthropic: "providerAnthropic",
+  openai: "providerOpenai",
+  google: "providerGoogle",
+  "openai-compatible": "providerOpenaiCompatible",
+} as const satisfies Record<Provider, string>;
 
 /** USD per million tokens. */
 export type Prices = {
@@ -128,4 +138,32 @@ export function cacheControlFor(
   return provider === "anthropic"
     ? { anthropic: { cacheControl: { type: "ephemeral" } } }
     : undefined;
+}
+
+/**
+ * The output token limit sent with every request. Only Anthropic requires
+ * one; the others default to the model's maximum, and a fixed one can exceed
+ * what a smaller model accepts.
+ */
+export function outputTokenLimitFor(provider: Provider): number | undefined {
+  return provider === "anthropic" ? 32_000 : undefined;
+}
+
+/**
+ * The lowest reasoning, for the connection test's probes. None for Anthropic:
+ * thinking conflicts with the forced tool choice. None for an
+ * OpenAI-compatible endpoint.
+ */
+export function probeOptionsFor(
+  provider: Provider
+): ProviderOptions | undefined {
+  switch (provider) {
+    case "openai":
+      return { openai: { reasoningEffort: "low" } };
+    case "google":
+      return { google: { thinkingConfig: { thinkingLevel: "low" } } };
+    case "anthropic":
+    case "openai-compatible":
+      return undefined;
+  }
 }

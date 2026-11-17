@@ -217,7 +217,7 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     const cost = await recordUsage({
       messageId: answer.id,
       userId: user.id,
-      modelId: "claude-opus-5-5",
+      modelId: "acme-max",
       prices,
       usage,
       estimated: false,
@@ -226,7 +226,7 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     await recordUsage({
       messageId: null,
       userId: user.id,
-      modelId: "claude-opus-5-5",
+      modelId: "acme-max",
       prices,
       usage,
       estimated: false,
@@ -235,7 +235,7 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     await recordUsage({
       messageId: answer.id,
       userId: user.id,
-      modelId: "claude-opus-5-5",
+      modelId: "acme-max",
       prices,
       usage,
       estimated: false,

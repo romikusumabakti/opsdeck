@@ -19,6 +19,7 @@ import { type AssistantRuntime, loadAssistantRuntime } from "./client";
 import { CHARS_PER_TOKEN, estimateUsage, type TokenUsage } from "./pricing";
 import {
   cacheControlFor,
+  outputTokenLimitFor,
   type ProviderOptions,
   providerOptionsFor,
 } from "./providers";
@@ -50,7 +51,6 @@ import {
 import { recordUsage, spentTodayUsd } from "./usage";
 import { type AssistantViewer, loadAssistantViewer } from "./viewer";
 
-export const MAX_TOKENS = 32_000;
 /**
  * Model requests (steps) per turn. The last one is sent with tool choice
  * none and STEP_LIMIT_NOTE, so it answers with what the tools found so far.
@@ -133,6 +133,10 @@ const EXHAUSTED_BALANCE = /insufficient_quota|credit balance|PerDay/i;
 const TRANSIENT_LIMIT = /retry|per.?minute|PerMinute/i;
 const MENTIONS_API_KEY = /api[_ ]?key/i;
 const TOOLS_FUNCTIONALITY = /tool|function/i;
+const STRUCTURED_FUNCTIONALITY = /response.?format|structured|json/i;
+// A structured-output (draft) request the model or endpoint cannot serve.
+const NO_STRUCTURED_SUPPORT =
+  /(response_format|json_schema|json mode|structured outputs?)\b[^.]*\b(is |are )?(not supported|unsupported)|does not support (response_format|json_schema|json mode|structured outputs?)/i;
 const NO_TOOL_SUPPORT =
   /does not support (tools|tool use|tool calling|function calling)|(tools?|tool use|tool calling|function calling) (are|is) not supported/i;
 
@@ -142,6 +146,9 @@ export function classifyError(error: unknown): AssistantErrorCode {
   if (RetryError.isInstance(error)) return classifyError(error.lastError);
   if (LoadAPIKeyError.isInstance(error)) return "assistant.not_configured";
   if (UnsupportedFunctionalityError.isInstance(error)) {
+    if (STRUCTURED_FUNCTIONALITY.test(error.functionality)) {
+      return "assistant.model_no_drafts";
+    }
     return TOOLS_FUNCTIONALITY.test(error.functionality)
       ? "assistant.model_no_tools"
       : "assistant.failed";
@@ -164,6 +171,9 @@ export function classifyError(error: unknown): AssistantErrorCode {
   }
   if (status === 400 && NO_TOOL_SUPPORT.test(text)) {
     return "assistant.model_no_tools";
+  }
+  if (status === 400 && NO_STRUCTURED_SUPPORT.test(text)) {
+    return "assistant.model_no_drafts";
   }
   if (status === undefined) {
     return failure.retryable ? "assistant.unavailable" : "assistant.failed";
@@ -371,7 +381,7 @@ async function loadRuntimeOrFail(deps: RunTurnDeps): Promise<AssistantRuntime> {
 }
 
 /** Shallow per-provider merge: `extra` adds keys to each provider's options. */
-function mergeProviderOptions(
+export function mergeProviderOptions(
   base: ProviderOptions,
   extra: ProviderOptions | undefined
 ): ProviderOptions {
@@ -386,7 +396,7 @@ function mergeProviderOptions(
  * The tokens a step reports, split the way they are billed, or null when the
  * provider reported none.
  */
-function reportedUsage(usage: LanguageModelUsage): TokenUsage | null {
+export function reportedUsage(usage: LanguageModelUsage): TokenUsage | null {
   if (usage.inputTokens == null && usage.outputTokens == null) return null;
   const details = usage.inputTokenDetails;
   const cacheRead = details?.cacheReadTokens ?? 0;
@@ -398,7 +408,9 @@ function reportedUsage(usage: LanguageModelUsage): TokenUsage | null {
 }
 
 /** Characters a step produced: answer, reasoning and tool inputs. */
-function outputCharsOf(content: ReadonlyArray<ContentPart<ToolSet>>): number {
+export function outputCharsOf(
+  content: ReadonlyArray<ContentPart<ToolSet>>
+): number {
   let chars = 0;
   for (const part of content) {
     if (part.type === "text" || part.type === "reasoning") {
@@ -568,11 +580,7 @@ async function runClaimedTurn(
     messages: buildHistory(turn),
     tools,
     toolChoice: "auto",
-    // Anthropic requires a limit; the others default to the model's maximum,
-    // and a fixed one can exceed what a smaller model accepts.
-    ...(runtime.provider === "anthropic"
-      ? { maxOutputTokens: MAX_TOKENS }
-      : {}),
+    maxOutputTokens: outputTokenLimitFor(runtime.provider),
     providerOptions: mergeProviderOptions(
       providerOptionsFor(runtime.provider, runtime.effort),
       cache

@@ -16,7 +16,7 @@ import { JiraDraftForm } from "./jira-draft-form";
 type DraftKind = "brd" | "jira";
 
 /**
- * Drafts written by Claude from the conversation: a BRD section set or an
+ * Drafts written by the model from the conversation: a BRD section set or an
  * issue, newest first, each editable before anything leaves the Panel.
  */
 export function DraftPanel({

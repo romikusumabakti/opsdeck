@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROVIDER_LABEL_KEYS, PROVIDERS } from "@/lib/assistant/providers";
 import messages from "../messages/en.json";
 
 const api = vi.hoisted(() => ({
@@ -52,10 +53,10 @@ type Settings = {
 
 const SETTINGS: Settings = {
   enabled: false,
-  provider: "anthropic",
+  provider: "openai",
   hasApiKey: true,
   baseUrl: null,
-  model: "claude-sonnet-5-5",
+  model: "gpt-6.1-sol",
   effort: "medium",
   prices: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
   dailyCapUsd: 1.5,
@@ -168,24 +169,24 @@ describe("/admin/assistant", () => {
     const options = [
       ...container.querySelectorAll(`datalist#${list} option`),
     ].map((o) => o.getAttribute("value"));
-    expect(options).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);
+    expect(options).toEqual(["gpt-6.1-sol", "gpt-6-luna"]);
 
     await openAdvanced();
     expect(prices()).toEqual(["2", "10", "0.1", "2.5"]);
-    await type(model, "claude-opus-5-5");
-    expect(prices()).toEqual(["4", "20", "0.2", "5"]);
+    await type(model, "gpt-6-luna");
+    expect(prices()).toEqual(["0.1", "0.5", "0.01", "0.125"]);
     // A free-text model keeps whatever prices are there, editable.
-    await type(model, "claude-custom-fine-tune");
-    expect(prices()).toEqual(["4", "20", "0.2", "5"]);
+    await type(model, "acme-fine-tune");
+    expect(prices()).toEqual(["0.1", "0.5", "0.01", "0.125"]);
     await type(byId("assistant-price-output"), "18");
 
     await submit();
     expect(api.save).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
-        provider: "anthropic",
-        model: "claude-custom-fine-tune",
+        provider: "openai",
+        model: "acme-fine-tune",
         baseUrl: null,
-        prices: { input: 4, output: 18, cacheRead: 0.2, cacheWrite: 5 },
+        prices: { input: 0.1, output: 18, cacheRead: 0.01, cacheWrite: 0.125 },
       })
     );
     expect(api.save.mock.calls[0]?.[0]).not.toHaveProperty("apiKey");
@@ -286,15 +287,23 @@ describe("/admin/assistant", () => {
     await render();
     expect(button(t.test)?.disabled).toBe(false);
     expect(container.textContent).not.toContain(t.testSaveFirst);
-    await type(byId("assistant-model"), "claude-opus-5-5");
+    await type(byId("assistant-model"), "gpt-6-luna");
     expect(button(t.test)?.disabled).toBe(true);
     expect(container.textContent).toContain(t.testSaveFirst);
-    await type(byId("assistant-model"), "claude-sonnet-5-5");
+    await type(byId("assistant-model"), "gpt-6.1-sol");
     expect(button(t.test)?.disabled).toBe(false);
   });
 
-  it("names no vendor outside the provider choice", async () => {
+  it("names no other vendor outside the provider choice", async () => {
     await render({ provider: "openai", model: "gpt-6-luna" });
-    expect(container.innerHTML).not.toMatch(/claude|anthropic/i);
+    // The words of the other vendors' labels, e.g. a vendor and its model.
+    const others = PROVIDERS.filter((p) => !p.startsWith("openai"));
+    for (const label of others.map((p) => t[PROVIDER_LABEL_KEYS[p]])) {
+      const words = label
+        .split(/[\s()]+/)
+        .filter(Boolean)
+        .join("|");
+      expect(container.innerHTML).not.toMatch(new RegExp(words, "i"));
+    }
   });
 });

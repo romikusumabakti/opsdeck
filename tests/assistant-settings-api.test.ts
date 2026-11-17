@@ -67,10 +67,11 @@ const { app } = await import("@/server/app");
 const { testAssistantConnection } = await import(
   "@/server/services/assistant-settings"
 );
+const { probeOptionsFor } = await import("@/lib/assistant/providers");
 
 const BASE = "/api/assistant-settings";
 const KEY = "sk-test-secret-value";
-const SONNET = { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 };
+const PRICES = { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 };
 
 function send(method: string, path: string, body?: unknown) {
   return app.request(path, {
@@ -134,10 +135,10 @@ function apiError(statusCode: number | undefined, body = "") {
 
 /** A complete, enabled-ready configuration. */
 const complete = {
-  provider: "anthropic",
+  provider: "google",
   apiKey: KEY,
-  model: "claude-sonnet-5-5",
-  prices: SONNET,
+  model: "gemini-4-hydrogen",
+  prices: PRICES,
 };
 
 beforeEach(() => {
@@ -149,7 +150,7 @@ beforeEach(() => {
   state.row = {
     id: 1,
     assistantEnabled: false,
-    anthropicApiKey: null,
+    legacyApiKey: null,
     assistantProvider: null,
     assistantApiKey: null,
     assistantBaseUrl: null,
@@ -199,7 +200,7 @@ describe("settings", () => {
     });
     expect(await save.json()).toMatchObject({ success: true });
     expect(String(state.lastSet?.assistantApiKey)).toMatch(/^enc:v1:/);
-    expect(state.lastSet).not.toHaveProperty("anthropicApiKey");
+    expect(state.lastSet).not.toHaveProperty("legacyApiKey");
     expect(state.lastSet?.assistantDailyCapUsd).toBe("3.00");
     expect(state.lastSet?.assistantPriceCacheRead).toBe("0.100000");
 
@@ -209,12 +210,12 @@ describe("settings", () => {
     expect(text).not.toContain("enc:v1:");
     expect(JSON.parse(text)).toEqual({
       enabled: true,
-      provider: "anthropic",
+      provider: "google",
       hasApiKey: true,
       baseUrl: null,
-      model: "claude-sonnet-5-5",
+      model: "gemini-4-hydrogen",
       effort: "medium",
-      prices: SONNET,
+      prices: PRICES,
       dailyCapUsd: 3,
       orgContext: null,
     });
@@ -233,8 +234,8 @@ describe("settings", () => {
 
   it("rejects prices outside 0..1000 and an unknown provider", async () => {
     for (const body of [
-      { prices: { ...SONNET, input: -1 } },
-      { prices: { ...SONNET, output: 1001 } },
+      { prices: { ...PRICES, input: -1 } },
+      { prices: { ...PRICES, output: 1001 } },
       { prices: { input: 1, output: 1 } },
       { provider: "acme" },
       { baseUrl: "not a url" },
@@ -285,7 +286,7 @@ describe("settings", () => {
     await send("PUT", BASE, { provider: "google" });
     expect(state.row?.assistantBaseUrl).toBeNull();
     await send("PUT", BASE, {
-      provider: "anthropic",
+      provider: "openai-compatible",
       baseUrl: "https://gateway.example.invalid",
     });
     expect(state.row?.assistantBaseUrl).toBe("https://gateway.example.invalid");
@@ -294,11 +295,11 @@ describe("settings", () => {
   it("drops the key when the provider changes, unless a new key comes along", async () => {
     // A key saved before any provider is kept when the first one is chosen.
     await send("PUT", BASE, { apiKey: KEY });
-    await send("PUT", BASE, { provider: "anthropic" });
+    await send("PUT", BASE, { provider: "google" });
     expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
     await send("PUT", BASE, {
-      provider: "anthropic",
-      model: "claude-opus-5-5",
+      provider: "google",
+      model: "gemini-4-carbon",
     });
     expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
     await send("PUT", BASE, { provider: "openai", apiKey: "  " });
@@ -317,7 +318,7 @@ describe("settings", () => {
     expect(await res.json()).toMatchObject({
       code: "assistant.incomplete_settings",
     });
-    expect(state.row?.assistantProvider).toBe("anthropic");
+    expect(state.row?.assistantProvider).toBe("google");
     expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
     const ok = await send("PUT", BASE, { provider: "openai", apiKey: "o-key" });
     expect(await ok.json()).toMatchObject({ success: true });
@@ -325,9 +326,9 @@ describe("settings", () => {
 
   it("refuses to enable without provider, key, model and prices", async () => {
     const res = await send("PUT", BASE, {
-      provider: "anthropic",
+      provider: "google",
       apiKey: KEY,
-      model: "claude-sonnet-5-5",
+      model: "gemini-4-hydrogen",
       enabled: true,
     });
     expect(res.status).toBe(400);
@@ -387,7 +388,7 @@ describe("activity log", () => {
     await send("PUT", BASE, { ...complete, enabled: true });
     await send("PUT", BASE, { dailyCapUsd: 2 });
     await send("PUT", BASE, {
-      model: "claude-opus-5-5",
+      model: "gemini-4-carbon",
       prices: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
     });
     await send("PUT", BASE, {
@@ -450,7 +451,7 @@ describe("activity log", () => {
       action: "assistant.configured",
       data: {
         enabled: "true",
-        model: "claude-sonnet-5-5",
+        model: "gemini-4-hydrogen",
         effort: "medium",
         dailyCapUsd: 1.5,
       },
@@ -475,7 +476,8 @@ describe("activity log", () => {
     const text = JSON.stringify(calls);
     expect(text).not.toContain(KEY);
     expect(text).not.toContain("enc:v1:");
-    expect(text).not.toContain("anthropic");
+    // Nor the provider value.
+    expect(text).not.toContain("google");
     expect(text).not.toContain("example.invalid");
     expect(text).not.toMatch(/"(2\.5|0\.1|0\.2|20|10|4)"/);
   });
@@ -528,10 +530,10 @@ describe("POST /test", () => {
     });
     expect(llm.configs).toEqual([
       {
-        provider: "anthropic",
+        provider: "google",
         apiKey: KEY,
         baseUrl: null,
-        model: "claude-sonnet-5-5",
+        model: "gemini-4-hydrogen",
       },
     ]);
     expect(model.doGenerateCalls).toHaveLength(2);
@@ -541,8 +543,7 @@ describe("POST /test", () => {
     expect(objectCall?.responseFormat?.type).toBe("json");
     for (const call of model.doGenerateCalls) {
       expect(call.maxOutputTokens).toBe(512);
-      // No thinking options: a forced tool choice conflicts with thinking.
-      expect(call.providerOptions?.anthropic).toBeUndefined();
+      expect(call.providerOptions).toEqual(probeOptionsFor("google"));
     }
   });
 

@@ -1,14 +1,23 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import type {
-  BetaContentBlock,
-  BetaMessage,
-} from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import {
+  APICallError,
+  simulateReadableStream,
+  UnsupportedFunctionalityError,
+} from "ai";
+import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { LegacyDraftRuntime } from "@/lib/assistant/client";
+import type { AssistantRuntime } from "@/lib/assistant/client";
 import type { DraftTranscript } from "@/lib/assistant/draft-store";
+import {
+  cacheControlFor,
+  outputTokenLimitFor,
+  PROVIDERS,
+  type Provider,
+  providerOptionsFor,
+} from "@/lib/assistant/providers";
 
-// generateDraft: one structured-output Messages request (no tools) over the
-// conversation's text turns, metered, stop reason checked before parsing.
+// generateDraft: one structured-output request (no tools) over the
+// conversation's text turns through the AI SDK, metered like a turn step,
+// finish reason checked before parsing.
 
 const state = vi.hoisted(() => ({
   transcript: null as DraftTranscript | null,
@@ -48,50 +57,113 @@ const {
   JIRA_CRITERIA_MAX,
   jiraDraftSchema,
 } = await import("@/lib/assistant/drafts");
-const { TurnError } = await import("@/lib/assistant/run-turn");
+const { TurnError, classifyError } = await import("@/lib/assistant/run-turn");
 
-const USAGE = {
-  input_tokens: 3000,
-  output_tokens: 800,
-  cache_read_input_tokens: 0,
-  cache_creation_input_tokens: 0,
+type CallOptions = MockLanguageModelV4["doStreamCalls"][number];
+type StreamPart =
+  Awaited<
+    ReturnType<MockLanguageModelV4["doStream"]>
+  >["stream"] extends ReadableStream<infer T>
+    ? T
+    : never;
+type Usage = Extract<StreamPart, { type: "finish" }>["usage"];
+type Finish = "stop" | "length" | "content-filter";
+
+const USAGE: Usage = {
+  inputTokens: { total: 3000, noCache: 3000, cacheRead: 0, cacheWrite: 0 },
+  outputTokens: { total: 800, text: 800, reasoning: undefined },
+};
+const NO_USAGE: Usage = {
+  inputTokens: {
+    total: undefined,
+    noCache: undefined,
+    cacheRead: undefined,
+    cacheWrite: undefined,
+  },
+  outputTokens: { total: undefined, text: undefined, reasoning: undefined },
 };
 
-const text = (t: string) =>
-  ({ type: "text", text: t, citations: null }) as unknown as BetaContentBlock;
+// Prices set apart from any list price, so the test proves they are used.
+const PRICES = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 };
 
-function fakeRuntime(
-  content: BetaContentBlock[],
-  stop: BetaMessage["stop_reason"] = "end_turn"
-) {
-  const requests: Array<Record<string, unknown>> = [];
-  const stream = vi.fn((params: Record<string, unknown>) => {
-    requests.push(params);
-    return {
-      currentMessage: undefined,
-      async *[Symbol.asyncIterator]() {},
-      finalMessage: async () =>
-        ({
-          id: "msg_1",
-          type: "message",
-          role: "assistant",
-          model: "claude-opus-5-5",
-          content,
-          stop_reason: stop,
-          stop_sequence: null,
-          usage: { ...USAGE },
-        }) as unknown as BetaMessage,
-    };
+type Reply =
+  | { text: string[]; finish?: Finish; usage?: Usage }
+  /** The request itself fails (an HTTP error). */
+  | { error: unknown }
+  /** The stream fails after `text` (an SSE error event). */
+  | { text: string[]; streamError: unknown };
+
+function chunksOf(reply: Reply): StreamPart[] {
+  if ("error" in reply) return [];
+  const chunks: StreamPart[] = [
+    { type: "response-metadata", modelId: "served-model-1" },
+    { type: "text-start", id: "t" },
+    ...reply.text.map(
+      (delta): StreamPart => ({ type: "text-delta", id: "t", delta })
+    ),
+  ];
+  if ("streamError" in reply) {
+    chunks.push({ type: "error", error: reply.streamError });
+    return chunks;
+  }
+  const finish = reply.finish ?? "stop";
+  chunks.push(
+    { type: "text-end", id: "t" },
+    {
+      type: "finish",
+      finishReason: { unified: finish, raw: finish },
+      usage: reply.usage ?? USAGE,
+    }
+  );
+  return chunks;
+}
+
+function mockModel(reply: Reply) {
+  const model = new MockLanguageModelV4({
+    provider: "mock.provider",
+    modelId: "configured-model",
+    doStream: async () => {
+      if ("error" in reply) throw reply.error;
+      return { stream: simulateReadableStream({ chunks: chunksOf(reply) }) };
+    },
   });
-  const runtime: LegacyDraftRuntime = {
-    client: { beta: { messages: { stream } } } as unknown as Anthropic,
-    model: "claude-opus-5-5",
+  return { model, calls: model.doStreamCalls as CallOptions[] };
+}
+
+function runtime(overrides: Partial<AssistantRuntime> = {}): AssistantRuntime {
+  return {
+    // Replaced by the injected mock in every test.
+    model: "unused-model-id",
+    provider: "openai",
+    modelId: "configured-model",
     effort: "medium",
-    prices: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+    prices: PRICES,
     dailyCapUsd: 1.5,
     orgContext: null,
+    ...overrides,
   };
-  return { runtime, requests, stream };
+}
+
+async function draft(
+  reply: Reply,
+  kind: "jira" | "brd" = "jira",
+  overrides: Partial<AssistantRuntime> = {}
+) {
+  const { model, calls } = mockModel(reply);
+  const result = await generateDraft("conv-1", kind, "user-1", {
+    runtime: runtime(overrides),
+    model,
+  });
+  return { result, calls };
+}
+
+async function draftError(reply: Reply, kind: "jira" | "brd" = "jira") {
+  return draft(reply, kind).then(
+    () => {
+      throw new Error("expected the draft to fail");
+    },
+    (error: unknown) => error
+  );
 }
 
 const JIRA_JSON = {
@@ -103,6 +175,12 @@ const JIRA_JSON = {
     "Iuran tambahan dibulatkan ke atas ke rupiah terdekat",
     "Perlu konfirmasi BA: pembulatan untuk iuran awal",
   ],
+};
+
+const json = (value: unknown) => {
+  const text = JSON.stringify(value);
+  // Two deltas, so the answer arrives in pieces like a real stream.
+  return [text.slice(0, 20), text.slice(20)];
 };
 
 beforeEach(() => {
@@ -122,52 +200,34 @@ beforeEach(() => {
 });
 
 describe("generateDraft request", () => {
-  it("is one structured-output request without tools, metered, with the fallback and effort", async () => {
-    const { runtime, requests } = fakeRuntime([
-      text(JSON.stringify(JIRA_JSON)),
-    ]);
-    const result = await generateDraft("conv-1", "jira", "user-1", {
-      runtime,
-    });
+  it("is one structured-output request without tools, metered at the configured prices", async () => {
+    const { result, calls } = await draft({ text: json(JIRA_JSON) });
     expect(result).toEqual({ draftId: "draft-1" });
-    expect(requests).toHaveLength(1);
-    const req = requests[0] ?? {};
-    expect(req).not.toHaveProperty("tools");
-    expect(req).not.toHaveProperty("tool_choice");
-    expect(req).not.toHaveProperty("temperature");
-    expect(req).not.toHaveProperty("cache_control");
-    expect(req.model).toBe("claude-opus-5-5");
-    expect(req.max_tokens).toBe(32_000);
-    expect(req.betas).toEqual(["server-side-fallback-2026-07-01"]);
-    expect(req.fallbacks).toBe("default");
-    expect(req.thinking).toEqual({ type: "adaptive" });
-    const config = req.output_config as {
-      effort: string;
-      format: { type: string; schema: { properties: object }; parse?: unknown };
-    };
-    expect(config.effort).toBe("medium");
-    expect(config.format.type).toBe("json_schema");
-    expect(Object.keys(config.format.schema.properties)).toEqual([
+    expect(calls).toHaveLength(1);
+    const call = calls[0] as CallOptions;
+    expect(call.tools ?? []).toEqual([]);
+    expect(call.temperature).toBeUndefined();
+    expect(call.responseFormat?.type).toBe("json");
+    const schema = (
+      call.responseFormat as { schema: { properties: object } } | undefined
+    )?.schema;
+    expect(Object.keys(schema?.properties ?? {})).toEqual([
       "summary",
       "issueType",
       "description",
       "acceptanceCriteria",
     ]);
-    expect(config.format).not.toHaveProperty("parse");
-    const system = req.system as Array<{
-      text: string;
-      cache_control?: object;
-    }>;
-    expect(system[0]?.cache_control).toEqual({ type: "ephemeral" });
-    expect(system[0]?.text).toContain("Indonesian");
-    expect(system[0]?.text).toContain("Perlu konfirmasi BA");
-    const messages = req.messages as Array<{ role: string; content: string }>;
-    expect(messages).toHaveLength(1);
-    expect(messages[0]?.role).toBe("user");
-    expect(messages[0]?.content).toContain(
-      "<user>\nBagaimana iuran tambahan dihitung?\n</user>"
+    const [system, user, ...rest] = call.prompt;
+    expect(rest).toEqual([]);
+    expect(system?.role).toBe("system");
+    expect(system?.content).toContain("Indonesian");
+    expect(system?.content).toContain("Perlu konfirmasi BA");
+    expect(user?.role).toBe("user");
+    const userText = JSON.stringify(user?.content);
+    expect(userText).toContain(
+      "<user>\\nBagaimana iuran tambahan dihitung?\\n</user>"
     );
-    expect(messages[0]?.content).toContain("IuranService.java:42");
+    expect(userText).toContain("IuranService.java:42");
 
     expect(state.drafts).toEqual([
       { conversationId: "conv-1", kind: "jira", content: JIRA_JSON },
@@ -176,21 +236,41 @@ describe("generateDraft request", () => {
     expect(state.usage[0]).toMatchObject({
       messageId: null,
       userId: "user-1",
-      model: "claude-opus-5-5",
+      model: "served-model-1",
       inputTokens: 3000,
       outputTokens: 800,
+      estimated: false,
+      // 3000 × 3 + 800 × 15 per million.
+      costUsd: "0.021000",
     });
   });
+
+  it.each(PROVIDERS.map((p) => [p]))(
+    "uses the turn loop's options, cache control and token limit (%s)",
+    async (provider: Provider) => {
+      const { calls } = await draft({ text: json(JIRA_JSON) }, "jira", {
+        provider,
+        effort: "high",
+      });
+      const call = calls[0] as CallOptions;
+      const cache = cacheControlFor(provider);
+      const expected = providerOptionsFor(provider, "high");
+      for (const [name, options] of Object.entries(cache ?? {})) {
+        expected[name] = { ...expected[name], ...options };
+      }
+      expect(call.providerOptions ?? {}).toEqual(expected);
+      expect(call.maxOutputTokens).toBe(outputTokenLimitFor(provider));
+      expect(call.prompt[0]?.providerOptions).toEqual(cache);
+    }
+  );
 
   it("asks for the BRD outline headings and stores the BRD", async () => {
     const brd = {
       title: "Iuran Tambahan",
       sections: [{ heading: "Business Process", body: "Alur saat ini." }],
     };
-    const { runtime, requests } = fakeRuntime([text(JSON.stringify(brd))]);
-    await generateDraft("conv-1", "brd", "user-1", { runtime });
-    const system = ((requests[0]?.system ?? []) as Array<{ text: string }>)[0]
-      ?.text;
+    const { calls } = await draft({ text: json(brd) }, "brd");
+    const system = calls[0]?.prompt[0]?.content as string;
     for (const heading of BRD_SECTION_HEADINGS) {
       expect(system).toContain(heading);
     }
@@ -201,28 +281,14 @@ describe("generateDraft request", () => {
     });
   });
 
-  it("joins the text blocks around a mid-output refusal fallback", async () => {
-    const json = JSON.stringify(JIRA_JSON);
-    const { runtime } = fakeRuntime([
-      text(json.slice(0, 20)),
-      { type: "fallback" } as unknown as BetaContentBlock,
-      text(json.slice(20)),
-    ]);
-    await generateDraft("conv-1", "jira", "user-1", { runtime });
-    expect(state.drafts[0]?.content).toEqual(JIRA_JSON);
-  });
-
   it("cuts an over-long draft to the stored limits", async () => {
-    const { runtime } = fakeRuntime([
-      text(
-        JSON.stringify({
-          ...JIRA_JSON,
-          summary: "x".repeat(400),
-          acceptanceCriteria: Array.from({ length: 30 }, (_, i) => `AC ${i}`),
-        })
-      ),
-    ]);
-    await generateDraft("conv-1", "jira", "user-1", { runtime });
+    await draft({
+      text: json({
+        ...JIRA_JSON,
+        summary: "x".repeat(400),
+        acceptanceCriteria: Array.from({ length: 30 }, (_, i) => `AC ${i}`),
+      }),
+    });
     const content = state.drafts[0]?.content as {
       summary: string;
       acceptanceCriteria: string[];
@@ -231,38 +297,72 @@ describe("generateDraft request", () => {
     expect(content.acceptanceCriteria).toHaveLength(JIRA_CRITERIA_MAX);
     expect(jiraDraftSchema.safeParse(content).success).toBe(true);
   });
+
+  it("charges an estimate when the provider reports no usage", async () => {
+    await draft({ text: json(JIRA_JSON), usage: NO_USAGE });
+    expect(state.usage).toHaveLength(1);
+    const row = state.usage[0] ?? {};
+    expect(row.estimated).toBe(true);
+    // The prompt is at least the system prompt and the transcript.
+    expect(row.inputTokens).toBeGreaterThan(500);
+    expect(row.outputTokens).toBeGreaterThan(0);
+    expect(Number(row.costUsd)).toBeGreaterThan(0);
+  });
 });
 
 describe("generateDraft failures", () => {
   it("a refusal is assistant.refused, still metered, nothing stored", async () => {
-    const { runtime } = fakeRuntime([text('{"summ')], "refusal");
-    await expect(
-      generateDraft("conv-1", "jira", "user-1", { runtime })
-    ).rejects.toMatchObject({ code: "assistant.refused" });
+    const error = await draftError({
+      text: ['{"summ'],
+      finish: "content-filter",
+    });
+    expect(error).toMatchObject({ code: "assistant.refused" });
     expect(state.usage).toHaveLength(1);
     expect(state.drafts).toEqual([]);
   });
 
-  it("a truncated answer (max_tokens) is assistant.failed before any parse", async () => {
-    const { runtime } = fakeRuntime(
-      [text('{"summary": "Perhit')],
-      "max_tokens"
-    );
-    const error = await generateDraft("conv-1", "jira", "user-1", {
-      runtime,
-    }).catch((e: unknown) => e);
+  it("a truncated answer is assistant.failed before any parse", async () => {
+    const error = await draftError({
+      text: ['{"summary": "Perhit'],
+      finish: "length",
+    });
     expect(error).toBeInstanceOf(TurnError);
     expect(error).toMatchObject({ code: "assistant.failed" });
+    expect(state.usage).toHaveLength(1);
     expect(state.drafts).toEqual([]);
   });
 
   it("output that does not match the schema is assistant.failed", async () => {
-    const { runtime } = fakeRuntime([
-      text(JSON.stringify({ ...JIRA_JSON, issueType: "Epic" })),
-    ]);
-    await expect(
-      generateDraft("conv-1", "jira", "user-1", { runtime })
-    ).rejects.toMatchObject({ code: "assistant.failed" });
+    const error = await draftError({
+      text: json({ ...JIRA_JSON, issueType: "Epic" }),
+    });
+    expect(error).toMatchObject({ code: "assistant.failed" });
+    expect(state.drafts).toEqual([]);
+  });
+
+  it("prose instead of JSON (the format was ignored) is assistant.model_no_drafts", async () => {
+    const error = await draftError({
+      text: ["Berikut draf tiketnya: ringkasan …"],
+    });
+    expect(error).toMatchObject({ code: "assistant.model_no_drafts" });
+    expect(state.usage).toHaveLength(1);
+    expect(state.drafts).toEqual([]);
+  });
+
+  it("a stream that fails midway is metered with an estimate and rethrown", async () => {
+    const streamError = new APICallError({
+      message: "overloaded",
+      url: "https://llm.example.invalid/v1",
+      requestBodyValues: {},
+      statusCode: 529,
+    });
+    const error = await draftError({
+      text: ['{"summary":'],
+      streamError,
+    });
+    expect(classifyError(error)).toBe("assistant.unavailable");
+    expect(state.usage).toHaveLength(1);
+    expect(state.usage[0]?.estimated).toBe(true);
     expect(state.drafts).toEqual([]);
   });
 
@@ -272,12 +372,62 @@ describe("generateDraft failures", () => {
       environmentName: "Dev 1",
       messages: [{ role: "user", content: "Halo" }],
     };
-    const { runtime, stream } = fakeRuntime([]);
+    const { model, calls } = mockModel({ text: [] });
     await expect(
-      generateDraft("conv-1", "brd", "user-1", { runtime })
+      generateDraft("conv-1", "brd", "user-1", { runtime: runtime(), model })
     ).rejects.toMatchObject({ code: "assistant.nothing_to_draft" });
-    expect(stream).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
     expect(state.usage).toEqual([]);
+  });
+});
+
+describe("structured output not supported", () => {
+  const badRequest = (body: string) =>
+    new APICallError({
+      message: "Bad Request",
+      url: "https://llm.example.invalid/v1",
+      requestBodyValues: {},
+      statusCode: 400,
+      responseBody: body,
+    });
+
+  it.each([
+    [
+      "a response_format the endpoint rejects",
+      badRequest(
+        '{"error":{"message":"response_format type json_schema is not supported by this model"}}'
+      ),
+    ],
+    [
+      "a model without structured outputs",
+      badRequest(
+        '{"error":{"message":"This model does not support structured outputs"}}'
+      ),
+    ],
+    [
+      "an unsupported JSON mode",
+      badRequest('{"error":{"message":"JSON mode is not supported"}}'),
+    ],
+    [
+      "the SDK refusing the response format",
+      new UnsupportedFunctionalityError({
+        functionality: "responseFormat with a JSON schema",
+      }),
+    ],
+  ])("%s is assistant.model_no_drafts", async (_name, error) => {
+    expect(classifyError(error)).toBe("assistant.model_no_drafts");
+    const thrown = await draftError({ error });
+    expect(classifyError(thrown)).toBe("assistant.model_no_drafts");
+  });
+
+  it("a tool-schema 400 stays assistant.failed", () => {
+    expect(
+      classifyError(
+        badRequest(
+          '{"error":{"message":"tools[0].input_schema: unsupported keyword"}}'
+        )
+      )
+    ).toBe("assistant.failed");
   });
 });
 
@@ -314,14 +464,9 @@ describe("draft prompts", () => {
   });
 
   it("are sent with the runtime's organisation context", async () => {
-    const { runtime, requests } = fakeRuntime([
-      text(JSON.stringify(JIRA_JSON)),
-    ]);
-    await generateDraft("conv-1", "jira", "user-1", {
-      runtime: { ...runtime, orgContext: "Example Org runs funds." },
+    const { calls } = await draft({ text: json(JIRA_JSON) }, "jira", {
+      orgContext: "Example Org runs funds.",
     });
-    const system = ((requests[0]?.system ?? []) as Array<{ text: string }>)[0]
-      ?.text;
-    expect(system).toContain("Example Org runs funds.");
+    expect(calls[0]?.prompt[0]?.content).toContain("Example Org runs funds.");
   });
 });

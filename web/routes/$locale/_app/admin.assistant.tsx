@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  PROVIDER_LABEL_KEYS,
   PROVIDERS,
   type Prices,
   type Provider,
@@ -161,13 +162,6 @@ function UsageCard({ usage }: { usage: AssistantUsage }) {
     </Card>
   );
 }
-
-const PROVIDER_LABEL_KEYS = {
-  anthropic: "providerAnthropic",
-  openai: "providerOpenai",
-  google: "providerGoogle",
-  "openai-compatible": "providerOpenaiCompatible",
-} as const satisfies Record<Provider, string>;
 
 const TEST_ERROR_KEYS = {
   auth: "testErrorAuth",

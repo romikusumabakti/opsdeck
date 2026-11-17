@@ -10,7 +10,7 @@ import { fileVerdict, isWithheldPath } from "../secret-filter";
 
 /**
  * Read-only code tools over ready snapshots. Everything returned here may be
- * sent to the Anthropic API, so every path passes `isWithheldPath` and every
+ * sent to the model provider, so every path passes `isWithheldPath` and every
  * file content passes `fileVerdict` before it is listed, matched or returned.
  */
 

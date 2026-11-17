@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ASSISTANT_EFFORTS,
   cacheControlFor,
   createLanguageModel,
   KNOWN_MODELS,
+  outputTokenLimitFor,
+  PROVIDER_LABEL_KEYS,
   PROVIDERS,
+  probeOptionsFor,
   providerOptionsFor,
   suggestedModels,
 } from "@/lib/assistant/providers";
@@ -80,6 +84,37 @@ describe("cacheControlFor", () => {
     expect(cacheControlFor("openai")).toBeUndefined();
     expect(cacheControlFor("google")).toBeUndefined();
     expect(cacheControlFor("openai-compatible")).toBeUndefined();
+  });
+});
+
+describe("outputTokenLimitFor", () => {
+  it("sends a limit to anthropic only", () => {
+    expect(outputTokenLimitFor("anthropic")).toBe(32_000);
+    expect(outputTokenLimitFor("openai")).toBeUndefined();
+    expect(outputTokenLimitFor("google")).toBeUndefined();
+    expect(outputTokenLimitFor("openai-compatible")).toBeUndefined();
+  });
+});
+
+describe("probeOptionsFor", () => {
+  it("asks for the lowest reasoning where a provider has one", () => {
+    expect(probeOptionsFor("openai")).toEqual({
+      openai: { reasoningEffort: "low" },
+    });
+    expect(probeOptionsFor("google")).toEqual({
+      google: { thinkingConfig: { thinkingLevel: "low" } },
+    });
+    // Thinking conflicts with the forced tool choice.
+    expect(probeOptionsFor("anthropic")).toBeUndefined();
+    expect(probeOptionsFor("openai-compatible")).toBeUndefined();
+  });
+});
+
+describe("PROVIDER_LABEL_KEYS and ASSISTANT_EFFORTS", () => {
+  it("label every provider and list the efforts", () => {
+    expect(Object.keys(PROVIDER_LABEL_KEYS)).toEqual([...PROVIDERS]);
+    expect(PROVIDER_LABEL_KEYS.anthropic).toBe("providerAnthropic");
+    expect(ASSISTANT_EFFORTS).toEqual(["low", "medium", "high"]);
   });
 });
 
@@ -175,6 +210,10 @@ describe("loadAssistantRuntime", () => {
       "an OpenAI-compatible endpoint without a base URL",
       { assistantProvider: "openai-compatible" },
     ],
+    [
+      "only the superseded key is stored",
+      { assistantApiKey: null, legacyApiKey: encryptSecret("sk-old") },
+    ],
   ])("is null when %s", async (_label, patch) => {
     state.row = { ...configured(), ...patch };
     const { loadAssistantRuntime } = await import("@/lib/assistant/client");
@@ -185,54 +224,5 @@ describe("loadAssistantRuntime", () => {
     state.row = null;
     const { loadAssistantRuntime } = await import("@/lib/assistant/client");
     expect(await loadAssistantRuntime()).toBeNull();
-  });
-});
-
-// Transitional: the old Anthropic-only runtime drafts still use reads the key
-// the settings now store (assistant_api_key), for provider anthropic.
-describe("loadLegacyDraftRuntime (transitional)", () => {
-  const row = (patch: Record<string, unknown> = {}) => ({
-    id: 1,
-    assistantEnabled: true,
-    anthropicApiKey: null,
-    assistantProvider: "anthropic",
-    assistantApiKey: encryptSecret("sk-test"),
-    assistantModel: "claude-sonnet-5-5",
-    assistantEffort: "medium",
-    assistantDailyCapUsd: "1.50",
-    assistantOrgContext: null,
-    assistantPriceInput: "2.000000",
-    assistantPriceOutput: "10.000000",
-    assistantPriceCacheRead: "0.100000",
-    assistantPriceCacheWrite: "2.500000",
-    ...patch,
-  });
-
-  it("uses the stored assistant key for an Anthropic provider", async () => {
-    state.row = row();
-    const { loadLegacyDraftRuntime } = await import("@/lib/assistant/client");
-    const runtime = await loadLegacyDraftRuntime();
-    expect(runtime?.model).toBe("claude-sonnet-5-5");
-    expect(runtime?.client.apiKey).toBe("sk-test");
-    expect(runtime?.prices).toEqual({
-      input: 2,
-      output: 10,
-      cacheRead: 0.1,
-      cacheWrite: 2.5,
-    });
-  });
-
-  it.each([
-    ["another provider", { assistantProvider: "openai" }],
-    ["no assistant key", { assistantApiKey: null }],
-    ["no prices", { assistantPriceOutput: null }],
-    [
-      "only the superseded key",
-      { assistantApiKey: null, anthropicApiKey: encryptSecret("sk-old") },
-    ],
-  ])("is null with %s", async (_label, patch) => {
-    state.row = row(patch);
-    const { loadLegacyDraftRuntime } = await import("@/lib/assistant/client");
-    expect(await loadLegacyDraftRuntime()).toBeNull();
   });
 });
