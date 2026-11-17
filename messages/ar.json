@@ -2230,7 +2230,7 @@
       "download": "{actor} نزّل {path} من {target}",
       "downloadMany": "{actor} نزّل {count} عناصر (بدءًا من {path}) من {target}"
     },
-    "assistantConfigured": "قام {actor} بتحديث إعدادات المساعد: {enabled, select, true {مفعّل} other {معطّل}}، {model}، مستوى الجهد {effort}، الحد {dailyCapUsd, number} USD لكل مستخدم يوميًا{keyChanged, select, true {، تم تغيير مفتاح API} other {}}"
+    "assistantConfigured": "قام {actor} بتحديث إعدادات المساعد: {enabled, select, true {مفعّل} other {معطّل}}، {model}، مستوى الجهد {effort}، الحد {dailyCapUsd, number} USD لكل مستخدم يوميًا{keyChanged, select, true {، تم تغيير مفتاح API} other {}}{orgContextChanged, select, true {، تم تغيير سياق المؤسسة} other {}}"
   },
   "jira": {
     "title": "Jira",
@@ -3578,6 +3578,8 @@
     "effortHigh": "مرتفع",
     "dailyCap": "الحد اليومي لكل مستخدم (USD)",
     "dailyCapDescription": "ينتظر المستخدم الذي يبلغه حتى اليوم التالي (المنطقة الزمنية للنسخة).",
+    "orgContext": "سياق المؤسسة",
+    "orgContextDescription": "ما ينبغي أن يعرفه المساعد عن مؤسستك وأعمالها: من أنتم، وعملاؤكم، والوحدات التي تبنونها. يُرسل مع كل سؤال، بحد أقصى 4000 حرف. اتركه فارغًا لاستخدام وصف عام.",
     "save": "حفظ",
     "submitting": "جارٍ الحفظ…",
     "saved": "تم حفظ إعدادات المساعد",

@@ -2230,7 +2230,7 @@
       "download": "{actor} 从 {target} 下载了 {path}",
       "downloadMany": "{actor} 从 {target} 下载了 {count} 个项目（从 {path} 开始）"
     },
-    "assistantConfigured": "{actor} 更新了助手设置：{enabled, select, true {已启用} other {已停用}}，{model}，思考强度 {effort}，每位用户每日上限 {dailyCapUsd, number} USD{keyChanged, select, true {，API 密钥已更改} other {}}"
+    "assistantConfigured": "{actor} 更新了助手设置：{enabled, select, true {已启用} other {已停用}}，{model}，思考强度 {effort}，每位用户每日上限 {dailyCapUsd, number} USD{keyChanged, select, true {，API 密钥已更改} other {}}{orgContextChanged, select, true {，组织背景已更改} other {}}"
   },
   "jira": {
     "title": "Jira",
@@ -3578,6 +3578,8 @@
     "effortHigh": "高",
     "dailyCap": "每位用户每日上限（USD）",
     "dailyCapDescription": "达到上限的用户需等到次日（实例时区）。",
+    "orgContext": "组织背景",
+    "orgContextDescription": "助手需要了解的关于贵组织及其业务的信息：你们是谁、客户是谁、构建了哪些模块。随每个问题一起发送，最多 4000 个字符。留空则使用通用描述。",
     "save": "保存",
     "submitting": "保存中…",
     "saved": "助手设置已保存",

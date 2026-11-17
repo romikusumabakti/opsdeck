@@ -181,6 +181,7 @@ describe("activity page assistant events", () => {
         effort: "medium",
         dailyCapUsd: 1.5,
         keyChanged: "true",
+        orgContextChanged: "true",
       }),
       row("2", "assistant.configured", {
         enabled: "false",
@@ -189,10 +190,22 @@ describe("activity page assistant events", () => {
         dailyCapUsd: 3,
         keyChanged: "false",
       }),
+      // Recorded before orgContextChanged existed.
+      row("3", "assistant.configured", {
+        enabled: "false",
+        model: "claude-opus-5-5",
+        effort: "low",
+        dailyCapUsd: 2,
+        keyChanged: "false",
+      }),
     ]);
     expect(text).toContain(
-      "updated the assistant settings: enabled, claude-sonnet-5-5, effort medium, limit 1.5 USD per user per day, API key changed"
+      "updated the assistant settings: enabled, claude-sonnet-5-5, effort medium, limit 1.5 USD per user per day, API key changed, organisation context changed"
     );
+    expect(text).toContain(
+      "disabled, claude-opus-5-5, effort low, limit 2 USD per user per day"
+    );
+    expect(text.match(/organisation context changed/g)).toHaveLength(1);
     expect(text).toContain(
       "disabled, claude-opus-5-5, effort high, limit 3 USD per user per day"
     );

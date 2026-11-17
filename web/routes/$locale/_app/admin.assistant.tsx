@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import {
   type AssistantSettings,
   type AssistantUsage,
@@ -52,7 +53,7 @@ import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 
 // Admin → Assistant: the code assistant's switch, Anthropic API key, model,
-// effort and per-user daily cap. The key is write-only (only `hasApiKey` is
+// effort, per-user daily cap and organisation context. The key is write-only (only `hasApiKey` is
 // read back).
 export const Route = createFileRoute("/$locale/_app/admin/assistant")({
   beforeLoad: async ({ context: { queryClient } }) => {
@@ -91,6 +92,9 @@ function AssistantPage() {
     </>
   );
 }
+
+// Mirrors ORG_CONTEXT_MAX in server/services/assistant-settings.ts.
+const ORG_CONTEXT_MAX = 4000;
 
 const usd = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -165,6 +169,7 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
   const [model, setModel] = useState(settings.model);
   const [effort, setEffort] = useState(settings.effort);
   const [dailyCap, setDailyCap] = useState(String(settings.dailyCapUsd));
+  const [orgContext, setOrgContext] = useState(settings.orgContext ?? "");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
@@ -182,6 +187,7 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
         model,
         effort,
         dailyCapUsd: cap,
+        orgContext,
         ...(clearKey ? { apiKey: null } : apiKey.trim() && { apiKey }),
       });
       if (result.success) {
@@ -283,6 +289,19 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
             onChange={(event) => setDailyCap(event.target.value)}
           />
           <FieldDescription>{t("dailyCapDescription")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="assistant-org-context">
+            {t("orgContext")}
+          </FieldLabel>
+          <Textarea
+            id="assistant-org-context"
+            rows={4}
+            maxLength={ORG_CONTEXT_MAX}
+            value={orgContext}
+            onChange={(event) => setOrgContext(event.target.value)}
+          />
+          <FieldDescription>{t("orgContextDescription")}</FieldDescription>
         </Field>
         <AdvancedOptions>
           <Field>

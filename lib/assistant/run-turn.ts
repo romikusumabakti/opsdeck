@@ -469,6 +469,7 @@ async function runClaimedTurn(
         environmentName: turn.environmentName,
         sources: resolved.prompt,
         userName: turn.userName,
+        orgContext: runtime.orgContext,
       }),
       cache_control: { type: "ephemeral" as const },
     },

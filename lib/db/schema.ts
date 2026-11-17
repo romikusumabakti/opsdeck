@@ -2492,6 +2492,9 @@ export const instanceSettings = pgTable(
     })
       .notNull()
       .default("1.50"),
+    // What the assistant is told about the organisation (at most 4000
+    // characters); null = a generic description.
+    assistantOrgContext: text("assistant_org_context"),
   },
   (t) => [
     check("instance_settings_singleton", sql`${t.id} = 1`),

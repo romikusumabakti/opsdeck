@@ -2230,7 +2230,7 @@
       "download": "{actor} descargó {path} de {target}",
       "downloadMany": "{actor} descargó {count} elementos (empezando por {path}) de {target}"
     },
-    "assistantConfigured": "{actor} actualizó los ajustes del asistente: {enabled, select, true {activado} other {desactivado}}, {model}, esfuerzo {effort}, límite de {dailyCapUsd, number} USD por usuario al día{keyChanged, select, true {, clave de API cambiada} other {}}"
+    "assistantConfigured": "{actor} actualizó los ajustes del asistente: {enabled, select, true {activado} other {desactivado}}, {model}, esfuerzo {effort}, límite de {dailyCapUsd, number} USD por usuario al día{keyChanged, select, true {, clave de API cambiada} other {}}{orgContextChanged, select, true {, contexto de la organización cambiado} other {}}"
   },
   "jira": {
     "title": "Jira",
@@ -3578,6 +3578,8 @@
     "effortHigh": "Alto",
     "dailyCap": "Límite diario por usuario (USD)",
     "dailyCapDescription": "Quien lo alcanza espera hasta el día siguiente (zona horaria de la instancia).",
+    "orgContext": "Contexto de la organización",
+    "orgContextDescription": "Lo que el asistente debe saber sobre tu organización y su negocio: quiénes sois, vuestros clientes y los módulos que construís. Se envía con cada pregunta, como máximo 4000 caracteres. Déjalo vacío para usar una descripción genérica.",
     "save": "Guardar",
     "submitting": "Guardando…",
     "saved": "Ajustes del asistente guardados",

@@ -88,6 +88,7 @@ function fakeRuntime(
     model: "claude-opus-5-5",
     effort: "medium",
     dailyCapUsd: 1.5,
+    orgContext: null,
   };
   return { runtime, requests, stream };
 }
@@ -282,9 +283,44 @@ describe("generateDraft failures", () => {
 describe("draft prompts", () => {
   it("are English instructions that ask for Indonesian content", () => {
     for (const kind of ["brd", "jira"] as const) {
-      const prompt = buildDraftSystemPrompt(kind);
+      const prompt = buildDraftSystemPrompt(kind, null);
       expect(prompt).toContain("Write the content in Indonesian");
       expect(prompt).toContain("Do not invent");
     }
+  });
+
+  it("describe the organisation generically when none is configured", () => {
+    for (const kind of ["brd", "jira"] as const) {
+      const prompt = buildDraftSystemPrompt(kind, null);
+      expect(prompt).toContain(
+        "a company that builds and runs pension-fund (DPLK/DPPK) systems"
+      );
+      expect(prompt).not.toContain("Organisation context:");
+    }
+  });
+
+  it("include the configured organisation context, byte-stable", () => {
+    for (const kind of ["brd", "jira"] as const) {
+      const prompt = buildDraftSystemPrompt(kind, "Example Org runs funds.");
+      expect(prompt).toContain(
+        "Organisation context:\nExample Org runs funds."
+      );
+      expect(prompt).not.toContain("pension-fund (DPLK/DPPK) systems");
+      expect(buildDraftSystemPrompt(kind, "Example Org runs funds.")).toBe(
+        prompt
+      );
+    }
+  });
+
+  it("are sent with the runtime's organisation context", async () => {
+    const { runtime, requests } = fakeRuntime([
+      text(JSON.stringify(JIRA_JSON)),
+    ]);
+    await generateDraft("conv-1", "jira", "user-1", {
+      runtime: { ...runtime, orgContext: "Example Org runs funds." },
+    });
+    const system = ((requests[0]?.system ?? []) as Array<{ text: string }>)[0]
+      ?.text;
+    expect(system).toContain("Example Org runs funds.");
   });
 });

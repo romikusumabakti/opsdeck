@@ -26,16 +26,22 @@ export type AssistantSettings = {
   model: AssistantModel;
   effort: AssistantEffort;
   dailyCapUsd: number;
+  /** What the assistant is told about the organisation; null = generic. */
+  orgContext: string | null;
 };
 
+/** Longest organisation context the prompt takes, in characters. */
+export const ORG_CONTEXT_MAX = 4000;
+
 // Omitted fields stay as they are; `apiKey: null` clears the key; a blank key
-// keeps the stored one.
+// keeps the stored one. A blank or null orgContext clears it.
 export const assistantSettingsInputSchema = z.object({
   enabled: z.boolean().optional(),
   apiKey: z.string().trim().max(2048).nullable().optional(),
   model: z.enum(ASSISTANT_MODELS).optional(),
   effort: z.enum(ASSISTANT_EFFORTS).optional(),
   dailyCapUsd: z.number().min(0).max(1000).optional(),
+  orgContext: z.string().trim().max(ORG_CONTEXT_MAX).nullable().optional(),
 });
 
 export type AssistantSettingsInput = z.infer<
@@ -61,6 +67,7 @@ export async function getAssistantSettings(): Promise<AssistantSettings> {
     model: row.assistantModel as AssistantModel,
     effort: row.assistantEffort as AssistantEffort,
     dailyCapUsd: Number(row.assistantDailyCapUsd),
+    orgContext: row.assistantOrgContext,
   };
 }
 
@@ -72,7 +79,8 @@ export async function saveAssistantSettings(
   if (!parsed.success) {
     return { success: false, message: "Invalid assistant settings" };
   }
-  const { enabled, apiKey, model, effort, dailyCapUsd } = parsed.data;
+  const { enabled, apiKey, model, effort, dailyCapUsd, orgContext } =
+    parsed.data;
   const patch: Partial<typeof instanceSettings.$inferInsert> = {};
   if (enabled !== undefined) patch.assistantEnabled = enabled;
   if (model !== undefined) patch.assistantModel = model;
@@ -82,8 +90,14 @@ export async function saveAssistantSettings(
   }
   if (apiKey === null) patch.anthropicApiKey = null;
   else if (apiKey) patch.anthropicApiKey = encryptSecret(apiKey);
+  if (orgContext !== undefined) patch.assistantOrgContext = orgContext || null;
 
   if (Object.keys(patch).length > 0) {
+    // Read before the write only to tell whether the context changed.
+    const previousOrgContext =
+      orgContext === undefined
+        ? undefined
+        : (await loadRow()).assistantOrgContext;
     try {
       await db
         .update(instanceSettings)
@@ -94,7 +108,7 @@ export async function saveAssistantSettings(
       return { success: false, message: "Failed to save assistant settings" };
     }
     const row = await loadRow();
-    // No key material here: only whether the key changed.
+    // No key material or context text here: only whether they changed.
     await recordActivity({
       actorId: session.user.id,
       action: "assistant.configured",
@@ -105,6 +119,10 @@ export async function saveAssistantSettings(
         effort: row.assistantEffort,
         dailyCapUsd: Number(row.assistantDailyCapUsd),
         keyChanged: String(apiKey !== undefined && apiKey !== ""),
+        orgContextChanged: String(
+          previousOrgContext !== undefined &&
+            previousOrgContext !== row.assistantOrgContext
+        ),
       },
     });
   }

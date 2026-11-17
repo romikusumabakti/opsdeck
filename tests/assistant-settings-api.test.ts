@@ -84,6 +84,7 @@ beforeEach(() => {
     assistantModel: "claude-opus-5-5",
     assistantEffort: "medium",
     assistantDailyCapUsd: "1.50",
+    assistantOrgContext: null,
   };
 });
 
@@ -107,6 +108,7 @@ describe("settings", () => {
       model: "claude-opus-5-5",
       effort: "medium",
       dailyCapUsd: 1.5,
+      orgContext: null,
     });
   });
 
@@ -131,6 +133,7 @@ describe("settings", () => {
       model: "claude-sonnet-5-5",
       effort: "medium",
       dailyCapUsd: 3,
+      orgContext: null,
     });
   });
 
@@ -142,6 +145,29 @@ describe("settings", () => {
     await send("PUT", BASE, { apiKey: null });
     expect(state.row?.anthropicApiKey).toBeNull();
     expect((await (await send("GET", BASE)).json()).hasApiKey).toBe(false);
+  });
+
+  it("stores the organisation context trimmed and clears it when blank", async () => {
+    await send("PUT", BASE, { orgContext: "  Example Org runs funds.  " });
+    expect(state.row?.assistantOrgContext).toBe("Example Org runs funds.");
+    expect((await (await send("GET", BASE)).json()).orgContext).toBe(
+      "Example Org runs funds."
+    );
+    await send("PUT", BASE, { enabled: true });
+    expect(state.row?.assistantOrgContext).toBe("Example Org runs funds.");
+    await send("PUT", BASE, { orgContext: "   " });
+    expect(state.row?.assistantOrgContext).toBeNull();
+    await send("PUT", BASE, { orgContext: "Again." });
+    await send("PUT", BASE, { orgContext: null });
+    expect(state.row?.assistantOrgContext).toBeNull();
+  });
+
+  it("rejects an organisation context over 4000 characters", async () => {
+    const res = await send("PUT", BASE, { orgContext: "x".repeat(4001) });
+    expect(res.status).toBe(400);
+    expect(state.lastSet).toBeNull();
+    const ok = await send("PUT", BASE, { orgContext: "x".repeat(4000) });
+    expect(await ok.json()).toMatchObject({ success: true });
   });
 
   it("rejects a model outside the supported choices", async () => {
@@ -178,6 +204,23 @@ describe("activity log", () => {
     const text = JSON.stringify(calls);
     expect(text).not.toContain("sk-ant");
     expect(text).not.toContain("enc:v1:");
+  });
+
+  it("records orgContextChanged only when the context changes, never the text", async () => {
+    await send("PUT", BASE, { orgContext: "Example Org runs funds." });
+    await send("PUT", BASE, { orgContext: "Example Org runs funds." });
+    await send("PUT", BASE, { enabled: true });
+    await send("PUT", BASE, { orgContext: "" });
+    await send("PUT", BASE, { orgContext: null });
+    const calls = activity.record.mock.calls.map(([arg]) => arg);
+    expect(calls.map((c) => c.data.orgContextChanged)).toEqual([
+      "true",
+      "false",
+      "false",
+      "true",
+      "false",
+    ]);
+    expect(JSON.stringify(calls)).not.toContain("Example Org");
   });
 
   it("records nothing for a rejected or forbidden save", async () => {

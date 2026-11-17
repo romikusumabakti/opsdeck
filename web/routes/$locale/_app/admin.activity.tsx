@@ -220,6 +220,7 @@ function message(
         effort: String(d.effort),
         dailyCapUsd: Number(d.dailyCapUsd),
         keyChanged: String(d.keyChanged),
+        orgContextChanged: String(d.orgContextChanged),
       });
     case "variables.revealed":
       return t("variablesRevealed", {

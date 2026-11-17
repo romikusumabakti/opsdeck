@@ -2230,7 +2230,7 @@
       "download": "{actor} mengunduh {path} dari {target}",
       "downloadMany": "{actor} mengunduh {count} item (dimulai dari {path}) dari {target}"
     },
-    "assistantConfigured": "{actor} memperbarui pengaturan asisten: {enabled, select, true {aktif} other {nonaktif}}, {model}, effort {effort}, batas {dailyCapUsd, number} USD per pengguna per hari{keyChanged, select, true {, API key diubah} other {}}"
+    "assistantConfigured": "{actor} memperbarui pengaturan asisten: {enabled, select, true {aktif} other {nonaktif}}, {model}, effort {effort}, batas {dailyCapUsd, number} USD per pengguna per hari{keyChanged, select, true {, API key diubah} other {}}{orgContextChanged, select, true {, konteks organisasi diubah} other {}}"
   },
   "jira": {
     "title": "Jira",
@@ -3578,6 +3578,8 @@
     "effortHigh": "Tinggi",
     "dailyCap": "Batas harian per pengguna (USD)",
     "dailyCapDescription": "Pengguna yang mencapainya harus menunggu hari berikutnya (zona waktu instance).",
+    "orgContext": "Konteks organisasi",
+    "orgContextDescription": "Hal yang perlu diketahui asisten tentang organisasi dan bisnis Anda: siapa Anda, klien Anda, dan modul yang Anda bangun. Dikirim bersama setiap pertanyaan, maksimal 4000 karakter. Kosongkan untuk deskripsi umum.",
     "save": "Simpan",
     "submitting": "Menyimpan…",
     "saved": "Pengaturan asisten disimpan",

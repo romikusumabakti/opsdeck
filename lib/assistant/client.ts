@@ -22,6 +22,8 @@ export type AssistantRuntime = {
   model: string;
   effort: string;
   dailyCapUsd: number;
+  /** Admin → Assistant organisation context; null = the generic one. */
+  orgContext: string | null;
 };
 
 /**
@@ -41,5 +43,6 @@ export async function loadAssistantRuntime(): Promise<AssistantRuntime | null> {
     model: row.assistantModel,
     effort: row.assistantEffort,
     dailyCapUsd: Number(row.assistantDailyCapUsd),
+    orgContext: row.assistantOrgContext,
   };
 }

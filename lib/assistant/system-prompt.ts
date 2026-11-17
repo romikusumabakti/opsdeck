@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/lib/branding";
 import { APP_TIMEZONE } from "@/lib/timezone";
 import type { AssistantSource } from "./sources";
 
@@ -15,7 +16,16 @@ export type SystemPromptContext = {
   environmentName: string;
   sources: PromptSource[];
   userName: string;
+  /** The admin's organisation context (Admin → Assistant), or null. */
+  orgContext: string | null;
 };
+
+/**
+ * Who the assistant works for when the admin has not described the
+ * organisation. Shared with the draft prompt.
+ */
+export const GENERIC_ORGANISATION =
+  "a company that builds and runs pension-fund (DPLK/DPPK) systems";
 
 function formatDeployedAt(iso: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -59,9 +69,10 @@ function componentLine(source: PromptSource): string {
 
 /**
  * The stable part of the system prompt. It depends only on the conversation's
- * project, environment, sources and user, so it is byte-identical across the
- * requests of a turn and across turns while nothing is redeployed — the
- * prompt-cache breakpoint sits right after it. Volatile details (today's date)
+ * project, environment, sources and user and on the instance's organisation
+ * context, so it is byte-identical across the requests of a turn and across
+ * turns while nothing is redeployed or reconfigured — the prompt-cache
+ * breakpoint sits right after it. Volatile details (today's date)
  * go in a separate block after the breakpoint.
  */
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
@@ -75,7 +86,14 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
       ? "\nNo source code is available for this environment in this conversation. Say so when a question needs the code, and answer only from Jira issues and the knowledge base, labelling everything else as an assumption.\n"
       : "";
 
-  return `You are the code assistant of Menara, the internal operations portal of Acme Consulting. Acme builds and runs pension systems for Indonesian DPLK (Dana Pensiun Lembaga Keuangan) and DPPK clients: participant membership (Kepesertaan), contributions (Iuran), investment, pension benefits (Manfaat Pensiun), accounting and the customer portal. You help project managers, business analysts, QA testers and engineers understand how the system behaves today, so that their requirements, BRD sections and Jira tickets match the real code.
+  const intro = ctx.orgContext
+    ? `You are the code assistant of ${APP_NAME}, the internal operations portal of the organisation described under "Organisation" below.`
+    : `You are the code assistant of ${APP_NAME}, an internal operations portal of ${GENERIC_ORGANISATION}.`;
+  const organisation = ctx.orgContext
+    ? `\n\n# Organisation\n${ctx.orgContext}`
+    : "";
+
+  return `${intro} You help project managers, business analysts, QA testers and engineers understand how the system behaves today, so that their requirements, BRD sections and Jira tickets match the real code.${organisation}
 
 You are talking with ${ctx.userName}.
 

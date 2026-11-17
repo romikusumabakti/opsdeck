@@ -2230,7 +2230,7 @@
       "download": "{actor} downloaded {path} from {target}",
       "downloadMany": "{actor} downloaded {count} items starting with {path} from {target}"
     },
-    "assistantConfigured": "{actor} updated the assistant settings: {enabled, select, true {enabled} other {disabled}}, {model}, effort {effort}, limit {dailyCapUsd, number} USD per user per day{keyChanged, select, true {, API key changed} other {}}"
+    "assistantConfigured": "{actor} updated the assistant settings: {enabled, select, true {enabled} other {disabled}}, {model}, effort {effort}, limit {dailyCapUsd, number} USD per user per day{keyChanged, select, true {, API key changed} other {}}{orgContextChanged, select, true {, organisation context changed} other {}}"
   },
   "jira": {
     "title": "Jira",
@@ -3578,6 +3578,8 @@
     "effortHigh": "High",
     "dailyCap": "Daily limit per user (USD)",
     "dailyCapDescription": "A user who reaches it waits until the next day (instance time zone).",
+    "orgContext": "Organisation context",
+    "orgContextDescription": "What the assistant should know about your organisation and its business: who you are, your clients and the modules you build. Sent with every question, at most 4000 characters. Leave empty for a generic description.",
     "save": "Save",
     "submitting": "Saving…",
     "saved": "Assistant settings saved",

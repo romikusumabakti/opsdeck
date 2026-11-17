@@ -230,6 +230,7 @@ function deps(
       model: "claude-opus-5-5",
       effort: "medium",
       dailyCapUsd: 1.5,
+      orgContext: null,
     }),
     loadViewer: async () => ({
       userId: USER_ID,
@@ -420,6 +421,7 @@ describe("runTurn", () => {
           model: "claude-opus-5-5",
           effort: "turbo",
           dailyCapUsd: 1.5,
+          orgContext: null,
         }),
       })
     );
@@ -465,6 +467,27 @@ describe("runTurn", () => {
     expect(request.messages).toEqual([
       { role: "user", content: "Bagaimana Iuran dihitung?" },
     ]);
+  });
+
+  it("puts the configured organisation context in the cached system block", async () => {
+    const { client, requests } = fakeClient([
+      { text: ["Halo"], content: [text("Halo")], stop_reason: "end_turn" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(client, {
+        loadRuntime: async () => ({
+          client,
+          model: "claude-opus-5-5",
+          effort: "medium",
+          dailyCapUsd: 1.5,
+          orgContext: "Example Org runs pension funds.",
+        }),
+      })
+    );
+    const system = (requests[0] as { system: Array<{ text: string }> }).system;
+    expect(system[0]?.text).toContain("Example Org runs pension funds.");
+    expect(system[1]?.text).not.toContain("Example Org");
   });
 
   it("fails with credit_exhausted on a billing error and keeps the partial text", async () => {
@@ -904,14 +927,32 @@ describe("tool results", () => {
 
 describe("buildSystemPrompt", () => {
   const prompt = (
-    sources: Parameters<typeof buildSystemPrompt>[0]["sources"]
+    sources: Parameters<typeof buildSystemPrompt>[0]["sources"],
+    orgContext: string | null = null
   ) =>
     buildSystemPrompt({
       projectName: "Kestrel Membership",
       environmentName: "Dev 1",
       userName: "Widya",
       sources,
+      orgContext,
     });
+
+  const GENERIC =
+    "an internal operations portal of a company that builds and runs pension-fund (DPLK/DPPK) systems";
+
+  it("describes the organisation generically when none is configured", () => {
+    const text = prompt([SOURCE]);
+    expect(text).toContain(GENERIC);
+    expect(text).not.toContain("# Organisation");
+  });
+
+  it("includes the configured organisation context instead", () => {
+    const text = prompt([SOURCE], "Example Org runs pension funds.");
+    expect(text).toContain("# Organisation\nExample Org runs pension funds.");
+    expect(text).not.toContain(GENERIC);
+    expect(prompt([SOURCE], "Example Org runs pension funds.")).toBe(text);
+  });
 
   it("states each component's source state", () => {
     const text = prompt([
