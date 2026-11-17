@@ -63,6 +63,10 @@ import {
 } from "@/lib/project-sources";
 import { projectReleasableSql } from "@/lib/releases/repository";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
+import {
+  type RunningSource,
+  resolveRunningSources,
+} from "@/lib/running-sources";
 import { encryptNullable } from "@/lib/secrets";
 import { findService, hasService, type ServiceRole } from "@/lib/services";
 import { baseEnvSlug } from "@/lib/setup/slug";
@@ -336,6 +340,24 @@ export async function getEnvironmentById(
     console.error(`Failed to fetch environment ${id}:`, error);
     return undefined;
   }
+}
+
+/** A running source as the client sees it: no CI connection id. */
+export type EnvironmentRunningItem = Omit<RunningSource, "ciConnectionId">;
+
+/**
+ * What each deploy target of the environment runs (the dashboard's Running
+ * card). Project read, like the other environment reads: 404 when the
+ * project is invisible to the caller.
+ */
+export async function getEnvironmentRunning(
+  environmentId: string
+): Promise<{ items: EnvironmentRunningItem[] }> {
+  await requireProjectPermission({ environmentId }, { project: ["read"] });
+  const sources = await resolveRunningSources(environmentId);
+  return {
+    items: sources.map(({ ciConnectionId: _ci, ...item }) => item),
+  };
 }
 
 /**

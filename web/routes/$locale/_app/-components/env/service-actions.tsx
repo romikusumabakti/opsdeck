@@ -1,4 +1,11 @@
-import { FileText, Loader2, Play, RotateCcw, Square } from "lucide-react";
+import {
+  FileText,
+  Loader2,
+  MoreHorizontal,
+  Play,
+  RotateCcw,
+  Square,
+} from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
@@ -6,6 +13,12 @@ import { useDialog } from "@/components/dialog-provider";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { useProjectCan } from "@/components/project-role";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -51,6 +64,7 @@ export function ServiceActions({
 }) {
   const t = useTranslations("services");
   const tCommon = useTranslations("common");
+  const tDash = useTranslations("dashboard");
   const dialog = useDialog();
   const canControl = useProjectCan({ service: ["control"] });
   const canRestart = useProjectCan({ service: ["restart"] }) || canControl;
@@ -119,22 +133,11 @@ export function ServiceActions({
 
   return (
     <>
-      {toggle && (
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={() => onAction(toggle)}
-          disabled={busy}
-        >
-          {icon(toggle, toggle === "stop" ? Square : Play)}
-          {t(`actions.${toggle}`)}
-        </Button>
-      )}
       {canRestart &&
         (restartUnavailable ? (
           <Tooltip>
             <TooltipTrigger render={<span className="inline-flex" />}>
-              <Button size="xs" variant="outline" disabled>
+              <Button size="sm" variant="outline" disabled>
                 <RotateCcw />
                 {t("actions.restart")}
               </Button>
@@ -143,7 +146,7 @@ export function ServiceActions({
           </Tooltip>
         ) : (
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onClick={() => onAction("restart")}
             disabled={busy}
@@ -154,7 +157,7 @@ export function ServiceActions({
         ))}
       {canLogs &&
         (state === "not-found" ? (
-          <Button size="xs" variant="outline" disabled>
+          <Button size="sm" variant="outline" disabled>
             <FileText />
             {t("actions.logs")}
           </Button>
@@ -162,13 +165,36 @@ export function ServiceActions({
           <Button
             render={<Link href={logsHref} />}
             nativeButton={false}
-            size="xs"
+            size="sm"
             variant="outline"
           >
             <FileText />
             {t("actions.logs")}
           </Button>
         ))}
+      {/* Start / Stop: rarer and disruptive, so one step away in a menu. */}
+      {toggle && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={tDash("moreActions")}
+                disabled={busy}
+              />
+            }
+          >
+            {icon(toggle, MoreHorizontal)}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onAction(toggle)}>
+              {toggle === "stop" ? <Square /> : <Play />}
+              {t(`actions.${toggle}`)}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       <LiveRunDialog
         runId={activeRun?.runId ?? null}

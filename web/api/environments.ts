@@ -121,6 +121,23 @@ export const getTeardownQuery = (environmentId: string) =>
     queryFn: () => getTeardown(environmentId),
   });
 
+/** What each deploy target of the environment runs (dashboard card). */
+export async function getEnvironmentRunning(environmentId: string) {
+  return parseResponse(
+    routes[":id"].running.$get({ param: { id: environmentId } })
+  );
+}
+
+export const getEnvironmentRunningQuery = (environmentId: string) =>
+  queryOptions({
+    queryKey: ["environments", "getEnvironmentRunning", environmentId],
+    queryFn: () => getEnvironmentRunning(environmentId),
+  });
+
+export type EnvironmentRunningItem = Awaited<
+  ReturnType<typeof getEnvironmentRunning>
+>["items"][number];
+
 export type StartTeardownBody = InferRequestType<
   (typeof routes)[":id"]["teardown"]["$post"]
 >["json"];

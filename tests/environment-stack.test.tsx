@@ -5,6 +5,8 @@ import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DialogProvider } from "@/components/dialog-provider";
 import { ProjectRoleProvider } from "@/components/project-role";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import messages from "../messages/en.json";
 
 const { getAllServiceStatuses, controlService, toastError } = vi.hoisted(
@@ -114,6 +116,35 @@ function button(scope: ParentNode, label: string): HTMLButtonElement {
   return found as HTMLButtonElement;
 }
 
+// The row's "More actions" menu trigger (Start / Stop), or null.
+function moreActions(scope: ParentNode): HTMLButtonElement {
+  return scope.querySelector(
+    'button[aria-label="More actions"]'
+  ) as HTMLButtonElement;
+}
+
+async function openMoreActions(row: HTMLElement) {
+  await act(async () => moreActions(row).click());
+  await settle();
+}
+
+// The labels of the open menu's items.
+function menuItems(): string[] {
+  return [...document.body.querySelectorAll('[role="menuitem"]')].map(
+    (el) => el.textContent?.trim() ?? ""
+  );
+}
+
+// Through cn(), as Button merges them.
+const SM = cn(buttonVariants({ variant: "outline", size: "sm" }));
+const ICON_SM = cn(buttonVariants({ variant: "ghost", size: "icon-sm" }));
+
+// Every class of `expected` (a buttonVariants() string) is on `el`.
+function hasClasses(el: Element | undefined, expected: string): boolean {
+  if (!el) return false;
+  return expected.split(" ").every((c) => el.classList.contains(c));
+}
+
 beforeEach(() => {
   getAllServiceStatuses.mockReset();
   controlService.mockReset();
@@ -128,18 +159,52 @@ afterEach(() => {
 });
 
 describe("EnvironmentStack service actions", () => {
-  it("an engineer sees Start, Stop, Restart and Logs", async () => {
+  it("an engineer sees Restart and Logs, and Start or Stop under More actions", async () => {
     await mount("engineer");
     await settle();
     const [db, backend] = rows();
-    expect(controls(db, "Start")).toHaveLength(1);
-    expect(controls(db, "Stop")).toHaveLength(0);
-    expect(controls(backend, "Stop")).toHaveLength(1);
-    expect(controls(backend, "Start")).toHaveLength(0);
     for (const row of [db, backend]) {
+      // Start and Stop are menu items, not buttons on the row.
+      expect(controls(row, "Start")).toHaveLength(0);
+      expect(controls(row, "Stop")).toHaveLength(0);
       expect(controls(row, "Restart")).toHaveLength(1);
       expect(controls(row, "Logs")).toHaveLength(1);
+      expect(moreActions(row)).not.toBeNull();
     }
+    // The stopped db offers Start (the running backend's Stop: below).
+    await openMoreActions(db);
+    expect(menuItems()).toEqual(["Start"]);
+  });
+
+  it("Restart and Logs use the small button size, More actions the small icon size", async () => {
+    await mount("engineer");
+    await settle();
+    const backend = rows()[1];
+    expect(hasClasses(button(backend, "Restart"), SM)).toBe(true);
+    expect(hasClasses(controls(backend, "Logs")[0], SM)).toBe(true);
+    expect(hasClasses(moreActions(backend), ICON_SM)).toBe(true);
+  });
+
+  it("Stop from More actions confirms, then opens the run dialog", async () => {
+    controlService.mockResolvedValue({ runId: "r2" });
+    await mount("engineer");
+    await settle();
+    await openMoreActions(rows()[1]);
+    expect(menuItems()).toEqual(["Stop"]);
+    const stop = [
+      ...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ].find((el) => el.textContent?.trim() === "Stop");
+    if (!stop) throw new Error("no Stop item");
+    await act(async () => stop.click());
+    await settle();
+    const dialog = document.body.querySelector('[role="alertdialog"]');
+    if (!dialog) throw new Error("no confirm dialog");
+    await act(async () => button(dialog, "Stop").click());
+    await settle();
+    expect(controlService).toHaveBeenCalledWith("e1", "backend", "stop");
+    expect(
+      container.querySelector('[data-testid="live-run"]')?.textContent
+    ).toBe("r2");
   });
 
   it("qa sees Restart and Logs but no Start or Stop", async () => {
@@ -149,6 +214,7 @@ describe("EnvironmentStack service actions", () => {
     expect(controls(container, "Stop")).toHaveLength(0);
     expect(controls(container, "Restart")).toHaveLength(2);
     expect(controls(container, "Logs")).toHaveLength(2);
+    expect(container.querySelector('[aria-label="More actions"]')).toBeNull();
   });
 
   it("a viewer sees only Logs", async () => {
@@ -239,9 +305,7 @@ describe("EnvironmentStack service actions", () => {
 
     const [db, backend] = rows();
     const actionButtons = (row: HTMLElement) =>
-      ["Start", "Stop", "Restart"].flatMap((l) =>
-        controls(row, l)
-      ) as HTMLButtonElement[];
+      [button(row, "Restart"), moreActions(row)] as HTMLButtonElement[];
     expect(actionButtons(db)).toHaveLength(2);
     expect(actionButtons(backend)).toHaveLength(2);
     for (const b of [...actionButtons(db), ...actionButtons(backend)])

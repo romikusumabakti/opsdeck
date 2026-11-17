@@ -227,6 +227,11 @@
   "dashboard": {
     "title": "Dashboard",
     "subtitle": "Backups, restores, mock time and services for {name}.",
+    "running": "Running",
+    "notDeployed": "Not deployed",
+    "unknownCommit": "Unknown commit",
+    "openApp": "Open app",
+    "moreActions": "More actions",
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",

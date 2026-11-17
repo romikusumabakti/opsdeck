@@ -7,12 +7,14 @@ import { DashboardKpisSkeleton } from "./dashboard-kpis";
 import { DatabasesTabsSkeleton } from "./databases/databases-tabs-skeleton";
 import { EnvironmentStackSkeleton } from "./environment-stack";
 import { RecentActivitySkeleton } from "./recent-activity";
+import { RunningCardSkeleton } from "./running-card";
 
 export function DashboardPending() {
   return (
     <>
       <PageHeaderSkeleton withAction={false} />
       <DashboardKpisSkeleton />
+      <RunningCardSkeleton />
       <EnvironmentStackSkeleton />
       <RecentActivitySkeleton />
     </>

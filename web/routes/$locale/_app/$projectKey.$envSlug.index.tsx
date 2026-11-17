@@ -6,7 +6,10 @@ import { EnvironmentUrlButton } from "@/components/nav/environment-url";
 import { PageHeader } from "@/components/page-header";
 import { useProjectName } from "@/hooks/use-project-name";
 import { stripProjectPrefix } from "@/lib/nav-path";
-import { getEnvironmentByIdQuery } from "@/web/api/environments";
+import {
+  getEnvironmentByIdQuery,
+  getEnvironmentRunningQuery,
+} from "@/web/api/environments";
 import {
   getEnvironmentKpisQuery,
   getEnvironmentRunsQuery,
@@ -22,6 +25,10 @@ import {
   RecentActivity,
   RecentActivitySkeleton,
 } from "./-components/env/recent-activity";
+import {
+  RunningCard,
+  RunningCardSkeleton,
+} from "./-components/env/running-card";
 import { DashboardPending } from "./-components/env/skeletons";
 
 export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug/")({
@@ -30,6 +37,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug/")({
     // let the page paint on the environment alone.
     void queryClient.prefetchQuery(getEnvironmentKpisQuery(environmentId));
     void queryClient.prefetchQuery(getEnvironmentRunsQuery(environmentId));
+    void queryClient.prefetchQuery(getEnvironmentRunningQuery(environmentId));
     await loaderQuery(queryClient, getEnvironmentByIdQuery(environmentId));
   },
   pendingComponent: DashboardPending,
@@ -55,21 +63,21 @@ function DashboardPage() {
     <>
       <PageHeader
         title={t("title")}
-        subtitle={
-          <>
-            {t("subtitle", {
-              name: stripProjectPrefix(environment.name, projectName),
-            })}
-            <EnvironmentUrlButton
-              url={environment.url}
-              className="ms-1 align-middle"
-            />
-          </>
+        subtitle={t("subtitle", {
+          name: stripProjectPrefix(environment.name, projectName),
+        })}
+        action={
+          <div className="flex items-center gap-2">
+            <DeployLockBadge environmentId={environmentId} />
+            <EnvironmentUrlButton url={environment.url} label={t("openApp")} />
+          </div>
         }
-        action={<DeployLockBadge environmentId={environmentId} />}
       />
       <Suspense fallback={<DashboardKpisSkeleton />}>
         <DashboardKpis environmentId={environmentId} />
+      </Suspense>
+      <Suspense fallback={<RunningCardSkeleton />}>
+        <RunningCard environmentId={environmentId} />
       </Suspense>
       <EnvironmentStack environment={environment} envPath={envPath} />
       <Suspense fallback={<RecentActivitySkeleton />}>

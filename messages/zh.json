@@ -227,6 +227,11 @@
   "dashboard": {
     "title": "仪表板",
     "subtitle": "{name} 的备份、恢复、模拟时间和服务。",
+    "running": "运行中",
+    "notDeployed": "未部署",
+    "unknownCommit": "未知提交",
+    "openApp": "打开应用",
+    "moreActions": "更多操作",
     "database": "数据库",
     "backend": "后端",
     "frontend": "前端",

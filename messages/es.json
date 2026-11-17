@@ -227,6 +227,11 @@
   "dashboard": {
     "title": "Panel",
     "subtitle": "Copias de seguridad, restauraciones, hora simulada y servicios de {name}.",
+    "running": "En ejecución",
+    "notDeployed": "Sin desplegar",
+    "unknownCommit": "Commit desconocido",
+    "openApp": "Abrir aplicación",
+    "moreActions": "Más acciones",
     "database": "Base de datos",
     "backend": "Backend",
     "frontend": "Frontend",

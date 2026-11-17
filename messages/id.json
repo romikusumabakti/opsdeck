@@ -227,6 +227,11 @@
   "dashboard": {
     "title": "Dasbor",
     "subtitle": "Backup, restore, waktu tiruan, dan layanan untuk {name}.",
+    "running": "Versi berjalan",
+    "notDeployed": "Belum di-deploy",
+    "unknownCommit": "Commit tidak diketahui",
+    "openApp": "Buka aplikasi",
+    "moreActions": "Aksi lainnya",
     "database": "Database",
     "backend": "Backend",
     "frontend": "Frontend",

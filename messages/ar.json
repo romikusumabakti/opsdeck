@@ -227,6 +227,11 @@
   "dashboard": {
     "title": "لوحة التحكم",
     "subtitle": "نسخ احتياطي واستعادة وتوقيت وهمي وخدمات لـ {name}.",
+    "running": "قيد التشغيل",
+    "notDeployed": "غير منشور",
+    "unknownCommit": "commit غير معروف",
+    "openApp": "فتح التطبيق",
+    "moreActions": "إجراءات أخرى",
     "database": "قاعدة البيانات",
     "backend": "الخلفية",
     "frontend": "الواجهة الأمامية",

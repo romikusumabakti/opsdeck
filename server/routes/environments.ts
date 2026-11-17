@@ -19,6 +19,7 @@ import {
   createEnvironment,
   deleteEnvironment,
   getEnvironmentById,
+  getEnvironmentRunning,
   getEnvironmentsLastOpened,
   listEnvironments,
   recordEnvironmentAccess,
@@ -80,6 +81,10 @@ export const environmentsRouter = sessionRouter()
       const { id, data } = c.req.valid("json");
       return c.json(await updateEnvironment(id, data));
     }
+  )
+  /** What each deploy target runs: tag, commit, when (dashboard card). */
+  .get("/:id/running", envParam, async (c) =>
+    c.json(await getEnvironmentRunning(c.req.valid("param").id))
   )
   /** Delete for good: archive, bring down, remove (environment-teardown). */
   .get("/:id/teardown", envParam, async (c) =>
