@@ -28,4 +28,15 @@ describe("issue tables use a fixed layout", () => {
     const source = readFileSync("components/global-issues-client.tsx", "utf8");
     expect(source).toMatch(/tableClassName="[^"]*\btable-fixed\b/);
   });
+
+  // Linear-style: the title gets the most width, so the secondary columns
+  // drop out below xl instead of squeezing it.
+  it("hides environment and created below xl in the project table", () => {
+    const source = readFileSync(
+      "web/routes/$locale/_app/-components/issues-client.tsx",
+      "utf8"
+    );
+    const hidden = source.match(/hidden [^"]*xl:table-cell/g) ?? [];
+    expect(hidden.length).toBe(4);
+  });
 });

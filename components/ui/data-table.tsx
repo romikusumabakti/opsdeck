@@ -858,11 +858,13 @@ export function DataTableColumnHeader<TData extends RowData, TValue>({
     <Button
       variant="ghost"
       size="sm"
-      className="-ms-3 h-8 data-[sorted=true]:text-foreground"
+      // max-w: in a table-fixed table a long (translated) title truncates
+      // inside its column instead of spilling; +0.75rem undoes -ms-3.
+      className="-ms-3 h-8 max-w-[calc(100%+0.75rem)] data-[sorted=true]:text-foreground"
       data-sorted={sorted !== false}
       onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
     >
-      {title}
+      <span className="truncate">{title}</span>
       <Icon className={cn("size-3.5", sorted === false && "opacity-50")} />
     </Button>
   );

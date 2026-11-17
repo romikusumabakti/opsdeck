@@ -312,7 +312,7 @@ export function GlobalIssuesClient({
         ),
         enableHiding: false,
         meta: {
-          headClassName: "w-28",
+          headClassName: "w-24",
           cellClassName: "truncate",
           label: t("columnKey"),
         },
@@ -359,8 +359,8 @@ export function GlobalIssuesClient({
           </Link>
         ),
         meta: {
-          headClassName: "w-36",
-          cellClassName: "truncate",
+          headClassName: "hidden w-28 xl:table-cell",
+          cellClassName: "hidden truncate xl:table-cell",
           label: t("columnProject"),
         },
       },
@@ -377,7 +377,11 @@ export function GlobalIssuesClient({
             onChange={(s) => onStatusChange(row.original.id, s)}
           />
         ),
-        meta: { headClassName: "w-40", label: t("columnStatus") },
+        meta: {
+          headClassName: "w-36",
+          cellClassName: "px-1",
+          label: t("columnStatus"),
+        },
       },
       {
         id: "priority",
@@ -392,7 +396,11 @@ export function GlobalIssuesClient({
             onChange={(p) => onPriorityChange(row.original.id, p)}
           />
         ),
-        meta: { headClassName: "w-36", label: t("columnPriority") },
+        meta: {
+          headClassName: "w-32",
+          cellClassName: "px-1",
+          label: t("columnPriority"),
+        },
       },
       {
         id: "assignee",
@@ -408,7 +416,11 @@ export function GlobalIssuesClient({
             onChange={(a) => onAssigneeChange(row.original.id, a)}
           />
         ),
-        meta: { headClassName: "w-44", label: t("columnAssignee") },
+        meta: {
+          headClassName: "w-36",
+          cellClassName: "px-1",
+          label: t("columnAssignee"),
+        },
       },
       {
         id: "createdAt",
@@ -422,8 +434,8 @@ export function GlobalIssuesClient({
           </span>
         ),
         meta: {
-          headClassName: "w-32",
-          cellClassName: "truncate",
+          headClassName: "hidden w-28 xl:table-cell",
+          cellClassName: "hidden truncate xl:table-cell",
           label: t("columnCreated"),
         },
       },
@@ -439,8 +451,8 @@ export function GlobalIssuesClient({
           </span>
         ),
         meta: {
-          headClassName: "w-32",
-          cellClassName: "truncate",
+          headClassName: "hidden w-28 xl:table-cell",
+          cellClassName: "hidden truncate xl:table-cell",
           label: t("columnUpdated"),
         },
       },
@@ -533,7 +545,7 @@ export function GlobalIssuesClient({
         <DataTable
           fillHeight
           dense
-          tableClassName="table-fixed min-w-5xl"
+          tableClassName="table-fixed min-w-2xl"
           toolbar={filterBar}
           label={t("globalTitle")}
           columns={columns}

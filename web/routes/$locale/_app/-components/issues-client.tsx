@@ -485,9 +485,10 @@ export function IssuesClient({
             {/* The table container is the scroll box (`flex-1 min-h-0`), so the
                 `sticky` header pins to it while rows scroll underneath. */}
             {/* Fixed layout: the header widths hold and the title takes the
-                rest, so the pills line up and the table fits its card. */}
+                rest. Pill cells use px-1 so the ghost pill's own padding
+                lines its text up with the column header. */}
             <Table
-              className="table-fixed min-w-5xl"
+              className="table-fixed min-w-2xl"
               containerClassName="flex-1 min-h-0"
             >
               <TableHeader className="sticky top-0 z-10 [&_th]:bg-card [&_th]:border-b">
@@ -501,15 +502,17 @@ export function IssuesClient({
                       aria-label={t("selectAll")}
                     />
                   </TableHead>
-                  <TableHead className="w-28">{t("columnKey")}</TableHead>
+                  <TableHead className="w-24">{t("columnKey")}</TableHead>
                   <TableHead>{t("columnTitle")}</TableHead>
-                  <TableHead className="w-40">{t("columnStatus")}</TableHead>
-                  <TableHead className="w-36">{t("columnPriority")}</TableHead>
-                  <TableHead className="w-36">
+                  <TableHead className="w-36">{t("columnStatus")}</TableHead>
+                  <TableHead className="w-32">{t("columnPriority")}</TableHead>
+                  <TableHead className="hidden w-28 xl:table-cell">
                     {t("columnEnvironment")}
                   </TableHead>
-                  <TableHead className="w-44">{t("columnAssignee")}</TableHead>
-                  <TableHead className="w-32">{t("columnCreated")}</TableHead>
+                  <TableHead className="w-36">{t("columnAssignee")}</TableHead>
+                  <TableHead className="hidden w-28 xl:table-cell">
+                    {t("columnCreated")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -550,28 +553,28 @@ export function IssuesClient({
                         />
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1">
                       <StatusSelect
                         variant="compact"
                         value={issue.status as Status}
                         onChange={(s) => onStatusChange(issue.id, s)}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1">
                       <PrioritySelect
                         variant="compact"
                         value={issue.priority as Priority}
                         onChange={(p) => onPriorityChange(issue.id, p)}
                       />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground truncate">
+                    <TableCell className="hidden truncate text-sm text-muted-foreground xl:table-cell">
                       {issue.environment ? (
                         stripProjectPrefix(issue.environment.name, projectName)
                       ) : (
                         <span className="italic">{t("allEnvironments")}</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1">
                       <AssigneeSelect
                         variant="compact"
                         users={users}
@@ -579,7 +582,7 @@ export function IssuesClient({
                         onChange={(a) => onAssigneeChange(issue.id, a)}
                       />
                     </TableCell>
-                    <TableCell className="truncate text-xs text-muted-foreground">
+                    <TableCell className="hidden truncate text-xs text-muted-foreground xl:table-cell">
                       <RelativeTime date={issue.createdAt} />
                     </TableCell>
                   </TableRow>
