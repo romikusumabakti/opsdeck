@@ -206,13 +206,15 @@ export function AssistantWorkspace({
   const busy = pendingAnswer(conversation) !== null;
   const capped = capReached(allowance);
 
+  // The conversation made for a first question whose send then failed: the
+  // retry sends into it rather than leaving another empty one behind.
+  const created = React.useRef<string | null>(null);
+
   const send = async (text: string, attachments: AttachmentRef[]) => {
     let id = selectedId;
     if (!id) {
-      id = (await createConversation()).id;
-      select(id);
-      // Its first question is still being sent: the chip holds its context.
-      setSeededFor(id);
+      id = created.current ?? (await createConversation()).id;
+      created.current = id;
     }
     await sendMessage({
       conversationId: id,
@@ -220,6 +222,14 @@ export function AssistantWorkspace({
       context,
       ...(attachments.length > 0 ? { attachments } : {}),
     });
+    if (id !== selectedId) {
+      created.current = null;
+      // Opened only once its first question is stored: a read racing the
+      // send could come back empty, and nothing would read it again.
+      select(id);
+      // The chip keeps the context just sent.
+      setSeededFor(id);
+    }
   };
 
   const newDraft = (kind: DraftKind) => {

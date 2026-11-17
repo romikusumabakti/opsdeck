@@ -1461,6 +1461,60 @@ describe("context picker", () => {
     });
   });
 
+  it("opens a new conversation only once its first question is stored", async () => {
+    // A read of the conversation racing its first send came back empty, and
+    // nothing read it again: the thread stayed on "Start asking".
+    const NEW_ID = "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4a5c";
+    let stored = false;
+    let finishSend = () => {};
+    api.createConversation.mockResolvedValue({ id: NEW_ID });
+    api.sendMessage.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishSend = () => {
+            stored = true;
+            resolve({});
+          };
+        })
+    );
+    const reads: boolean[] = [];
+    conversationFetch.set(NEW_ID, async () => {
+      reads.push(stored);
+      return {
+        id: NEW_ID,
+        title: "",
+        drafts: [],
+        messages: stored ? [userMessage("u1", null)] : [],
+      };
+    });
+    const onConversationChange = vi.fn();
+    await renderWorkspace({ onConversationChange });
+    await typeAndSend("Di mana?");
+    await settle();
+    expect(onConversationChange).not.toHaveBeenCalled();
+    expect(reads).toEqual([]);
+    await act(async () => finishSend());
+    await settle();
+    expect(onConversationChange).toHaveBeenCalledExactlyOnceWith(NEW_ID);
+    expect(reads).toEqual([true]);
+  });
+
+  it("a failed first send is retried into the conversation it created", async () => {
+    api.createConversation.mockResolvedValue({ id: CONV_ID });
+    api.sendMessage.mockRejectedValueOnce(new Error("boom"));
+    api.sendMessage.mockResolvedValue({});
+    await renderWorkspace();
+    await typeAndSend("Di mana?");
+    await settle();
+    await act(async () => button(t.send)?.click());
+    await settle();
+    expect(api.createConversation).toHaveBeenCalledTimes(1);
+    expect(api.sendMessage).toHaveBeenCalledTimes(2);
+    expect(api.sendMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conversationId: CONV_ID })
+    );
+  });
+
   it("starts on the ?project project and the ?env environment", async () => {
     await renderWorkspace({
       initialContext: { kind: "project", projectId: "p1" },
