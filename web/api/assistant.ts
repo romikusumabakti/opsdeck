@@ -20,30 +20,18 @@ export const getAllowanceQuery = () =>
     queryFn: getAllowance,
   });
 
-/** The caller's conversations about a project, newest first. */
-export async function listConversations(projectId: string) {
-  return parseResponse(
-    routes["list-conversations"].$get({ query: { projectId } })
-  );
+/**
+ * The caller's conversations, all projects, newest first, each with the
+ * label of its latest question's context (`lastContextLabel`).
+ */
+export async function listConversations() {
+  return parseResponse(routes["list-conversations"].$get());
 }
 
-export const listConversationsQuery = (
-  ...args: Parameters<typeof listConversations>
-) =>
+export const listConversationsQuery = () =>
   queryOptions({
-    queryKey: ["assistant", "listConversations", args],
-    queryFn: () => listConversations(...args),
-  });
-
-/** The project of the caller's latest conversation, or null. */
-export async function getLastProject() {
-  return parseResponse(routes["last-project"].$get());
-}
-
-export const getLastProjectQuery = () =>
-  queryOptions({
-    queryKey: ["assistant", "getLastProject"],
-    queryFn: getLastProject,
+    queryKey: ["assistant", "listConversations"],
+    queryFn: listConversations,
   });
 
 export async function getConversation(conversationId: string) {
@@ -79,14 +67,15 @@ export const listIssueAttachmentsQuery = (
     queryFn: () => listIssueAttachments(...args),
   });
 
-/** A new project conversation; each question then picks its source. */
-export async function createConversation(input: Body<"create-conversation">) {
-  return parseResponse(routes["create-conversation"].$post({ json: input }));
+/** A new conversation (no project); each question then picks its context. */
+export async function createConversation() {
+  return parseResponse(routes["create-conversation"].$post());
 }
 
 /**
- * Sends a question. `environmentId` is the source it asks about: an
- * environment of the conversation's project, or null for the project branches.
+ * Sends a question. `context` is what it asks about: `{ kind: "auto" }`, a
+ * pinned project `{ kind: "project", projectId }` (its branches) or a pinned
+ * environment `{ kind: "environment", environmentId }` (its running commits).
  */
 export async function sendMessage(input: Body<"send-message">) {
   return parseResponse(routes["send-message"].$post({ json: input }));
@@ -120,6 +109,8 @@ export type Allowance = Awaited<ReturnType<typeof getAllowance>>;
 export type Conversation = Awaited<ReturnType<typeof getConversation>>;
 export type ConversationMessage = Conversation["messages"][number];
 export type ConversationDraft = Conversation["drafts"][number];
+/** A user message's context; null on assistant messages. */
+export type MessageContext = NonNullable<ConversationMessage["context"]>;
 export type ConversationSummary = Awaited<
   ReturnType<typeof listConversations>
 >[number];

@@ -2701,8 +2701,9 @@ export const assistantDraftKindEnum = pgEnum("assistant_draft_kind", [
   "jira",
 ]);
 
-// One chat per user, scoped to a project. `environmentName` is a snapshot, so
-// the title survives the environment being deleted (environmentId then nulls).
+// One chat of a user. Each question carries its own context (on the user
+// message); `projectId` is set only on Stage 2 conversations, which were
+// bound to one project, and the environment fields are Stage 1 leftovers.
 export const assistantConversations = pgTable(
   "assistant_conversations",
   {
@@ -2713,12 +2714,10 @@ export const assistantConversations = pgTable(
         name: "assistant_conversations_user_id_users_id_fk",
         onDelete: "cascade",
       }),
-    projectId: uuid("project_id")
-      .notNull()
-      .references(() => projects.id, {
-        name: "assistant_conversations_project_id_projects_id_fk",
-        onDelete: "cascade",
-      }),
+    projectId: uuid("project_id").references(() => projects.id, {
+      name: "assistant_conversations_project_id_projects_id_fk",
+      onDelete: "cascade",
+    }),
     environmentId: uuid("environment_id").references(() => environments.id, {
       name: "assistant_conversations_environment_id_environments_id_fk",
       onDelete: "set null",
@@ -2754,8 +2753,15 @@ export const assistantMessages = pgTable(
     sources: jsonb("sources").$type<AssistantSource[]>(),
     // Jira attachment ids the user ticked for this question.
     attachmentIds: text("attachment_ids").array().notNull().default(sql`'{}'`),
-    // The environment a user message was asked in; the name is a snapshot
-    // that survives the environment being deleted.
+    // The context of a user message (lib/assistant/context.ts): the pinned
+    // project, and the pinned environment of that project, if any; all null
+    // for an automatic question. The names are snapshots that survive the
+    // project or environment being deleted (its id then nulls).
+    projectId: uuid("project_id").references(() => projects.id, {
+      name: "assistant_messages_project_id_projects_id_fk",
+      onDelete: "set null",
+    }),
+    projectName: text("project_name"),
     environmentId: uuid("environment_id").references(() => environments.id, {
       name: "assistant_messages_environment_id_environments_id_fk",
       onDelete: "set null",
@@ -2833,6 +2839,11 @@ export const assistantDrafts = pgTable(
         name: "assistant_drafts_conversation_id_assistant_conversations_id_fk",
         onDelete: "cascade",
       }),
+    // The project the draft is about (its Jira link files the issue).
+    projectId: uuid("project_id").references(() => projects.id, {
+      name: "assistant_drafts_project_id_projects_id_fk",
+      onDelete: "set null",
+    }),
     kind: assistantDraftKindEnum("kind").notNull(),
     content: jsonb("content").$type<Record<string, unknown>>().notNull(),
     issueId: uuid("issue_id").references(() => issues.id, {

@@ -17,6 +17,7 @@ export const ASSISTANT_ERROR_MESSAGE_KEYS = {
   "assistant.model_no_tools": "modelNoTools",
   "assistant.model_no_drafts": "modelNoDrafts",
   "assistant.environment_gone": "environmentGone",
+  "assistant.context_gone": "contextGone",
   "assistant.nothing_to_draft": "nothingToDraft",
   "assistant.invalid_draft": "invalidDraft",
   "assistant.jira_push_disabled": "jiraPushDisabled",

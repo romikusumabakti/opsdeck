@@ -139,27 +139,32 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       status: "queued" | "streaming" | "done" | "failed",
       content = "",
       attachmentIds: string[] = [],
-      environment: {
+      context: Partial<{
+        projectId: string;
+        projectName: string;
         environmentId: string;
         environmentName: string;
-      } | null = null
+      }> = {},
+      conversationId = conversation.id
     ) =>
       one(
         await d
           .insert(schema.assistantMessages)
           .values({
-            conversationId: conversation.id,
+            conversationId,
             role,
             status,
             content,
             attachmentIds,
-            ...environment,
+            ...context,
           })
           .returning()
       );
-    await message("user", "done", "Q1");
+    const branches = { projectId: project.id, projectName: project.name };
+    await message("user", "done", "Q1", [], branches);
     await message("assistant", "done", "A1");
     await message("user", "done", "Q2", ["att-1"], {
+      ...branches,
       environmentId: env.id,
       environmentName: "Dev 1",
     });
@@ -170,21 +175,47 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       status: "queued",
       userId: user.id,
       userName: "Widya",
-      projectId: project.id,
-      projectName: "Kestrel Membership",
-      // The source of the question this turn answers (Q2), not Q1's.
-      environmentId: env.id,
-      environmentName: "Dev 1",
+      // The context of the question this turn answers (Q2), not Q1's.
+      context: {
+        kind: "environment",
+        environmentId: env.id,
+        environmentName: "Dev 1",
+        projectId: project.id,
+        projectName: "Kestrel Membership",
+      },
       attachmentIds: ["att-1"],
     });
     expect(turn?.history.map((m) => m.content)).toEqual(["Q1", "A1", "Q2"]);
-    // Each replayed question keeps the source it asked about.
-    expect(turn?.history.map((m) => m.environmentName)).toEqual([
+    // Each replayed question keeps the context it asked about.
+    expect(turn?.history.map((m) => m.context?.kind ?? null)).toEqual([
+      "project",
       null,
-      null,
-      "Dev 1",
+      "environment",
     ]);
     expect(await store.loadTurn(conversation.id)).toBeNull();
+
+    // A conversation without a project (the global assistant) loads too; an
+    // automatic question has no project.
+    const global = one(
+      await d
+        .insert(schema.assistantConversations)
+        .values({ userId: user.id })
+        .returning()
+    );
+    await message("user", "done", "Apa saja?", [], {}, global.id);
+    const globalAnswer = await message(
+      "assistant",
+      "queued",
+      "",
+      [],
+      {},
+      global.id
+    );
+    expect(await store.loadTurn(globalAnswer.id)).toMatchObject({
+      conversationId: global.id,
+      context: { kind: "auto" },
+    });
+    await client`delete from assistant_conversations where id = ${global.id}`;
 
     expect(await store.claimMessage(answer.id)).toBe(true);
     expect(await store.claimMessage(answer.id)).toBe(false);

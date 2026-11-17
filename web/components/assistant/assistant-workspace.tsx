@@ -55,10 +55,16 @@ function useIsLarge() {
   );
 }
 
-/** The source of the conversation's last question; a deleted one is gone. */
+/**
+ * The environment of the conversation's last question, null for any other
+ * context (a deleted environment included), undefined without a question.
+ */
 function lastSourceOf(conversation: Conversation): string | null | undefined {
   const last = conversation.messages.findLast((m) => m.role === "user");
-  return last ? last.environmentId : undefined;
+  if (!last) return undefined;
+  return last.context?.kind === "environment"
+    ? last.context.environmentId
+    : null;
 }
 
 /**
@@ -129,14 +135,12 @@ export function AssistantWorkspace({
     ...getConversationQuery(selectedId ?? ""),
     enabled: selectedId !== null,
   });
-  // A link (`?c=`) to another project's conversation, or to one that is gone,
-  // opens nothing here: the selection is cleared and the URL with it.
+  // A link (`?c=`) to a conversation that is gone (or someone else's) opens
+  // nothing: the selection is cleared and the URL with it.
   const foreign =
     selectedId !== null &&
-    ((conversationQuery.data !== undefined &&
-      conversationQuery.data.projectId !== projectId) ||
-      (conversationQuery.error instanceof ApiError &&
-        conversationQuery.error.status === 404));
+    conversationQuery.error instanceof ApiError &&
+    conversationQuery.error.status === 404;
   const conversation = foreign ? undefined : conversationQuery.data;
   const dropForeign = React.useEffectEvent(() => select(null));
   React.useEffect(() => {
@@ -190,7 +194,7 @@ export function AssistantWorkspace({
   const send = async (text: string, attachments: AttachmentRef[]) => {
     let id = selectedId;
     if (!id) {
-      id = (await createConversation({ projectId })).id;
+      id = (await createConversation()).id;
       select(id);
       // Its first question is still being sent: the chip holds its source.
       setSeededFor(id);
@@ -198,7 +202,9 @@ export function AssistantWorkspace({
     await sendMessage({
       conversationId: id,
       text,
-      environmentId,
+      context: environmentId
+        ? { kind: "environment", environmentId }
+        : { kind: "project", projectId },
       ...(attachments.length > 0 ? { attachments } : {}),
     });
   };
@@ -250,7 +256,6 @@ export function AssistantWorkspace({
       >
         <div className="flex max-h-40 min-h-0 shrink-0 flex-col lg:max-h-none">
           <ConversationList
-            projectId={projectId}
             selectedId={selectedId}
             onSelect={select}
             onNew={() => {

@@ -14,6 +14,7 @@ const PROJECT_HMEM = "0197f3a0-1b2c-7def-8000-00000000a002";
 const QA = "0197f3a0-1b2c-7def-8000-00000000f001";
 const OTHER = "0197f3a0-1b2c-7def-8000-00000000f002";
 const ADMIN = "0197f3a0-1b2c-7def-8000-00000000f003";
+const LONER = "0197f3a0-1b2c-7def-8000-00000000f004";
 const UNKNOWN_ID = "0197f3a0-1b2c-7def-8000-00000000dead";
 
 type Message = {
@@ -24,15 +25,16 @@ type Message = {
   status: "queued" | "streaming" | "done" | "failed";
   errorCode: string | null;
   attachmentIds: string[];
+  projectId: string | null;
+  projectName: string | null;
   environmentId: string | null;
   environmentName: string | null;
 };
 type Conversation = {
   id: string;
   userId: string;
-  projectId: string;
-  environmentId: string | null;
-  environmentName: string | null;
+  // Stage 2 conversations keep their project; new ones have none.
+  projectId: string | null;
   title: string;
   updatedAt: Date;
 };
@@ -64,6 +66,7 @@ const store = vi.hoisted(() => ({
   drafts: [] as {
     id: string;
     conversationId: string;
+    projectId: string | null;
     kind: "brd" | "jira";
     content: Record<string, unknown>;
     issueId: string | null;
@@ -89,6 +92,15 @@ const ENV_PROJECT: Record<string, string> = {
   "0197f3a0-1b2c-7def-8000-00000000e003":
     "0197f3a0-1b2c-7def-8000-00000000a001",
 };
+const ENV_NAME: Record<string, string> = {
+  "0197f3a0-1b2c-7def-8000-00000000e001": "Dev 1",
+  "0197f3a0-1b2c-7def-8000-00000000e002": "UAT",
+  "0197f3a0-1b2c-7def-8000-00000000e003": "Raced",
+};
+const PROJECT_NAME: Record<string, string> = {
+  "0197f3a0-1b2c-7def-8000-00000000a001": "Kestrel Membership",
+  "0197f3a0-1b2c-7def-8000-00000000a002": "Heron Membership",
+};
 
 vi.mock("@/lib/authz", async () => {
   const { HTTPException } = await import("hono/http-exception");
@@ -97,13 +109,16 @@ vi.mock("@/lib/authz", async () => {
       super(403, { message: "Forbidden" });
     }
   }
+  const sees = (projectId: string) =>
+    state.orgRole === "admin" ||
+    (state.members[projectId] ?? []).includes(state.userId);
   return {
     ForbiddenError,
-    projectScope: vi.fn(async () => ({
-      visible: (projectId: string) =>
-        state.orgRole === "admin" ||
-        (state.members[projectId] ?? []).includes(state.userId),
-    })),
+    accessibleProjectIds: vi.fn(async () =>
+      state.orgRole === "admin"
+        ? "all"
+        : Object.keys(state.members).filter((id) => sees(id))
+    ),
     requireProjectPermission: vi.fn(
       async (
         scope: { environmentId?: string; projectId?: string },
@@ -116,11 +131,9 @@ vi.mock("@/lib/authz", async () => {
         ]).toContain(JSON.stringify(perms));
         const projectId =
           scope.projectId ?? ENV_PROJECT[scope.environmentId ?? ""];
-        const visible =
-          projectId &&
-          (state.orgRole === "admin" ||
-            (state.members[projectId] ?? []).includes(state.userId));
-        if (!visible) throw new HTTPException(404, { message: "Not Found" });
+        if (!projectId || !sees(projectId)) {
+          throw new HTTPException(404, { message: "Not Found" });
+        }
         if (perms.issue && state.viewers.includes(state.userId)) {
           throw new ForbiddenError();
         }
@@ -183,46 +196,54 @@ vi.mock("@/lib/assistant/tools/context", async (importOriginal) => ({
 vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
   const { titleFrom } =
     await importOriginal<typeof import("@/lib/assistant/conversation-store")>();
+  const { messageContextOf } = await import("@/lib/assistant/context");
   const nextId = () =>
     `0197f3a0-1b2c-7def-8000-${String(++store.seq).padStart(12, "0")}`;
   const owner = (c: Conversation | undefined) =>
-    c ? { id: c.id, userId: c.userId, projectId: c.projectId } : null;
+    c ? { id: c.id, userId: c.userId } : null;
   const callsOf = (messageId: string) =>
     store.toolCalls
       .filter((t) => t.messageId === messageId)
       .map((t) => ({ tool: t.tool, meta: t.meta }));
+  const lastQuestion = (conversationId: string) =>
+    store.messages.findLast(
+      (m) => m.conversationId === conversationId && m.role === "user"
+    );
   return {
     titleFrom,
     loadAssistantLimits: async () => state.limits,
-    environmentOfProject: async (id: string, projectId: string) => {
-      const name =
-        id === ENV_KMEM
-          ? "Dev 1"
-          : id === ENV_HMEM
-            ? "UAT"
-            : id === ENV_RACED
-              ? "Raced"
-              : null;
-      return name && ENV_PROJECT[id] === projectId ? { id, name } : null;
+    findProject: async (id: string) =>
+      PROJECT_NAME[id] ? { id, name: PROJECT_NAME[id] } : null,
+    findEnvironment: async (id: string) => {
+      const projectId = ENV_PROJECT[id];
+      const name = ENV_NAME[id];
+      return projectId && name
+        ? {
+            id,
+            name,
+            projectId,
+            projectName: PROJECT_NAME[projectId] ?? "",
+          }
+        : null;
     },
-    listConversationsOf: async (userId: string, projectId: string) =>
+    listConversationsOf: async (userId: string) =>
       store.conversations
-        .filter((c) => c.userId === userId && c.projectId === projectId)
-        .map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt })),
-    latestConversationProjectOf: async (
-      userId: string,
-      scope: { visible: (projectId: string) => boolean }
-    ) =>
-      store.conversations
-        .filter((c) => c.userId === userId && scope.visible(c.projectId))
-        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]
-        ?.projectId ?? null,
-    insertConversation: async (v: { userId: string; projectId: string }) => {
+        .filter((c) => c.userId === userId)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+        .map((c) => {
+          const last = lastQuestion(c.id);
+          return {
+            id: c.id,
+            title: c.title,
+            updatedAt: c.updatedAt,
+            lastContextLabel: last ? messageContextOf(last).label : null,
+          };
+        }),
+    insertConversation: async (v: { userId: string }) => {
       const id = nextId();
       store.conversations.push({
-        ...v,
-        environmentId: null,
-        environmentName: null,
+        userId: v.userId,
+        projectId: null,
         id,
         title: "",
         updatedAt: new Date(),
@@ -243,13 +264,16 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       return {
         id: c.id,
         title: c.title,
-        projectId: c.projectId,
         messages: store.messages
           .filter((m) => m.conversationId === id)
           .map((m) => ({
-            ...m,
-            environmentDeleted:
-              m.environmentId === null && m.environmentName !== null,
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            status: m.status,
+            errorCode: m.errorCode,
+            attachmentIds: m.attachmentIds,
+            context: m.role === "user" ? messageContextOf(m) : null,
             sources: null,
             createdAt: new Date(0),
             toolCalls: callsOf(m.id),
@@ -272,7 +296,16 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       conversationId: string;
       text: string;
       attachmentIds: string[];
-      environment: { id: string; name: string } | null;
+      context:
+        | { kind: "auto" }
+        | { kind: "project"; projectId: string; projectName: string }
+        | {
+            kind: "environment";
+            environmentId: string;
+            environmentName: string;
+            projectId: string;
+            projectName: string;
+          };
       now: Date;
     }) => {
       const busy = store.messages.some(
@@ -282,8 +315,14 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
           (m.status === "queued" || m.status === "streaming")
       );
       if (busy) return "busy";
-      if (p.environment?.id === ENV_RACED) return "environment_gone";
+      if (
+        p.context.kind === "environment" &&
+        p.context.environmentId === ENV_RACED
+      ) {
+        return "context_gone";
+      }
       const base = { conversationId: p.conversationId, errorCode: null };
+      const ctx = p.context;
       const question: Message = {
         ...base,
         id: nextId(),
@@ -291,11 +330,16 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
         content: p.text,
         status: "done",
         attachmentIds: p.attachmentIds,
-        environmentId: p.environment?.id ?? null,
-        environmentName: p.environment?.name ?? null,
+        projectId: ctx.kind === "auto" ? null : ctx.projectId,
+        projectName: ctx.kind === "auto" ? null : ctx.projectName,
+        environmentId: ctx.kind === "environment" ? ctx.environmentId : null,
+        environmentName:
+          ctx.kind === "environment" ? ctx.environmentName : null,
       };
       const answer: Message = {
         ...base,
+        projectId: null,
+        projectName: null,
         environmentId: null,
         environmentName: null,
         id: nextId(),
@@ -342,7 +386,8 @@ vi.mock("@/lib/assistant/draft-store", () => ({
     const c = store.conversations.find((x) => x.id === d?.conversationId);
     return d && c
       ? {
-          conversation: { id: c.id, userId: c.userId, projectId: c.projectId },
+          conversation: { id: c.id, userId: c.userId },
+          projectId: d.projectId,
           kind: d.kind,
           issueId: d.issueId,
         }
@@ -398,11 +443,13 @@ function as(userId: string, orgRole = "qa") {
   state.orgRole = orgRole;
 }
 
-async function newConversation(projectId = PROJECT_KMEM): Promise<string> {
-  const res = await post("/create-conversation", { projectId });
+async function newConversation(): Promise<string> {
+  const res = await post("/create-conversation", {});
   expect(res.status).toBe(200);
   return ((await res.json()) as { id: string }).id;
 }
+
+const PINNED_KMEM = { kind: "project", projectId: PROJECT_KMEM };
 
 function send(
   conversationId: string,
@@ -412,8 +459,37 @@ function send(
   return post("/send-message", {
     conversationId,
     text,
-    environmentId: null,
+    context: PINNED_KMEM,
     ...extra,
+  });
+}
+
+/** A Stage 2 conversation: bound to a project, its questions backfilled. */
+function stage2Conversation(
+  id: string,
+  userId: string,
+  projectId: string,
+  at: string
+) {
+  store.conversations.push({
+    id,
+    userId,
+    projectId,
+    title: `Stage 2 ${id}`,
+    updatedAt: new Date(at),
+  });
+  store.messages.push({
+    id: `${id}-q`,
+    conversationId: id,
+    role: "user",
+    content: "Old question",
+    status: "done",
+    errorCode: null,
+    attachmentIds: [],
+    projectId,
+    projectName: PROJECT_NAME[projectId] ?? null,
+    environmentId: null,
+    environmentName: null,
   });
 }
 
@@ -431,6 +507,7 @@ beforeEach(() => {
       store.drafts.push({
         id,
         conversationId,
+        projectId: PROJECT_KMEM,
         kind,
         content:
           kind === "jira" ? { ...JIRA_DRAFT } : { title: "T", sections: [] },
@@ -459,164 +536,269 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("project scope", () => {
+describe("global gate", () => {
+  it("creates a conversation without a project", async () => {
+    const id = await newConversation();
+    expect(store.conversations).toEqual([
+      expect.objectContaining({ id, userId: QA, projectId: null }),
+    ]);
+  });
+
+  it("refuses list, create and get to a user who sees no project", async () => {
+    const id = await newConversation();
+    as(LONER, "engineer");
+    expect((await get("/list-conversations")).status).toBe(403);
+    expect((await post("/create-conversation", {})).status).toBe(403);
+    as(QA);
+    state.members = {};
+    expect((await get("/list-conversations")).status).toBe(403);
+    expect((await get(`/get-conversation?conversationId=${id}`)).status).toBe(
+      403
+    );
+    expect(
+      (await send(id, "Tanya", { context: { kind: "auto" } })).status
+    ).toBe(403);
+    expect(store.conversations).toHaveLength(1);
+    expect(store.messages).toEqual([]);
+  });
+
   it.each([
-    ["qa", "qa"],
-    ["engineer", "engineer"],
+    ["off", { enabled: false, hasApiKey: true, dailyCapUsd: 1.5 }],
+    ["without a key", { enabled: true, hasApiKey: false, dailyCapUsd: 1.5 }],
   ])(
-    "a %s who is not a member of another project gets 404 on it",
-    async (_label, orgRole) => {
-      as(QA, orgRole);
-      expect(
-        (await get(`/list-conversations?projectId=${PROJECT_HMEM}`)).status
-      ).toBe(404);
-      expect(
-        (await post("/create-conversation", { projectId: PROJECT_HMEM })).status
-      ).toBe(404);
-      expect(
-        (
-          await get(
-            `/list-issue-attachments?projectId=${PROJECT_HMEM}&issueKey=HMEM-1`
-          )
-        ).status
-      ).toBe(404);
+    "refuses list and create while the assistant is %s: assistant.not_configured",
+    async (_label, limits) => {
+      state.limits = limits;
+      for (const res of [
+        await get("/list-conversations"),
+        await post("/create-conversation", {}),
+      ]) {
+        expect(res.status).toBe(503);
+        expect(await res.json()).toMatchObject({
+          code: "assistant.not_configured",
+        });
+      }
       expect(store.conversations).toEqual([]);
     }
   );
 
-  it("an engineer who is no longer a member cannot send to their own conversation", async () => {
-    as(QA, "engineer");
-    const id = await newConversation();
-    state.members[PROJECT_KMEM] = [OTHER];
-    expect((await send(id)).status).toBe(404);
-    expect((await send(id, "Tanya", { environmentId: ENV_KMEM })).status).toBe(
-      404
-    );
-    expect(store.messages).toEqual([]);
-    expect(queue.enqueue).not.toHaveBeenCalled();
-  });
-
-  it("an unknown project is 404", async () => {
-    expect(
-      (await get(`/list-conversations?projectId=${UNKNOWN_ID}`)).status
-    ).toBe(404);
-    expect(
-      (await post("/create-conversation", { projectId: UNKNOWN_ID })).status
-    ).toBe(404);
-  });
-
-  it("lists only the caller's own conversations of the project", async () => {
-    const mine = await newConversation();
-    as(OTHER);
-    await newConversation();
-    await newConversation(PROJECT_HMEM);
-    as(QA);
-    const res = await get(`/list-conversations?projectId=${PROJECT_KMEM}`);
-    expect((await res.json()).map((c: { id: string }) => c.id)).toEqual([mine]);
-  });
-
-  it("creates a project conversation without an environment", async () => {
-    const id = await newConversation();
-    expect(store.conversations).toEqual([
-      expect.objectContaining({
-        id,
-        userId: QA,
-        projectId: PROJECT_KMEM,
-        environmentId: null,
-        environmentName: null,
-      }),
-    ]);
+  it("the old project-bound endpoints are gone", async () => {
+    expect((await get("/last-project")).status).toBe(404);
   });
 });
 
-describe("per-question source", () => {
-  it("stores the chosen environment and its name on the user message", async () => {
+describe("list-conversations", () => {
+  it("lists the caller's own conversations across projects, newest first, with Stage 2 ones", async () => {
+    as(OTHER);
+    const kmem = await newConversation();
+    expect((await send(kmem, "Di Kestrel?")).status).toBe(200);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2099-01-01T00:00:00Z"));
+    const hmem = await newConversation();
+    expect(
+      (
+        await send(hmem, "Di UAT?", {
+          context: { kind: "environment", environmentId: ENV_HMEM },
+        })
+      ).status
+    ).toBe(200);
+    vi.useRealTimers();
+    stage2Conversation("stage2", OTHER, PROJECT_KMEM, "2000-01-01T00:00:00Z");
+    // Someone else's conversation never shows.
+    stage2Conversation("theirs", QA, PROJECT_KMEM, "2050-01-01T00:00:00Z");
+
+    const res = await get("/list-conversations");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      id: string;
+      lastContextLabel: string | null;
+    }[];
+    expect(body.map((c) => [c.id, c.lastContextLabel])).toEqual([
+      [hmem, "UAT"],
+      [kmem, "Kestrel Membership"],
+      ["stage2", "Kestrel Membership"],
+    ]);
+  });
+
+  it("an empty conversation or an automatic question has no context label", async () => {
+    const empty = await newConversation();
+    const auto = await newConversation();
+    await send(auto, "Apa saja?", { context: { kind: "auto" } });
+    const body = (await (await get("/list-conversations")).json()) as {
+      id: string;
+      lastContextLabel: string | null;
+    }[];
+    expect(
+      Object.fromEntries(body.map((c) => [c.id, c.lastContextLabel]))
+    ).toEqual({ [empty]: null, [auto]: null });
+  });
+});
+
+describe("per-question context", () => {
+  it("stores a pinned environment with its project on the user message", async () => {
     const id = await newConversation();
-    const res = await send(id, "Di Dev 1?", { environmentId: ENV_KMEM });
+    const res = await send(id, "Di Dev 1?", {
+      context: { kind: "environment", environmentId: ENV_KMEM },
+    });
     expect(res.status).toBe(200);
     expect(store.messages[0]).toMatchObject({
       role: "user",
+      projectId: PROJECT_KMEM,
+      projectName: "Kestrel Membership",
       environmentId: ENV_KMEM,
       environmentName: "Dev 1",
     });
     expect(store.messages[1]).toMatchObject({
       role: "assistant",
+      projectId: null,
       environmentId: null,
     });
   });
 
-  it("stores no environment for a question about the project branches", async () => {
+  it("stores a pinned project without an environment", async () => {
     const id = await newConversation();
     expect((await send(id)).status).toBe(200);
     expect(store.messages[0]).toMatchObject({
+      projectId: PROJECT_KMEM,
+      projectName: "Kestrel Membership",
       environmentId: null,
       environmentName: null,
     });
   });
 
-  it("an environment of another project is 404, even one the caller can see", async () => {
-    // OTHER is a member of both projects.
-    as(OTHER);
+  it("stores nothing for an automatic question", async () => {
     const id = await newConversation();
-    for (const environmentId of [ENV_HMEM, UNKNOWN_ID]) {
-      expect((await send(id, "Tanya", { environmentId })).status).toBe(404);
-    }
+    expect((await send(id, "Apa?", { context: { kind: "auto" } })).status).toBe(
+      200
+    );
+    expect(store.messages[0]).toMatchObject({
+      projectId: null,
+      projectName: null,
+      environmentId: null,
+      environmentName: null,
+    });
+  });
+
+  it.each([
+    ["an invisible project", { kind: "project", projectId: PROJECT_HMEM }],
+    ["an unknown project", { kind: "project", projectId: UNKNOWN_ID }],
+    [
+      "an environment of an invisible project",
+      { kind: "environment", environmentId: ENV_HMEM },
+    ],
+    [
+      "an unknown environment",
+      { kind: "environment", environmentId: UNKNOWN_ID },
+    ],
+  ])("pinning %s is 404, nothing stored", async (_label, context) => {
+    const id = await newConversation();
+    expect((await send(id, "Tanya", { context })).status).toBe(404);
     expect(store.messages).toEqual([]);
     expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
   it("an environment deleted between the check and the insert is 404", async () => {
     const id = await newConversation();
-    const res = await send(id, "Tanya", { environmentId: ENV_RACED });
+    const res = await send(id, "Tanya", {
+      context: { kind: "environment", environmentId: ENV_RACED },
+    });
     expect(res.status).toBe(404);
     expect(store.messages).toEqual([]);
     expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
-  it("requires the source to be given (null for the project branches)", async () => {
+  it("requires a valid context (the Stage 2 environmentId alone is refused)", async () => {
     const id = await newConversation();
-    const res = await post("/send-message", { conversationId: id, text: "x" });
-    expect(res.status).toBe(400);
+    expect(
+      (
+        await post("/send-message", {
+          conversationId: id,
+          text: "x",
+          environmentId: null,
+        })
+      ).status
+    ).toBe(400);
+    expect(
+      (
+        await post("/send-message", {
+          conversationId: id,
+          text: "x",
+          context: { kind: "project" },
+        })
+      ).status
+    ).toBe(400);
+    expect(store.messages).toEqual([]);
   });
 
-  it("returns each user message's source, and marks a deleted environment", async () => {
+  it("returns each user message's context and marks a deleted one", async () => {
     const id = await newConversation();
-    await send(id, "Di Dev 1?", { environmentId: ENV_KMEM });
-    Object.assign(store.messages[1] ?? {}, { status: "done" });
+    const done = (i: number) =>
+      Object.assign(store.messages[i] ?? {}, { status: "done" });
+    await send(id, "Di Dev 1?", {
+      context: { kind: "environment", environmentId: ENV_KMEM },
+    });
+    done(1);
     await send(id, "Di branch?");
-    Object.assign(store.messages[3] ?? {}, { status: "done" });
-    await send(id, "Di UAT lama?", { environmentId: ENV_KMEM });
-    // The environment was deleted since: the FK is set null, the name stays.
-    Object.assign(store.messages[4] ?? {}, { environmentId: null });
+    done(3);
+    await send(id, "Otomatis?", { context: { kind: "auto" } });
+    done(5);
+    await send(id, "Di Dev 1 lama?", {
+      context: { kind: "environment", environmentId: ENV_KMEM },
+    });
+    done(7);
+    await send(id, "Di project lama?");
+    // Deleted since: the FKs are set null, the name snapshots stay.
+    Object.assign(store.messages[6] ?? {}, { environmentId: null });
+    Object.assign(store.messages[8] ?? {}, { projectId: null });
 
     const res = await get(`/get-conversation?conversationId=${id}`);
     const body = (await res.json()) as {
-      messages: {
-        role: string;
-        environmentId: string | null;
-        environmentName: string | null;
-        environmentDeleted: boolean;
-      }[];
+      projectId?: string;
+      messages: { role: string; context: unknown }[];
     };
+    expect(body).not.toHaveProperty("projectId");
+    expect(body.messages.filter((m) => m.role === "assistant")).toEqual(
+      Array.from({ length: 5 }, () =>
+        expect.objectContaining({ context: null })
+      )
+    );
     expect(
-      body.messages
-        .filter((m) => m.role === "user")
-        .map(({ environmentId, environmentName, environmentDeleted }) => ({
-          environmentId,
-          environmentName,
-          environmentDeleted,
-        }))
+      body.messages.filter((m) => m.role === "user").map((m) => m.context)
     ).toEqual([
       {
+        kind: "environment",
+        label: "Dev 1",
+        deleted: false,
+        projectId: PROJECT_KMEM,
         environmentId: ENV_KMEM,
-        environmentName: "Dev 1",
-        environmentDeleted: false,
       },
-      { environmentId: null, environmentName: null, environmentDeleted: false },
       {
+        kind: "project",
+        label: "Kestrel Membership",
+        deleted: false,
+        projectId: PROJECT_KMEM,
         environmentId: null,
-        environmentName: "Dev 1",
-        environmentDeleted: true,
+      },
+      {
+        kind: "auto",
+        label: null,
+        deleted: false,
+        projectId: null,
+        environmentId: null,
+      },
+      {
+        kind: "environment",
+        label: "Dev 1",
+        deleted: true,
+        projectId: PROJECT_KMEM,
+        environmentId: null,
+      },
+      {
+        kind: "project",
+        label: "Kestrel Membership",
+        deleted: true,
+        projectId: null,
+        environmentId: null,
       },
     ]);
   });
@@ -647,13 +829,31 @@ describe("conversation ownership", () => {
     expect((await get(`/stream?messageId=${UNKNOWN_ID}`)).status).toBe(404);
   });
 
-  it("the owner loses their conversation with their project membership", async () => {
-    const id = await newConversation();
-    state.members[PROJECT_KMEM] = [OTHER];
-    expect((await get(`/get-conversation?conversationId=${id}`)).status).toBe(
-      404
+  it("a Stage 2 conversation stays readable, and answerable elsewhere, after its project is lost", async () => {
+    stage2Conversation(
+      "0197f3a0-1b2c-7def-8000-0000000c0002",
+      OTHER,
+      PROJECT_HMEM,
+      "2026-11-16T01:00:00Z"
     );
-    expect((await send(id)).status).toBe(404);
+    as(OTHER);
+    state.members[PROJECT_HMEM] = [];
+    const id = "0197f3a0-1b2c-7def-8000-0000000c0002";
+    const res = await get(`/get-conversation?conversationId=${id}`);
+    expect(res.status).toBe(200);
+    expect((await res.json()).messages[0].context).toMatchObject({
+      kind: "project",
+      label: "Heron Membership",
+    });
+    // Pinning the lost project again is refused; another context works.
+    expect(
+      (
+        await send(id, "Lagi", {
+          context: { kind: "project", projectId: PROJECT_HMEM },
+        })
+      ).status
+    ).toBe(404);
+    expect((await send(id, "Di Kestrel?")).status).toBe(200);
   });
 
   it("the stream of a user message is 404 (only answers stream)", async () => {
@@ -661,6 +861,17 @@ describe("conversation ownership", () => {
     await send(id);
     const question = store.messages.find((m) => m.role === "user");
     expect((await get(`/stream?messageId=${question?.id}`)).status).toBe(404);
+  });
+
+  it("an engineer who is not a member of another project cannot list its attachments", async () => {
+    as(QA, "engineer");
+    expect(
+      (
+        await get(
+          `/list-issue-attachments?projectId=${PROJECT_HMEM}&issueKey=HMEM-1`
+        )
+      ).status
+    ).toBe(404);
   });
 });
 
@@ -891,77 +1102,6 @@ describe("allowance", () => {
     expect(await (await get("/allowance")).json()).toMatchObject({
       usedFraction: 1,
       capReached: true,
-    });
-  });
-});
-
-describe("last-project", () => {
-  it("is the project of the caller's most recently updated conversation", async () => {
-    as(QA, "qa");
-    state.members = { [PROJECT_KMEM]: [QA], [PROJECT_HMEM]: [QA] };
-    store.conversations.push(
-      {
-        id: "c1",
-        userId: QA,
-        projectId: PROJECT_KMEM,
-        environmentId: null,
-        environmentName: null,
-        title: "",
-        updatedAt: new Date("2026-11-16T01:00:00Z"),
-      },
-      {
-        id: "c2",
-        userId: QA,
-        projectId: PROJECT_HMEM,
-        environmentId: null,
-        environmentName: null,
-        title: "",
-        updatedAt: new Date("2026-11-16T02:00:00Z"),
-      },
-      {
-        id: "c3",
-        userId: OTHER,
-        projectId: PROJECT_KMEM,
-        environmentId: null,
-        environmentName: null,
-        title: "",
-        updatedAt: new Date("2026-11-16T03:00:00Z"),
-      }
-    );
-    const res = await get("/last-project");
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ projectId: PROJECT_HMEM });
-  });
-
-  it("skips a project the caller can no longer see", async () => {
-    as(QA, "qa");
-    state.members = { [PROJECT_KMEM]: [QA] };
-    const conv = (id: string, projectId: string, at: string) => ({
-      id,
-      userId: QA,
-      projectId,
-      environmentId: null,
-      environmentName: null,
-      title: "",
-      updatedAt: new Date(at),
-    });
-    store.conversations.push(
-      conv("c1", PROJECT_KMEM, "2026-11-16T01:00:00Z"),
-      conv("c2", PROJECT_HMEM, "2026-11-16T02:00:00Z")
-    );
-    expect(await (await get("/last-project")).json()).toEqual({
-      projectId: PROJECT_KMEM,
-    });
-    state.members = {};
-    expect(await (await get("/last-project")).json()).toEqual({
-      projectId: null,
-    });
-  });
-
-  it("is null when the caller has no conversation", async () => {
-    as(QA, "qa");
-    expect(await (await get("/last-project")).json()).toEqual({
-      projectId: null,
     });
   });
 });
@@ -1221,6 +1361,24 @@ describe("drafts", () => {
     const { draftId } = await draftOf();
     state.viewers = [QA];
     expect((await post("/create-jira-issue", { draftId })).status).toBe(403);
+    expect(drafting.create).not.toHaveBeenCalled();
+  });
+
+  it("a draft without a project cannot become a Jira issue yet", async () => {
+    const { draftId } = await draftOf();
+    Object.assign(store.drafts[0] ?? {}, { projectId: null });
+    const res = await post("/create-jira-issue", { draftId });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: "assistant.jira_push_disabled",
+    });
+    expect(drafting.create).not.toHaveBeenCalled();
+  });
+
+  it("checks issue:write on the draft's project, not the conversation's", async () => {
+    const { draftId } = await draftOf();
+    Object.assign(store.drafts[0] ?? {}, { projectId: PROJECT_HMEM });
+    expect((await post("/create-jira-issue", { draftId })).status).toBe(404);
     expect(drafting.create).not.toHaveBeenCalled();
   });
 

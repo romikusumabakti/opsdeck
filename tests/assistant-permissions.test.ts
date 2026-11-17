@@ -54,4 +54,22 @@ describe("assistant permissions", () => {
       expect(access.roles["p-other"]).toBeUndefined();
     }
   });
+
+  // The worker re-checks a pinned question against the viewer's visible
+  // projects, and the global gate counts visible projects: both rely on every
+  // visible project granting assistant:use.
+  it.each(["admin", "infra", "engineer", "qa", "pm", "observer"])(
+    "a %s may use the assistant on every project they see",
+    (orgRole) => {
+      const access = resolveProjectAccess(
+        orgRole,
+        ["p-member", "p-other"],
+        ["p-member"]
+      );
+      expect(Object.keys(access.roles).length).toBeGreaterThan(0);
+      for (const role of Object.values(access.roles)) {
+        expect(canProject(role, { assistant: ["use"] })).toBe(true);
+      }
+    }
+  );
 });

@@ -44,11 +44,11 @@ const SCOPED_READS: Record<string, string[]> = {
     "listPersonOpenIssues",
     "listPersonRecentRuns",
   ],
-  "server/services/assistant.ts": [
-    "listConversations",
-    "getLastProject",
-    "listIssueAttachmentsForPicker",
-  ],
+  // Assistant conversations are deliberately absent: they are per-user rows
+  // read by their owner only (listConversationsOf(session.user.id)), behind
+  // the global assistant gate; the project a question pins is checked when
+  // it is sent and again when it runs (see the ownership tests below).
+  "server/services/assistant.ts": ["listIssueAttachmentsForPicker"],
   "lib/home/queries.ts": [
     "getAttentionGroups",
     "listMyOpenIssues",
@@ -180,9 +180,11 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     setEnvFileManaged: /variable: \["write"\], deploy: \["configure"\]/,
   },
   "server/services/assistant.ts": {
-    createConversation: /assistant: \["use"\]/,
-    // The conversation's owner, on a project they can still ask about.
-    sendMessage: /ownConversation\(/,
+    // Not project-scoped: the global gate (on, a key, ≥ 1 visible project).
+    createConversation: /requireAssistantGate\(/,
+    // The conversation's owner, then the question's pinned project or
+    // environment with assistant:use.
+    sendMessage: /ownConversation\([\s\S]*resolveQuestionContext\(/,
   },
   "server/services/jira.ts": {
     getJiraLink: /project: \["read"\]/,
@@ -265,19 +267,35 @@ describe("mention notifications only reach users who can see the project", () =>
 });
 
 describe("lookups by client-supplied id check the caller first", () => {
-  it("assistant conversations are their owner's, on a project with assistant:use", () => {
+  it("assistant conversations are their owner's, behind the global gate", () => {
     const source = readFileSync("server/services/assistant.ts", "utf8");
     expect(source).toMatch(
       /conversation\.userId !== session\.user\.id\) notFound\(\)/
     );
+    // The owner check runs behind the gate.
     expect(source).toMatch(
-      /requireProjectPermission\(\s*\{ projectId: conversation\.projectId \},\s*\{ assistant: \["use"\] \}/
+      /async function requireOwnConversation\([\s\S]*?requireAssistantGate\(\)[\s\S]*?conversation\.userId !== session\.user\.id/
     );
     for (const fn of ["getConversation", "sendMessage"]) {
       expect(body(source, fn)).toMatch(/ownConversation\(/);
     }
     expect(body(source, "authorizeMessageStream")).toMatch(
       /requireOwnConversation\(/
+    );
+    expect(body(source, "listConversations")).toMatch(
+      /requireAssistantGate\(\)[\s\S]*listConversationsOf\(session\.user\.id\)/
+    );
+  });
+  it("a pinned assistant context needs assistant:use on its project or environment", () => {
+    const fn = body(
+      readFileSync("server/services/assistant.ts", "utf8"),
+      "resolveQuestionContext"
+    );
+    expect(fn).toMatch(
+      /requireProjectPermission\(\s*\{ projectId: input\.projectId \},\s*\{ assistant: \["use"\] \}/
+    );
+    expect(fn).toMatch(
+      /requireProjectPermission\(\s*\{ environmentId: input\.environmentId \},\s*\{ assistant: \["use"\] \}/
     );
   });
   it("recordEnvironmentAccess only records visible environments", () => {

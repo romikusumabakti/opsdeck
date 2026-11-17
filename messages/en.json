@@ -3654,6 +3654,7 @@
     "modelNoTools": "The configured model cannot use tools, which the assistant needs to read code and issues. Ask an admin to choose another model.",
     "modelNoDrafts": "The configured model cannot write structured drafts. Ask an admin to choose another model.",
     "environmentGone": "The environment this question was about has been deleted. Pick another source (or the project branches) and ask again.",
+    "contextGone": "The project this question was about was deleted or is no longer visible to you. Pick another context and ask again.",
     "nothingToDraft": "There is no answer in this conversation to draft from yet. Ask the assistant first.",
     "invalidDraft": "This draft is incomplete, too long, or the tracker rejected one of its fields. Check the fields and try again.",
     "jiraPushDisabled": "Issue sync to the tracker is off for this project. Ask an admin to turn it on.",

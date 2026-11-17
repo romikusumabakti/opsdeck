@@ -1,0 +1,226 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "82e591dc-7fb2-4f9b-a911-aebcb4f5d709",
+  "prevIds": [
+    "ab6ea8d8-2d33-48dc-99f9-a7b44b531794"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_drafts",
+        "project_id"
+      ],
+      "writes": [
+        "s|col|public.assistant_drafts.project_id",
+        "n|col|public.assistant_drafts.project_id",
+        "e|col|public.assistant_drafts.project_id"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_drafts",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_messages",
+        "project_id"
+      ],
+      "writes": [
+        "s|col|public.assistant_messages.project_id",
+        "n|col|public.assistant_messages.project_id",
+        "e|col|public.assistant_messages.project_id"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_messages",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_messages",
+        "project_name"
+      ],
+      "writes": [
+        "s|col|public.assistant_messages.project_name",
+        "n|col|public.assistant_messages.project_name",
+        "e|col|public.assistant_messages.project_name"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_messages",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_conversations",
+        "project_id"
+      ],
+      "writes": [
+        "s|colprop|public.assistant_conversations.project_id.notNull"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_conversations",
+        "n|sch|public",
+        "n|col|public.assistant_conversations.project_id"
+      ],
+      "sqlHash": "9e35297b8135d68c"
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "assistant_drafts"
+      ],
+      "writes": [
+        "s|fk|public.assistant_drafts.assistant_drafts_project_id_projects_id_fk",
+        "n|fk|public.assistant_drafts.assistant_drafts_project_id_projects_id_fk",
+        "e|fk|public.assistant_drafts.assistant_drafts_project_id_projects_id_fk",
+        "n|con|public.assistant_drafts.assistant_drafts_project_id_projects_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_drafts",
+        "n|sch|public",
+        "n|tbl|public.projects",
+        "n|sch|public",
+        "n|col|public.assistant_drafts.project_id",
+        "n|col|public.projects.id",
+        "e|uniqueness|public.projects.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "assistant_messages"
+      ],
+      "writes": [
+        "s|fk|public.assistant_messages.assistant_messages_project_id_projects_id_fk",
+        "n|fk|public.assistant_messages.assistant_messages_project_id_projects_id_fk",
+        "e|fk|public.assistant_messages.assistant_messages_project_id_projects_id_fk",
+        "n|con|public.assistant_messages.assistant_messages_project_id_projects_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_messages",
+        "n|sch|public",
+        "n|tbl|public.projects",
+        "n|sch|public",
+        "n|col|public.assistant_messages.project_id",
+        "n|col|public.projects.id",
+        "e|uniqueness|public.projects.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_drafts",
+        "name": "project_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_messages",
+        "name": "project_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_messages",
+        "name": "project_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_drafts",
+        "name": "assistant_drafts_project_id_projects_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "project_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "projects",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_messages",
+        "name": "assistant_messages_project_id_projects_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "project_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "projects",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"assistant_conversations\",\"project_id\"]",
+      "set": {
+        "notNull": false
+      }
+    }
+  ]
+}

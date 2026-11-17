@@ -9,17 +9,22 @@ import {
   loadAssistantRuntime,
 } from "@/lib/assistant/client";
 import {
+  type QuestionContext,
+  type QuestionContextInput,
+  questionContextInputSchema,
+} from "@/lib/assistant/context";
+import {
   type ConversationDetail,
   type ConversationOwner,
   type ConversationSummary,
   type CreatedTurn,
-  environmentOfProject,
   failQueuedMessage,
   findAssistantMessageConversation,
   findConversation,
+  findEnvironment,
+  findProject,
   insertConversation,
   insertTurn,
-  latestConversationProjectOf,
   listConversationsOf,
   loadAssistantLimits,
   loadConversationDetail,
@@ -50,23 +55,25 @@ import { quotaDayResetsAt, spentTodayUsd } from "@/lib/assistant/usage";
 import { loadAssistantViewer } from "@/lib/assistant/viewer";
 import { requireSession } from "@/lib/auth-session";
 import {
+  accessibleProjectIds,
   ForbiddenError,
-  projectScope,
   requireProjectPermission,
 } from "@/lib/authz";
-import { assistantConversations } from "@/lib/db/schema";
 import { createJiraIssueFromDraft, JiraCreateError } from "@/lib/jira/create";
 import { uuidSchema } from "@/lib/validation";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
 /**
- * The code assistant's chat API. Every function authorizes the caller itself:
- * project assistant:use for a project, and for a conversation or message
- * both ownership and assistant:use on the conversation's project. A
- * conversation is visible to its owner only (admins included: audit goes
- * through the database and the usage view), and anything the caller may not
- * see is a 404, never a 403, so ids of other users' chats reveal nothing.
+ * The code assistant's chat API. Every function authorizes the caller itself.
+ * Conversations are global (not bound to a project) and sit behind the
+ * global gate (requireAssistantGate). A conversation is visible to its owner
+ * only (admins included: audit goes through the database and the usage
+ * view), and another user's conversation, message or draft is a 404, so ids
+ * of other users' chats reveal nothing. Each question carries a context
+ * (lib/assistant/context.ts); a pinned project or environment needs
+ * assistant:use on its project when the question is sent, and is checked
+ * again when the turn runs (lib/assistant/run-turn.ts).
  */
 
 export const MAX_MESSAGE_CHARS = 8000;
@@ -75,10 +82,10 @@ export const MAX_ATTACHMENTS = 10;
 export const sendMessageInputSchema = z.object({
   conversationId: uuidSchema,
   text: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
-  // The source the question asks about: an environment of the
-  // conversation's project (its running commits), or null for the project
-  // branches. Required, so a client cannot drop it by omission.
-  environmentId: uuidSchema.nullable(),
+  // What the question asks about: automatic, a pinned project (its
+  // branches) or a pinned environment (its running commits). Required, so a
+  // client cannot drop it by omission.
+  context: questionContextInputSchema,
   // Each ticked attachment with the issue it is on, so the model can read it.
   attachments: z
     .array(
@@ -109,25 +116,33 @@ async function refusal(
 }
 
 /**
- * The caller's own conversation on a project they can still ask about, found
- * by `find` once the session is known. Unknown, someone else's, or on a
- * project they lost: 404.
+ * The global gate in front of every conversation: the assistant is switched
+ * on with a key (else the assistant.not_configured refusal) and the caller
+ * sees at least one project (else 403).
+ */
+async function requireAssistantGate() {
+  const session = await requireSession();
+  const limits = await loadAssistantLimits();
+  if (!(limits.enabled && limits.hasApiKey)) {
+    throw await refusal(503, "assistant.not_configured");
+  }
+  const visible = await accessibleProjectIds();
+  if (visible !== "all" && visible.length === 0) throw new ForbiddenError();
+  return session;
+}
+
+/**
+ * The caller's own conversation, found by `find` once the gate passed.
+ * Unknown or someone else's: 404. A conversation stays its owner's when a
+ * project it asked about is lost: each question's context is checked on its
+ * own (resolveQuestionContext, and again when the turn runs).
  */
 async function requireOwnConversation(
   find: () => Promise<ConversationOwner | null>
 ): Promise<{ conversation: ConversationOwner; userId: string }> {
-  const session = await requireSession();
+  const session = await requireAssistantGate();
   const conversation = await find();
   if (!conversation || conversation.userId !== session.user.id) notFound();
-  try {
-    await requireProjectPermission(
-      { projectId: conversation.projectId },
-      { assistant: ["use"] }
-    );
-  } catch (error) {
-    if (error instanceof ForbiddenError) notFound();
-    throw error;
-  }
   return { conversation, userId: session.user.id };
 }
 
@@ -139,41 +154,76 @@ function ownConversation(conversationId: string) {
   );
 }
 
-/** The caller's conversations about a project they can see, newest first. */
-export async function listConversations(input: {
-  projectId: string;
-}): Promise<ConversationSummary[]> {
-  const { session, projectId } = await requireProjectPermission(
-    { projectId: input.projectId },
-    { assistant: ["use"] }
-  );
-  return listConversationsOf(session.user.id, projectId);
+/** The caller's own conversations, all projects, newest first. */
+export async function listConversations(): Promise<ConversationSummary[]> {
+  const session = await requireAssistantGate();
+  return listConversationsOf(session.user.id);
+}
+
+/** A new conversation; each question then picks its context. */
+export async function createConversation(): Promise<{ id: string }> {
+  const session = await requireAssistantGate();
+  const id = await insertConversation({ userId: session.user.id });
+  return { id };
+}
+
+/** requireProjectPermission with an invisible-or-forbidden project as 404. */
+async function usableOr404(
+  check: () => ReturnType<typeof requireProjectPermission>
+): Promise<string> {
+  try {
+    return (await check()).projectId;
+  } catch (error) {
+    if (error instanceof ForbiddenError) notFound();
+    throw error;
+  }
 }
 
 /**
- * The project of the caller's latest conversation, for Home's ask card. Only
- * the caller's own conversations in projects they can still see.
+ * The context a question asks about, checked against the caller: a pinned
+ * project, or a pinned environment, needs assistant:use on its project, else
+ * 404 (as for a project that does not exist). Automatic needs nothing more
+ * than the gate.
  */
-export async function getLastProject(): Promise<{ projectId: string | null }> {
-  const session = await requireSession();
-  return {
-    projectId: await latestConversationProjectOf(
-      session.user.id,
-      await projectScope(assistantConversations.projectId)
-    ),
-  };
-}
-
-/** A new conversation about a project; the source is picked per question. */
-export async function createConversation(input: {
-  projectId: string;
-}): Promise<{ id: string }> {
-  const { session, projectId } = await requireProjectPermission(
-    { projectId: input.projectId },
-    { assistant: ["use"] }
-  );
-  const id = await insertConversation({ userId: session.user.id, projectId });
-  return { id };
+export async function resolveQuestionContext(
+  input: QuestionContextInput
+): Promise<QuestionContext> {
+  switch (input.kind) {
+    case "auto":
+      return { kind: "auto" };
+    case "project": {
+      await usableOr404(() =>
+        requireProjectPermission(
+          { projectId: input.projectId },
+          { assistant: ["use"] }
+        )
+      );
+      const project = await findProject(input.projectId);
+      if (!project) notFound();
+      return {
+        kind: "project",
+        projectId: project.id,
+        projectName: project.name,
+      };
+    }
+    case "environment": {
+      const projectId = await usableOr404(() =>
+        requireProjectPermission(
+          { environmentId: input.environmentId },
+          { assistant: ["use"] }
+        )
+      );
+      const environment = await findEnvironment(input.environmentId);
+      if (!environment || environment.projectId !== projectId) notFound();
+      return {
+        kind: "environment",
+        environmentId: environment.id,
+        environmentName: environment.name,
+        projectId: environment.projectId,
+        projectName: environment.projectName,
+      };
+    }
+  }
 }
 
 export async function getConversation(
@@ -214,22 +264,17 @@ async function requireAllowance(
 }
 
 /**
- * Stores the question with its source and a queued answer, then queues the
- * turn. The environment, when given, must be one of the conversation's
- * project (which the caller can see, or ownConversation is a 404), else 404.
- * Refuses when the assistant is off or has no usable key, when the caller has
- * spent the day's cap, or while the conversation's previous answer is still
- * running.
+ * Stores the question with its context and a queued answer, then queues the
+ * turn. A pinned project or environment must be one the caller may use the
+ * assistant on, else 404. Refuses when the assistant is off or has no usable
+ * key, when the caller has spent the day's cap, or while the conversation's
+ * previous answer is still running.
  */
 export async function sendMessage(
   input: SendMessageInput
 ): Promise<CreatedTurn> {
   const { conversation, userId } = await ownConversation(input.conversationId);
-  const environment =
-    input.environmentId === null
-      ? null
-      : await environmentOfProject(input.environmentId, conversation.projectId);
-  if (input.environmentId !== null && !environment) notFound();
+  const context = await resolveQuestionContext(input.context);
 
   const now = new Date();
   await requireAllowance(userId, await requireRuntime(), now);
@@ -241,12 +286,12 @@ export async function sendMessage(
     attachmentIds: [
       ...new Set((input.attachments ?? []).map(formatAttachmentRef)),
     ],
-    environment,
+    context,
     now,
   });
   if (turn === "busy") throw await refusal(409, "assistant.busy");
   // Deleted between the check above and the insert.
-  if (turn === "environment_gone") notFound();
+  if (turn === "context_gone") notFound();
 
   // After the commit, so the worker always finds the rows it is given.
   try {
@@ -425,15 +470,19 @@ export async function saveDraft(
 
 /**
  * Creates the Jira issue of the caller's Jira draft. Besides owning the
- * conversation, the caller needs issue:write on its project: the issue lands
- * in the Panel's issue list too.
+ * conversation, the caller needs issue:write on the draft's project: the
+ * issue lands in the Panel's issue list too. A draft without a project has
+ * no Jira link to file it with.
  */
 export async function createJiraIssue(
   input: z.infer<typeof draftIdInputSchema>
 ): Promise<{ issueId: string; jiraKey: string }> {
   const { draft, userId } = await ownDraft(input.draftId);
+  if (!draft.projectId) {
+    throw await refusal(409, "assistant.jira_push_disabled");
+  }
   await requireProjectPermission(
-    { projectId: draft.conversation.projectId },
+    { projectId: draft.projectId },
     { issue: ["write"] }
   );
   if (draft.kind !== "jira")

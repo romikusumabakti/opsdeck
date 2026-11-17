@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import {
   createConversation,
   getAllowanceQuery,
-  getLastProjectQuery,
   sendMessage,
 } from "@/web/api/assistant";
 import { listProjectsQuery } from "@/web/api/project-catalog";
@@ -19,8 +18,8 @@ import { useAssistantErrorText } from "@/web/components/assistant/error-text";
 import { HomeSection } from "./home-section";
 
 /**
- * Starts a project conversation from Home: pick a project (the one of the
- * latest conversation by default), type a question, Enter. The answer is
+ * Starts a conversation pinned to a project from Home: pick a project (the
+ * first by default), type a question, Enter. The answer is
  * followed on the project's Assistant page, which the send navigates to.
  * Hidden unless the assistant is on and the user sees a project.
  */
@@ -31,10 +30,6 @@ export function AskAssistantCard() {
   const router = useRouter();
   const allowance = useQuery(getAllowanceQuery()).data;
   const projects = useQuery(listProjectsQuery()).data;
-  const lastProjectId = useQuery({
-    ...getLastProjectQuery(),
-    enabled: allowance?.enabled === true,
-  }).data?.projectId;
   const [picked, setPicked] = React.useState<string | null>(null);
   const [text, setText] = React.useState("");
 
@@ -45,16 +40,14 @@ export function AskAssistantCard() {
   const ask = useMutation({
     mutationFn: async (input: { projectKey: string; projectId: string }) => {
       if (created.current?.projectId !== input.projectId) {
-        const { id } = await createConversation({
-          projectId: input.projectId,
-        });
+        const { id } = await createConversation();
         created.current = { projectId: input.projectId, id };
       }
       const { id } = created.current;
       await sendMessage({
         conversationId: id,
         text: text.trim(),
-        environmentId: null,
+        context: { kind: "project", projectId: input.projectId },
       });
       created.current = null;
       return { projectKey: input.projectKey, conversationId: id };
@@ -65,10 +58,7 @@ export function AskAssistantCard() {
 
   if (!allowance?.enabled || !projects || projects.length === 0) return null;
 
-  const project =
-    projects.find((p) => p.id === picked) ??
-    projects.find((p) => p.id === lastProjectId) ??
-    projects[0];
+  const project = projects.find((p) => p.id === picked) ?? projects[0];
   if (!project) return null;
 
   const capped = allowance.capReached;

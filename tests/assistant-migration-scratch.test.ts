@@ -14,15 +14,16 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// The assistant-providers migration. Its text rules always run; its effect on
-// real rows needs the local menara-postgres container (superuser password
-// read from the container, never printed): a throwaway database gets every
-// migration before 20261122000000_assistant_providers, the fixtures go in,
-// then the real drizzle/ folder runs the migration and its backfill.
+// The assistant-providers and global-assistant migrations. Their text rules
+// always run; their effect on real rows needs the local menara-postgres
+// container (superuser password read from the container, never printed): a
+// throwaway database gets every migration before the one under test, the
+// fixtures go in, then the real drizzle/ folder runs it and its backfill.
 //
 //   ASSISTANT_SCRATCH_DB=1 env -u SECRETS_KEY bun --bun vitest run tests/assistant-migration-scratch.test.ts
 const enabled = process.env.ASSISTANT_SCRATCH_DB === "1";
 const MIGRATION = "20261122000000_assistant_providers";
+const GLOBAL = "20261123000000_global_assistant";
 const migrationSql = readFileSync(
   join("drizzle", MIGRATION, "migration.sql"),
   "utf8"
@@ -58,9 +59,48 @@ describe("assistant providers migration, as text", () => {
     expect(folders.indexOf(MIGRATION)).toBe(
       folders.indexOf("20261121000000_assistant_org_context") + 1
     );
-    expect(folders.at(-1)).toBe(MIGRATION);
   });
 });
+
+const globalSql = readFileSync(
+  join("drizzle", GLOBAL, "migration.sql"),
+  "utf8"
+);
+
+describe("global assistant migration, as text", () => {
+  it("follows the migrator rules and sorts last, after the providers migration", () => {
+    expect(globalSql).not.toMatch(/\b(BEGIN|COMMIT)\b/);
+    expect(
+      globalSql.startsWith(
+        "SET LOCAL lock_timeout = '5s';--> statement-breakpoint"
+      )
+    ).toBe(true);
+    const folders = readdirSync("drizzle").sort();
+    expect(folders.indexOf(GLOBAL)).toBe(folders.indexOf(MIGRATION) + 1);
+    expect(folders.at(-1)).toBe(GLOBAL);
+  });
+
+  it("is expand only: relaxes the conversation's project, adds nullable columns", () => {
+    const withoutRelaxing = globalSql
+      .replace(/\bDROP NOT NULL\b/g, "")
+      .replace(/\bON DELETE SET NULL\b/g, "");
+    expect(withoutRelaxing).not.toMatch(/\b(DROP|RENAME|TRUNCATE|DELETE)\b/);
+    expect(globalSql).toContain(
+      'ALTER TABLE "assistant_conversations" ALTER COLUMN "project_id" DROP NOT NULL'
+    );
+    expect(globalSql).not.toMatch(/ADD COLUMN [^;]*NOT NULL/);
+  });
+});
+
+/** Every migration folder that sorts before `folder`, copied to a temp dir. */
+function foldersBefore(folder: string): string {
+  const dir = mkdtempSync(join(tmpdir(), "menara-assistant-migration-"));
+  for (const entry of readdirSync("drizzle")) {
+    if (entry >= folder) continue;
+    cpSync(join("drizzle", entry), join(dir, entry), { recursive: true });
+  }
+  return dir;
+}
 
 const password = enabled
   ? encodeURIComponent(
@@ -125,13 +165,7 @@ describe.skipIf(!enabled)(
       });
       const db = drizzle({ client: sql });
 
-      before = mkdtempSync(join(tmpdir(), "menara-assistant-providers-"));
-      for (const entry of readdirSync("drizzle")) {
-        if (entry === MIGRATION) continue;
-        cpSync(join("drizzle", entry), join(before, entry), {
-          recursive: true,
-        });
-      }
+      before = foldersBefore(MIGRATION);
       await migrate(db, { migrationsFolder: before });
 
       await sql`update instance_settings set assistant_enabled = true,
@@ -267,6 +301,151 @@ describe.skipIf(!enabled)(
         environment_id: null,
         environment_name: "Staging",
       });
+    });
+  }
+);
+
+const globalDbName = `global_assistant_${randomBytes(4).toString("hex")}`;
+const STAGE2 = id(31); // a Stage 2 conversation, bound to PROJECT
+const GONE_ENV = id(32); // its environment, deleted before the migration
+const SQ1 = id(41); // question about the project branches
+const SA1 = id(42);
+const SQ2 = id(43); // question about ENV
+const SQ3 = id(44); // question about the deleted environment
+const DRAFT = id(51);
+
+describe.skipIf(!enabled)(
+  "global assistant migration on a real Postgres",
+  () => {
+    const admin = postgres(`${base}/postgres`, { max: 1, onnotice: () => {} });
+    let sql: ReturnType<typeof postgres>;
+    let before: string | undefined;
+
+    beforeAll(async () => {
+      await admin.unsafe(`create database ${globalDbName}`);
+      sql = postgres(`${base}/${globalDbName}`, {
+        max: 2,
+        onnotice: () => {},
+        connection: { TimeZone: "UTC" },
+      });
+      const db = drizzle({ client: sql });
+      before = foldersBefore(GLOBAL);
+      await migrate(db, { migrationsFolder: before });
+
+      await sql`insert into users (id, name, email) values
+        (${USER}, 'Engineer', 'engineer@example.invalid')`;
+      await sql`insert into projects (id, name, key) values
+        (${PROJECT}, 'Acme', 'ACME')`;
+      await sql`insert into environments (id, project_id, name, slug) values
+        (${ENV}, ${PROJECT}, 'Staging', 'staging'),
+        (${GONE_ENV}, ${PROJECT}, 'Old', 'old')`;
+      await sql`insert into assistant_conversations (id, user_id, project_id)
+        values (${STAGE2}, ${USER}, ${PROJECT})`;
+      await sql`insert into assistant_messages
+        (id, conversation_id, role, status, environment_id, environment_name)
+        values
+        (${SQ1}, ${STAGE2}, 'user', 'done', null, null),
+        (${SA1}, ${STAGE2}, 'assistant', 'done', null, null),
+        (${SQ2}, ${STAGE2}, 'user', 'done', ${ENV}, 'Staging'),
+        (${SQ3}, ${STAGE2}, 'user', 'done', ${GONE_ENV}, 'Old')`;
+      await sql`delete from environments where id = ${GONE_ENV}`;
+      await sql`insert into assistant_drafts (id, conversation_id, kind, content)
+        values (${DRAFT}, ${STAGE2}, 'brd', '{}')`;
+
+      await migrate(db, { migrationsFolder: "drizzle" });
+    });
+
+    afterAll(async () => {
+      if (before) rmSync(before, { recursive: true, force: true });
+      await sql?.end();
+      await admin.unsafe(
+        `drop database if exists ${globalDbName} with (force)`
+      );
+      await admin.end();
+    });
+
+    it("gives each Stage 2 question its conversation's project, answers none", async () => {
+      const rows = await sql`select id, project_id, project_name,
+        environment_id, environment_name from assistant_messages order by id`;
+      expect(rows).toEqual([
+        {
+          id: SQ1,
+          project_id: PROJECT,
+          project_name: "Acme",
+          environment_id: null,
+          environment_name: null,
+        },
+        {
+          id: SA1,
+          project_id: null,
+          project_name: null,
+          environment_id: null,
+          environment_name: null,
+        },
+        {
+          id: SQ2,
+          project_id: PROJECT,
+          project_name: "Acme",
+          environment_id: ENV,
+          environment_name: "Staging",
+        },
+        {
+          id: SQ3,
+          project_id: PROJECT,
+          project_name: "Acme",
+          environment_id: null,
+          environment_name: "Old",
+        },
+      ]);
+    });
+
+    it("keeps Stage 2 rows readable as pinned contexts", async () => {
+      const { contextFromRow } = await import("@/lib/assistant/context");
+      const rows = await sql`select project_id as "projectId",
+        project_name as "projectName", environment_id as "environmentId",
+        environment_name as "environmentName" from assistant_messages
+        where role = 'user' order by id`;
+      expect(
+        rows.map((row) =>
+          contextFromRow(row as unknown as Parameters<typeof contextFromRow>[0])
+        )
+      ).toEqual([
+        { kind: "project", projectId: PROJECT, projectName: "Acme" },
+        {
+          kind: "environment",
+          environmentId: ENV,
+          environmentName: "Staging",
+          projectId: PROJECT,
+          projectName: "Acme",
+        },
+        { kind: "gone", of: "environment", label: "Old" },
+      ]);
+    });
+
+    it("gives each draft its conversation's project", async () => {
+      const [draft] =
+        await sql`select project_id from assistant_drafts where id = ${DRAFT}`;
+      expect(draft).toEqual({ project_id: PROJECT });
+    });
+
+    it("allows a conversation without a project, and nulls a deleted project's ids", async () => {
+      const fresh = id(61);
+      await sql`insert into assistant_conversations (id, user_id)
+        values (${fresh}, ${USER})`;
+      // Deleting the project still removes its Stage 2 conversations (FK
+      // cascade, unchanged); a question of a global conversation keeps its
+      // name snapshot.
+      const q = id(62);
+      await sql`insert into assistant_messages
+        (id, conversation_id, role, status, project_id, project_name)
+        values (${q}, ${fresh}, 'user', 'done', ${PROJECT}, 'Acme')`;
+      await sql`delete from projects where id = ${PROJECT}`;
+      expect(
+        await sql`select id from assistant_conversations order by id`
+      ).toEqual([{ id: fresh }]);
+      const [row] = await sql`select project_id, project_name
+        from assistant_messages where id = ${q}`;
+      expect(row).toEqual({ project_id: null, project_name: "Acme" });
     });
   }
 );

@@ -186,6 +186,7 @@ const json = (value: unknown) => {
 
 beforeEach(() => {
   state.transcript = {
+    projectId: "project-1",
     projectName: "Membership",
     messages: [
       {
@@ -246,7 +247,12 @@ describe("generateDraft request", () => {
     expect(userText).toContain("IuranService.java:42");
 
     expect(state.drafts).toEqual([
-      { conversationId: "conv-1", kind: "jira", content: JIRA_JSON },
+      {
+        conversationId: "conv-1",
+        projectId: "project-1",
+        kind: "jira",
+        content: JIRA_JSON,
+      },
     ]);
     expect(state.usage).toHaveLength(1);
     expect(state.usage[0]).toMatchObject({
@@ -259,6 +265,21 @@ describe("generateDraft request", () => {
       // 3000 × 3 + 800 × 15 per million.
       costUsd: "0.021000",
     });
+  });
+
+  it("leaves the project line out and stores no project when the conversation has none", async () => {
+    state.transcript = {
+      messages: state.transcript?.messages ?? [],
+      projectId: null,
+      projectName: null,
+    };
+    const { calls } = await draft({ text: json(JIRA_JSON) }, "jira");
+    const userText = JSON.stringify(
+      (calls[0] as CallOptions).prompt[1]?.content
+    );
+    expect(userText).not.toContain("Project:");
+    expect(userText).toContain("<conversation>");
+    expect(state.drafts[0]).toMatchObject({ projectId: null });
   });
 
   it.each(PROVIDERS.map((p) => [p]))(
@@ -292,6 +313,7 @@ describe("generateDraft request", () => {
     }
     expect(state.drafts[0]).toEqual({
       conversationId: "conv-1",
+      projectId: "project-1",
       kind: "brd",
       content: brd,
     });
@@ -384,6 +406,7 @@ describe("generateDraft failures", () => {
 
   it("a conversation without a finished answer is assistant.nothing_to_draft, with no request", async () => {
     state.transcript = {
+      projectId: "project-1",
       projectName: "Membership",
       messages: [{ role: "user", content: "Halo", environmentName: null }],
     };

@@ -177,7 +177,6 @@ describe.skipIf(!enabled)(
 
       const conversationId = await store.insertConversation({
         userId: user.id,
-        projectId: project.id,
       });
       await d.insert(schema.assistantMessages).values([
         {
@@ -185,6 +184,8 @@ describe.skipIf(!enabled)(
           role: "user",
           status: "done",
           content: "Tanya",
+          projectId: project.id,
+          projectName: project.name,
           environmentId: env.id,
           environmentName: "Dev 1",
         },
@@ -196,9 +197,18 @@ describe.skipIf(!enabled)(
           content: "Separuh",
         },
         { conversationId, role: "assistant", status: "done", content: "  " },
-        { conversationId, role: "user", status: "done", content: "Lagi" },
+        {
+          conversationId,
+          role: "user",
+          status: "done",
+          content: "Lagi",
+          projectId: project.id,
+          projectName: project.name,
+        },
       ]);
+      // The draft is about the latest question's project.
       expect(await drafts.loadDraftTranscript(conversationId)).toEqual({
+        projectId: project.id,
         projectName: "Kestrel Membership",
         messages: [
           { role: "user", content: "Tanya", environmentName: "Dev 1" },
@@ -215,15 +225,13 @@ describe.skipIf(!enabled)(
       };
       const draftId = await drafts.insertDraft({
         conversationId,
+        projectId: project.id,
         kind: "jira",
         content,
       });
       expect(await drafts.findDraftOwner(draftId)).toEqual({
-        conversation: {
-          id: conversationId,
-          userId: user.id,
-          projectId: project.id,
-        },
+        conversation: { id: conversationId, userId: user.id },
+        projectId: project.id,
         kind: "jira",
         issueId: null,
       });
@@ -344,8 +352,11 @@ describe.skipIf(!enabled)(
         description: "x",
         acceptanceCriteria: [],
       };
+      const [project] = await d.select().from(schema.projects).limit(1);
+      if (!project) throw new Error("first test's rows missing");
       const draftId = await drafts.insertDraft({
         conversationId: conversation.id,
+        projectId: project.id,
         kind: "jira",
         content,
       });
@@ -370,7 +381,7 @@ describe.skipIf(!enabled)(
             posts++;
             await sync`begin`;
             await sync`insert into issues (project_id, number, title, jira_issue_id, jira_key)
-              values (${conversation.projectId}, 100, 'Race (synced)', '20002', 'KST-902')`;
+              values (${project.id}, 100, 'Race (synced)', '20002', 'KST-902')`;
             // Commit once the assistant's insert is waiting on the row.
             setTimeout(() => {
               sync`commit`.then(() => {});
@@ -414,6 +425,7 @@ describe.skipIf(!enabled)(
       // The record a failed local write leaves, read back by the next try.
       const other = await drafts.insertDraft({
         conversationId: conversation.id,
+        projectId: project.id,
         kind: "jira",
         content,
       });

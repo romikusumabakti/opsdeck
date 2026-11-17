@@ -16,13 +16,9 @@ import { useMessageStream } from "./use-message-stream";
 const isPending = (m: ConversationMessage) =>
   m.role === "assistant" && (m.status === "queued" || m.status === "streaming");
 
-/** The question asked about the project branches (no environment, not even a deleted one). */
+/** The question asked about the project branches (a project still there). */
 function isProjectBranches(question: ConversationMessage | undefined) {
-  return (
-    question !== undefined &&
-    question.environmentId === null &&
-    !question.environmentDeleted
-  );
+  return question?.context?.kind === "project" && !question.context.deleted;
 }
 
 /** The conversation's unfinished answer, if any (at most one at a time). */

@@ -252,6 +252,24 @@ const PROJECT_SOURCE: AssistantSource = {
   deployedAt: null,
 };
 
+/** A question pinned to the project branches of the turn's project. */
+const PROJECT_CONTEXT = {
+  kind: "project",
+  projectId: "project-1",
+  projectName: "Kestrel Membership",
+} as const;
+
+/** A question pinned to an environment of the turn's project. */
+function envContext(environmentName: string, environmentId = "env-x") {
+  return {
+    kind: "environment",
+    environmentId,
+    environmentName,
+    projectId: "project-1",
+    projectName: "Kestrel Membership",
+  } as const;
+}
+
 function baseTurn(): TurnContext {
   return {
     messageId: MESSAGE_ID,
@@ -260,16 +278,13 @@ function baseTurn(): TurnContext {
     conversationId: "conv-1",
     userId: USER_ID,
     userName: "Widya",
-    projectId: "project-1",
-    projectName: "Kestrel Membership",
-    environmentId: "env-1",
-    environmentName: "Dev 1",
+    context: envContext("Dev 1", "env-1"),
     history: [
       {
         role: "user",
         content: "Bagaimana Iuran dihitung?",
         status: "done",
-        environmentName: "Dev 1",
+        context: envContext("Dev 1", "env-1"),
       },
     ],
     attachmentIds: [],
@@ -323,7 +338,7 @@ function deps(
     loadViewer: async () => ({
       userId: USER_ID,
       orgRole: "qa",
-      projectIds: ["p1"],
+      projectIds: ["project-1"],
       canManageKnowledge: false,
     }),
     spentToday: async () => 0,
@@ -919,7 +934,7 @@ describe("runTurn", () => {
   });
 
   it("reads the project branches when the question names no environment", async () => {
-    state.turn = { ...baseTurn(), environmentId: null, environmentName: null };
+    state.turn = { ...baseTurn(), context: PROJECT_CONTEXT };
     const resolveSources = vi.fn(async () => [SOURCE]);
     const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
     const ensureSnapshot = vi.fn(async () => ({
@@ -964,8 +979,7 @@ describe("runTurn", () => {
     const environment = await cachedOf(baseTurn());
     const project = await cachedOf({
       ...baseTurn(),
-      environmentId: null,
-      environmentName: null,
+      context: PROJECT_CONTEXT,
     });
     expect(environment).toMatchObject({ providerOptions: CACHE });
     expect(project).toEqual(environment);
@@ -979,27 +993,32 @@ describe("runTurn", () => {
         role: "user",
         content: "Di Dev 1?",
         status: "done",
-        environmentName: "Dev 1",
+        context: envContext("Dev 1"),
       },
       {
         role: "assistant",
         content: "Jawab 1",
         status: "done",
-        environmentName: null,
+        context: null,
       },
       {
         role: "user",
         content: "Di branch?",
         status: "done",
-        environmentName: null,
+        context: PROJECT_CONTEXT,
       },
       {
         role: "assistant",
         content: "Jawab 2",
         status: "done",
-        environmentName: null,
+        context: null,
       },
-      { role: "user", content: "Lalu?", status: "done", environmentName: null },
+      {
+        role: "user",
+        content: "Lalu?",
+        status: "done",
+        context: PROJECT_CONTEXT,
+      },
     ];
     const promptOf = async (turn: TurnContext) => {
       state.turn = turn;
@@ -1017,8 +1036,7 @@ describe("runTurn", () => {
     const project = await promptOf({
       ...baseTurn(),
       history,
-      environmentId: null,
-      environmentName: null,
+      context: PROJECT_CONTEXT,
     });
     // Everything before the new question: both system messages and the
     // replayed turns.
@@ -1030,8 +1048,7 @@ describe("runTurn", () => {
   it("fails with environment_gone when the question's environment was deleted", async () => {
     state.turn = {
       ...baseTurn(),
-      environmentId: null,
-      environmentName: "Dev 1",
+      context: { kind: "gone", of: "environment", label: "Dev 1" },
     };
     const resolveSources = vi.fn(async () => [SOURCE]);
     const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
@@ -1048,29 +1065,115 @@ describe("runTurn", () => {
     expect(state.usage).toEqual([]);
   });
 
+  it.each([
+    ["a pinned project", PROJECT_CONTEXT],
+    ["an environment", envContext("Dev 1", "env-1")],
+  ])(
+    "fails with context_gone when the user lost %s's project after sending",
+    async (_label, context) => {
+      state.turn = { ...baseTurn(), context };
+      const resolveSources = vi.fn(async () => [SOURCE]);
+      const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
+      const { model, calls } = mockModel([]);
+      await runTurn(
+        MESSAGE_ID,
+        deps(model, {
+          resolveSources,
+          resolveProjectSources,
+          loadViewer: async () => ({
+            userId: USER_ID,
+            orgRole: "qa",
+            projectIds: ["another-project"],
+            canManageKnowledge: false,
+          }),
+        })
+      );
+      expect(calls).toHaveLength(0);
+      expect(resolveSources).not.toHaveBeenCalled();
+      expect(resolveProjectSources).not.toHaveBeenCalled();
+      expect(state.message.status).toBe("failed");
+      expect(state.message.errorCode).toBe("assistant.context_gone");
+      expect(state.usage).toEqual([]);
+    }
+  );
+
+  it("fails with context_gone when the pinned project was deleted", async () => {
+    state.turn = {
+      ...baseTurn(),
+      context: { kind: "gone", of: "project", label: "Kestrel Membership" },
+    };
+    const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
+    const { model, calls } = mockModel([]);
+    await runTurn(MESSAGE_ID, deps(model, { resolveProjectSources }));
+    expect(calls).toHaveLength(0);
+    expect(resolveProjectSources).not.toHaveBeenCalled();
+    expect(state.message.errorCode).toBe("assistant.context_gone");
+  });
+
+  it("runs an automatic question with no code sources, saying no code is selected", async () => {
+    state.turn = {
+      ...baseTurn(),
+      context: { kind: "auto" },
+      history: [
+        {
+          role: "user",
+          content: "Apa saja?",
+          status: "done",
+          context: { kind: "auto" },
+        },
+      ],
+    };
+    const resolveSources = vi.fn(async () => [SOURCE]);
+    const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
+    const ensureSnapshot = vi.fn();
+    const { model, calls } = mockModel([{ text: ["ok"], finish: "stop" }]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, { resolveSources, resolveProjectSources, ensureSnapshot })
+    );
+    expect(resolveSources).not.toHaveBeenCalled();
+    expect(resolveProjectSources).not.toHaveBeenCalled();
+    expect(ensureSnapshot).not.toHaveBeenCalled();
+    const note = sourceNoteOf(calls[0]);
+    expect(note).toContain("Context: automatic");
+    expect(note).toContain("No source code is available");
+    expect(state.message.sources).toEqual([]);
+    expect(state.message.status).toBe("done");
+  });
+
   it("rebuilds the history as text and skips empty failed answers", async () => {
     state.turn = {
       ...baseTurn(),
       history: [
-        { role: "user", content: "Q1", status: "done", environmentName: "UAT" },
+        {
+          role: "user",
+          content: "Q1",
+          status: "done",
+          context: envContext("UAT"),
+        },
         {
           role: "assistant",
           content: "A1",
           status: "done",
-          environmentName: null,
+          context: null,
         },
-        { role: "user", content: "Q2", status: "done", environmentName: null },
+        {
+          role: "user",
+          content: "Q2",
+          status: "done",
+          context: PROJECT_CONTEXT,
+        },
         {
           role: "assistant",
           content: "",
           status: "failed",
-          environmentName: null,
+          context: null,
         },
         {
           role: "user",
           content: "Q3",
           status: "done",
-          environmentName: "Dev 1",
+          context: envContext("Dev 1"),
         },
       ],
       // A malformed (pre-pair) entry is dropped.

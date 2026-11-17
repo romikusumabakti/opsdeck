@@ -38,8 +38,8 @@ vi.mock("@/web/api/assistant", () => ({
     queryKey: ["assistant", "getConversation", [id]],
     queryFn: () => conversationFetch.get(id)?.() ?? new Promise(() => {}),
   }),
-  listConversationsQuery: (id: string) => ({
-    queryKey: ["assistant", "listConversations", [id]],
+  listConversationsQuery: () => ({
+    queryKey: ["assistant", "listConversations"],
     queryFn: () => new Promise(() => {}),
   }),
   listIssueAttachmentsQuery: (env: string, key: string) => ({
@@ -212,6 +212,36 @@ const confirmButton = () =>
   ].find((b) => b.textContent?.trim() === messages.assistant.confirmCreate);
 
 const t = messages.assistant;
+
+/**
+ * A message's context as the API returns it: none on answers, the project
+ * branches of "Heron Membership" without an environment name, else that
+ * environment.
+ */
+function contextOf(
+  role: string,
+  environmentId: string | null,
+  environmentName: string | null,
+  deleted = false
+) {
+  if (role !== "user") return null;
+  if (environmentName === null) {
+    return {
+      kind: "project",
+      label: "Heron Membership",
+      deleted: false,
+      projectId: "p1",
+      environmentId: null,
+    };
+  }
+  return {
+    kind: "environment",
+    label: environmentName,
+    deleted,
+    projectId: "p1",
+    environmentId,
+  };
+}
 
 // --- tests -------------------------------------------------------------------
 
@@ -560,9 +590,7 @@ describe("sources", () => {
       attachmentIds: [],
       createdAt: "2026-11-16T01:00:00Z",
       toolCalls: [],
-      environmentId,
-      environmentName,
-      environmentDeleted: false,
+      context: contextOf(role, environmentId, environmentName),
     });
     queryClient.setQueryData(["assistant", "getConversation", ["c1"]], {
       id: "c1",
@@ -1070,7 +1098,6 @@ describe("drafts panel in the workspace", () => {
   });
   const conversation = {
     id: "c1",
-    projectId: "p1",
     title: "Iuran",
     drafts: [] as ReturnType<typeof draft>[],
     jiraPushEnabled: false,
@@ -1089,7 +1116,7 @@ describe("drafts panel in the workspace", () => {
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
     queryClient.setQueryData(
-      ["assistant", "listConversations", ["p1"]],
+      ["assistant", "listConversations"],
       [{ id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }]
     );
     queryClient.setQueryData(conversationKey, conversation);
@@ -1155,7 +1182,7 @@ describe("drafts panel in the workspace", () => {
   it("does not open when switching to a conversation that already has drafts", async () => {
     await renderWorkspace();
     queryClient.setQueryData(
-      ["assistant", "listConversations", ["p1"]],
+      ["assistant", "listConversations"],
       [
         { id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" },
         { id: "c2", title: "Pajak", updatedAt: "2026-11-16T01:00:00Z" },
@@ -1164,7 +1191,6 @@ describe("drafts panel in the workspace", () => {
     queryClient.setQueryData(["assistant", "getConversation", ["c2"]], {
       ...conversation,
       id: "c2",
-      projectId: "p1",
       title: "Pajak",
       drafts: [draft("d1"), draft("d2")],
     });
@@ -1206,14 +1232,18 @@ describe("source chip", () => {
     attachmentIds: [],
     createdAt: "2026-11-16T01:00:00Z",
     toolCalls: [],
-    environmentId,
-    environmentName,
-    environmentDeleted,
+    context: contextOf(
+      "user",
+      environmentId,
+      environmentName,
+      environmentDeleted
+    ),
   });
   const answer = {
     ...userMessage("a1", null, null),
     role: "assistant",
     content: "Jawaban",
+    context: null,
   };
   const chip = () =>
     container.querySelector<HTMLElement>('[data-slot="combobox-trigger"]');
@@ -1244,12 +1274,11 @@ describe("source chip", () => {
       project
     );
     queryClient.setQueryData(
-      ["assistant", "listConversations", ["p1"]],
+      ["assistant", "listConversations"],
       [{ id: CONV_ID, title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }]
     );
     queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
       id: CONV_ID,
-      projectId: "p1",
       title: "Iuran",
       drafts: [],
       jiraPushEnabled: false,
@@ -1279,17 +1308,17 @@ describe("source chip", () => {
     await act(async () => button(t.send)?.click());
   };
 
-  it("defaults to Project branches and sends environmentId null", async () => {
+  it("defaults to Project branches and sends the project as the context", async () => {
     api.createConversation.mockResolvedValue({ id: CONV_ID });
     api.sendMessage.mockResolvedValue({});
     await renderWorkspace();
     expect(chip()?.textContent).toBe(t.sourceProjectBranches);
     await typeAndSend("Di mana hitung iuran?");
-    expect(api.createConversation).toHaveBeenCalledWith({ projectId: "p1" });
+    expect(api.createConversation).toHaveBeenCalledExactlyOnceWith();
     expect(api.sendMessage).toHaveBeenCalledWith({
       conversationId: CONV_ID,
       text: "Di mana hitung iuran?",
-      environmentId: null,
+      context: { kind: "project", projectId: "p1" },
     });
   });
 
@@ -1350,7 +1379,7 @@ describe("source chip", () => {
     expect(api.sendMessage).toHaveBeenCalledWith({
       conversationId: CONV_ID,
       text: "Bedanya di UAT?",
-      environmentId: ENV_2,
+      context: { kind: "environment", environmentId: ENV_2 },
     });
   });
 
@@ -1395,25 +1424,25 @@ describe("source chip", () => {
     expect(chip()?.hasAttribute("disabled")).toBe(true);
   });
 
-  it("drops a ?c= conversation of another project", async () => {
+  it("opens a conversation whose last question pinned another project's environment, at Project branches", async () => {
     const onConversationChange = vi.fn();
     await renderWorkspace({ conversationId: CONV_ID, onConversationChange }, [
+      {
+        ...userMessage("u1", null, null),
+        context: {
+          kind: "environment",
+          label: "Globex Staging",
+          deleted: false,
+          projectId: "p2",
+          environmentId: "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4a99",
+        },
+      },
       answer,
     ]);
-    await act(async () => {
-      queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
-        id: CONV_ID,
-        projectId: "p2",
-        title: "Elsewhere",
-        drafts: [],
-        jiraPushEnabled: false,
-        messages: [answer],
-      });
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(onConversationChange).toHaveBeenLastCalledWith(null);
-    expect(text()).not.toContain("Jawaban");
-    expect(button(t.newDraft)).toBeUndefined();
+    await settle();
+    expect(onConversationChange).not.toHaveBeenCalledWith(null);
+    expect(text()).toContain("Jawaban");
+    expect(chip()?.textContent).toBe(t.sourceProjectBranches);
   });
 
   it("drops a ?c= conversation that is not found", async () => {
@@ -1487,9 +1516,7 @@ describe("question bubble source", () => {
     attachmentIds: [],
     createdAt: "2026-11-16T01:00:00Z",
     toolCalls: [],
-    environmentId: null as string | null,
-    environmentName: null as string | null,
-    environmentDeleted: false,
+    context: contextOf("user", null, null),
   };
 
   it("shows no label for Project branches", async () => {
@@ -1505,8 +1532,7 @@ describe("question bubble source", () => {
         message={
           {
             ...question,
-            environmentId: ENV_ID,
-            environmentName: "Heron Membership Dev 1",
+            context: contextOf("user", ENV_ID, "Heron Membership Dev 1"),
           } as never
         }
         projectName="Heron Membership"
@@ -1522,8 +1548,7 @@ describe("question bubble source", () => {
         message={
           {
             ...question,
-            environmentName: "Heron Membership Dev 1",
-            environmentDeleted: true,
+            context: contextOf("user", null, "Heron Membership Dev 1", true),
           } as never
         }
         projectName="Heron Membership"

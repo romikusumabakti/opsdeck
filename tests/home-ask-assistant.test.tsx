@@ -23,10 +23,6 @@ vi.mock("@/web/api/assistant", () => ({
     queryKey: ["assistant", "getAllowance"],
     queryFn: () => new Promise(() => {}),
   }),
-  getLastProjectQuery: () => ({
-    queryKey: ["assistant", "getLastProject"],
-    queryFn: () => new Promise(() => {}),
-  }),
   ...api,
 }));
 vi.mock("@/web/api/project-catalog", () => ({
@@ -70,11 +66,7 @@ afterEach(() => {
   container.remove();
 });
 
-async function renderCard(opts: {
-  allowance?: object;
-  projects?: object[];
-  last?: string | null;
-}) {
+async function renderCard(opts: { allowance?: object; projects?: object[] }) {
   queryClient.setQueryData(
     ["assistant", "getAllowance"],
     opts.allowance ?? ENABLED
@@ -83,9 +75,6 @@ async function renderCard(opts: {
     ["project-catalog", "listProjects", []],
     opts.projects ?? PROJECTS
   );
-  queryClient.setQueryData(["assistant", "getLastProject"], {
-    projectId: opts.last ?? null,
-  });
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -140,10 +129,10 @@ describe("home ask-the-assistant card", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("lists only the visible projects and defaults to the most recent one", async () => {
-    await renderCard({ last: "p2" });
+  it("lists only the visible projects and defaults to the first one", async () => {
+    await renderCard({});
     const trigger = container.querySelector('[data-slot="combobox-trigger"]');
-    expect(trigger?.textContent).toContain("Globex");
+    expect(trigger?.textContent).toContain("Acme Shop");
     await act(async () =>
       trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     );
@@ -153,26 +142,19 @@ describe("home ask-the-assistant card", () => {
     expect(items).toEqual(["Acme Shop", "Globex"]);
   });
 
-  it("falls back to the first project when the last one is no longer visible", async () => {
-    await renderCard({ last: "gone" });
-    expect(
-      container.querySelector('[data-slot="combobox-trigger"]')?.textContent
-    ).toContain("Acme Shop");
-  });
-
   it("Enter creates the conversation, sends the question and opens it", async () => {
     api.createConversation.mockResolvedValue({ id: "c1" });
     api.sendMessage.mockResolvedValue({});
-    await renderCard({ last: "p2" });
+    await renderCard({});
     await type("Where is login handled?");
     await press(false);
-    expect(api.createConversation).toHaveBeenCalledWith({ projectId: "p2" });
+    expect(api.createConversation).toHaveBeenCalledExactlyOnceWith();
     expect(api.sendMessage).toHaveBeenCalledWith({
       conversationId: "c1",
       text: "Where is login handled?",
-      environmentId: null,
+      context: { kind: "project", projectId: "p1" },
     });
-    expect(nav.push).toHaveBeenCalledWith("/GLOBEX/assistant?c=c1");
+    expect(nav.push).toHaveBeenCalledWith("/ACME/assistant?c=c1");
   });
 
   it("Shift+Enter does not send", async () => {

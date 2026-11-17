@@ -4,9 +4,9 @@ import {
   assistantConversations,
   assistantMessages,
   assistantToolCalls,
-  projects,
   users,
 } from "@/lib/db/schema";
+import { contextFromRow, type StoredQuestionContext } from "./context";
 import type { AssistantSource } from "./sources";
 
 /**
@@ -20,8 +20,8 @@ export type TurnHistoryMessage = {
   role: "user" | "assistant";
   content: string;
   status: "queued" | "streaming" | "done" | "failed";
-  /** User messages: the environment asked about; null for project branches. */
-  environmentName: string | null;
+  /** User messages: the context asked about; null on assistant messages. */
+  context: StoredQuestionContext | null;
 };
 
 export type TurnContext = {
@@ -32,16 +32,12 @@ export type TurnContext = {
   conversationId: string;
   userId: string;
   userName: string;
-  projectId: string;
-  projectName: string;
   /**
-   * The source of the question this turn answers, from its user message:
-   * an environment id, or null for the project branches — unless
-   * environmentName is set, which means the asked-about environment was
-   * deleted since (the id is set null, the name snapshot stays).
+   * The context of the question this turn answers, from its user message
+   * as stored: not yet checked against the user's current access (runTurn
+   * does), and "gone" once the pinned project or environment was deleted.
    */
-  environmentId: string | null;
-  environmentName: string | null;
+  context: StoredQuestionContext;
   /** Messages before this one, oldest first. */
   history: TurnHistoryMessage[];
   /** Attachment ids ticked on the user message this turn answers. */
@@ -59,8 +55,6 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       conversationId: assistantMessages.conversationId,
       userId: assistantConversations.userId,
       userName: users.name,
-      projectId: assistantConversations.projectId,
-      projectName: projects.name,
     })
     .from(assistantMessages)
     .innerJoin(
@@ -68,7 +62,6 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       eq(assistantConversations.id, assistantMessages.conversationId)
     )
     .innerJoin(users, eq(users.id, assistantConversations.userId))
-    .innerJoin(projects, eq(projects.id, assistantConversations.projectId))
     .where(eq(assistantMessages.id, messageId))
     .limit(1);
   if (row?.role !== "assistant") return null;
@@ -82,6 +75,8 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       content: assistantMessages.content,
       status: assistantMessages.status,
       attachmentIds: assistantMessages.attachmentIds,
+      projectId: assistantMessages.projectId,
+      projectName: assistantMessages.projectName,
       environmentId: assistantMessages.environmentId,
       environmentName: assistantMessages.environmentName,
     })
@@ -102,15 +97,12 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
     conversationId: row.conversationId,
     userId: row.userId,
     userName: row.userName,
-    projectId: row.projectId,
-    projectName: row.projectName,
-    environmentId: lastUser?.environmentId ?? null,
-    environmentName: lastUser?.environmentName ?? null,
+    context: lastUser ? contextFromRow(lastUser) : { kind: "auto" },
     history: earlier.map((m) => ({
       role: m.role,
       content: m.content,
       status: m.status,
-      environmentName: m.environmentName,
+      context: m.role === "user" ? contextFromRow(m) : null,
     })),
     attachmentIds: lastUser?.attachmentIds ?? [],
   };

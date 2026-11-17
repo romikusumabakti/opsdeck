@@ -226,7 +226,10 @@ export function buildDraftUserMessage(
     kind === "jira"
       ? "Write the Jira ticket draft for this conversation."
       : "Write the BRD chapter draft for this conversation.";
-  return `Project: ${transcript.projectName}\n\n<conversation>\n${turns}\n</conversation>\n\n${ask}`;
+  const project = transcript.projectName
+    ? `Project: ${transcript.projectName}\n\n`
+    : "";
+  return `${project}<conversation>\n${turns}\n</conversation>\n\n${ask}`;
 }
 
 const OUTPUT_SCHEMAS = {
@@ -362,6 +365,11 @@ export async function generateDraft(
     );
     throw new TurnError("assistant.failed");
   }
-  const draftId = await insertDraft({ conversationId, kind, content });
+  const draftId = await insertDraft({
+    conversationId,
+    projectId: transcript.projectId,
+    kind,
+    content,
+  });
   return { draftId };
 }

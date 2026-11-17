@@ -84,6 +84,7 @@ export type AssistantErrorCode =
   | "assistant.model_no_tools"
   | "assistant.model_no_drafts"
   | "assistant.environment_gone"
+  | "assistant.context_gone"
   | "assistant.failed";
 
 export type RunTurnDeps = {
@@ -231,7 +232,7 @@ export function buildHistory(
     if (index !== lastUserIndex) {
       messages.push({
         role: "user",
-        content: `${questionSourceLabel(m.environmentName)}\n${m.content}`,
+        content: `${questionSourceLabel(m.context)}\n${m.content}`,
       });
       return;
     }
@@ -268,38 +269,66 @@ type SourceDeps = Required<
   >
 >;
 
+/** The viewer may still use the assistant on the project (every role that sees it may). */
+function viewerSees(viewer: AssistantViewer, projectId: string): boolean {
+  return viewer.projectIds === "all" || viewer.projectIds.includes(projectId);
+}
+
 /**
  * The source the turn's question asked about, from its user message: the
- * running commits of its environment, or the project branches. A question
- * about an environment deleted since cannot be answered as asked.
+ * running commits of its environment, the branches of its project, or
+ * nothing up front for an automatic question. The pinned project is checked
+ * against the user's access again, as at send time: a question whose project
+ * the user lost since, or whose project or environment was deleted, cannot
+ * be answered as asked.
  */
 async function resolveQuestionSources(
   turn: TurnContext,
+  viewer: AssistantViewer,
   deps: SourceDeps
 ): Promise<{ question: QuestionSource; sources: AssistantSource[] }> {
-  if (turn.environmentId !== null) {
-    return {
-      question: {
-        kind: "environment",
-        environmentName: turn.environmentName ?? "",
-      },
-      sources: await deps.resolveSources(turn.environmentId),
-    };
+  const { context } = turn;
+  switch (context.kind) {
+    case "gone":
+      throw new TurnError(
+        context.of === "environment"
+          ? "assistant.environment_gone"
+          : "assistant.context_gone"
+      );
+    case "auto":
+      return { question: { kind: "auto" }, sources: [] };
+    case "project":
+      if (!viewerSees(viewer, context.projectId)) {
+        throw new TurnError("assistant.context_gone");
+      }
+      return {
+        question: { kind: "project" },
+        sources: await deps.resolveProjectSources(context.projectId),
+      };
+    case "environment":
+      if (!viewerSees(viewer, context.projectId)) {
+        throw new TurnError("assistant.context_gone");
+      }
+      return {
+        question: {
+          kind: "environment",
+          environmentName: context.environmentName,
+        },
+        sources: await deps.resolveSources(context.environmentId),
+      };
   }
-  if (turn.environmentName !== null) {
-    throw new TurnError("assistant.environment_gone");
-  }
-  return {
-    question: { kind: "project" },
-    sources: await deps.resolveProjectSources(turn.projectId),
-  };
 }
 
 async function resolveSnapshots(
   turn: TurnContext,
+  viewer: AssistantViewer,
   deps: SourceDeps
 ): Promise<ResolvedSources> {
-  const { question, sources } = await resolveQuestionSources(turn, deps);
+  const { question, sources } = await resolveQuestionSources(
+    turn,
+    viewer,
+    deps
+  );
   // Downloads run in parallel; the order of the sources is kept.
   type Outcome =
     | { source: AssistantSource; snap: Snapshot }
@@ -556,7 +585,7 @@ async function runClaimedTurn(
     (await spentToday(turn.userId, now())) >= runtime.dailyCapUsd;
   if (await capReached()) throw new TurnError("assistant.daily_cap_reached");
   const viewer = await (deps.loadViewer ?? loadAssistantViewer)(turn.userId);
-  const resolved = await resolveSnapshots(turn, {
+  const resolved = await resolveSnapshots(turn, viewer, {
     resolveSources: deps.resolveSources ?? defaultResolveSources,
     resolveProjectSources:
       deps.resolveProjectSources ?? defaultResolveProjectSources,
@@ -582,7 +611,10 @@ async function runClaimedTurn(
     {
       role: "system",
       content: buildSystemPrompt({
-        projectName: turn.projectName,
+        projectName:
+          turn.context.kind === "project" || turn.context.kind === "environment"
+            ? turn.context.projectName
+            : null,
         userName: turn.userName,
         orgContext: runtime.orgContext,
       }),

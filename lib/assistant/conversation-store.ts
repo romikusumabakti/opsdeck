@@ -1,14 +1,22 @@
-import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   assistantConversations,
   assistantDrafts,
   assistantMessages,
   assistantToolCalls,
+  environments,
   instanceSettings,
   issues,
   jiraProjectLinks,
+  projects,
 } from "@/lib/db/schema";
+import {
+  contextColumns,
+  type MessageContext,
+  messageContextOf,
+  type QuestionContext,
+} from "./context";
 import type { AssistantSource } from "./sources";
 
 /**
@@ -52,69 +60,126 @@ export async function loadAssistantLimits(): Promise<{
   };
 }
 
-/** The environment, if it exists and belongs to the project. */
-export async function environmentOfProject(
-  environmentId: string,
+/** The project's name, if it exists. */
+export async function findProject(
   projectId: string
 ): Promise<{ id: string; name: string } | null> {
-  const env = await db.query.environments.findFirst({
-    where: { id: environmentId, projectId },
+  const project = await db.query.projects.findFirst({
+    where: { id: projectId },
     columns: { id: true, name: true },
   });
-  return env ?? null;
+  return project ?? null;
+}
+
+/** The environment with its project's name, if it exists. */
+export async function findEnvironment(environmentId: string): Promise<{
+  id: string;
+  name: string;
+  projectId: string;
+  projectName: string;
+} | null> {
+  const [row] = await db
+    .select({
+      id: environments.id,
+      name: environments.name,
+      projectId: environments.projectId,
+      projectName: projects.name,
+    })
+    .from(environments)
+    .innerJoin(projects, eq(projects.id, environments.projectId))
+    .where(eq(environments.id, environmentId))
+    .limit(1);
+  return row ?? null;
 }
 
 export type ConversationSummary = {
   id: string;
   title: string;
   updatedAt: Date;
+  /**
+   * The name of the project or environment the latest question pinned
+   * (kept once deleted); null for an automatic one or no question yet.
+   */
+  lastContextLabel: string | null;
 };
 
-/** The user's conversations about one project, newest first. */
+/** The user's conversations, all projects, newest first. */
 export async function listConversationsOf(
-  userId: string,
-  projectId: string
+  userId: string
 ): Promise<ConversationSummary[]> {
-  return db
+  const conversations = await db
     .select({
       id: assistantConversations.id,
       title: assistantConversations.title,
       updatedAt: assistantConversations.updatedAt,
     })
     .from(assistantConversations)
+    .where(eq(assistantConversations.userId, userId))
+    .orderBy(desc(assistantConversations.updatedAt));
+  if (conversations.length === 0) return [];
+  // The latest user message of each (uuidv7 ids sort by creation).
+  const latest = await db
+    .selectDistinctOn([assistantMessages.conversationId], {
+      conversationId: assistantMessages.conversationId,
+      projectId: assistantMessages.projectId,
+      projectName: assistantMessages.projectName,
+      environmentId: assistantMessages.environmentId,
+      environmentName: assistantMessages.environmentName,
+    })
+    .from(assistantMessages)
     .where(
       and(
-        eq(assistantConversations.userId, userId),
-        eq(assistantConversations.projectId, projectId)
+        inArray(
+          assistantMessages.conversationId,
+          conversations.map((c) => c.id)
+        ),
+        eq(assistantMessages.role, "user")
       )
     )
-    .orderBy(desc(assistantConversations.updatedAt));
+    .orderBy(assistantMessages.conversationId, desc(assistantMessages.id));
+  const labelOf = new Map(
+    latest.map((row) => [row.conversationId, messageContextOf(row).label])
+  );
+  return conversations.map((c) => ({
+    ...c,
+    lastContextLabel: labelOf.get(c.id) ?? null,
+  }));
 }
 
 /**
- * The project of the user's most recently updated conversation among the
- * projects `scope` allows (a projectScope filter; undefined = all), if any.
+ * The project a draft of the conversation is about: the one its latest
+ * question pinned (or the pinned environment's), else a Stage 2
+ * conversation's project, else none.
  */
-export async function latestConversationProjectOf(
-  userId: string,
-  scope: SQL | undefined
-): Promise<string | null> {
-  const [row] = await db
-    .select({ projectId: assistantConversations.projectId })
-    .from(assistantConversations)
-    .where(and(eq(assistantConversations.userId, userId), scope))
-    .orderBy(desc(assistantConversations.updatedAt))
+export async function questionProjectOf(
+  conversationId: string
+): Promise<{ id: string; name: string } | null> {
+  const [question] = await db
+    .select({ projectId: assistantMessages.projectId })
+    .from(assistantMessages)
+    .where(
+      and(
+        eq(assistantMessages.conversationId, conversationId),
+        eq(assistantMessages.role, "user")
+      )
+    )
+    .orderBy(desc(assistantMessages.id))
     .limit(1);
-  return row?.projectId ?? null;
+  let projectId = question?.projectId ?? null;
+  if (!projectId) {
+    const [conversation] = await db
+      .select({ projectId: assistantConversations.projectId })
+      .from(assistantConversations)
+      .where(eq(assistantConversations.id, conversationId))
+      .limit(1);
+    projectId = conversation?.projectId ?? null;
+  }
+  return projectId ? findProject(projectId) : null;
 }
 
-/**
- * A project conversation. Its environment fields stay null: the source is
- * chosen per question (insertTurn).
- */
+/** A conversation; each question then carries its own context (insertTurn). */
 export async function insertConversation(values: {
   userId: string;
-  projectId: string;
 }): Promise<string> {
   const [row] = await db
     .insert(assistantConversations)
@@ -127,7 +192,6 @@ export async function insertConversation(values: {
 export type ConversationOwner = {
   id: string;
   userId: string;
-  projectId: string;
 };
 
 export async function findConversation(
@@ -137,7 +201,6 @@ export async function findConversation(
     .select({
       id: assistantConversations.id,
       userId: assistantConversations.userId,
-      projectId: assistantConversations.projectId,
     })
     .from(assistantConversations)
     .where(eq(assistantConversations.id, conversationId))
@@ -153,7 +216,6 @@ export async function findAssistantMessageConversation(
     .select({
       id: assistantConversations.id,
       userId: assistantConversations.userId,
-      projectId: assistantConversations.projectId,
     })
     .from(assistantMessages)
     .innerJoin(
@@ -180,15 +242,8 @@ export type ConversationMessage = {
   errorCode: string | null;
   sources: AssistantSource[] | null;
   attachmentIds: string[];
-  /**
-   * User messages: the environment the question asked about; both null for
-   * the project branches. Once that environment is deleted the id is null,
-   * the name snapshot stays and environmentDeleted is true. Always null and
-   * false on assistant messages.
-   */
-  environmentId: string | null;
-  environmentName: string | null;
-  environmentDeleted: boolean;
+  /** User messages: the context the question asked about; null on answers. */
+  context: MessageContext | null;
   createdAt: Date;
   /** Assistant messages only; result metadata, never the tool input. */
   toolCalls: ToolCallMeta[];
@@ -209,12 +264,13 @@ export type ConversationDraft = {
 
 export type ConversationDetail = {
   id: string;
-  /** Its project: a page checks a conversation link against its own. */
-  projectId: string;
   title: string;
   messages: ConversationMessage[];
   drafts: ConversationDraft[];
-  /** The project's Jira link is on and may write: a Jira draft can be created. */
+  /**
+   * The Jira link of the project a new draft would be about
+   * (questionProjectOf) is on and may write: a Jira draft can be created.
+   */
   jiraPushEnabled: boolean;
 };
 
@@ -247,13 +303,12 @@ export async function loadConversationDetail(
     .select({
       id: assistantConversations.id,
       title: assistantConversations.title,
-      projectId: assistantConversations.projectId,
     })
     .from(assistantConversations)
     .where(eq(assistantConversations.id, conversationId))
     .limit(1);
   if (!conversation) return null;
-  const { projectId } = conversation;
+  const project = await questionProjectOf(conversationId);
 
   const [messages, drafts, [link]] = await Promise.all([
     db
@@ -265,6 +320,8 @@ export async function loadConversationDetail(
         errorCode: assistantMessages.errorCode,
         sources: assistantMessages.sources,
         attachmentIds: assistantMessages.attachmentIds,
+        projectId: assistantMessages.projectId,
+        projectName: assistantMessages.projectName,
         environmentId: assistantMessages.environmentId,
         environmentName: assistantMessages.environmentName,
         createdAt: assistantMessages.createdAt,
@@ -288,33 +345,44 @@ export async function loadConversationDetail(
       .leftJoin(issues, eq(issues.id, assistantDrafts.issueId))
       .where(eq(assistantDrafts.conversationId, conversationId))
       .orderBy(asc(assistantDrafts.id)),
-    db
-      .select({
-        enabled: jiraProjectLinks.enabled,
-        pushEnabled: jiraProjectLinks.pushEnabled,
-      })
-      .from(jiraProjectLinks)
-      .where(eq(jiraProjectLinks.projectId, projectId))
-      .limit(1),
+    project
+      ? db
+          .select({
+            enabled: jiraProjectLinks.enabled,
+            pushEnabled: jiraProjectLinks.pushEnabled,
+          })
+          .from(jiraProjectLinks)
+          .where(eq(jiraProjectLinks.projectId, project.id))
+          .limit(1)
+      : [],
   ]);
   const calls = await toolCallsByMessage(
     messages.filter((m) => m.role === "assistant").map((m) => m.id)
   );
   return {
     ...conversation,
-    messages: messages.map((m) => ({
-      ...m,
-      environmentDeleted:
-        m.environmentId === null && m.environmentName !== null,
-      toolCalls: calls.get(m.id) ?? [],
-    })),
+    messages: messages.map(
+      ({ projectId, projectName, environmentId, environmentName, ...m }) => ({
+        ...m,
+        context:
+          m.role === "user"
+            ? messageContextOf({
+                projectId,
+                projectName,
+                environmentId,
+                environmentName,
+              })
+            : null,
+        toolCalls: calls.get(m.id) ?? [],
+      })
+    ),
     drafts,
     jiraPushEnabled: !!(link?.enabled && link.pushEnabled),
   };
 }
 
-/** The FK error of a user message naming an environment that is gone. */
-function isMissingEnvironment(error: unknown): boolean {
+/** The FK error of a user message naming a project or environment that is gone. */
+function isMissingContext(error: unknown): boolean {
   const e = error as {
     code?: string;
     constraint_name?: string;
@@ -323,30 +391,31 @@ function isMissingEnvironment(error: unknown): boolean {
   const pg = e?.cause?.code ? e.cause : e;
   return (
     pg?.code === "23503" &&
-    pg.constraint_name ===
-      "assistant_messages_environment_id_environments_id_fk"
+    (pg.constraint_name ===
+      "assistant_messages_environment_id_environments_id_fk" ||
+      pg.constraint_name === "assistant_messages_project_id_projects_id_fk")
   );
 }
 
 export type CreatedTurn = { userMessageId: string; assistantMessageId: string };
 
 /**
- * In one transaction: the user message (done) with the source it asks about
- * (`environment`, null for the project branches) and the assistant message
- * (queued) that answers it, the title from the first message, and the
- * conversation's updated_at. "busy" (nothing written) when an assistant
- * message of the conversation is still queued or streaming. The conversation
- * row is locked first, so two sends at once cannot both pass that check.
- * "environment_gone" (nothing written) when the asked-about environment was
- * deleted after the caller's check: the message's foreign key refuses it.
+ * In one transaction: the user message (done) with the context it asks about
+ * and the assistant message (queued) that answers it, the title from the
+ * first message, and the conversation's updated_at. "busy" (nothing written)
+ * when an assistant message of the conversation is still queued or
+ * streaming. The conversation row is locked first, so two sends at once
+ * cannot both pass that check. "context_gone" (nothing written) when the
+ * pinned project or environment was deleted after the caller's check: the
+ * message's foreign key refuses it.
  */
 export async function insertTurn(params: {
   conversationId: string;
   text: string;
   attachmentIds: string[];
-  environment: { id: string; name: string } | null;
+  context: QuestionContext;
   now?: Date;
-}): Promise<CreatedTurn | "busy" | "environment_gone"> {
+}): Promise<CreatedTurn | "busy" | "context_gone"> {
   const now = params.now ?? new Date();
   try {
     return await db.transaction(async (tx) => {
@@ -379,8 +448,7 @@ export async function insertTurn(params: {
           status: "done",
           content: params.text,
           attachmentIds: params.attachmentIds,
-          environmentId: params.environment?.id ?? null,
-          environmentName: params.environment?.name ?? null,
+          ...contextColumns(params.context),
           finishedAt: now,
         })
         .returning({ id: assistantMessages.id });
@@ -405,7 +473,7 @@ export async function insertTurn(params: {
       return { userMessageId: question.id, assistantMessageId: answer.id };
     });
   } catch (error) {
-    if (isMissingEnvironment(error)) return "environment_gone";
+    if (isMissingContext(error)) return "context_gone";
     throw error;
   }
 }

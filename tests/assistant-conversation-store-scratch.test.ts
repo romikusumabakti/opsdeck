@@ -138,14 +138,32 @@ describe.skipIf(!enabled)(
           .values({ projectId: otherProject.id, name: "UAT", slug: "uat" })
           .returning()
       );
-      expect(await store.environmentOfProject(env.id, project.id)).toEqual({
-        id: env.id,
-        name: "Dev 1",
+      expect(await store.findEnvironment(otherEnv.id)).toEqual({
+        id: otherEnv.id,
+        name: "UAT",
+        projectId: otherProject.id,
+        projectName: "Heron Membership",
       });
-      // An environment of another project is not one of this project's.
+      expect(await store.findProject(project.id)).toEqual({
+        id: project.id,
+        name: "Kestrel Membership",
+      });
       expect(
-        await store.environmentOfProject(otherEnv.id, project.id)
+        await store.findEnvironment("00000000-0000-7000-8000-0000000000ff")
       ).toBeNull();
+      const devContext = {
+        kind: "environment",
+        environmentId: env.id,
+        environmentName: "Dev 1",
+        projectId: project.id,
+        projectName: "Kestrel Membership",
+      } as const;
+      const branches = {
+        kind: "project",
+        projectId: project.id,
+        projectName: "Kestrel Membership",
+      } as const;
+      const auto = { kind: "auto" } as const;
       expect(await store.loadAssistantLimits()).toEqual({
         enabled: false,
         hasApiKey: false,
@@ -154,19 +172,18 @@ describe.skipIf(!enabled)(
 
       const conversationId = await store.insertConversation({
         userId: user.id,
-        projectId: project.id,
       });
       const [row] =
-        await client`select environment_id, environment_name from assistant_conversations where id = ${conversationId}`;
-      expect(row).toEqual({ environment_id: null, environment_name: null });
-      await store.insertConversation({
-        userId: user.id,
-        projectId: otherProject.id,
+        await client`select project_id, environment_id, environment_name from assistant_conversations where id = ${conversationId}`;
+      expect(row).toEqual({
+        project_id: null,
+        environment_id: null,
+        environment_name: null,
       });
+      const empty = await store.insertConversation({ userId: user.id });
       expect(await store.findConversation(conversationId)).toEqual({
         id: conversationId,
         userId: user.id,
-        projectId: project.id,
       });
 
       const now = new Date("2026-11-16T03:00:00Z");
@@ -174,7 +191,7 @@ describe.skipIf(!enabled)(
         conversationId,
         text: "Bagaimana iuran dihitung?\n\nJelaskan.",
         attachmentIds: ["10001"],
-        environment: { id: env.id, name: "Dev 1" },
+        context: devContext,
         now,
       });
       if (typeof first === "string") throw new Error(`unexpected ${first}`);
@@ -186,13 +203,13 @@ describe.skipIf(!enabled)(
           conversationId,
           text: "x",
           attachmentIds: [],
-          environment: null,
+          context: branches,
         }),
         store.insertTurn({
           conversationId,
           text: "y",
           attachmentIds: [],
-          environment: null,
+          context: branches,
         }),
       ]);
       expect([a, b]).toEqual(["busy", "busy"]);
@@ -204,13 +221,13 @@ describe.skipIf(!enabled)(
           conversationId,
           text: "Lalu?",
           attachmentIds: [],
-          environment: null,
+          context: branches,
         }),
         store.insertTurn({
           conversationId,
           text: "Lalu lagi?",
           attachmentIds: [],
-          environment: null,
+          context: branches,
         }),
       ]);
       expect([c1, c2].filter((t) => t === "busy")).toHaveLength(1);
@@ -232,19 +249,32 @@ describe.skipIf(!enabled)(
         resultMeta: { paths: ["backend/Iuran.java"] },
       });
 
-      // Only this project's conversations.
-      const listed = await store.listConversationsOf(user.id, project.id);
+      // Every conversation of the user, newest first, labelled with the
+      // latest question's context.
+      const listed = await store.listConversationsOf(user.id);
       expect(listed).toEqual([
         {
           id: conversationId,
           title: "Bagaimana iuran dihitung? Jelaskan.",
           updatedAt: expect.any(Date),
+          lastContextLabel: "Kestrel Membership",
+        },
+        {
+          id: empty,
+          title: "",
+          updatedAt: expect.any(Date),
+          lastContextLabel: null,
         },
       ]);
+      // A draft would be about the latest question's project.
+      expect(await store.questionProjectOf(conversationId)).toEqual({
+        id: project.id,
+        name: "Kestrel Membership",
+      });
+      expect(await store.questionProjectOf(empty)).toBeNull();
 
       const detail = await store.loadConversationDetail(conversationId);
-      // The page checks a ?c= link against its own project.
-      expect(detail?.projectId).toBe(project.id);
+      expect(detail).not.toHaveProperty("projectId");
       expect(detail?.messages.map((m) => [m.role, m.status])).toEqual([
         ["user", "done"],
         ["assistant", "done"],
@@ -254,22 +284,26 @@ describe.skipIf(!enabled)(
       expect(detail?.messages[0]).toMatchObject({
         content: "Bagaimana iuran dihitung?\n\nJelaskan.",
         attachmentIds: ["10001"],
-        environmentId: env.id,
-        environmentName: "Dev 1",
-        environmentDeleted: false,
+        context: {
+          kind: "environment",
+          label: "Dev 1",
+          deleted: false,
+          projectId: project.id,
+          environmentId: env.id,
+        },
         toolCalls: [],
       });
-      // The answer carries no source; the second question asked about the
+      // The answer carries no context; the second question asked about the
       // project branches.
-      expect(detail?.messages[1]).toMatchObject({
-        environmentId: null,
-        environmentName: null,
-        environmentDeleted: false,
-      });
+      expect(detail?.messages[1]).toMatchObject({ context: null });
       expect(detail?.messages[2]).toMatchObject({
-        environmentId: null,
-        environmentName: null,
-        environmentDeleted: false,
+        context: {
+          kind: "project",
+          label: "Kestrel Membership",
+          deleted: false,
+          projectId: project.id,
+          environmentId: null,
+        },
       });
       expect(detail?.messages[1]?.toolCalls).toEqual([
         { tool: "read_file", meta: { paths: ["backend/Iuran.java"] } },
@@ -288,20 +322,95 @@ describe.skipIf(!enabled)(
           conversationId,
           text: "Masih ada?",
           attachmentIds: [],
-          environment: { id: env.id, name: "Dev 1" },
+          context: devContext,
         })
-      ).toBe("environment_gone");
+      ).toBe("context_gone");
       expect(
         (await store.loadConversationDetail(conversationId))?.messages
       ).toHaveLength(4);
-      await client`update assistant_messages set status = 'queued' where id = ${second.assistantMessageId}`;
       expect(
         (await store.loadConversationDetail(conversationId))?.messages[0]
       ).toMatchObject({
-        environmentId: null,
-        environmentName: "Dev 1",
-        environmentDeleted: true,
+        context: {
+          kind: "environment",
+          label: "Dev 1",
+          deleted: true,
+          projectId: project.id,
+          environmentId: null,
+        },
       });
+
+      // An automatic question stores no project; a deleted project nulls
+      // the id and keeps the name.
+      const third = await store.insertTurn({
+        conversationId,
+        text: "Apa saja?",
+        attachmentIds: [],
+        context: auto,
+      });
+      if (typeof third === "string") throw new Error(`unexpected ${third}`);
+      const [stored] =
+        await client`select project_id, project_name, environment_id, environment_name from assistant_messages where id = ${third.userMessageId}`;
+      expect(stored).toEqual({
+        project_id: null,
+        project_name: null,
+        environment_id: null,
+        environment_name: null,
+      });
+      expect(
+        (await store.listConversationsOf(user.id))[0]?.lastContextLabel
+      ).toBeNull();
+      await client`update assistant_messages set status = 'done' where id = ${third.assistantMessageId}`;
+      const fourth = await store.insertTurn({
+        conversationId,
+        text: "Di Heron?",
+        attachmentIds: [],
+        context: {
+          kind: "project",
+          projectId: otherProject.id,
+          projectName: "Heron Membership",
+        },
+      });
+      if (typeof fourth === "string") throw new Error(`unexpected ${fourth}`);
+      await d
+        .delete(schema.projects)
+        .where(eq(schema.projects.id, otherProject.id));
+      expect(
+        (await store.loadConversationDetail(conversationId))?.messages.at(-2)
+          ?.context
+      ).toEqual({
+        kind: "project",
+        label: "Heron Membership",
+        deleted: true,
+        projectId: null,
+        environmentId: null,
+      });
+      expect(
+        await store.insertTurn({
+          conversationId,
+          text: "Masih?",
+          attachmentIds: [],
+          context: {
+            kind: "project",
+            projectId: otherProject.id,
+            projectName: "Heron Membership",
+          },
+        })
+      ).toBe("busy");
+      await client`update assistant_messages set status = 'done' where id = ${fourth.assistantMessageId}`;
+      expect(
+        await store.insertTurn({
+          conversationId,
+          text: "Masih?",
+          attachmentIds: [],
+          context: {
+            kind: "project",
+            projectId: otherProject.id,
+            projectName: "Heron Membership",
+          },
+        })
+      ).toBe("context_gone");
+      await client`update assistant_messages set status = 'queued' where id = ${second.assistantMessageId}`;
 
       expect(await store.readStreamSnapshot(first.assistantMessageId)).toEqual({
         content: "Di IuranService.",

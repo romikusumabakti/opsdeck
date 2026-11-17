@@ -190,12 +190,17 @@ export async function createJiraIssueFromDraft(
       if (!parsed.success) throw new JiraCreateError("assistant.invalid_draft");
       const content = parsed.data;
 
-      const resolved = await resolveLink(draft.projectId);
-      if (!resolved || !(resolved.link.enabled && resolved.link.pushEnabled)) {
+      const { projectId } = draft;
+      const resolved = projectId ? await resolveLink(projectId) : null;
+      if (
+        !projectId ||
+        !resolved ||
+        !(resolved.link.enabled && resolved.link.pushEnabled)
+      ) {
         throw new JiraCreateError("assistant.jira_push_disabled");
       }
       const { link, connection, credentials } = resolved;
-      const context = await loadCreateContext(actorId, draft.projectId);
+      const context = await loadCreateContext(actorId, projectId);
       const client = new JiraClient(credentials);
 
       let issueTypeName: string = content.issueType;
@@ -256,7 +261,7 @@ export async function createJiraIssueFromDraft(
         : null;
       const now = new Date();
       const issue = await adoptOrInsertMirror(tx, {
-        projectId: draft.projectId,
+        projectId,
         actorId,
         jiraIssueId,
         values: {

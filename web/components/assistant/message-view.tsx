@@ -71,21 +71,23 @@ export function MessageView({
   }).data;
 
   if (message.role === "user") {
+    const environment =
+      message.context?.kind === "environment" ? message.context : null;
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap break-words">
           {message.content}
         </div>
-        {(message.environmentName || message.attachmentIds.length > 0) && (
+        {(environment?.label || message.attachmentIds.length > 0) && (
           <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {message.environmentName && (
+            {environment?.label && (
               <span
                 className="flex items-center gap-1"
                 title={t("sourceLabel")}
               >
                 <Server className="size-3" />
-                {stripProjectPrefix(message.environmentName, projectName)}
-                {message.environmentDeleted && ` ${t("environmentDeleted")}`}
+                {stripProjectPrefix(environment.label, projectName)}
+                {environment.deleted && ` ${t("environmentDeleted")}`}
               </span>
             )}
             {message.attachmentIds.length > 0 && (

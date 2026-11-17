@@ -11,7 +11,6 @@ import {
   generateDraftInputSchema,
   getAllowance,
   getConversation,
-  getLastProject,
   listConversations,
   listIssueAttachmentsForPicker,
   saveDraft,
@@ -28,18 +27,12 @@ import { json, query } from "@/server/validation";
 const STREAM_POLL_INTERVAL_MS = 500;
 const STREAM_MAX_DURATION_MS = 10 * 60 * 1000;
 
-const projectIdInput = z.object({ projectId: uuidSchema });
-
 /** The code assistant chat. Each service function authorizes the caller. */
 export const assistantRouter = sessionRouter()
   .get("/allowance", async (c) => c.json(await getAllowance()))
-  .get("/list-conversations", query(projectIdInput), async (c) =>
-    c.json(await listConversations(c.req.valid("query")))
-  )
-  .get("/last-project", async (c) => c.json(await getLastProject()))
-  .post("/create-conversation", json(projectIdInput), async (c) =>
-    c.json(await createConversation(c.req.valid("json")))
-  )
+  // The caller's own conversations, all projects; a new one has no project.
+  .get("/list-conversations", async (c) => c.json(await listConversations()))
+  .post("/create-conversation", async (c) => c.json(await createConversation()))
   .get(
     "/get-conversation",
     query(z.object({ conversationId: uuidSchema })),

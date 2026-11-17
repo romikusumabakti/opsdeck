@@ -9,7 +9,10 @@ import {
   projects,
   users,
 } from "@/lib/db/schema";
-import type { ConversationOwner } from "./conversation-store";
+import {
+  type ConversationOwner,
+  questionProjectOf,
+} from "./conversation-store";
 
 /**
  * The Postgres side of assistant drafts. No authorization here: the service
@@ -26,7 +29,9 @@ export type DraftTranscriptMessage =
   | { role: "assistant"; content: string };
 
 export type DraftTranscript = {
-  projectName: string;
+  /** The project the draft is about (questionProjectOf); null if none. */
+  projectId: string | null;
+  projectName: string | null;
   /** User questions and finished answers, oldest first. */
   messages: DraftTranscriptMessage[];
 };
@@ -36,12 +41,12 @@ export async function loadDraftTranscript(
   conversationId: string
 ): Promise<DraftTranscript | null> {
   const [conversation] = await db
-    .select({ projectName: projects.name })
+    .select({ id: assistantConversations.id })
     .from(assistantConversations)
-    .innerJoin(projects, eq(projects.id, assistantConversations.projectId))
     .where(eq(assistantConversations.id, conversationId))
     .limit(1);
   if (!conversation) return null;
+  const project = await questionProjectOf(conversationId);
   const rows = await db
     .select({
       role: assistantMessages.role,
@@ -64,7 +69,8 @@ export async function loadDraftTranscript(
     // uuidv7 ids sort by creation.
     .orderBy(asc(assistantMessages.id));
   return {
-    ...conversation,
+    projectId: project?.id ?? null,
+    projectName: project?.name ?? null,
     messages: rows
       .filter((m) => m.content.trim() !== "")
       .map(
@@ -78,6 +84,7 @@ export async function loadDraftTranscript(
 
 export async function insertDraft(values: {
   conversationId: string;
+  projectId: string | null;
   kind: DraftKind;
   content: Record<string, unknown>;
 }): Promise<string> {
@@ -91,6 +98,8 @@ export async function insertDraft(values: {
 
 export type DraftOwner = {
   conversation: ConversationOwner;
+  /** The draft's project; null when it has none. */
+  projectId: string | null;
   kind: DraftKind;
   issueId: string | null;
 };
@@ -103,7 +112,7 @@ export async function findDraftOwner(
     .select({
       id: assistantConversations.id,
       userId: assistantConversations.userId,
-      projectId: assistantConversations.projectId,
+      projectId: assistantDrafts.projectId,
       kind: assistantDrafts.kind,
       issueId: assistantDrafts.issueId,
     })
@@ -115,8 +124,8 @@ export async function findDraftOwner(
     .where(eq(assistantDrafts.id, draftId))
     .limit(1);
   if (!row) return null;
-  const { kind, issueId, ...conversation } = row;
-  return { conversation, kind, issueId };
+  const { projectId, kind, issueId, ...conversation } = row;
+  return { conversation, projectId, kind, issueId };
 }
 
 /** Replaces a draft's content; false once it has become a Jira issue. */
@@ -141,7 +150,8 @@ export type LockedDraft = {
   kind: DraftKind;
   content: Record<string, unknown>;
   issueId: string | null;
-  projectId: string;
+  /** The draft's project; null when it has none (no Jira link to use). */
+  projectId: string | null;
 };
 
 /** The draft row, locked until `tx` ends (one Jira create per draft). */
@@ -155,15 +165,11 @@ export async function lockDraft(
       kind: assistantDrafts.kind,
       content: assistantDrafts.content,
       issueId: assistantDrafts.issueId,
-      projectId: assistantConversations.projectId,
+      projectId: assistantDrafts.projectId,
     })
     .from(assistantDrafts)
-    .innerJoin(
-      assistantConversations,
-      eq(assistantConversations.id, assistantDrafts.conversationId)
-    )
     .where(eq(assistantDrafts.id, draftId))
-    .for("update", { of: assistantDrafts });
+    .for("update");
   return row ?? null;
 }
 

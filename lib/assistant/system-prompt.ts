@@ -1,5 +1,6 @@
 import { APP_NAME } from "@/lib/branding";
 import { APP_TIMEZONE } from "@/lib/timezone";
+import type { StoredQuestionContext } from "./context";
 import type { AssistantSource } from "./sources";
 
 /**
@@ -12,19 +13,22 @@ export type PromptSource = AssistantSource & {
 };
 
 export type SystemPromptContext = {
-  projectName: string;
+  /** The question's project; null for an automatic question. */
+  projectName: string | null;
   userName: string;
   /** The admin's organisation context (Admin → Assistant), or null. */
   orgContext: string | null;
 };
 
 /**
- * What a question asks about: the project's branches, or the commits running
- * in one environment of the project. Chosen per question.
+ * What a question asks about: the project's branches, the commits running
+ * in one environment of the project, or (automatic) no project yet. Chosen
+ * per question.
  */
 export type QuestionSource =
   | { kind: "project" }
-  | { kind: "environment"; environmentName: string };
+  | { kind: "environment"; environmentName: string }
+  | { kind: "auto" };
 
 /** The per-question part of the prompt: the source and its components. */
 export type SourceNoteContext = {
@@ -114,7 +118,7 @@ ${DOMAIN_GLOSSARY}
 You are talking with ${ctx.userName}.
 
 # Scope
-Project: ${ctx.projectName}
+Project: ${ctx.projectName ?? "none selected (automatic context)"}
 
 Each question asks about one source. The question you are answering starts with a "# Source of this question" note naming it and the components you can read for it; only that latest note applies. Earlier questions start with a short "(Source: …)" line instead: their answers may cite other commits than the ones you can read now.
 - "Source: project branches": each component at the head of the project's branch for it. That is the code being developed, which may differ from what any environment runs.
@@ -156,10 +160,21 @@ export function buildVolatileSystemNote(now: Date): string {
 }
 
 /** How a replayed earlier question names the source it asked about. */
-export function questionSourceLabel(environmentName: string | null): string {
-  return environmentName === null
-    ? "(Source: project branches)"
-    : `(Source: environment ${environmentName})`;
+export function questionSourceLabel(
+  context: StoredQuestionContext | null
+): string {
+  switch (context?.kind) {
+    case "environment":
+      return `(Source: environment ${context.environmentName})`;
+    case "gone":
+      return context.of === "environment"
+        ? `(Source: environment ${context.label})`
+        : "(Source: project branches)";
+    case "auto":
+      return "(Source: automatic)";
+    default:
+      return "(Source: project branches)";
+  }
 }
 
 /**
@@ -170,15 +185,21 @@ export function questionSourceLabel(environmentName: string | null): string {
  */
 export function buildSourceNote(note: SourceNoteContext): string {
   const { source, sources } = note;
-  const project = source.kind === "project";
-  const heading = project
-    ? "Source: project branches"
-    : `Environment: ${source.environmentName}`;
+  const heading =
+    source.kind === "project"
+      ? "Source: project branches"
+      : source.kind === "environment"
+        ? `Environment: ${source.environmentName}`
+        : "Context: automatic (no project selected)";
+  const empty = {
+    project: "- (this project has no components in its Sources)",
+    environment:
+      "- (this environment has no deploy targets with a source repository)",
+    auto: "- (no project is selected for this question, so no code is selected to read)",
+  }[source.kind];
   const components =
     sources.length === 0
-      ? project
-        ? "- (this project has no components in its Sources)"
-        : "- (this environment has no deploy targets with a source repository)"
+      ? empty
       : sources.map((s) => componentLine(s, source)).join("\n");
   const codeNote = sources.some((s) => !s.unavailableReason)
     ? ""
