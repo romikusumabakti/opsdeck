@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ASSISTANT_EFFORTS,
   cacheControlFor,
@@ -59,9 +59,9 @@ describe("providerOptionsFor", () => {
     });
   });
 
-  it("openai: the reasoning effort", () => {
+  it("openai: the reasoning effort, nothing stored at OpenAI", () => {
     expect(providerOptionsFor("openai", "high")).toEqual({
-      openai: { reasoningEffort: "high" },
+      openai: { reasoningEffort: "high", store: false },
     });
   });
 
@@ -99,7 +99,7 @@ describe("outputTokenLimitFor", () => {
 describe("probeOptionsFor", () => {
   it("asks for the lowest reasoning where a provider has one", () => {
     expect(probeOptionsFor("openai")).toEqual({
-      openai: { reasoningEffort: "low" },
+      openai: { reasoningEffort: "low", store: false },
     });
     expect(probeOptionsFor("google")).toEqual({
       google: { thinkingConfig: { thinkingLevel: "low" } },
@@ -224,5 +224,100 @@ describe("loadAssistantRuntime", () => {
     state.row = null;
     const { loadAssistantRuntime } = await import("@/lib/assistant/client");
     expect(await loadAssistantRuntime()).toBeNull();
+  });
+});
+
+describe("openai without server-side storage", () => {
+  // A stubbed fetch stands in for the Responses API; nothing leaves the test.
+  const responses = [
+    {
+      id: "resp_1",
+      created_at: 1_790_000_000,
+      model: "gpt-6.1-sol",
+      status: "completed",
+      output: [
+        {
+          type: "reasoning",
+          id: "rs_1",
+          encrypted_content: "opaque-reasoning",
+          summary: [],
+        },
+        {
+          type: "function_call",
+          id: "fc_1",
+          call_id: "call_1",
+          name: "ping",
+          arguments: '{"ok":true}',
+          status: "completed",
+        },
+      ],
+      usage: { input_tokens: 5, output_tokens: 3 },
+    },
+    {
+      id: "resp_2",
+      created_at: 1_790_000_001,
+      model: "gpt-6.1-sol",
+      status: "completed",
+      output: [
+        {
+          type: "message",
+          id: "msg_1",
+          role: "assistant",
+          status: "completed",
+          content: [{ type: "output_text", text: "done", annotations: [] }],
+        },
+      ],
+      usage: { input_tokens: 9, output_tokens: 1 },
+    },
+  ];
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("asks for encrypted reasoning and replays it in the next tool step", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify(responses[bodies.length - 1]), {
+          headers: { "Content-Type": "application/json" },
+        });
+      })
+    );
+    const { generateText, stepCountIs, tool } = await import("ai");
+    const { z } = await import("zod");
+    const result = await generateText({
+      model: createLanguageModel({
+        provider: "openai",
+        apiKey: "sk-test",
+        baseUrl: "https://llm.example.invalid/v1",
+        model: "gpt-6.1-sol",
+      }),
+      prompt: "ping",
+      tools: {
+        ping: tool({
+          inputSchema: z.object({ ok: z.boolean() }),
+          execute: async () => "pong",
+        }),
+      },
+      stopWhen: stepCountIs(3),
+      providerOptions: providerOptionsFor("openai", "medium"),
+    });
+    expect(result.text).toBe("done");
+    expect(bodies).toHaveLength(2);
+    for (const body of bodies) {
+      expect(body.store).toBe(false);
+      expect(body.include).toEqual(["reasoning.encrypted_content"]);
+    }
+    const input = bodies[1]?.input as Record<string, unknown>[];
+    expect(input).toContainEqual(
+      expect.objectContaining({
+        type: "reasoning",
+        encrypted_content: "opaque-reasoning",
+      })
+    );
+    expect(input.some((item) => item.type === "item_reference")).toBe(false);
   });
 });

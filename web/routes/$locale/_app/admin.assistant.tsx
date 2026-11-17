@@ -220,7 +220,9 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
   const [apiKey, setApiKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
   const [baseUrl, setBaseUrl] = useState(settings.baseUrl ?? "");
-  const [model, setModel] = useState(settings.model ?? "");
+  // A model id without a provider is a leftover of an older setup: not shown.
+  const savedModel = settings.provider ? (settings.model ?? "") : "";
+  const [model, setModel] = useState(savedModel);
   const [effort, setEffort] = useState(settings.effort);
   const [prices, setPrices] = useState(priceText(settings.prices));
   const [dailyCap, setDailyCap] = useState(String(settings.dailyCapUsd));
@@ -232,17 +234,23 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
 
   const cap = Number(dailyCap);
   const capValid = dailyCap.trim() !== "" && cap >= 0 && cap <= 1000;
-  // The server drops the stored key when the provider changes.
+  // The server drops the stored key when the provider or its base URL
+  // changes: a key never goes to another host.
   const providerSwitched =
     settings.provider !== null && provider !== settings.provider;
-  const keyPresent = settings.hasApiKey && !clearKey && !providerSwitched;
+  const baseUrlChanged =
+    settings.provider !== null &&
+    !providerSwitched &&
+    baseUrl.trim() !== (settings.baseUrl ?? "");
+  const keyDropped = providerSwitched || baseUrlChanged;
+  const keyPresent = settings.hasApiKey && !clearKey && !keyDropped;
   // Test connection runs on the saved settings only.
   const unsaved =
     provider !== settings.provider ||
     apiKey.trim() !== "" ||
     clearKey ||
     baseUrl.trim() !== (settings.baseUrl ?? "") ||
-    model.trim() !== (settings.model ?? "");
+    model.trim() !== savedModel;
   const suggestions = provider ? suggestedModels(provider) : [];
   const compatible = provider === "openai-compatible";
   const parsedPrices = parsePrices(prices);
@@ -253,7 +261,10 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
     setProvider(next);
     // A base URL belongs to its provider (the server clears it as well).
     setBaseUrl("");
-    if (!suggestedModels(next).some((m) => m.id === model.trim())) {
+    const known = suggestedModels(next).find((m) => m.id === model.trim());
+    if (known) {
+      setPrices(priceText(known.prices));
+    } else {
       setModel("");
       setPrices(priceText(null));
     }
@@ -379,13 +390,13 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
             onChange={(event) => setApiKey(event.target.value)}
           />
           <FieldDescription>
-            {providerSwitched && settings.hasApiKey
+            {keyDropped && settings.hasApiKey
               ? t("apiKeyRequired")
               : clearKey
                 ? t("keyRemoved")
                 : t("apiKeyDescription")}
           </FieldDescription>
-          {settings.hasApiKey && !providerSwitched && (
+          {settings.hasApiKey && !keyDropped && (
             <Button
               type="button"
               variant="outline"

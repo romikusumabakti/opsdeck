@@ -200,7 +200,6 @@ describe("settings", () => {
     });
     expect(await save.json()).toMatchObject({ success: true });
     expect(String(state.lastSet?.assistantApiKey)).toMatch(/^enc:v1:/);
-    expect(state.lastSet).not.toHaveProperty("legacyApiKey");
     expect(state.lastSet?.assistantDailyCapUsd).toBe("3.00");
     expect(state.lastSet?.assistantPriceCacheRead).toBe("0.100000");
 
@@ -309,6 +308,70 @@ describe("settings", () => {
     expect(stored).toMatch(/^enc:v1:/);
     const { decryptSecret } = await import("@/lib/secrets");
     expect(decryptSecret(stored)).toBe("g-key");
+  });
+
+  it("clears the legacy key column whenever the key changes, and only then", async () => {
+    const legacy = "enc:v1:legacy-copy";
+    state.row = { ...state.row, legacyApiKey: legacy };
+    await send("PUT", BASE, { effort: "high" });
+    await send("PUT", BASE, { apiKey: "  " });
+    expect(state.row?.legacyApiKey).toBe(legacy);
+    // Saved, cleared, or dropped by a provider switch or a base URL change.
+    const changes = [
+      { apiKey: KEY },
+      { apiKey: null },
+      { provider: "google", apiKey: KEY },
+      { provider: "openai" },
+      { apiKey: KEY },
+      { baseUrl: "https://proxy.example.invalid/v1" },
+    ];
+    for (const body of changes) {
+      state.row = { ...state.row, legacyApiKey: legacy };
+      expect(await (await send("PUT", BASE, body)).json()).toMatchObject({
+        success: true,
+      });
+      expect(state.lastSet, JSON.stringify(body)).toHaveProperty(
+        "legacyApiKey",
+        null
+      );
+      expect(state.row?.legacyApiKey).toBeNull();
+    }
+  });
+
+  it("drops the key when the base URL changes, unless a new key comes along", async () => {
+    await send("PUT", BASE, {
+      provider: "openai",
+      apiKey: KEY,
+      baseUrl: "https://proxy.example.invalid/v1",
+    });
+    expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
+    // The same URL again keeps the key.
+    await send("PUT", BASE, {
+      provider: "openai",
+      baseUrl: "https://proxy.example.invalid/v1",
+    });
+    expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
+    await send("PUT", BASE, { baseUrl: "https://other.example.invalid/v1" });
+    expect(state.row?.assistantApiKey).toBeNull();
+    await send("PUT", BASE, { apiKey: KEY });
+    await send("PUT", BASE, { baseUrl: null });
+    expect(state.row?.assistantApiKey).toBeNull();
+    await send("PUT", BASE, {
+      baseUrl: "https://proxy.example.invalid/v1",
+      apiKey: "o-key",
+    });
+    const { decryptSecret } = await import("@/lib/secrets");
+    expect(decryptSecret(String(state.row?.assistantApiKey))).toBe("o-key");
+  });
+
+  it("refuses a base URL change of an enabled assistant without a new key", async () => {
+    await send("PUT", BASE, { ...complete, enabled: true });
+    const res = await send("PUT", BASE, {
+      baseUrl: "https://proxy.example.invalid/v1",
+    });
+    expect(res.status).toBe(400);
+    expect(state.row?.assistantBaseUrl).toBeNull();
+    expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
   });
 
   it("refuses to switch the provider of an enabled assistant without a new key", async () => {
@@ -548,7 +611,11 @@ describe("POST /test", () => {
   });
 
   it.each([
-    ["openai", "gpt-6-luna", { openai: { reasoningEffort: "low" } }],
+    [
+      "openai",
+      "gpt-6-luna",
+      { openai: { reasoningEffort: "low", store: false } },
+    ],
     [
       "google",
       "gemini-4-hydrogen",

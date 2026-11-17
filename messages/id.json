@@ -3653,7 +3653,7 @@
     "failed": "Asisten tidak dapat menjawab. Coba lagi.",
     "modelNoTools": "Model yang dipilih tidak dapat memakai tools, padahal asisten membutuhkannya untuk membaca kode dan issue. Minta admin memilih model lain.",
     "modelNoDrafts": "Model yang dipilih tidak dapat menulis draf terstruktur. Minta admin memilih model lain.",
-    "environmentGone": "Environment yang ditanyakan sudah dihapus. Mulai percakapan baru untuk proyek ini.",
+    "environmentGone": "Environment yang ditanyakan sudah dihapus. Pilih sumber lain (atau Branch project) lalu tanyakan lagi.",
     "nothingToDraft": "Belum ada jawaban di percakapan ini untuk dijadikan draf. Tanyakan ke asisten dulu.",
     "invalidDraft": "Draf ini belum lengkap, terlalu panjang, atau salah satu isiannya ditolak tracker. Periksa isiannya lalu coba lagi.",
     "jiraPushDisabled": "Sinkronisasi issue ke tracker nonaktif untuk proyek ini. Minta admin mengaktifkannya.",

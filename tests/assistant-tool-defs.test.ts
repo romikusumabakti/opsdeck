@@ -85,6 +85,16 @@ describe("buildTools", () => {
     expect(tool?.description).toContain("PDF (≤15 MiB)");
   });
 
+  it("describes the code tools for either source, branches or an environment", () => {
+    const tools = buildTools(ctx, noRecord);
+    for (const name of ["list_files", "search_code", "read_file"] as const) {
+      const description = String(tools[name]?.description);
+      expect(description, name).toContain("selected source snapshot");
+      expect(description, name).not.toContain("the environment's");
+    }
+    expect(String(tools.list_files?.description)).toContain("project branches");
+  });
+
   it("is strict: closed objects with every property required and described", async () => {
     for (const [name, tool] of Object.entries(buildTools(ctx, noRecord))) {
       expect((tool as { strict?: boolean }).strict, name).toBe(true);

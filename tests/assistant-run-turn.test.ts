@@ -656,8 +656,9 @@ describe("runTurn", () => {
       })
     );
     const call = calls[0]!;
+    // Nothing of the turn is stored at OpenAI.
     expect(call.providerOptions).toEqual({
-      openai: { reasoningEffort: "high" },
+      openai: { reasoningEffort: "high", store: false },
     });
     for (const name of Object.keys(CACHE)) {
       expect(JSON.stringify(call)).not.toContain(`"${name}"`);

@@ -55,7 +55,8 @@ export const ORG_CONTEXT_MAX = 4000;
 const price = z.number().min(0).max(1000);
 
 // Omitted fields stay as they are; `apiKey: null` clears the key; a blank key
-// keeps the stored one. A blank or null orgContext clears it. Prices go
+// keeps the stored one; a provider switch or a base URL change drops the
+// stored key unless a new one comes along. A blank or null orgContext clears it. Prices go
 // together, all four at once.
 export const assistantSettingsInputSchema = z.object({
   enabled: z.boolean().optional(),
@@ -172,7 +173,16 @@ export async function saveAssistantSettings(
     patch.assistantBaseUrl = null;
     if (before.assistantProvider !== null) patch.assistantApiKey = null;
   }
-  if (baseUrl !== undefined) patch.assistantBaseUrl = baseUrl;
+  if (baseUrl !== undefined) {
+    // Same rule within a provider: the stored key never goes to a new host.
+    if (
+      before.assistantProvider !== null &&
+      patch.assistantProvider === undefined &&
+      baseUrl !== before.assistantBaseUrl
+    )
+      patch.assistantApiKey = null;
+    patch.assistantBaseUrl = baseUrl;
+  }
   if (model !== undefined) patch.assistantModel = model;
   if (effort !== undefined) patch.assistantEffort = effort;
   if (prices !== undefined) {
@@ -186,6 +196,8 @@ export async function saveAssistantSettings(
   }
   if (apiKey === null) patch.assistantApiKey = null;
   else if (apiKey) patch.assistantApiKey = encryptSecret(apiKey);
+  // A changed key leaves no copy in the pre-provider column either.
+  if (patch.assistantApiKey !== undefined) patch.legacyApiKey = null;
   if (orgContext !== undefined) patch.assistantOrgContext = orgContext || null;
 
   if (Object.keys(patch).length === 0) {

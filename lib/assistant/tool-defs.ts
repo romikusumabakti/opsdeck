@@ -39,7 +39,7 @@ const nullable = <T extends z.ZodType>(type: T, description: string) =>
 /** What the model sees: names, descriptions and input schemas. */
 const DEFINITIONS = {
   list_files: {
-    description: `List file paths in the source snapshot of the environment's running commit, matching a glob (e.g. "backend/src/**/*.java"). Paths are prefixed with the component key. At most ${MAX_LIST_PATHS} paths, so use a specific glob. Files that may hold secrets are withheld: counted in "withheld" and named (up to ${MAX_WITHHELD_PATHS}) in "withheldPaths", never readable.`,
+    description: `List file paths in the selected source snapshot (the project branches or an environment's running commits), matching a glob (e.g. "backend/src/**/*.java"). Paths are prefixed with the component key. At most ${MAX_LIST_PATHS} paths, so use a specific glob. Files that may hold secrets are withheld: counted in "withheld" and named (up to ${MAX_WITHHELD_PATHS}) in "withheldPaths", never readable.`,
     inputSchema: z.strictObject({
       glob: str(
         'Glob over component-prefixed paths, as narrow as possible (e.g. "backend/src/**/*Iuran*.java"); avoid "**/*".'
@@ -47,7 +47,7 @@ const DEFINITIONS = {
     }),
   },
   search_code: {
-    description: `Search file contents of the source snapshot. Returns at most ${MAX_SEARCH_MATCHES} matches (${MAX_SEARCH_BYTES / 1024} KiB in total) with path, line number and ±2 lines of context; narrow it with a specific glob. Literal match unless regex is true. Files that may hold secrets are never searched; "withheld" counts them.`,
+    description: `Search file contents of the selected source snapshot. Returns at most ${MAX_SEARCH_MATCHES} matches (${MAX_SEARCH_BYTES / 1024} KiB in total) with path, line number and ±2 lines of context; narrow it with a specific glob. Literal match unless regex is true. Files that may hold secrets are never searched; "withheld" counts them.`,
     inputSchema: z.strictObject({
       pattern: str("Text (or regular expression when regex is true) to find."),
       regex: nullable(
@@ -62,7 +62,7 @@ const DEFINITIONS = {
     }),
   },
   read_file: {
-    description: `Read a file from the source snapshot by its component-prefixed path, optionally a 1-based line range. At most ${MAX_READ_LINES} lines or ${MAX_READ_BYTES / 1024} KiB per call; read only the range you need and page with start_line for more. Files that may hold secrets are withheld and return an error saying so.`,
+    description: `Read a file from the selected source snapshot by its component-prefixed path, optionally a 1-based line range. At most ${MAX_READ_LINES} lines or ${MAX_READ_BYTES / 1024} KiB per call; read only the range you need and page with start_line for more. Files that may hold secrets are withheld and return an error saying so.`,
     inputSchema: z.strictObject({
       path: str(
         "Component-prefixed path as returned by list_files/search_code."

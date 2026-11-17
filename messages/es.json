@@ -3653,7 +3653,7 @@
     "failed": "El asistente no pudo responder. Inténtalo de nuevo.",
     "modelNoTools": "El modelo configurado no puede usar herramientas, que el asistente necesita para leer el código y las incidencias. Pide a un administrador que elija otro modelo.",
     "modelNoDrafts": "El modelo configurado no puede redactar borradores estructurados. Pide a un administrador que elija otro modelo.",
-    "environmentGone": "Se eliminó el entorno al que se refería esta pregunta. Inicia una conversación nueva para el proyecto.",
+    "environmentGone": "Se eliminó el entorno al que se refería esta pregunta. Elige otra fuente (o las ramas del proyecto) y vuelve a preguntar.",
     "nothingToDraft": "Todavía no hay ninguna respuesta en esta conversación para redactar un borrador. Pregunta primero al asistente.",
     "invalidDraft": "Este borrador está incompleto, es demasiado largo o el gestor rechazó uno de sus campos. Revisa los campos e inténtalo de nuevo.",
     "jiraPushDisabled": "La sincronización de incidencias con el gestor está desactivada en este proyecto. Pide a un administrador que la active.",

@@ -307,6 +307,52 @@ describe("/admin/assistant", () => {
     expect(options).toEqual(["gemini-4-carbon", "gemini-4-hydrogen"]);
   });
 
+  it("editing the base URL drops the stored key and asks for a new one", async () => {
+    await render({ provider: "openai", baseUrl: null });
+    const keyBadge = () =>
+      container.querySelector(
+        "label[for='assistant-api-key'] + [data-slot='badge']"
+      )?.textContent;
+    expect(keyBadge()).toBe(t.set);
+    await openAdvanced();
+    await type(byId("assistant-base-url"), "https://proxy.example.invalid/v1");
+    expect(keyBadge()).toBe(t.notSet);
+    expect(container.textContent).toContain(t.apiKeyRequired);
+    expect(button(t.removeKey)).toBeUndefined();
+    await type(byId("assistant-base-url"), "");
+    expect(keyBadge()).toBe(t.set);
+    expect(container.textContent).not.toContain(t.apiKeyRequired);
+  });
+
+  it("shows no leftover model before a provider is chosen", async () => {
+    await render({
+      provider: null,
+      hasApiKey: true,
+      model: "leftover-model-1",
+      prices: null,
+    });
+    expect(byId("assistant-model")?.value).toBe("");
+    // The empty field is not an unsaved change.
+    expect(container.textContent).not.toContain(t.testSaveFirst);
+    await submit();
+    expect(api.save.mock.calls[0]?.[0]).not.toHaveProperty("model");
+  });
+
+  it("prefills the prices of a typed model once its provider is picked", async () => {
+    await render({
+      provider: null,
+      hasApiKey: false,
+      model: null,
+      prices: null,
+    });
+    await type(byId("assistant-model"), "gpt-6-luna");
+    await openAdvanced();
+    expect(prices()).toEqual(["", "", "", ""]);
+    await pickProvider(t.providerOpenai);
+    expect(byId("assistant-model")?.value).toBe("gpt-6-luna");
+    expect(prices()).toEqual(["0.1", "0.5", "0.01", "0.125"]);
+  });
+
   it("disables Test connection until the changes are saved", async () => {
     await render();
     expect(button(t.test)?.disabled).toBe(false);

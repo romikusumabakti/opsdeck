@@ -111,6 +111,14 @@ export function createLanguageModel(config: ProviderConfig): LanguageModel {
   }
 }
 
+/**
+ * OpenAI's Responses API stores every generation unless told not to. With
+ * `store: false` the SDK asks a known reasoning model for its encrypted
+ * reasoning and replays it in the next tool step, so tool loops keep working
+ * without anything kept at OpenAI.
+ */
+const OPENAI_NO_STORE = { store: false } as const;
+
 /** Per-call options that turn on reasoning at the configured effort. */
 export function providerOptionsFor(
   provider: Provider,
@@ -120,7 +128,7 @@ export function providerOptionsFor(
     case "anthropic":
       return { anthropic: { thinking: { type: "adaptive" }, effort } };
     case "openai":
-      return { openai: { reasoningEffort: effort } };
+      return { openai: { reasoningEffort: effort, ...OPENAI_NO_STORE } };
     case "google":
       return { google: { thinkingConfig: { thinkingLevel: effort } } };
     case "openai-compatible":
@@ -159,7 +167,7 @@ export function probeOptionsFor(
 ): ProviderOptions | undefined {
   switch (provider) {
     case "openai":
-      return { openai: { reasoningEffort: "low" } };
+      return { openai: { reasoningEffort: "low", ...OPENAI_NO_STORE } };
     case "google":
       return { google: { thinkingConfig: { thinkingLevel: "low" } } };
     case "anthropic":
