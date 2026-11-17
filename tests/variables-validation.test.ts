@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 import {
@@ -148,5 +149,12 @@ describe("generateValue", () => {
     expect(() => generateValue(-1)).toThrow();
     expect(() => generateValue(1.5)).toThrow();
     expect(() => generateValue(8193)).toThrow();
+  });
+
+  // The variable and deploy-target forms import this module in the browser,
+  // where Vite stubs Node built-ins and the import throws on load.
+  it("imports no Node built-in", () => {
+    const source = readFileSync("lib/variables/validation.ts", "utf8");
+    expect(source).not.toMatch(/from "node:/);
   });
 });

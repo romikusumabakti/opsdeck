@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 
@@ -79,7 +78,9 @@ export function resolvePlaceholders(
 
 /**
  * A random value of exactly `length` URL-safe characters (`[A-Za-z0-9_-]`,
- * base64url of `crypto.randomBytes`), for generated variables.
+ * base64url of Web Crypto random bytes), for generated variables. Web Crypto
+ * rather than `node:crypto`: the browser bundle imports this module for its
+ * schemas, and Vite cannot load Node built-ins there.
  */
 export function generateValue(length: number): string {
   if (
@@ -91,7 +92,8 @@ export function generateValue(length: number): string {
       `Generated value length must be an integer from 1 to ${VARIABLE_VALUE_MAX_LENGTH}`
     );
   }
-  return randomBytes(Math.ceil((length * 3) / 4))
-    .toString("base64url")
-    .slice(0, length);
+  const bytes = crypto.getRandomValues(
+    new Uint8Array(Math.ceil((length * 3) / 4))
+  );
+  return Buffer.from(bytes).toString("base64url").slice(0, length);
 }
