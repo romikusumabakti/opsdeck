@@ -87,7 +87,6 @@ type EnvironmentItem = {
 const PROJECT_ICONS: Record<ProjectNavKey, LucideIcon> = {
   environments: LayoutDashboard,
   issues: CircleDot,
-  assistant: Bot,
   releases: PackageCheck,
   settings: Settings,
 };
@@ -230,7 +229,10 @@ export function AppSidebar({
   user: UserSummary;
   logo: BrandName;
   side?: "left" | "right";
-  /** The code assistant is on (and has a key): show the project's Assistant entry. */
+  /**
+   * The code assistant is on (and has a key): show the top-level Assistant
+   * entry, to a user who sees a project.
+   */
   assistantEnabled?: boolean;
 }) {
   const tApp = useTranslations("app");
@@ -264,8 +266,7 @@ export function AppSidebar({
     ? projectNavItems(
         activeProject.key,
         projectRoles[activeProject.id] ?? null,
-        isProjectReleasable(environments, activeProject.id),
-        assistantEnabled
+        isProjectReleasable(environments, activeProject.id)
       )
     : [];
 
@@ -354,6 +355,18 @@ export function AppSidebar({
                   label={assignedLabel}
                 />
               </SidebarMenuItem>
+              {assistantEnabled && projects.length > 0 && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/assistant" />}
+                    isActive={pathname === "/assistant"}
+                    tooltip={tNav("assistant")}
+                  >
+                    <Bot />
+                    <span>{tNav("assistant")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   render={<Link href="/knowledge" />}

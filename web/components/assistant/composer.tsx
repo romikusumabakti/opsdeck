@@ -6,8 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
+import type { QuestionContextInput } from "@/lib/assistant/context";
+import { ASSISTANT_COMPOSER_ID } from "./assistant-shortcut";
 import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
-import { shouldSend } from "./composer-keys";
+import { opensContextPicker, shouldSend } from "./composer-keys";
+import { ContextPicker } from "./context-picker";
 import { useAssistantErrorText } from "./error-text";
 
 // Mirrors the API's limits (server/services/assistant.ts).
@@ -15,26 +18,28 @@ const MAX_MESSAGE_CHARS = 8000;
 const MAX_ATTACHMENTS = 10;
 
 /**
- * The question box: text, the ticked Jira attachments, and the send. A refused
- * send (daily cap, busy, not configured) is shown above the box, worded from
- * its code; the text is kept so it can be sent again.
+ * The question box: text, the ticked Jira attachments, the context chip and
+ * the send. Typing `@` into an empty box (or after a space) opens the chip's
+ * picker instead of inserting it. A refused send (daily cap, busy, not
+ * configured) is shown above the box, worded from its code; the text is kept
+ * so it can be sent again.
  */
 export function Composer({
-  projectId,
   disabled,
   onSend,
   focusKey,
-  source,
+  context,
+  onContextChange,
   capResetsAt,
 }: {
-  projectId: string;
   /** An answer is still running, or the assistant cannot take questions. */
   disabled: boolean;
   onSend: (text: string, attachments: AttachmentRef[]) => Promise<void>;
   /** The box takes focus on mount and whenever this changes. */
   focusKey: string | null;
-  /** The question's source picker, beside the attachments button. */
-  source?: React.ReactNode;
+  /** What the next question is about (the chip beside the attachments). */
+  context: QuestionContextInput;
+  onContextChange: (context: QuestionContextInput) => void;
   /** Set (ISO) when today's limit is reached: says when it resets. */
   capResetsAt?: string | null;
 }) {
@@ -43,6 +48,7 @@ export function Composer({
   const [text, setText] = React.useState("");
   const [attachments, setAttachments] = React.useState<PickedAttachment[]>([]);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [contextOpen, setContextOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -128,8 +134,19 @@ export function Composer({
       )}
       <Textarea
         ref={textareaRef}
+        id={ASSISTANT_COMPOSER_ID}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (
+            !disabled &&
+            opensContextPicker(text, next, e.target.selectionStart)
+          ) {
+            setContextOpen(true);
+            return;
+          }
+          setText(next);
+        }}
         onKeyDown={(e) => {
           if (
             shouldSend({
@@ -160,7 +177,13 @@ export function Composer({
             <Paperclip data-icon="inline-start" />
             {t("attachments")}
           </Button>
-          {source}
+          <ContextPicker
+            value={context}
+            onChange={onContextChange}
+            disabled={disabled}
+            open={contextOpen}
+            onOpenChange={setContextOpen}
+          />
         </div>
         <div className="flex items-center gap-3">
           <span className="hidden text-xs text-muted-foreground @2xl/composer:inline">
@@ -173,7 +196,6 @@ export function Composer({
         </div>
       </div>
       <AttachmentPicker
-        projectId={projectId}
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         max={MAX_ATTACHMENTS}

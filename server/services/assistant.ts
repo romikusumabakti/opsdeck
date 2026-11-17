@@ -373,16 +373,14 @@ export type IssueAttachmentList = {
 
 /**
  * The attachments of a Jira issue the caller can see, for the tick list under
- * the question box. Same visibility rule and listing as the get_issue tool.
+ * the question box. Behind the global gate; the issue is looked up among the
+ * caller's visible projects, the same rule and listing as the get_issue tool
+ * (a question may be about any of them, or automatic).
  */
 export async function listIssueAttachmentsForPicker(
-  projectId: string,
   issueKey: string
 ): Promise<IssueAttachmentList> {
-  const { session } = await requireProjectPermission(
-    { projectId },
-    { assistant: ["use"] }
-  );
+  const session = await requireAssistantGate();
   const key = normalizeJiraKey(issueKey);
   if (!key) notFound();
   const viewer = await loadAssistantViewer(session.user.id);

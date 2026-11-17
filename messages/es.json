@@ -112,7 +112,8 @@
       "ar": "Árabe",
       "es": "Español"
     },
-    "projects": "Proyectos"
+    "projects": "Proyectos",
+    "askAssistant": "Preguntar al asistente"
   },
   "nav": {
     "dashboard": "Panel",
@@ -792,7 +793,8 @@
     "groupGeneral": "General",
     "openCommandPalette": "Abrir la paleta de comandos",
     "openShortcuts": "Abrir este diálogo de atajos",
-    "closeDialog": "Cerrar cualquier diálogo abierto"
+    "closeDialog": "Cerrar cualquier diálogo abierto",
+    "openAssistant": "Abrir el asistente"
   },
   "newEnvironment": {
     "title": "Nuevo entorno",
@@ -3666,7 +3668,7 @@
   },
   "assistant": {
     "title": "Asistente",
-    "subtitle": "Pregunta sobre el código y las incidencias de {name}.",
+    "subtitle": "Pregunta sobre el código y las incidencias de tus proyectos.",
     "usageUsed": "{percent}% del límite de hoy usado",
     "usageResets": "Se restablece a las {time, time, short}",
     "usageCapReached": "Has alcanzado el límite de hoy. Se restablece a las {time, time, short}.",
@@ -3677,7 +3679,7 @@
     "noConversations": "Aún no hay conversaciones.",
     "untitled": "Sin título",
     "emptyThreadTitle": "Empieza a preguntar",
-    "emptyThreadDescription": "Pregunta por flujos, reglas de negocio o dónde está el código en este proyecto. Elige la fuente abajo: las ramas del proyecto o el código que se ejecuta en un entorno.",
+    "emptyThreadDescription": "Pregunta por flujos, reglas de negocio o dónde está el código. Elige el contexto abajo: Automático, un proyecto o uno de sus entornos. Escribe @ para elegirlo rápido.",
     "placeholder": "Escribe una pregunta…",
     "send": "Enviar",
     "sendHint": "Enter para enviar, Mayús+Enter para nueva línea",
@@ -3739,11 +3741,14 @@
     "jiraCreated": "Incidencia {jiraKey} creada.",
     "jiraCreatedAs": "Creado como {jiraKey}.",
     "openPanelIssue": "Abrir la incidencia en el Panel",
-    "sourceProjectBranches": "Ramas del proyecto",
-    "sourceLabel": "Fuente",
-    "environmentDeleted": "(eliminado)",
     "newDraft": "Nuevo borrador",
     "newDraftBrd": "BRD",
-    "newDraftIssue": "Incidencia"
+    "newDraftIssue": "Incidencia",
+    "contextAuto": "Automático",
+    "contextPick": "Contexto: {name}",
+    "contextProjects": "Proyectos",
+    "contextEnvironments": "{name}, entorno de {project}",
+    "contextDeleted": "(eliminado)",
+    "shortcutHint": "Pulsa {key}+J en cualquier lugar para abrir el asistente."
   }
 }

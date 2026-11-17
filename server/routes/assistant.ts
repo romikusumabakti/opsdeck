@@ -58,10 +58,10 @@ export const assistantRouter = sessionRouter()
   )
   .get(
     "/list-issue-attachments",
-    query(z.object({ projectId: uuidSchema, issueKey: z.string().max(64) })),
+    query(z.object({ issueKey: z.string().max(64) })),
     async (c) => {
-      const { projectId, issueKey } = c.req.valid("query");
-      return c.json(await listIssueAttachmentsForPicker(projectId, issueKey));
+      const { issueKey } = c.req.valid("query");
+      return c.json(await listIssueAttachmentsForPicker(issueKey));
     }
   )
   /**

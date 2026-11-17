@@ -112,7 +112,8 @@
       "ar": "Bahasa Arab",
       "es": "Bahasa Spanyol"
     },
-    "projects": "Proyek"
+    "projects": "Proyek",
+    "askAssistant": "Tanya asisten"
   },
   "nav": {
     "dashboard": "Dasbor",
@@ -792,7 +793,8 @@
     "groupGeneral": "Umum",
     "openCommandPalette": "Buka command palette",
     "openShortcuts": "Buka dialog pintasan ini",
-    "closeDialog": "Tutup dialog yang terbuka"
+    "closeDialog": "Tutup dialog yang terbuka",
+    "openAssistant": "Buka asisten"
   },
   "newEnvironment": {
     "title": "Environment baru",
@@ -3666,7 +3668,7 @@
   },
   "assistant": {
     "title": "Asisten",
-    "subtitle": "Tanyakan tentang kode dan issue di {name}.",
+    "subtitle": "Tanyakan tentang kode dan issue di project Anda.",
     "usageUsed": "{percent}% dari batas hari ini terpakai",
     "usageResets": "Direset {time, time, short}",
     "usageCapReached": "Batas hari ini sudah tercapai. Direset pukul {time, time, short}.",
@@ -3677,7 +3679,7 @@
     "noConversations": "Belum ada percakapan.",
     "untitled": "Tanpa judul",
     "emptyThreadTitle": "Mulai bertanya",
-    "emptyThreadDescription": "Tanyakan alur, aturan bisnis, atau letak kode di project ini. Pilih sumbernya di bawah: branch project, atau kode yang berjalan di sebuah environment.",
+    "emptyThreadDescription": "Tanyakan alur, aturan bisnis, atau letak kode. Pilih konteksnya di bawah: Otomatis, sebuah project, atau salah satu environment-nya. Ketik @ untuk memilih dengan cepat.",
     "placeholder": "Tulis pertanyaan…",
     "send": "Kirim",
     "sendHint": "Enter untuk mengirim, Shift+Enter untuk baris baru",
@@ -3739,11 +3741,14 @@
     "jiraCreated": "Issue {jiraKey} dibuat.",
     "jiraCreatedAs": "Dibuat sebagai {jiraKey}.",
     "openPanelIssue": "Buka issue di Panel",
-    "sourceProjectBranches": "Branch project",
-    "sourceLabel": "Sumber",
-    "environmentDeleted": "(dihapus)",
     "newDraft": "Draf baru",
     "newDraftBrd": "BRD",
-    "newDraftIssue": "Issue"
+    "newDraftIssue": "Issue",
+    "contextAuto": "Otomatis",
+    "contextPick": "Konteks: {name}",
+    "contextProjects": "Project",
+    "contextEnvironments": "{name}, environment dari {project}",
+    "contextDeleted": "(dihapus)",
+    "shortcutHint": "Tekan {key}+J di mana saja untuk membuka asisten."
   }
 }

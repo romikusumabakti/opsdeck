@@ -48,14 +48,10 @@ export const getConversationQuery = (
     queryFn: () => getConversation(...args),
   });
 
-export async function listIssueAttachments(
-  projectId: string,
-  issueKey: string
-) {
+/** The attachments of an issue in any of the caller's visible projects. */
+export async function listIssueAttachments(issueKey: string) {
   return parseResponse(
-    routes["list-issue-attachments"].$get({
-      query: { projectId, issueKey },
-    })
+    routes["list-issue-attachments"].$get({ query: { issueKey } })
   );
 }
 

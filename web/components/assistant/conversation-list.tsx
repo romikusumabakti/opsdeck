@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 import { listConversationsQuery } from "@/web/api/assistant";
 
 /**
- * The caller's conversations (all projects), newest first. The list scrolls
- * on its own below the pinned "New conversation" button.
+ * The caller's conversations (all projects), newest first, each with what its
+ * last question was about and when it changed. The list scrolls on its own
+ * below the pinned "New conversation" button.
  */
 export function ConversationList({
   selectedId,
@@ -55,10 +56,13 @@ export function ConversationList({
                 <span className="line-clamp-2 break-words">
                   {c.title || t("untitled")}
                 </span>
-                <RelativeTime
-                  date={c.updatedAt}
-                  className="text-xs font-normal text-muted-foreground"
-                />
+                <span className="flex w-full min-w-0 items-baseline gap-1.5 text-xs font-normal text-muted-foreground">
+                  <span className="truncate">
+                    {c.lastContextLabel ?? t("contextAuto")}
+                  </span>
+                  <span aria-hidden>·</span>
+                  <RelativeTime date={c.updatedAt} className="shrink-0" />
+                </span>
               </button>
             </li>
           ))}

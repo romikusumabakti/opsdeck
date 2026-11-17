@@ -2,6 +2,7 @@ import {
   Activity,
   Ban,
   BookOpen,
+  Bot,
   Boxes,
   Cable,
   CalendarDays,
@@ -69,17 +70,21 @@ import {
 } from "@/lib/permissions";
 import type { EnvironmentListItem } from "@/web/api/environments";
 import { resetSession } from "@/web/api/session";
+import { openAssistant } from "@/web/components/assistant/assistant-shortcut";
 
 export function CommandPalette({
   environments,
   projects,
   orgRole,
   projectRoles,
+  assistantEnabled = false,
 }: {
   environments: EnvironmentListItem[];
   projects: readonly NavProject[];
   orgRole: OrgRole;
   projectRoles: Record<string, ProjectRole>;
+  /** The code assistant is on (and has a key): offer "Ask the assistant". */
+  assistantEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -203,6 +208,19 @@ export function CommandPalette({
               <CircleDot />
               {tNav("allIssues")}
             </CommandItem>
+            {assistantEnabled && projects.length > 0 && (
+              <CommandItem
+                value="ask assistant ai chat code question"
+                onSelect={() => run(() => openAssistant(router, pathname))}
+              >
+                <Bot />
+                {t("askAssistant")}
+                <CommandShortcut>
+                  {modKey}
+                  {modKey === "⌘" ? "" : "+"}J
+                </CommandShortcut>
+              </CommandItem>
+            )}
             <CommandItem
               value="knowledge base docs wiki"
               onSelect={() => run(() => router.push("/knowledge"))}

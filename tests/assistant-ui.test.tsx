@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { readdirSync, readFileSync } from "node:fs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import * as React from "react";
+import type * as React from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
@@ -46,8 +46,8 @@ vi.mock("@/web/api/assistant", () => ({
     queryKey: ["assistant", "listDraftProjects"],
     queryFn: () => new Promise(() => {}),
   }),
-  listIssueAttachmentsQuery: (env: string, key: string) => ({
-    queryKey: ["assistant", "listIssueAttachments", [env, key]],
+  listIssueAttachmentsQuery: (key: string) => ({
+    queryKey: ["assistant", "listIssueAttachments", [key]],
     queryFn: () => new Promise(() => {}),
   }),
   messageStreamUrl: (id: string) => `/api/assistant/stream?messageId=${id}`,
@@ -68,43 +68,24 @@ vi.mock("@/i18n/navigation", () => ({
     </a>
   ),
 }));
-// The sidebar's own filtering, not the shadcn sidebar primitives.
-vi.mock("@/components/active-runs-provider", () => ({
-  useActiveRunCount: () => 0,
-  useActiveRuns: () => [],
+// The context picker's projects and environments: seeded per test.
+vi.mock("@/web/api/project-catalog", () => ({
+  listProjectsQuery: () => ({
+    queryKey: ["project-catalog", "listProjects", []],
+    queryFn: () => new Promise(() => {}),
+  }),
 }));
-vi.mock("@/components/motif-provider", () => ({
-  useMotif: () => ({ motif: null }),
+vi.mock("@/web/api/environments", () => ({
+  listEnvironmentsQuery: () => ({
+    queryKey: ["environments", "listEnvironments", []],
+    queryFn: () => new Promise(() => {}),
+  }),
 }));
-vi.mock("@/components/brand-mark", () => ({ BrandLogo: () => null }));
-vi.mock("@/components/user-menu", () => ({ UserMenu: () => null }));
-vi.mock("@/components/ui/sidebar", () => {
-  const Pass = ({ children }: { children?: React.ReactNode }) => (
-    <div>{children}</div>
-  );
-  return {
-    Sidebar: Pass,
-    SidebarContent: Pass,
-    SidebarFooter: Pass,
-    SidebarGroup: Pass,
-    SidebarGroupContent: Pass,
-    SidebarGroupLabel: Pass,
-    SidebarHeader: Pass,
-    SidebarMenu: Pass,
-    SidebarMenuItem: Pass,
-    SidebarMenuButton: ({
-      render,
-      children,
-    }: {
-      render: React.ReactElement;
-      children?: React.ReactNode;
-    }) => React.cloneElement(render, {}, children),
-  };
-});
 
-import { AppSidebar } from "@/components/app-sidebar";
+import type { QuestionContextInput } from "@/lib/assistant/context";
 import { ApiError } from "@/web/api/client";
 import { AllowanceBadge } from "@/web/components/assistant/allowance-badge";
+import { ASSISTANT_COMPOSER_ID } from "@/web/components/assistant/assistant-shortcut";
 import { AssistantWorkspace } from "@/web/components/assistant/assistant-workspace";
 import { AttachmentPicker } from "@/web/components/assistant/attachment-picker";
 import { ChatThread } from "@/web/components/assistant/chat-thread";
@@ -119,7 +100,36 @@ import { MessageView } from "@/web/components/assistant/message-view";
 
 const ENV_ID = "3f0c2a52-2a7e-4d1b-9a43-6f1f6f0f0e01";
 const ENV_2 = "3f0c2a52-2a7e-4d1b-9a43-6f1f6f0f0e02";
+const ENV_3 = "3f0c2a52-2a7e-4d1b-9a43-6f1f6f0f0e03";
 const CONV_ID = "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
+const AUTO: QuestionContextInput = { kind: "auto" };
+
+/**
+ * The caller's visible projects and environments, as the shell loads them:
+ * Heron Membership (Dev 1, UAT) and Globex Billing (Staging).
+ */
+function seedCatalog() {
+  queryClient.setQueryData(
+    ["project-catalog", "listProjects", []],
+    [
+      { id: "p1", key: "HMEM", name: "Heron Membership" },
+      { id: "p2", key: "GBIL", name: "Globex Billing" },
+    ]
+  );
+  queryClient.setQueryData(
+    ["environments", "listEnvironments", []],
+    [
+      { id: ENV_2, projectId: "p1", name: "Heron Membership UAT", kind: "qa" },
+      {
+        id: ENV_ID,
+        projectId: "p1",
+        name: "Heron Membership Dev 1",
+        kind: "dev",
+      },
+      { id: ENV_3, projectId: "p2", name: "Staging", kind: "qa" },
+    ]
+  );
+}
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -249,57 +259,6 @@ function contextOf(
 
 // --- tests -------------------------------------------------------------------
 
-describe("Assistant entry in the project sidebar", () => {
-  const scope = {
-    environments: [
-      {
-        id: "e1",
-        projectId: "p1",
-        key: "HMEM",
-        slug: "dev",
-        name: "Dev",
-        kind: "dev",
-        hasMailpit: false,
-        serviceRoles: [],
-        projectReleasable: false,
-      },
-    ],
-    projects: [{ id: "p1", key: "HMEM", name: "Heron Membership" }],
-  };
-  const renderSidebar = (assistantEnabled: boolean, pathname: string) => {
-    nav.pathname = pathname;
-    return render(
-      <AppSidebar
-        environments={scope.environments as never}
-        projects={scope.projects}
-        orgRole="engineer"
-        projectRoles={{ p1: "qa" }}
-        issueCounts={{ total: 0 } as never}
-        openCounts={{}}
-        user={
-          { id: "u", name: "U", email: "u@example.com", image: null } as never
-        }
-        logo={"menara" as never}
-        assistantEnabled={assistantEnabled}
-      />
-    );
-  };
-  const hrefs = () =>
-    [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
-
-  it("is hidden while the assistant is disabled", async () => {
-    await renderSidebar(false, "/HMEM/dev/deploys");
-    expect(hrefs()).not.toContain("/HMEM/assistant");
-    expect(hrefs()).not.toContain("/HMEM/dev/assistant");
-  });
-
-  it("is shown (to a QA too) once enabled, at project level only", async () => {
-    await renderSidebar(true, "/HMEM/dev/deploys");
-    expect(hrefs()).toContain("/HMEM/assistant");
-    expect(hrefs()).not.toContain("/HMEM/dev/assistant");
-  });
-});
-
 describe("daily cap", () => {
   const allowance = {
     enabled: true,
@@ -360,7 +319,8 @@ describe("daily cap", () => {
   it("the composer explains the limit with the reset time at the cap", async () => {
     await render(
       <Composer
-        projectId="p1"
+        context={AUTO}
+        onContextChange={() => {}}
         disabled
         onSend={vi.fn()}
         focusKey="new"
@@ -381,7 +341,8 @@ describe("daily cap", () => {
     );
     await render(
       <Composer
-        projectId="p1"
+        context={AUTO}
+        onContextChange={() => {}}
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -1095,7 +1056,7 @@ describe("answer stream", () => {
 describe("composer attachments", () => {
   it("sends each ticked attachment with its issue key", async () => {
     queryClient.setQueryData(
-      ["assistant", "listIssueAttachments", ["p1", "KST-12"]],
+      ["assistant", "listIssueAttachments", ["KST-12"]],
       {
         key: "KST-12",
         unavailable: false,
@@ -1112,7 +1073,8 @@ describe("composer attachments", () => {
     const onSend = vi.fn().mockResolvedValue(undefined);
     await render(
       <Composer
-        projectId="p1"
+        context={AUTO}
+        onContextChange={() => {}}
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -1158,7 +1120,8 @@ describe("composer attachments", () => {
 describe("composer focus and keys", () => {
   const composer = (focusKey: string | null) => (
     <Composer
-      projectId="p1"
+      context={AUTO}
+      onContextChange={() => {}}
       disabled={false}
       onSend={vi.fn().mockResolvedValue(undefined)}
       focusKey={focusKey}
@@ -1186,6 +1149,8 @@ describe("composer focus and keys", () => {
     const box = container.querySelector("textarea");
     if (!box) throw new Error("no textarea");
     expect(document.activeElement).toBe(box);
+    // The id the Ctrl/Cmd+J shortcut focuses.
+    expect(box.id).toBe(ASSISTANT_COMPOSER_ID);
     box.blur();
     expect(document.activeElement).not.toBe(box);
     await rerender(composer("c1"));
@@ -1196,7 +1161,8 @@ describe("composer focus and keys", () => {
     const onSend = vi.fn().mockResolvedValue(undefined);
     await render(
       <Composer
-        projectId="p1"
+        context={AUTO}
+        onContextChange={() => {}}
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -1313,9 +1279,7 @@ describe("drafts panel in the workspace", () => {
       [{ id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }]
     );
     queryClient.setQueryData(conversationKey, conversation);
-    await render(
-      <AssistantWorkspace projectId="p1" projectName="Heron Membership" />
-    );
+    await render(<AssistantWorkspace />);
   };
 
   it("has no drafts toggle until a conversation is selected", async () => {
@@ -1396,21 +1360,8 @@ describe("drafts panel in the workspace", () => {
   });
 });
 
-describe("source chip", () => {
-  const project = {
-    id: "p1",
-    name: "Heron Membership",
-    environments: [
-      { id: ENV_2, name: "Heron Membership UAT", kind: "qa" },
-      { id: ENV_ID, name: "Heron Membership Dev 1", kind: "dev" },
-    ],
-  };
-  const userMessage = (
-    id: string,
-    environmentId: string | null,
-    environmentName: string | null,
-    environmentDeleted = false
-  ) => ({
+describe("context picker", () => {
+  const userMessage = (id: string, context: unknown) => ({
     id,
     role: "user",
     content: "Q",
@@ -1420,21 +1371,23 @@ describe("source chip", () => {
     attachmentIds: [],
     createdAt: "2026-11-16T01:00:00Z",
     toolCalls: [],
-    context: contextOf(
-      "user",
-      environmentId,
-      environmentName,
-      environmentDeleted
-    ),
+    context,
   });
   const answer = {
-    ...userMessage("a1", null, null),
+    ...userMessage("a1", null),
     role: "assistant",
     content: "Jawaban",
-    context: null,
   };
   const chip = () =>
     container.querySelector<HTMLElement>('[data-slot="combobox-trigger"]');
+  const items = () =>
+    [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
+    ].map((el) => el.textContent);
+  const item = (label: string) =>
+    [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
+    ].find((el) => el.textContent === label);
   const settle = async () => {
     for (let i = 0; i < 4; i++) {
       await act(async () => {
@@ -1445,187 +1398,318 @@ describe("source chip", () => {
 
   const renderWorkspace = async (
     props: {
-      initialEnvironmentId?: string | null;
+      initialContext?: QuestionContextInput | null;
       conversationId?: string | null;
       onConversationChange?: (id: string | null) => void;
     } = {},
-    messagesOfC1: unknown[] = []
+    messagesOfC1: unknown[] = [],
+    conversations: unknown[] = [
+      {
+        id: CONV_ID,
+        title: "Iuran",
+        updatedAt: "2026-11-16T01:00:00Z",
+        lastContextLabel: null,
+      },
+    ]
   ) => {
+    seedCatalog();
     queryClient.setQueryData(["assistant", "getAllowance"], {
       enabled: true,
       usedFraction: 0,
       capReached: false,
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
-    queryClient.setQueryData(
-      ["project-catalog", "getProjectWithEnvironments", ["p1"]],
-      project
-    );
-    queryClient.setQueryData(
-      ["assistant", "listConversations"],
-      [{ id: CONV_ID, title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }]
-    );
+    queryClient.setQueryData(["assistant", "listConversations"], conversations);
     queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
       id: CONV_ID,
       title: "Iuran",
       drafts: [],
       messages: messagesOfC1,
     });
-    await render(
-      <AssistantWorkspace
-        projectId="p1"
-        projectName="Heron Membership"
-        {...props}
-      />
-    );
+    await render(<AssistantWorkspace {...props} />);
   };
 
-  const typeAndSend = async (question: string) => {
+  const type = async (value: string) => {
     const box = container.querySelector("textarea");
     if (!box) throw new Error("no textarea");
     await act(async () => {
       Object.getOwnPropertyDescriptor(
         HTMLTextAreaElement.prototype,
         "value"
-      )?.set?.call(box, question);
+      )?.set?.call(box, value);
+      box.setSelectionRange(value.length, value.length);
       box.dispatchEvent(new Event("input", { bubbles: true }));
     });
+    return box;
+  };
+  const typeAndSend = async (question: string) => {
+    await type(question);
     await act(async () => button(t.send)?.click());
   };
 
-  it("defaults to Project branches and sends the project as the context", async () => {
+  it("defaults to Automatic and sends an automatic question", async () => {
     api.createConversation.mockResolvedValue({ id: CONV_ID });
     api.sendMessage.mockResolvedValue({});
     await renderWorkspace();
-    expect(chip()?.textContent).toBe(t.sourceProjectBranches);
+    expect(chip()?.textContent).toBe(t.contextAuto);
     await typeAndSend("Di mana hitung iuran?");
     expect(api.createConversation).toHaveBeenCalledExactlyOnceWith();
     expect(api.sendMessage).toHaveBeenCalledWith({
       conversationId: CONV_ID,
       text: "Di mana hitung iuran?",
-      context: { kind: "project", projectId: "p1" },
+      context: { kind: "auto" },
     });
   });
 
-  it("starts on the ?env environment (the old URL's redirect)", async () => {
-    await renderWorkspace({ initialEnvironmentId: ENV_ID });
-    expect(chip()?.textContent).toBe("Dev 1");
+  it("starts on the ?project project and the ?env environment", async () => {
+    await renderWorkspace({
+      initialContext: { kind: "project", projectId: "p1" },
+    });
+    expect(chip()?.textContent).toBe("Heron Membership");
+    act(() => root.unmount());
+    container.remove();
+    await renderWorkspace({
+      initialContext: { kind: "environment", environmentId: ENV_ID },
+    });
+    expect(chip()?.textContent).toBe("Heron Membership · Dev 1");
   });
 
-  it("moves to a new ?env while open, and keeps the pick when ?env is dropped", async () => {
-    await renderWorkspace();
-    const workspace = (env: string | null) => (
-      <QueryClientProvider client={queryClient}>
-        <IntlProvider
-          locale="en"
-          messages={messages}
-          timeZone="Asia/Jakarta"
-          now={new Date("2026-11-16T05:00:00Z")}
-        >
-          <AssistantWorkspace
-            projectId="p1"
-            projectName="Heron Membership"
-            initialEnvironmentId={env}
-          />
-        </IntlProvider>
-      </QueryClientProvider>
+  it("a preselected project the caller does not see is Automatic", async () => {
+    await renderWorkspace({
+      initialContext: { kind: "project", projectId: "gone" },
+    });
+    expect(chip()?.textContent).toBe(t.contextAuto);
+  });
+
+  it("names the context in the chip's label", async () => {
+    await renderWorkspace({
+      initialContext: { kind: "environment", environmentId: ENV_ID },
+    });
+    expect(chip()?.getAttribute("aria-label")).toBe(
+      t.contextPick.replace("{name}", "Heron Membership · Dev 1")
     );
-    await act(async () => root.render(workspace(ENV_2)));
-    expect(chip()?.textContent).toBe("UAT");
-    await act(async () => root.render(workspace(null)));
-    expect(chip()?.textContent).toBe("UAT");
   });
 
-  it("lists Project branches first, then the environments in kind order", async () => {
+  it("lists Automatic, then the projects by name, each with its environments in kind order", async () => {
     await renderWorkspace();
     await act(async () => chip()?.click());
     await settle();
-    const items = [
-      ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
-    ].map((el) => el.textContent);
-    expect(items).toEqual([t.sourceProjectBranches, "Dev 1", "UAT"]);
+    expect(items()).toEqual([
+      t.contextAuto,
+      "Globex Billing",
+      "Staging",
+      "Heron Membership",
+      "Dev 1",
+      "UAT",
+    ]);
   });
 
-  it("sends the environment picked in the chip", async () => {
+  it("searches projects and environments together", async () => {
+    await renderWorkspace();
+    await act(async () => chip()?.click());
+    await settle();
+    const search = document.querySelector<HTMLInputElement>(
+      '[data-slot="combobox-content"] input'
+    );
+    if (!search) throw new Error("no search");
+    const find = async (query: string) => {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set?.call(search, query);
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await settle();
+      return items();
+    };
+    expect(await find("uat")).toEqual(["UAT"]);
+    // A project's name finds it and its environments.
+    expect(await find("heron")).toEqual(["Heron Membership", "Dev 1", "UAT"]);
+  });
+
+  it("sends the environment or project picked in the chip", async () => {
     api.sendMessage.mockResolvedValue({});
     await renderWorkspace({ conversationId: CONV_ID }, [answer]);
     await act(async () => chip()?.click());
     await settle();
-    const uat = [
-      ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
-    ].find((el) => el.textContent === "UAT");
-    await act(async () => uat?.click());
+    await act(async () => item("UAT")?.click());
     await settle();
-    expect(chip()?.textContent).toBe("UAT");
+    expect(chip()?.textContent).toBe("Heron Membership · UAT");
     await typeAndSend("Bedanya di UAT?");
-    expect(api.createConversation).not.toHaveBeenCalled();
-    expect(api.sendMessage).toHaveBeenCalledWith({
+    expect(api.sendMessage).toHaveBeenLastCalledWith({
       conversationId: CONV_ID,
       text: "Bedanya di UAT?",
       context: { kind: "environment", environmentId: ENV_2 },
     });
+    await act(async () => chip()?.click());
+    await settle();
+    await act(async () => item("Globex Billing")?.click());
+    await settle();
+    await typeAndSend("Dan di Globex?");
+    expect(api.createConversation).not.toHaveBeenCalled();
+    expect(api.sendMessage).toHaveBeenLastCalledWith({
+      conversationId: CONV_ID,
+      text: "Dan di Globex?",
+      context: { kind: "project", projectId: "p2" },
+    });
   });
 
-  it("an opened conversation starts at the source of its last question", async () => {
+  it("@ in an empty box opens the picker and leaves no @", async () => {
+    await renderWorkspace();
+    const box = await type("@");
+    await settle();
+    expect(box.value).toBe("");
+    expect(items()).toContain("Heron Membership");
+    await act(async () => item("Heron Membership")?.click());
+    await settle();
+    expect(chip()?.textContent).toBe("Heron Membership");
+  });
+
+  it("@ after a space opens the picker; inside a word it stays text", async () => {
+    await renderWorkspace();
+    await type("Where is ");
+    const box = await type("Where is @");
+    await settle();
+    expect(box.value).toBe("Where is ");
+    expect(items()).toContain(t.contextAuto);
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      );
+    });
+    await settle();
+    act(() => root.unmount());
+    container.remove();
+    await renderWorkspace();
+    await type("user");
+    const mail = await type("user@");
+    await settle();
+    expect(mail.value).toBe("user@");
+    expect(items()).toEqual([]);
+  });
+
+  it("an opened conversation starts at the context of its last question", async () => {
     await renderWorkspace({ conversationId: CONV_ID }, [
-      userMessage("u1", ENV_ID, "Heron Membership Dev 1"),
+      userMessage("u1", {
+        kind: "auto",
+        label: null,
+        deleted: false,
+        projectId: null,
+        environmentId: null,
+      }),
       answer,
-      userMessage("u2", ENV_2, "Heron Membership UAT"),
+      userMessage("u2", {
+        kind: "environment",
+        label: "Heron Membership UAT",
+        deleted: false,
+        projectId: "p1",
+        environmentId: ENV_2,
+      }),
       { ...answer, id: "a2" },
     ]);
-    expect(chip()?.textContent).toBe("UAT");
+    expect(chip()?.textContent).toBe("Heron Membership · UAT");
   });
 
-  it("falls back to Project branches when that environment was deleted", async () => {
+  it("a deleted environment falls back to its project; a lost project to Automatic", async () => {
     await renderWorkspace({ conversationId: CONV_ID }, [
-      userMessage("u1", null, "Heron Membership Old", true),
+      userMessage("u1", {
+        kind: "environment",
+        label: "Heron Membership Old",
+        deleted: true,
+        projectId: "p1",
+        environmentId: null,
+      }),
       answer,
     ]);
-    expect(chip()?.textContent).toBe(t.sourceProjectBranches);
+    expect(chip()?.textContent).toBe("Heron Membership");
+    act(() => root.unmount());
+    container.remove();
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", {
+        kind: "project",
+        label: "Initech Payroll",
+        deleted: false,
+        projectId: "p9",
+        environmentId: null,
+      }),
+      answer,
+    ]);
+    expect(chip()?.textContent).toBe(t.contextAuto);
+  });
+
+  it("a Stage 2 conversation shows its old questions with their context", async () => {
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", contextOf("user", null, null)),
+      answer,
+      userMessage("u2", contextOf("user", ENV_ID, "Heron Membership Dev 1")),
+      { ...answer, id: "a2" },
+      userMessage("u3", contextOf("user", null, "Heron Membership Old", true)),
+      { ...answer, id: "a3" },
+    ]);
+    const labels = [
+      ...container.querySelectorAll<HTMLElement>("[data-question-context]"),
+    ].map((el) => el.textContent);
+    expect(labels).toEqual([
+      "Heron Membership",
+      "Heron Membership · Dev 1",
+      // Its project is still there, so it is named with it.
+      `Heron Membership · Old ${t.contextDeleted}`,
+    ]);
+  });
+
+  it("New conversation goes back to Automatic", async () => {
+    await renderWorkspace({
+      conversationId: CONV_ID,
+      initialContext: { kind: "project", projectId: "p1" },
+    });
+    expect(chip()?.textContent).toBe("Heron Membership");
+    await act(async () => button(t.newConversation)?.click());
+    expect(chip()?.textContent).toBe(t.contextAuto);
+  });
+
+  it("the conversation list shows each conversation's last context", async () => {
+    await renderWorkspace(
+      {},
+      [],
+      [
+        {
+          id: CONV_ID,
+          title: "Iuran",
+          updatedAt: "2026-11-16T01:00:00Z",
+          lastContextLabel: "Heron Membership",
+        },
+        {
+          id: "c2",
+          title: "Tagihan",
+          updatedAt: "2026-11-16T00:00:00Z",
+          lastContextLabel: null,
+        },
+      ]
+    );
+    const rows = [...document.querySelectorAll("nav li")].map(
+      (li) => li.textContent ?? ""
+    );
+    expect(rows[0]).toContain("Heron Membership");
+    expect(rows[1]).toContain(t.contextAuto);
   });
 
   it("reports the selected conversation for the URL", async () => {
     const onConversationChange = vi.fn();
     await renderWorkspace({ onConversationChange });
-    const item = [...document.querySelectorAll("nav button")].find((b) =>
+    const row = [...document.querySelectorAll("nav button")].find((b) =>
       b.textContent?.includes("Iuran")
     ) as HTMLButtonElement | undefined;
-    await act(async () => item?.click());
+    await act(async () => row?.click());
     expect(onConversationChange).toHaveBeenLastCalledWith(CONV_ID);
-  });
-
-  it("names the source and its value in the chip's label", async () => {
-    await renderWorkspace({ initialEnvironmentId: ENV_ID });
-    expect(chip()?.getAttribute("aria-label")).toBe(`${t.sourceLabel}: Dev 1`);
   });
 
   it("locks the chip while an answer is running", async () => {
     await renderWorkspace({ conversationId: CONV_ID }, [
-      userMessage("u1", null, null),
+      userMessage("u1", contextOf("user", null, null)),
       { ...answer, status: "streaming" },
     ]);
     expect(chip()?.hasAttribute("disabled")).toBe(true);
-  });
-
-  it("opens a conversation whose last question pinned another project's environment, at Project branches", async () => {
-    const onConversationChange = vi.fn();
-    await renderWorkspace({ conversationId: CONV_ID, onConversationChange }, [
-      {
-        ...userMessage("u1", null, null),
-        context: {
-          kind: "environment",
-          label: "Globex Staging",
-          deleted: false,
-          projectId: "p2",
-          environmentId: "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4a99",
-        },
-      },
-      answer,
-    ]);
-    await settle();
-    expect(onConversationChange).not.toHaveBeenCalledWith(null);
-    expect(text()).toContain("Jawaban");
-    expect(chip()?.textContent).toBe(t.sourceProjectBranches);
   });
 
   it("drops a ?c= conversation that is not found", async () => {
@@ -1643,7 +1727,7 @@ describe("source chip", () => {
   it("does not show an old draft error again after the panel is reopened", async () => {
     api.generateDraft.mockRejectedValue(new ApiError(504, "Gateway Timeout"));
     await renderWorkspace({ conversationId: CONV_ID }, [
-      userMessage("u1", null, null),
+      userMessage("u1", contextOf("user", null, null)),
       answer,
     ]);
     await act(async () => button(t.newDraft)?.click());
@@ -1667,7 +1751,7 @@ describe("source chip", () => {
   it("New draft › Issue opens the panel and generates an issue draft", async () => {
     api.generateDraft.mockResolvedValue({});
     await renderWorkspace({ conversationId: CONV_ID }, [
-      userMessage("u1", null, null),
+      userMessage("u1", contextOf("user", null, null)),
       answer,
     ]);
     expect(document.querySelector('section[aria-label="Drafts"]')).toBeNull();
@@ -1688,7 +1772,7 @@ describe("source chip", () => {
   });
 });
 
-describe("question bubble source", () => {
+describe("question bubble context", () => {
   const question = {
     id: "u1",
     role: "user" as const,
@@ -1701,75 +1785,89 @@ describe("question bubble source", () => {
     toolCalls: [],
     context: contextOf("user", null, null),
   };
+  const label = () =>
+    container.querySelector("[data-question-context]")?.textContent;
+  const renderQuestion = (context: unknown) => {
+    seedCatalog();
+    return render(<MessageView message={{ ...question, context } as never} />);
+  };
 
-  it("shows no label for Project branches", async () => {
-    await render(
-      <MessageView message={question as never} projectName="Heron Membership" />
-    );
-    expect(text()).toBe("Q");
+  it("names an automatic question", async () => {
+    await renderQuestion({
+      kind: "auto",
+      label: null,
+      deleted: false,
+      projectId: null,
+      environmentId: null,
+    });
+    expect(label()).toBe(t.contextAuto);
   });
 
-  it("shows the environment it asked about", async () => {
-    await render(
-      <MessageView
-        message={
-          {
-            ...question,
-            context: contextOf("user", ENV_ID, "Heron Membership Dev 1"),
-          } as never
-        }
-        projectName="Heron Membership"
-      />
-    );
-    expect(text()).toContain("Dev 1");
-    expect(text()).not.toContain(t.environmentDeleted);
+  it("names the project it asked about", async () => {
+    await renderQuestion(contextOf("user", null, null));
+    expect(label()).toBe("Heron Membership");
   });
 
-  it("marks a deleted environment (deleted)", async () => {
-    await render(
-      <MessageView
-        message={
-          {
-            ...question,
-            context: contextOf("user", null, "Heron Membership Dev 1", true),
-          } as never
-        }
-        projectName="Heron Membership"
-      />
+  it("names the environment with its project", async () => {
+    await renderQuestion(contextOf("user", ENV_ID, "Heron Membership Dev 1"));
+    expect(label()).toBe("Heron Membership · Dev 1");
+    expect(text()).not.toContain(t.contextDeleted);
+  });
+
+  it("keeps the stored name of an environment whose project it cannot see", async () => {
+    await renderQuestion({
+      kind: "environment",
+      label: "Initech Staging",
+      deleted: false,
+      projectId: "p9",
+      environmentId: ENV_ID,
+    });
+    expect(label()).toBe("Initech Staging");
+  });
+
+  it("marks a deleted context (deleted)", async () => {
+    await renderQuestion(
+      contextOf("user", null, "Heron Membership Dev 1", true)
     );
-    expect(text()).toContain(`Dev 1 ${t.environmentDeleted}`);
-    expect(t.environmentDeleted).toBe("(deleted)");
+    expect(label()).toBe(`Heron Membership · Dev 1 ${t.contextDeleted}`);
+    act(() => root.unmount());
+    container.remove();
+    await renderQuestion({
+      kind: "project",
+      label: "Initech Payroll",
+      deleted: true,
+      projectId: null,
+      environmentId: null,
+    });
+    expect(label()).toBe(`Initech Payroll ${t.contextDeleted}`);
+    expect(t.contextDeleted).toBe("(deleted)");
   });
 });
 
 describe("attachment picker", () => {
   it("shows already-picked attachments locked and counts them in the limit", async () => {
-    queryClient.setQueryData(
-      ["assistant", "listIssueAttachments", ["p1", "KST-1"]],
-      {
-        key: "KST-1",
-        unavailable: false,
-        attachments: [
-          {
-            id: "1",
-            filename: "a.xlsx",
-            mime: "application/xlsx",
-            sizeBytes: 10,
-          },
-          {
-            id: "2",
-            filename: "b.pdf",
-            mime: "application/pdf",
-            sizeBytes: 20,
-          },
-          { id: "3", filename: "c.png", mime: "image/png", sizeBytes: 30 },
-        ],
-      }
-    );
+    queryClient.setQueryData(["assistant", "listIssueAttachments", ["KST-1"]], {
+      key: "KST-1",
+      unavailable: false,
+      attachments: [
+        {
+          id: "1",
+          filename: "a.xlsx",
+          mime: "application/xlsx",
+          sizeBytes: 10,
+        },
+        {
+          id: "2",
+          filename: "b.pdf",
+          mime: "application/pdf",
+          sizeBytes: 20,
+        },
+        { id: "3", filename: "c.png", mime: "image/png", sizeBytes: 30 },
+      ],
+    });
     const onAdd = vi.fn();
     await render(
       <AttachmentPicker
-        projectId="p1"
         open
         onOpenChange={() => {}}
         max={2}
@@ -1846,7 +1944,7 @@ describe("assistant messages", () => {
     };
     const files = [
       ...readdirSync(dir).map((f) => `${dir}/${f}`),
-      "web/routes/$locale/_app/$projectKey.assistant.tsx",
+      "web/routes/$locale/_app/assistant.tsx",
     ];
     const missing: string[] = [];
     let used = 0;

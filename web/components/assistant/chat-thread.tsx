@@ -40,13 +40,7 @@ export function pendingAnswer(
  * answer follows its SSE stream; once it ends the conversation (sources,
  * final status) and the allowance are refetched.
  */
-export function ChatThread({
-  conversationId,
-  projectName,
-}: {
-  conversationId: string;
-  projectName?: string;
-}) {
+export function ChatThread({ conversationId }: { conversationId: string }) {
   const t = useTranslations("assistant");
   const queryClient = useQueryClient();
   const conversation = useQuery(getConversationQuery(conversationId)).data;
@@ -111,7 +105,6 @@ export function ChatThread({
             <MessageView
               key={message.id}
               message={message}
-              projectName={projectName}
               projectBranches={isProjectBranches(
                 messages.slice(0, index).findLast((m) => m.role === "user")
               )}

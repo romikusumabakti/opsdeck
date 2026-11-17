@@ -591,6 +591,9 @@ describe("global gate", () => {
     as(LONER, "engineer");
     expect((await get("/list-conversations")).status).toBe(403);
     expect((await post("/create-conversation", {})).status).toBe(403);
+    expect((await get("/list-issue-attachments?issueKey=KMEM-12")).status).toBe(
+      403
+    );
     as(QA);
     state.members = {};
     expect((await get("/list-conversations")).status).toBe(403);
@@ -614,6 +617,7 @@ describe("global gate", () => {
       for (const res of [
         await get("/list-conversations"),
         await post("/create-conversation", {}),
+        await get("/list-issue-attachments?issueKey=KMEM-12"),
       ]) {
         expect(res.status).toBe(503);
         expect(await res.json()).toMatchObject({
@@ -907,13 +911,12 @@ describe("conversation ownership", () => {
 
   it("an engineer who is not a member of another project cannot list its attachments", async () => {
     as(QA, "engineer");
-    expect(
-      (
-        await get(
-          `/list-issue-attachments?projectId=${PROJECT_HMEM}&issueKey=HMEM-1`
-        )
-      ).status
-    ).toBe(404);
+    jira.viewer.mockResolvedValue({ userId: QA, projectIds: [PROJECT_KMEM] });
+    jira.visible.mockResolvedValue(null);
+    expect((await get("/list-issue-attachments?issueKey=HMEM-1")).status).toBe(
+      404
+    );
+    expect(jira.list).not.toHaveBeenCalled();
   });
 });
 
@@ -1164,9 +1167,7 @@ describe("list-issue-attachments", () => {
       ],
       error: null,
     });
-    const res = await get(
-      `/list-issue-attachments?projectId=${PROJECT_KMEM}&issueKey=kmem-12`
-    );
+    const res = await get("/list-issue-attachments?issueKey=kmem-12");
     expect(await res.json()).toEqual({
       key: "KMEM-12",
       attachments: [
@@ -1190,9 +1191,7 @@ describe("list-issue-attachments", () => {
   it("is 404 for an issue outside the caller's visible projects, without a Jira call", async () => {
     jira.viewer.mockResolvedValue({ userId: QA, projectIds: [PROJECT_KMEM] });
     jira.visible.mockResolvedValue(null);
-    const res = await get(
-      `/list-issue-attachments?projectId=${PROJECT_KMEM}&issueKey=HMEM-3`
-    );
+    const res = await get("/list-issue-attachments?issueKey=HMEM-3");
     expect(res.status).toBe(404);
     expect(jira.list).not.toHaveBeenCalled();
   });
@@ -1204,9 +1203,7 @@ describe("list-issue-attachments", () => {
       attachments: [],
       error: "Jira request failed (HTTP 500)",
     });
-    const res = await get(
-      `/list-issue-attachments?projectId=${PROJECT_KMEM}&issueKey=KMEM-12`
-    );
+    const res = await get("/list-issue-attachments?issueKey=KMEM-12");
     const text = await res.text();
     expect(text).not.toContain("HTTP 500");
     expect(JSON.parse(text)).toMatchObject({

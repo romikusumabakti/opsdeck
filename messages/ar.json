@@ -112,7 +112,8 @@
       "ar": "العربية",
       "es": "الإسبانية"
     },
-    "projects": "المشاريع"
+    "projects": "المشاريع",
+    "askAssistant": "اسأل المساعد"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -792,7 +793,8 @@
     "groupGeneral": "عام",
     "openCommandPalette": "فتح لوحة الأوامر",
     "openShortcuts": "فتح مربع حوار الاختصارات هذا",
-    "closeDialog": "إغلاق أي مربع حوار مفتوح"
+    "closeDialog": "إغلاق أي مربع حوار مفتوح",
+    "openAssistant": "فتح المساعد"
   },
   "newEnvironment": {
     "title": "بيئة جديدة",
@@ -3666,7 +3668,7 @@
   },
   "assistant": {
     "title": "المساعد",
-    "subtitle": "اسأل عن الشيفرة والمشكلات في {name}.",
+    "subtitle": "اسأل عن الشيفرة والمشكلات في مشاريعك.",
     "usageUsed": "تم استخدام {percent}٪ من حد اليوم",
     "usageResets": "يُعاد التعيين عند {time, time, short}",
     "usageCapReached": "لقد بلغت حد اليوم. يُعاد التعيين عند {time, time, short}.",
@@ -3677,7 +3679,7 @@
     "noConversations": "لا توجد محادثات بعد.",
     "untitled": "بلا عنوان",
     "emptyThreadTitle": "ابدأ بالسؤال",
-    "emptyThreadDescription": "اسأل عن التدفقات أو قواعد العمل أو مكان الشيفرة في هذا المشروع. اختر المصدر أدناه: فروع المشروع، أو الشيفرة التي تعمل في بيئة ما.",
+    "emptyThreadDescription": "اسأل عن التدفقات أو قواعد العمل أو مكان الشيفرة. اختر السياق أدناه: تلقائي، أو مشروع، أو إحدى بيئاته. اكتب @ لاختياره بسرعة.",
     "placeholder": "اكتب سؤالًا…",
     "send": "إرسال",
     "sendHint": "Enter للإرسال، Shift+Enter لسطر جديد",
@@ -3739,11 +3741,14 @@
     "jiraCreated": "أُنشئت المشكلة {jiraKey}.",
     "jiraCreatedAs": "أُنشئت باسم {jiraKey}.",
     "openPanelIssue": "فتح المشكلة في اللوحة",
-    "sourceProjectBranches": "فروع المشروع",
-    "sourceLabel": "المصدر",
-    "environmentDeleted": "(محذوفة)",
     "newDraft": "مسودة جديدة",
     "newDraftBrd": "BRD",
-    "newDraftIssue": "مشكلة"
+    "newDraftIssue": "مشكلة",
+    "contextAuto": "تلقائي",
+    "contextPick": "السياق: {name}",
+    "contextProjects": "المشاريع",
+    "contextEnvironments": "{name}، بيئة في {project}",
+    "contextDeleted": "(محذوف)",
+    "shortcutHint": "اضغط {key}+J في أي مكان لفتح المساعد."
   }
 }

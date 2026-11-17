@@ -33,14 +33,12 @@ export type PickedAttachment = {
  * Nothing is read until the question is sent with the ticked ids.
  */
 export function AttachmentPicker({
-  projectId,
   open,
   onOpenChange,
   max,
   picked,
   onAdd,
 }: {
-  projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Attachments per message. */
@@ -57,7 +55,7 @@ export function AttachmentPicker({
   const [ticked, setTicked] = React.useState<Set<string>>(new Set());
 
   const list = useQuery({
-    ...listIssueAttachmentsQuery(projectId, issueKey ?? ""),
+    ...listIssueAttachmentsQuery(issueKey ?? ""),
     enabled: open && issueKey !== null,
     retry: false,
   });

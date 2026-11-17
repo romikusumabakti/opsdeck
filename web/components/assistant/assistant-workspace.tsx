@@ -19,19 +19,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useModKey } from "@/hooks/use-is-mac";
 import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
+import type { QuestionContextInput } from "@/lib/assistant/context";
 import { cn } from "@/lib/utils";
 import {
   type Conversation,
   createConversation,
   getAllowanceQuery,
   getConversationQuery,
+  type MessageContext,
   sendMessage,
 } from "@/web/api/assistant";
 import { ApiError } from "@/web/api/client";
 import { AllowanceBadge, capReached } from "./allowance-badge";
 import { ChatThread, pendingAnswer } from "./chat-thread";
 import { Composer } from "./composer";
+import { useContextOptions, visibleContext } from "./context-picker";
 import { ConversationList } from "./conversation-list";
 import {
   canDraftFrom,
@@ -39,7 +43,6 @@ import {
   DraftPanel,
   useDraftGeneration,
 } from "./draft-panel";
-import { SourceChip, useSourceEnvironments } from "./source-chip";
 
 const LARGE = "(min-width: 64rem)"; // Tailwind `lg`
 
@@ -55,39 +58,58 @@ function useIsLarge() {
   );
 }
 
+const AUTO: QuestionContextInput = { kind: "auto" };
+
 /**
- * The environment of the conversation's last question, null for any other
- * context (a deleted environment included), undefined without a question.
+ * A stored question context as the chip's value: its environment, or, once
+ * that environment is gone, its project; Automatic when neither is left.
  */
-function lastSourceOf(conversation: Conversation): string | null | undefined {
-  const last = conversation.messages.findLast((m) => m.role === "user");
-  if (!last) return undefined;
-  return last.context?.kind === "environment"
-    ? last.context.environmentId
-    : null;
+function pickOf(context: MessageContext | null): QuestionContextInput {
+  if (context?.kind === "environment" && context.environmentId) {
+    return { kind: "environment", environmentId: context.environmentId };
+  }
+  if (context?.kind !== "auto" && context?.projectId) {
+    return { kind: "project", projectId: context.projectId };
+  }
+  return AUTO;
 }
 
 /**
- * The Assistant: the caller's conversations about the project, the open
- * thread with its question box, and, on demand, the drafts of that
- * conversation. Each question asks about the source in the composer's chip:
- * the project branches (null) or one of its environments. The chip starts at
- * `initialEnvironmentId`, and an opened conversation moves it to the source of
- * its last question. It fills the height its route gives it: the conversation
- * list and the thread scroll on their own while the question box stays at the
+ * The context of the conversation's last question, undefined without one.
+ */
+function lastContextOf(
+  conversation: Conversation
+): QuestionContextInput | undefined {
+  const last = conversation.messages.findLast((m) => m.role === "user");
+  return last && pickOf(last.context);
+}
+
+/** A stable key for a context (or none), to notice a new preselection. */
+function keyOf(context: QuestionContextInput | null): string {
+  if (!context) return "";
+  if (context.kind === "project") return `p:${context.projectId}`;
+  if (context.kind === "environment") return `e:${context.environmentId}`;
+  return "auto";
+}
+
+/**
+ * The Assistant: the caller's conversations, the open thread with its
+ * question box, and, on demand, the drafts of that conversation. Each
+ * question asks about the context in the composer's chip: Automatic, a
+ * project, or an environment. The chip starts at `initialContext` (else
+ * Automatic), and an opened conversation moves it to the context of its last
+ * question; a project or environment the caller no longer sees reads as
+ * Automatic. It fills the height its route gives it: the conversation list
+ * and the thread scroll on their own while the question box stays at the
  * bottom. A new conversation is created by its first question.
  */
 export function AssistantWorkspace({
-  projectId,
-  projectName,
-  initialEnvironmentId = null,
+  initialContext = null,
   conversationId = null,
   onConversationChange,
 }: {
-  projectId: string;
-  projectName: string;
-  /** The chip's first value (an environment of this project), e.g. `?env=`. */
-  initialEnvironmentId?: string | null;
+  /** The chip's first value, e.g. from `?project=` or `?env=`. */
+  initialContext?: QuestionContextInput | null;
   /** The open conversation, e.g. `?c=`; a change from outside opens it. */
   conversationId?: string | null;
   /** Called with the conversation the user opens, or null for a new one. */
@@ -95,25 +117,26 @@ export function AssistantWorkspace({
 }) {
   const t = useTranslations("assistant");
   const tErrors = useTranslations("assistantErrors");
+  const modKey = useModKey();
   const allowance = useSuspenseQuery(getAllowanceQuery()).data;
   const [selectedId, setSelectedIdState] = React.useState(conversationId);
   // A new `conversationId` from the URL opens that conversation.
   const [seenProp, setSeenProp] = React.useState(conversationId);
   // The chip. `seededFor` is the conversation whose last question set it, so
   // opening a conversation moves the chip once and the user's pick then
-  // stands. A ?env preselection counts as seeding the opened conversation.
-  const [source, setSource] = React.useState<string | null>(
-    initialEnvironmentId
+  // stands. A preselection counts as seeding the opened conversation.
+  const [picked, setPicked] = React.useState<QuestionContextInput>(
+    initialContext ?? AUTO
   );
   const [seededFor, setSeededFor] = React.useState<string | null>(
-    initialEnvironmentId ? conversationId : null
+    initialContext ? conversationId : null
   );
-  // A new `initialEnvironmentId` (an old environment link followed while
-  // here) moves the chip; dropping it from the URL does not.
-  const [seenEnv, setSeenEnv] = React.useState(initialEnvironmentId);
-  if (initialEnvironmentId !== seenEnv) {
-    setSeenEnv(initialEnvironmentId);
-    if (initialEnvironmentId) setSource(initialEnvironmentId);
+  // A new `initialContext` (a link followed while here) moves the chip;
+  // dropping it from the URL does not.
+  const [seenInitial, setSeenInitial] = React.useState(keyOf(initialContext));
+  if (keyOf(initialContext) !== seenInitial) {
+    setSeenInitial(keyOf(initialContext));
+    if (initialContext) setPicked(initialContext);
   }
   if (conversationId !== seenProp) {
     setSeenProp(conversationId);
@@ -148,19 +171,13 @@ export function AssistantWorkspace({
     conversation.id === selectedId &&
     seededFor !== selectedId
   ) {
-    const last = lastSourceOf(conversation);
+    const last = lastContextOf(conversation);
     setSeededFor(selectedId);
-    if (last !== undefined) setSource(last);
+    if (last !== undefined) setPicked(last);
   }
-  // A preselected id this project does not have (or no longer has) is the
-  // project branches.
-  const sources = useSourceEnvironments(projectId);
-  const environmentId =
-    source &&
-    sources.loaded &&
-    !sources.environments.some((e) => e.id === source)
-      ? null
-      : source;
+  // A project or environment the caller does not (or no longer) see is
+  // Automatic.
+  const context = visibleContext(picked, useContextOptions());
 
   const isLarge = useIsLarge();
   const [draftsOpen, setDraftsOpen] = React.useState(false);
@@ -192,15 +209,13 @@ export function AssistantWorkspace({
     if (!id) {
       id = (await createConversation()).id;
       select(id);
-      // Its first question is still being sent: the chip holds its source.
+      // Its first question is still being sent: the chip holds its context.
       setSeededFor(id);
     }
     await sendMessage({
       conversationId: id,
       text,
-      context: environmentId
-        ? { kind: "environment", environmentId }
-        : { kind: "project", projectId },
+      context,
       ...(attachments.length > 0 ? { attachments } : {}),
     });
   };
@@ -213,7 +228,7 @@ export function AssistantWorkspace({
   const header = (
     <PageHeader
       title={t("title")}
-      subtitle={t("subtitle", { name: projectName })}
+      subtitle={t("subtitle")}
       action={allowance.enabled && <AllowanceBadge allowance={allowance} />}
     />
   );
@@ -254,7 +269,7 @@ export function AssistantWorkspace({
             onSelect={select}
             onNew={() => {
               select(null);
-              setSource(null);
+              setPicked(AUTO);
             }}
           />
         </div>
@@ -302,11 +317,7 @@ export function AssistantWorkspace({
                   {t("drafts", { count: draftCount })}
                 </Button>
               </div>
-              <ChatThread
-                key={selectedId}
-                conversationId={selectedId}
-                projectName={projectName}
-              />
+              <ChatThread key={selectedId} conversationId={selectedId} />
             </>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">
@@ -315,23 +326,19 @@ export function AssistantWorkspace({
                 title={t("emptyThreadTitle")}
                 description={t("emptyThreadDescription")}
               />
+              <p className="text-center text-xs text-muted-foreground">
+                {t("shortcutHint", { key: modKey })}
+              </p>
             </div>
           )}
           <div className="shrink-0">
             <Composer
-              projectId={projectId}
               disabled={busy || capped}
               capResetsAt={capped ? allowance.resetsAt : null}
               onSend={send}
               focusKey={selectedId ?? "new"}
-              source={
-                <SourceChip
-                  projectId={projectId}
-                  value={environmentId}
-                  onChange={setSource}
-                  disabled={busy || capped}
-                />
-              }
+              context={context}
+              onContextChange={setPicked}
             />
           </div>
         </div>

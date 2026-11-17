@@ -37,6 +37,7 @@ import {
   listProjectsQuery,
 } from "@/web/api/project-catalog";
 import { useBootstrap, useMe } from "@/web/api/session";
+import { AssistantShortcut } from "@/web/components/assistant/assistant-shortcut";
 import { LocaleNotFoundContent } from "@/web/components/locale-fallbacks";
 import { loaderQuery } from "@/web/query-client";
 import { StrongSignInBanner } from "./-components/strong-sign-in-banner";
@@ -100,6 +101,8 @@ function SignedInShell({
   const projectRoles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
   // Not awaited by the loader: the Assistant entry appears once this is in.
   const assistantEnabled = useQuery(getAllowanceQuery()).data?.enabled ?? false;
+  // The assistant takes questions from users who see a project.
+  const assistantOpen = assistantEnabled && projects.length > 0;
 
   const { user, orgRole, timeZone } = me;
   const rtl = isRtlLocale(locale);
@@ -170,6 +173,7 @@ function SignedInShell({
                     projects={navProjects}
                     orgRole={orgRole}
                     projectRoles={projectRoles}
+                    assistantEnabled={assistantEnabled}
                   />
                 </div>
               </header>
@@ -191,7 +195,8 @@ function SignedInShell({
                 {children}
               </main>
             </SidebarInset>
-            <KeyboardShortcuts />
+            <KeyboardShortcuts assistant={assistantOpen} />
+            {assistantOpen && <AssistantShortcut />}
           </SidebarProvider>
         </ActiveRunsProvider>
       </MotifProvider>

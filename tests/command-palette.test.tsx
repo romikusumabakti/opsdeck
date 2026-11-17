@@ -34,7 +34,11 @@ const PROJECT = "0197f3a0-1b2c-7def-8000-0123456789f1";
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 
-async function openPalette(orgRole: OrgRole, projectRole: ProjectRole) {
+async function openPalette(
+  orgRole: OrgRole,
+  projectRole: ProjectRole,
+  assistantEnabled = false
+) {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -46,6 +50,7 @@ async function openPalette(orgRole: OrgRole, projectRole: ProjectRole) {
           projects={[{ id: PROJECT, key: "KMEM", name: "KMEM" }]}
           orgRole={orgRole}
           projectRoles={{ [PROJECT]: projectRole }}
+          assistantEnabled={assistantEnabled}
         />
       </IntlProvider>
     );
@@ -163,5 +168,23 @@ describe("command palette Variables entry", () => {
   it("hides Variables outside an environment", async () => {
     await openPalette("engineer", "engineer");
     expect(labels()).not.toContain(messages.nav.variables);
+  });
+});
+
+describe("command palette Ask the assistant entry", () => {
+  const askItem = () =>
+    [...document.querySelectorAll<HTMLElement>("[cmdk-item]")].find((item) =>
+      item.textContent?.startsWith(messages.commandPalette.askAssistant)
+    );
+
+  it("opens the assistant once it is enabled", async () => {
+    await openPalette("qa", "qa", true);
+    await act(async () => askItem()?.click());
+    expect(push).toHaveBeenCalledWith("/assistant");
+  });
+
+  it("is hidden while the assistant is off", async () => {
+    await openPalette("engineer", "engineer");
+    expect(askItem()).toBeUndefined();
   });
 });

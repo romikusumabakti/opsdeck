@@ -322,7 +322,7 @@ describe("project group", () => {
     expect(linkByHref("/HMEM")?.getAttribute("data-active")).toBe("true");
   });
 
-  it("lists Assistant in the project group only, after Issues", async () => {
+  it("keeps Assistant out of the project and environment groups", async () => {
     await renderSidebar("engineer", "/HMEM/dev/deploys", {
       ...scope(true),
       assistantEnabled: true,
@@ -330,28 +330,51 @@ describe("project group", () => {
     expect(groupRows("Heron Membership")).toEqual([
       "Environments",
       "Issues",
-      "Assistant",
       "Releases",
       "Settings",
     ]);
     expect(groupRows("Dev")).not.toContain("Assistant");
-    expect(hrefs()).toContain("/HMEM/assistant");
+    expect(hrefs()).not.toContain("/HMEM/assistant");
     expect(hrefs()).not.toContain("/HMEM/dev/assistant");
   });
+});
 
-  it("has no Assistant entry while the assistant is off", async () => {
-    await renderSidebar("engineer", "/HMEM/issues", scope(true));
-    expect(groupRows("Heron Membership")).not.toContain("Assistant");
-  });
+describe("top-level Assistant entry", () => {
+  const projects = [{ id: "p1", key: "HMEM", name: "Heron Membership" }];
+  const linkByHref = (href: string) =>
+    [...container.querySelectorAll("a")].find(
+      (a) => a.getAttribute("href") === href
+    );
 
-  it("marks Assistant active on the project assistant page", async () => {
-    await renderSidebar("engineer", "/HMEM/assistant", {
-      ...scope(true),
+  it("follows Issues in the main navigation once enabled", async () => {
+    await renderSidebar("qa", "/", {
+      projects,
+      projectRoles: { p1: "qa" },
       assistantEnabled: true,
     });
-    expect(linkByHref("/HMEM/assistant")?.getAttribute("data-active")).toBe(
-      "true"
-    );
-    expect(linkByHref("/HMEM")?.getAttribute("data-active")).toBeNull();
+    const main = hrefs();
+    expect(main.indexOf("/assistant")).toBe(main.indexOf("/issues") + 1);
+  });
+
+  it("is hidden while the assistant is off", async () => {
+    await renderSidebar("engineer", "/", {
+      projects,
+      projectRoles: { p1: "engineer" },
+    });
+    expect(hrefs()).not.toContain("/assistant");
+  });
+
+  it("is hidden from a user who sees no project", async () => {
+    await renderSidebar("engineer", "/", { assistantEnabled: true });
+    expect(hrefs()).not.toContain("/assistant");
+  });
+
+  it("is active on the assistant page", async () => {
+    await renderSidebar("engineer", "/assistant", {
+      projects,
+      projectRoles: { p1: "engineer" },
+      assistantEnabled: true,
+    });
+    expect(linkByHref("/assistant")?.getAttribute("data-active")).toBe("true");
   });
 });

@@ -19,6 +19,7 @@ import { Route as LocaleSignInRouteImport } from './routes/$locale/sign-in'
 import { Route as LocaleAppIndexRouteImport } from './routes/$locale/_app/index'
 import { Route as LocaleAppSplatRouteImport } from './routes/$locale/_app/$'
 import { Route as LocaleAppAdminRouteRouteImport } from './routes/$locale/_app/admin.route'
+import { Route as LocaleAppAssistantRouteImport } from './routes/$locale/_app/assistant'
 import { Route as LocaleAppIssuesRouteImport } from './routes/$locale/_app/issues'
 import { Route as LocaleAppKnowledgeRouteRouteImport } from './routes/$locale/_app/knowledge.route'
 import { Route as LocaleAcceptInviteTokenRouteImport } from './routes/$locale/accept-invite.$token'
@@ -149,6 +150,11 @@ const LocaleAppSplatRoute = LocaleAppSplatRouteImport.update({
 const LocaleAppAdminRouteRoute = LocaleAppAdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => LocaleAppRouteRoute,
+} as any)
+const LocaleAppAssistantRoute = LocaleAppAssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
   getParentRoute: () => LocaleAppRouteRoute,
 } as any)
 const LocaleAppIssuesRoute = LocaleAppIssuesRouteImport.update({
@@ -624,6 +630,7 @@ export interface FileRoutesByFullPath {
   '/$locale/admin': typeof LocaleAppAdminRouteRouteWithChildren
   '/$locale/knowledge': typeof LocaleAppKnowledgeRouteRouteWithChildren
   '/$locale/$': typeof LocaleAppSplatRoute
+  '/$locale/assistant': typeof LocaleAppAssistantRoute
   '/$locale/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/': typeof LocaleAppIndexRoute
@@ -715,6 +722,7 @@ export interface FileRoutesByTo {
   '/$locale/setup': typeof LocaleSetupRoute
   '/$locale/sign-in': typeof LocaleSignInRoute
   '/$locale/$': typeof LocaleAppSplatRoute
+  '/$locale/assistant': typeof LocaleAppAssistantRoute
   '/$locale/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/$projectKey/assistant': typeof LocaleAppProjectKeyAssistantRoute
@@ -808,6 +816,7 @@ export interface FileRoutesById {
   '/$locale/_app/admin': typeof LocaleAppAdminRouteRouteWithChildren
   '/$locale/_app/knowledge': typeof LocaleAppKnowledgeRouteRouteWithChildren
   '/$locale/_app/$': typeof LocaleAppSplatRoute
+  '/$locale/_app/assistant': typeof LocaleAppAssistantRoute
   '/$locale/_app/issues': typeof LocaleAppIssuesRoute
   '/$locale/accept-invite/$token': typeof LocaleAcceptInviteTokenRoute
   '/$locale/_app/': typeof LocaleAppIndexRoute
@@ -903,6 +912,7 @@ export interface FileRouteTypes {
     | '/$locale/admin'
     | '/$locale/knowledge'
     | '/$locale/$'
+    | '/$locale/assistant'
     | '/$locale/issues'
     | '/$locale/accept-invite/$token'
     | '/$locale/'
@@ -994,6 +1004,7 @@ export interface FileRouteTypes {
     | '/$locale/setup'
     | '/$locale/sign-in'
     | '/$locale/$'
+    | '/$locale/assistant'
     | '/$locale/issues'
     | '/$locale/accept-invite/$token'
     | '/$locale/$projectKey/assistant'
@@ -1086,6 +1097,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/admin'
     | '/$locale/_app/knowledge'
     | '/$locale/_app/$'
+    | '/$locale/_app/assistant'
     | '/$locale/_app/issues'
     | '/$locale/accept-invite/$token'
     | '/$locale/_app/'
@@ -1245,6 +1257,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/$locale/admin'
       preLoaderRoute: typeof LocaleAppAdminRouteRouteImport
+      parentRoute: typeof LocaleAppRouteRoute
+    }
+    '/$locale/_app/assistant': {
+      id: '/$locale/_app/assistant'
+      path: '/assistant'
+      fullPath: '/$locale/assistant'
+      preLoaderRoute: typeof LocaleAppAssistantRouteImport
       parentRoute: typeof LocaleAppRouteRoute
     }
     '/$locale/_app/issues': {
@@ -1973,6 +1992,7 @@ interface LocaleAppRouteRouteChildren {
   LocaleAppAdminRouteRoute: typeof LocaleAppAdminRouteRouteWithChildren
   LocaleAppKnowledgeRouteRoute: typeof LocaleAppKnowledgeRouteRouteWithChildren
   LocaleAppSplatRoute: typeof LocaleAppSplatRoute
+  LocaleAppAssistantRoute: typeof LocaleAppAssistantRoute
   LocaleAppIssuesRoute: typeof LocaleAppIssuesRoute
   LocaleAppIndexRoute: typeof LocaleAppIndexRoute
   LocaleAppProjectKeyEnvSlugRouteRoute: typeof LocaleAppProjectKeyEnvSlugRouteRouteWithChildren
@@ -2013,6 +2033,7 @@ const LocaleAppRouteRouteChildren: LocaleAppRouteRouteChildren = {
   LocaleAppAdminRouteRoute: LocaleAppAdminRouteRouteWithChildren,
   LocaleAppKnowledgeRouteRoute: LocaleAppKnowledgeRouteRouteWithChildren,
   LocaleAppSplatRoute: LocaleAppSplatRoute,
+  LocaleAppAssistantRoute: LocaleAppAssistantRoute,
   LocaleAppIssuesRoute: LocaleAppIssuesRoute,
   LocaleAppIndexRoute: LocaleAppIndexRoute,
   LocaleAppProjectKeyEnvSlugRouteRoute:

@@ -19,7 +19,12 @@ function Kbd({ value }: { value: string }) {
   );
 }
 
-export function KeyboardShortcuts() {
+export function KeyboardShortcuts({
+  assistant = false,
+}: {
+  /** The Ctrl/Cmd+J assistant shortcut is active. */
+  assistant?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const t = useTranslations("shortcuts");
   const modKey = useModKey();
@@ -49,6 +54,9 @@ export function KeyboardShortcuts() {
       title: t("groupGeneral"),
       shortcuts: [
         { keys: [modKey, "K"], label: t("openCommandPalette") },
+        ...(assistant
+          ? [{ keys: [modKey, "J"], label: t("openAssistant") }]
+          : []),
         { keys: ["?"], label: t("openShortcuts") },
         { keys: ["Esc"], label: t("closeDialog") },
       ],

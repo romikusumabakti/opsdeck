@@ -1,14 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Paperclip, Server } from "lucide-react";
+import {
+  FolderKanban,
+  Loader2,
+  Paperclip,
+  Server,
+  Sparkles,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslations } from "use-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { stripProjectPrefix } from "@/lib/nav-path";
+import { qualifiedEnvName } from "@/lib/nav-path";
 import {
   type ConversationMessage,
   getAllowanceQuery,
+  type MessageContext,
 } from "@/web/api/assistant";
+import { listProjectsQuery } from "@/web/api/project-catalog";
 import { useAssistantErrorText } from "./error-text";
 import { MessageSources } from "./message-sources";
 
@@ -46,19 +54,45 @@ function AnswerMarkdown({ content }: { content: string }) {
 }
 
 /**
- * One message of the thread: the user's question or the assistant's answer.
- * A question asked about an environment (not the project branches) names it,
- * marked "(deleted)" once that environment is gone.
+ * What a question was asked about, under its bubble: Automatic, the project,
+ * or the environment with its project's name (when the caller still sees
+ * that project; else the name stored with the question), marked "(deleted)"
+ * once that project or environment is gone.
+ */
+function QuestionContextLabel({ context }: { context: MessageContext }) {
+  const t = useTranslations("assistant");
+  const projects = useQuery(listProjectsQuery()).data;
+  const project = projects?.find((p) => p.id === context.projectId);
+  const Icon =
+    context.kind === "auto"
+      ? Sparkles
+      : context.kind === "project"
+        ? FolderKanban
+        : Server;
+  let label = context.label ?? t("contextAuto");
+  if (context.kind === "environment" && context.label && project) {
+    label = qualifiedEnvName(context.label, project.name);
+  }
+  return (
+    <span className="flex items-center gap-1">
+      <Icon className="size-3" aria-hidden />
+      <span data-question-context>
+        {context.deleted ? `${label} ${t("contextDeleted")}` : label}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * One message of the thread: the user's question, with what it asked about
+ * and its attachments, or the assistant's answer.
  */
 export function MessageView({
   message,
-  projectName = "",
   projectBranches = false,
 }: {
   message: ConversationMessage;
-  /** Dropped from the front of environment names. */
-  projectName?: string;
-  /** An answer to a question about the project branches. */
+  /** An answer to a question about project branches (not an environment). */
   projectBranches?: boolean;
 }) {
   const t = useTranslations("assistant");
@@ -71,24 +105,15 @@ export function MessageView({
   }).data;
 
   if (message.role === "user") {
-    const environment =
-      message.context?.kind === "environment" ? message.context : null;
     return (
       <div className="flex flex-col items-end gap-1">
         <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap break-words">
           {message.content}
         </div>
-        {(environment?.label || message.attachmentIds.length > 0) && (
+        {(message.context || message.attachmentIds.length > 0) && (
           <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {environment?.label && (
-              <span
-                className="flex items-center gap-1"
-                title={t("sourceLabel")}
-              >
-                <Server className="size-3" />
-                {stripProjectPrefix(environment.label, projectName)}
-                {environment.deleted && ` ${t("environmentDeleted")}`}
-              </span>
+            {message.context && (
+              <QuestionContextLabel context={message.context} />
             )}
             {message.attachmentIds.length > 0 && (
               <span className="flex items-center gap-1">

@@ -112,7 +112,8 @@
       "ar": "العربية",
       "es": "西班牙语"
     },
-    "projects": "项目"
+    "projects": "项目",
+    "askAssistant": "询问助手"
   },
   "nav": {
     "dashboard": "仪表板",
@@ -792,7 +793,8 @@
     "groupGeneral": "通用",
     "openCommandPalette": "打开命令面板",
     "openShortcuts": "打开此快捷键对话框",
-    "closeDialog": "关闭任何打开的对话框"
+    "closeDialog": "关闭任何打开的对话框",
+    "openAssistant": "打开助手"
   },
   "newEnvironment": {
     "title": "新建环境",
@@ -3666,7 +3668,7 @@
   },
   "assistant": {
     "title": "助手",
-    "subtitle": "询问 {name} 的代码和问题。",
+    "subtitle": "询问你的项目的代码和问题。",
     "usageUsed": "今日额度已用 {percent}%",
     "usageResets": "{time, time, short} 重置",
     "usageCapReached": "你已达到今天的使用上限，将于 {time, time, short} 重置。",
@@ -3677,7 +3679,7 @@
     "noConversations": "还没有对话。",
     "untitled": "无标题",
     "emptyThreadTitle": "开始提问",
-    "emptyThreadDescription": "询问此项目中的流程、业务规则或代码位置。在下方选择来源：项目分支，或某个环境中正在运行的代码。",
+    "emptyThreadDescription": "询问流程、业务规则或代码位置。在下方选择上下文：自动、某个项目，或其中的某个环境。输入 @ 可快速选择。",
     "placeholder": "输入问题…",
     "send": "发送",
     "sendHint": "按 Enter 发送，Shift+Enter 换行",
@@ -3739,11 +3741,14 @@
     "jiraCreated": "已创建问题 {jiraKey}。",
     "jiraCreatedAs": "已创建为 {jiraKey}。",
     "openPanelIssue": "在面板中打开问题",
-    "sourceProjectBranches": "项目分支",
-    "sourceLabel": "来源",
-    "environmentDeleted": "（已删除）",
     "newDraft": "新建草稿",
     "newDraftBrd": "BRD",
-    "newDraftIssue": "问题"
+    "newDraftIssue": "问题",
+    "contextAuto": "自动",
+    "contextPick": "上下文：{name}",
+    "contextProjects": "项目",
+    "contextEnvironments": "{name}，{project} 的环境",
+    "contextDeleted": "（已删除）",
+    "shortcutHint": "在任意位置按 {key}+J 打开助手。"
   }
 }

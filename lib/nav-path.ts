@@ -182,48 +182,37 @@ export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
 ]);
 
 // Project permission each gated section needs. The sidebar hides the same
-// entries with this map, so a switch never lands on a 403. `assistant` is a
-// project page (`/KEY/assistant`), gated the same way.
+// entries with this map, so a switch never lands on a 403.
 // `satisfies` keeps the known keys non-optional under noUncheckedIndexedAccess.
 export const SECTION_PERMS = {
   "mock-time": { clock: ["control"] },
   mail: { mail: ["read"] },
-  assistant: { assistant: ["use"] },
   settings: { environment: ["update"] },
   variables: { variable: ["read"] },
 } satisfies Record<string, ProjectPermissions>;
 
-export type ProjectNavKey =
-  | "environments"
-  | "issues"
-  | "assistant"
-  | "releases"
-  | "settings";
+export type ProjectNavKey = "environments" | "issues" | "releases" | "settings";
 
 /**
  * The project-level pages a role may open, in sidebar order. `releasable` is
- * whether the project has any environment that deploys releases;
- * `assistantEnabled` whether an admin has the code assistant switched on.
+ * whether the project has any environment that deploys releases.
  */
 export function projectNavItems(
   projectKey: string,
   role: ProjectRole | null,
-  releasable: boolean,
-  assistantEnabled = false
+  releasable: boolean
 ): { key: ProjectNavKey; href: string }[] {
   if (!role) return [];
   const base = `/${projectKey}`;
   const allowed: Record<ProjectNavKey, boolean> = {
     environments: true,
     issues: true,
-    assistant: assistantEnabled && canProject(role, SECTION_PERMS.assistant),
     releases: releasable && canProject(role, { deploy: ["view"] }),
     settings: canProject(role, SECTION_PERMS.settings),
   };
   const keys: ProjectNavKey[] = [
     "environments",
     "issues",
-    "assistant",
     "releases",
     "settings",
   ];

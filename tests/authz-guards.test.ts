@@ -49,9 +49,9 @@ const SCOPED_READS: Record<string, string[]> = {
   // the global assistant gate; the project a question pins is checked when
   // it is sent and again when it runs (see the ownership tests below).
   // A draft's project: suggested, listed and shown among the caller's
-  // visible projects only.
+  // visible projects only. The attachment picker's issue lookup is scoped by
+  // the assistant viewer instead (see the structural test below).
   "server/services/assistant.ts": [
-    "listIssueAttachmentsForPicker",
     "listDraftProjects",
     "generateConversationDraft",
     "getConversation",
@@ -296,6 +296,15 @@ describe("lookups by client-supplied id check the caller first", () => {
     );
     expect(body(source, "listConversations")).toMatch(
       /requireAssistantGate\(\)[\s\S]*listConversationsOf\(session\.user\.id\)/
+    );
+  });
+  it("the attachment picker finds the issue among the caller's visible projects", () => {
+    const fn = body(
+      readFileSync("server/services/assistant.ts", "utf8"),
+      "listIssueAttachmentsForPicker"
+    );
+    expect(fn).toMatch(
+      /requireAssistantGate\(\)[\s\S]*loadAssistantViewer\(session\.user\.id\)[\s\S]*visibleIssueByKey\(viewer, key\)[\s\S]*if \(!visible\) notFound\(\)/
     );
   });
   it("a pinned assistant context needs assistant:use on its project or environment", () => {
