@@ -113,23 +113,18 @@ describe("issue selects compact variant", () => {
     expect(picker).toContain('<span className="flex min-w-0 flex-col">');
   });
 
-  it("caps the compact assignee trigger at every call site", () => {
-    for (const { file, cap } of [
-      { file: "components/global-issues-client.tsx", cap: "max-w-32" },
-      { file: "components/global-issues-client.tsx", cap: "max-w-40" },
-      {
-        file: "web/routes/$locale/_app/-components/issues-client.tsx",
-        cap: "max-w-32",
-      },
-    ]) {
-      const uses =
-        readFileSync(file, "utf8").match(
-          /<AssigneeSelect\b[\s\S]*?\n\s*\/>/g
-        ) ?? [];
-      expect(
-        uses.some((u) => u.includes(`className="${cap}"`)),
-        `${file} ${cap}`
-      ).toBe(true);
-    }
+  // Table cells are table-fixed (tests/issues-table-layout.test.tsx), so the
+  // trigger's own max-w-full bounds it; only the flex card layout needs a cap.
+  it("caps the compact assignee trigger only in the card layout", () => {
+    const uses = (file: string) =>
+      readFileSync(file, "utf8").match(/<AssigneeSelect\b[\s\S]*?\n\s*\/>/g) ??
+      [];
+    const global = uses("components/global-issues-client.tsx");
+    expect(global.some((u) => u.includes('className="max-w-40"'))).toBe(true);
+    expect(global.some((u) => u.includes('className="max-w-32"'))).toBe(false);
+    const project = uses(
+      "web/routes/$locale/_app/-components/issues-client.tsx"
+    );
+    expect(project.some((u) => u.includes("max-w-32"))).toBe(false);
   });
 });

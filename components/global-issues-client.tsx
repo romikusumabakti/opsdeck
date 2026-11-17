@@ -311,7 +311,11 @@ export function GlobalIssuesClient({
           </Link>
         ),
         enableHiding: false,
-        meta: { headClassName: "w-24", label: t("columnKey") },
+        meta: {
+          headClassName: "w-28",
+          cellClassName: "truncate",
+          label: t("columnKey"),
+        },
       },
       {
         id: "title",
@@ -337,7 +341,7 @@ export function GlobalIssuesClient({
           </span>
         ),
         enableHiding: false,
-        meta: { label: t("columnTitle") },
+        meta: { cellClassName: "overflow-hidden", label: t("columnTitle") },
       },
       {
         id: "project",
@@ -348,12 +352,17 @@ export function GlobalIssuesClient({
         cell: ({ row }) => (
           <Link
             href={`/${row.original.project.key}`}
+            title={row.original.project.name}
             className="text-sm text-muted-foreground hover:underline"
           >
             {row.original.project.name}
           </Link>
         ),
-        meta: { headClassName: "w-36", label: t("columnProject") },
+        meta: {
+          headClassName: "w-36",
+          cellClassName: "truncate",
+          label: t("columnProject"),
+        },
       },
       {
         id: "status",
@@ -368,7 +377,7 @@ export function GlobalIssuesClient({
             onChange={(s) => onStatusChange(row.original.id, s)}
           />
         ),
-        meta: { headClassName: "w-36", label: t("columnStatus") },
+        meta: { headClassName: "w-40", label: t("columnStatus") },
       },
       {
         id: "priority",
@@ -383,7 +392,7 @@ export function GlobalIssuesClient({
             onChange={(p) => onPriorityChange(row.original.id, p)}
           />
         ),
-        meta: { headClassName: "w-32", label: t("columnPriority") },
+        meta: { headClassName: "w-36", label: t("columnPriority") },
       },
       {
         id: "assignee",
@@ -394,7 +403,6 @@ export function GlobalIssuesClient({
         cell: ({ row }) => (
           <AssigneeSelect
             variant="compact"
-            className="max-w-32"
             users={assignableIn(users, [row.original.project.id])}
             value={row.original.assignee?.id ?? null}
             onChange={(a) => onAssigneeChange(row.original.id, a)}
@@ -413,7 +421,11 @@ export function GlobalIssuesClient({
             <RelativeTime date={row.original.createdAt} />
           </span>
         ),
-        meta: { headClassName: "w-24", label: t("columnCreated") },
+        meta: {
+          headClassName: "w-32",
+          cellClassName: "truncate",
+          label: t("columnCreated"),
+        },
       },
       {
         id: "updatedAt",
@@ -426,7 +438,11 @@ export function GlobalIssuesClient({
             <RelativeTime date={row.original.updatedAt} />
           </span>
         ),
-        meta: { headClassName: "w-24", label: t("columnUpdated") },
+        meta: {
+          headClassName: "w-32",
+          cellClassName: "truncate",
+          label: t("columnUpdated"),
+        },
       },
     ],
     [onAssigneeChange, onPriorityChange, onStatusChange, t, users]
@@ -517,6 +533,7 @@ export function GlobalIssuesClient({
         <DataTable
           fillHeight
           dense
+          tableClassName="table-fixed min-w-5xl"
           toolbar={filterBar}
           label={t("globalTitle")}
           columns={columns}

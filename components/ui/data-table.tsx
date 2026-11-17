@@ -209,6 +209,11 @@ type DataTableProps<TData extends RowData> = {
    * the same component as every other page's.
    */
   dense?: boolean;
+  /**
+   * Extra classes on the `<table>`, e.g. `table-fixed` so the widths in
+   * `headClassName` hold instead of growing with nowrap cell content.
+   */
+  tableClassName?: string;
   /** Columns hidden until the user turns them on in the columns menu. */
   initialColumnVisibility?: VisibilityState;
   /**
@@ -240,6 +245,7 @@ export function DataTable<TData extends RowData>({
   label,
   toolbar,
   dense,
+  tableClassName,
   initialColumnVisibility,
   facets,
 }: DataTableProps<TData>) {
@@ -717,7 +723,8 @@ export function DataTable<TData extends RowData>({
         <Table
           aria-label={label}
           className={cn(
-            dense && "[&_td]:h-9 [&_td]:py-1 [&_th]:h-8"
+            dense && "[&_td]:h-9 [&_td]:py-1 [&_th]:h-8",
+            tableClassName
           )}
           containerClassName={cn(fillHeight && "flex-1 min-h-0")}
         >

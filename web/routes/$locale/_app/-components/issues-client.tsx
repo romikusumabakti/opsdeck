@@ -484,7 +484,12 @@ export function IssuesClient({
           <div className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
             {/* The table container is the scroll box (`flex-1 min-h-0`), so the
                 `sticky` header pins to it while rows scroll underneath. */}
-            <Table containerClassName="flex-1 min-h-0">
+            {/* Fixed layout: the header widths hold and the title takes the
+                rest, so the pills line up and the table fits its card. */}
+            <Table
+              className="table-fixed min-w-5xl"
+              containerClassName="flex-1 min-h-0"
+            >
               <TableHeader className="sticky top-0 z-10 [&_th]:bg-card [&_th]:border-b">
                 <TableRow>
                   <TableHead className="w-10">
@@ -496,10 +501,10 @@ export function IssuesClient({
                       aria-label={t("selectAll")}
                     />
                   </TableHead>
-                  <TableHead className="w-24">{t("columnKey")}</TableHead>
+                  <TableHead className="w-28">{t("columnKey")}</TableHead>
                   <TableHead>{t("columnTitle")}</TableHead>
-                  <TableHead className="w-36">{t("columnStatus")}</TableHead>
-                  <TableHead className="w-32">{t("columnPriority")}</TableHead>
+                  <TableHead className="w-40">{t("columnStatus")}</TableHead>
+                  <TableHead className="w-36">{t("columnPriority")}</TableHead>
                   <TableHead className="w-36">
                     {t("columnEnvironment")}
                   </TableHead>
@@ -520,7 +525,7 @@ export function IssuesClient({
                         aria-label={t("selectRow")}
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">
+                    <TableCell className="truncate font-mono text-sm text-muted-foreground">
                       <Link
                         href={`/${projectKey}/issues/${issue.number}`}
                         className="hover:text-foreground hover:underline"
@@ -528,7 +533,7 @@ export function IssuesClient({
                         {projectKey}-{issue.number}
                       </Link>
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="overflow-hidden font-medium">
                       <span className="flex items-center gap-2">
                         <TypeIcon type={issue.type as IssueType} />
                         <Link
@@ -569,13 +574,12 @@ export function IssuesClient({
                     <TableCell>
                       <AssigneeSelect
                         variant="compact"
-                        className="max-w-32"
                         users={users}
                         value={issue.assignee?.id ?? null}
                         onChange={(a) => onAssigneeChange(issue.id, a)}
                       />
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="truncate text-xs text-muted-foreground">
                       <RelativeTime date={issue.createdAt} />
                     </TableCell>
                   </TableRow>
