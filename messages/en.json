@@ -3634,7 +3634,9 @@
     "testErrorModelNotFound": "The provider does not know this model.",
     "testErrorFailed": "The test failed. Check the provider, model and base URL.",
     "incompleteSettings": "Choose a provider, enter an API key, a model and all four prices (and a base URL for an OpenAI-compatible endpoint) before enabling the assistant.",
-    "estimatedNotice": "Some costs are estimated: the provider didn't report token counts."
+    "estimatedNotice": "Some costs are estimated: the provider didn't report token counts.",
+    "apiKeyRequired": "Enter the API key for this provider; the stored one is removed when you save.",
+    "testSaveFirst": "Save first to test these settings."
   },
   "assistantErrors": {
     "notConfigured": "The assistant is not set up. Ask an admin to enable it and save an Anthropic API key.",

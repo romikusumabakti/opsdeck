@@ -19,6 +19,7 @@ import {
   PROVIDERS,
   type Prices,
   type Provider,
+  type ProviderOptions,
 } from "@/lib/assistant/providers";
 import { quotaDay } from "@/lib/assistant/usage";
 import { requireOrgPermission } from "@/lib/authz";
@@ -168,9 +169,10 @@ export async function saveAssistantSettings(
   if (enabled !== undefined) patch.assistantEnabled = enabled;
   if (provider !== undefined && provider !== before.assistantProvider) {
     patch.assistantProvider = provider;
-    // A base URL belongs to its provider: never send the new key to the old
-    // provider's endpoint.
+    // A base URL and a key belong to their provider: never send one vendor's
+    // key to another, or the new key to the old endpoint.
     patch.assistantBaseUrl = null;
+    if (before.assistantProvider !== null) patch.assistantApiKey = null;
   }
   if (baseUrl !== undefined) patch.assistantBaseUrl = baseUrl;
   if (model !== undefined) patch.assistantModel = model;
@@ -225,7 +227,9 @@ export async function saveAssistantSettings(
       effort: row.assistantEffort,
       dailyCapUsd: Number(row.assistantDailyCapUsd),
       providerChanged: changed(before.assistantProvider, row.assistantProvider),
-      keyChanged: String(apiKey !== undefined && apiKey !== ""),
+      // Encryption is randomised, so a newly saved key always differs.
+      keyChanged: changed(before.assistantApiKey, row.assistantApiKey),
+      baseUrlChanged: changed(before.assistantBaseUrl, row.assistantBaseUrl),
       modelChanged: changed(before.assistantModel, row.assistantModel),
       pricesChanged: changed(priceKey(before), priceKey(row)),
       orgContextChanged: changed(
@@ -262,11 +266,11 @@ function connectionError(error: unknown): ConnectionError {
     if (status === 401 || status === 403) return "auth";
     if (status === 402 || status === 429) return "quota";
     if (status === 404) return "model_not_found";
-    if (
-      status === 400 &&
-      /credit balance|billing|quota/i.test(cause.responseBody ?? "")
-    )
+    const body = cause.responseBody ?? "";
+    if (status === 400 && /credit balance|billing|quota/i.test(body))
       return "quota";
+    // Google answers an invalid key with a 400.
+    if (status === 400 && /api[_ ]?key/i.test(body)) return "auth";
     return "failed";
   }
   if (LoadAPIKeyError.isInstance(cause)) return "auth";
@@ -292,11 +296,21 @@ async function probe(
 
 const okSchema = z.object({ ok: z.boolean() });
 
+// The lowest reasoning for the probes. None for Anthropic: thinking conflicts
+// with the forced tool choice. None for an OpenAI-compatible endpoint.
+const PROBE_OPTIONS: Record<Provider, ProviderOptions | undefined> = {
+  anthropic: undefined,
+  openai: { openai: { reasoningEffort: "low" } },
+  google: { google: { thinkingConfig: { thinkingLevel: "low" } } },
+  "openai-compatible": undefined,
+};
+
 /**
  * Two tiny calls with the stored settings: one forcing a `ping` tool call, one
- * structured (JSON) answer, each capped at 16 output tokens. A failure that
- * says the provider can't be used at all (auth, quota, unreachable, unknown
- * model) ends the test; any other failure only marks that capability missing.
+ * structured (JSON) answer, each capped at 512 output tokens at the lowest
+ * reasoning. A failure that says the provider can't be used at all (auth,
+ * quota, unreachable, unknown model) ends the test; any other failure only
+ * marks that capability missing.
  */
 export async function testAssistantConnection(
   deps: { createModel?: typeof createLanguageModel } = {}
@@ -336,8 +350,10 @@ export async function testAssistantConnection(
   }
   const common = {
     model,
-    maxOutputTokens: 16,
+    // Room for a reasoning model to think a little before it answers.
+    maxOutputTokens: 512,
     maxRetries: 0,
+    providerOptions: PROBE_OPTIONS[provider],
   } as const;
 
   const tools = await probe(async () => {

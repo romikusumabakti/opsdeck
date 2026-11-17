@@ -291,6 +291,38 @@ describe("settings", () => {
     expect(state.row?.assistantBaseUrl).toBe("https://gateway.example.invalid");
   });
 
+  it("drops the key when the provider changes, unless a new key comes along", async () => {
+    // A key saved before any provider is kept when the first one is chosen.
+    await send("PUT", BASE, { apiKey: KEY });
+    await send("PUT", BASE, { provider: "anthropic" });
+    expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
+    await send("PUT", BASE, {
+      provider: "anthropic",
+      model: "claude-opus-5-5",
+    });
+    expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
+    await send("PUT", BASE, { provider: "openai", apiKey: "  " });
+    expect(state.row?.assistantApiKey).toBeNull();
+    await send("PUT", BASE, { provider: "google", apiKey: "g-key" });
+    const stored = String(state.row?.assistantApiKey);
+    expect(stored).toMatch(/^enc:v1:/);
+    const { decryptSecret } = await import("@/lib/secrets");
+    expect(decryptSecret(stored)).toBe("g-key");
+  });
+
+  it("refuses to switch the provider of an enabled assistant without a new key", async () => {
+    await send("PUT", BASE, { ...complete, enabled: true });
+    const res = await send("PUT", BASE, { provider: "openai" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: "assistant.incomplete_settings",
+    });
+    expect(state.row?.assistantProvider).toBe("anthropic");
+    expect(state.row?.assistantApiKey).toMatch(/^enc:v1:/);
+    const ok = await send("PUT", BASE, { provider: "openai", apiKey: "o-key" });
+    expect(await ok.json()).toMatchObject({ success: true });
+  });
+
   it("refuses to enable without provider, key, model and prices", async () => {
     const res = await send("PUT", BASE, {
       provider: "anthropic",
@@ -363,8 +395,11 @@ describe("activity log", () => {
     });
     await send("PUT", BASE, { apiKey: "  ", enabled: false });
     await send("PUT", BASE, { apiKey: null, provider: "openai" });
+    await send("PUT", BASE, { baseUrl: "https://proxy.example.invalid/v1" });
     const calls = activity.record.mock.calls.map(([arg]) => arg);
     const flags = (name: string) => calls.map((c) => c.data[name]);
+    // Saves: enable, cap, model+prices, same prices, blank key, provider
+    // switch (drops the key), base URL.
     expect(flags("keyChanged")).toEqual([
       "true",
       "false",
@@ -372,6 +407,7 @@ describe("activity log", () => {
       "false",
       "false",
       "true",
+      "false",
     ]);
     expect(flags("providerChanged")).toEqual([
       "true",
@@ -380,11 +416,13 @@ describe("activity log", () => {
       "false",
       "false",
       "true",
+      "false",
     ]);
     expect(flags("modelChanged")).toEqual([
       "true",
       "false",
       "true",
+      "false",
       "false",
       "false",
       "false",
@@ -396,6 +434,16 @@ describe("activity log", () => {
       "false",
       "false",
       "false",
+      "false",
+    ]);
+    expect(flags("baseUrlChanged")).toEqual([
+      "false",
+      "false",
+      "false",
+      "false",
+      "false",
+      "false",
+      "true",
     ]);
     expect(calls[0]).toMatchObject({
       actorId: "user-1",
@@ -411,6 +459,7 @@ describe("activity log", () => {
     for (const call of calls) {
       expect(Object.keys(call.data).sort()).toEqual(
         [
+          "baseUrlChanged",
           "dailyCapUsd",
           "effort",
           "enabled",
@@ -427,6 +476,7 @@ describe("activity log", () => {
     expect(text).not.toContain(KEY);
     expect(text).not.toContain("enc:v1:");
     expect(text).not.toContain("anthropic");
+    expect(text).not.toContain("example.invalid");
     expect(text).not.toMatch(/"(2\.5|0\.1|0\.2|20|10|4)"/);
   });
 
@@ -466,7 +516,7 @@ describe("POST /test", () => {
     expect(llm.configs).toEqual([]);
   });
 
-  it("probes tools and structured output with the decrypted key, at most 16 tokens each", async () => {
+  it("probes tools and structured output with the decrypted key, 512 tokens each", async () => {
     await send("PUT", BASE, complete);
     const model = workingModel();
     llm.model = model;
@@ -490,7 +540,47 @@ describe("POST /test", () => {
     expect(toolCall?.tools?.map((t) => t.name)).toEqual(["ping"]);
     expect(objectCall?.responseFormat?.type).toBe("json");
     for (const call of model.doGenerateCalls) {
-      expect(call.maxOutputTokens).toBeLessThanOrEqual(16);
+      expect(call.maxOutputTokens).toBe(512);
+      // No thinking options: a forced tool choice conflicts with thinking.
+      expect(call.providerOptions?.anthropic).toBeUndefined();
+    }
+  });
+
+  it.each([
+    ["openai", "gpt-6-luna", { openai: { reasoningEffort: "low" } }],
+    [
+      "google",
+      "gemini-4-hydrogen",
+      { google: { thinkingConfig: { thinkingLevel: "low" } } },
+    ],
+  ])(
+    "asks %s for the lowest reasoning in both probes",
+    async (provider, model, options) => {
+      await send("PUT", BASE, { ...complete, provider, apiKey: KEY, model });
+      const mock = workingModel();
+      llm.model = mock;
+      expect(await (await send("POST", `${BASE}/test`)).json()).toMatchObject({
+        ok: true,
+      });
+      expect(mock.doGenerateCalls).toHaveLength(2);
+      for (const call of mock.doGenerateCalls) {
+        expect(call.providerOptions).toMatchObject(options);
+      }
+    }
+  );
+
+  it("sends no provider options to an OpenAI-compatible endpoint", async () => {
+    await send("PUT", BASE, {
+      provider: "openai-compatible",
+      apiKey: KEY,
+      baseUrl: "https://llm.example.invalid/v1",
+      model: "acme-coder-9b",
+    });
+    const mock = workingModel();
+    llm.model = mock;
+    await send("POST", `${BASE}/test`);
+    for (const call of mock.doGenerateCalls) {
+      expect(call.providerOptions ?? {}).toEqual({});
     }
   });
 
@@ -516,6 +606,11 @@ describe("POST /test", () => {
       [apiError(402), "quota"],
       [apiError(429), "quota"],
       [apiError(400, "Your credit balance is too low"), "quota"],
+      [
+        apiError(400, "API key not valid. Please pass a valid API key."),
+        "auth",
+      ],
+      [apiError(400, "invalid api_key"), "auth"],
       [apiError(404), "model_not_found"],
       [apiError(undefined), "unreachable"],
       [apiError(500), "failed"],

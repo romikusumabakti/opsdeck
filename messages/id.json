@@ -3634,7 +3634,9 @@
     "testErrorModelNotFound": "Penyedia tidak mengenal model ini.",
     "testErrorFailed": "Tes gagal. Periksa penyedia, model, dan base URL.",
     "incompleteSettings": "Pilih penyedia, isi API key, model, dan keempat harga (serta base URL untuk endpoint kompatibel OpenAI) sebelum mengaktifkan asisten.",
-    "estimatedNotice": "Sebagian biaya adalah perkiraan: penyedia tidak melaporkan jumlah token."
+    "estimatedNotice": "Sebagian biaya adalah perkiraan: penyedia tidak melaporkan jumlah token.",
+    "apiKeyRequired": "Isi API key untuk penyedia ini; key yang tersimpan dihapus saat Anda menyimpan.",
+    "testSaveFirst": "Simpan dulu untuk menguji pengaturan ini."
   },
   "assistantErrors": {
     "notConfigured": "Asisten belum disiapkan. Minta admin mengaktifkannya dan menyimpan API key Anthropic.",

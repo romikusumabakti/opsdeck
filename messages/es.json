@@ -3634,7 +3634,9 @@
     "testErrorModelNotFound": "El proveedor no conoce este modelo.",
     "testErrorFailed": "La prueba falló. Revisa el proveedor, el modelo y la URL base.",
     "incompleteSettings": "Elige un proveedor e introduce una clave de API, un modelo y los cuatro precios (y una URL base para un endpoint compatible con OpenAI) antes de activar el asistente.",
-    "estimatedNotice": "Algunos costes son estimados: el proveedor no informó del número de tokens."
+    "estimatedNotice": "Algunos costes son estimados: el proveedor no informó del número de tokens.",
+    "apiKeyRequired": "Introduce la clave de API de este proveedor; la guardada se elimina al guardar.",
+    "testSaveFirst": "Guarda primero para probar esta configuración."
   },
   "assistantErrors": {
     "notConfigured": "El asistente no está configurado. Pide a un administrador que lo active y guarde una clave de API de Anthropic.",

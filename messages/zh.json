@@ -3634,7 +3634,9 @@
     "testErrorModelNotFound": "提供商不认识此模型。",
     "testErrorFailed": "测试失败。请检查提供商、模型和 Base URL。",
     "incompleteSettings": "启用助手前，请选择提供商，并填写 API 密钥、模型和全部四项价格（OpenAI 兼容端点还需 Base URL）。",
-    "estimatedNotice": "部分费用为估算值：提供商未报告 token 数量。"
+    "estimatedNotice": "部分费用为估算值：提供商未报告 token 数量。",
+    "apiKeyRequired": "请输入此提供商的 API 密钥；保存时会删除已存储的密钥。",
+    "testSaveFirst": "请先保存，再测试这些设置。"
   },
   "assistantErrors": {
     "notConfigured": "助手尚未设置。请管理员启用它并保存 Anthropic API 密钥。",

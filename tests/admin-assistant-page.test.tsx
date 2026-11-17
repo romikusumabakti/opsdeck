@@ -124,6 +124,15 @@ async function submit() {
   });
 }
 
+async function pickProvider(label: string) {
+  await act(async () => byId("assistant-provider")?.click());
+  const option = [...document.querySelectorAll("[role='option']")].find(
+    (o) => o.textContent === label
+  ) as HTMLElement | undefined;
+  if (!option) throw new Error(`provider option ${label} missing`);
+  await act(async () => option.click());
+}
+
 async function openAdvanced() {
   await act(async () => button(messages.setup.advancedOptions)?.click());
 }
@@ -245,6 +254,43 @@ describe("/admin/assistant", () => {
     root = createRoot(container);
     await render({}, { estimatedRows: 2 });
     expect(container.textContent).toContain(t.estimatedNotice);
+  });
+
+  it("switching provider drops the key, base URL, and a model the new provider doesn't list", async () => {
+    await render({
+      provider: "openai",
+      model: "gpt-6-luna",
+      baseUrl: "https://proxy.example.invalid/v1",
+      prices: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+    });
+    expect(container.textContent).toContain(t.set);
+    await pickProvider(t.providerGoogle);
+    expect(byId("assistant-model")?.value).toBe("");
+    const keyBadge = container.querySelector(
+      "label[for='assistant-api-key'] + [data-slot='badge']"
+    );
+    expect(keyBadge?.textContent).toBe(t.notSet);
+    expect(container.textContent).toContain(t.apiKeyRequired);
+    await openAdvanced();
+    expect(byId("assistant-base-url")?.value).toBe("");
+    expect(prices()).toEqual(["", "", "", ""]);
+    const options = [
+      ...container.querySelectorAll(
+        "datalist#assistant-model-suggestions option"
+      ),
+    ].map((o) => o.getAttribute("value"));
+    expect(options).toEqual(["gemini-4-carbon", "gemini-4-hydrogen"]);
+  });
+
+  it("disables Test connection until the changes are saved", async () => {
+    await render();
+    expect(button(t.test)?.disabled).toBe(false);
+    expect(container.textContent).not.toContain(t.testSaveFirst);
+    await type(byId("assistant-model"), "claude-opus-5-5");
+    expect(button(t.test)?.disabled).toBe(true);
+    expect(container.textContent).toContain(t.testSaveFirst);
+    await type(byId("assistant-model"), "claude-sonnet-5-5");
+    expect(button(t.test)?.disabled).toBe(false);
   });
 
   it("names no vendor outside the provider choice", async () => {

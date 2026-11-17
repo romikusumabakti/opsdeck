@@ -238,7 +238,17 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
 
   const cap = Number(dailyCap);
   const capValid = dailyCap.trim() !== "" && cap >= 0 && cap <= 1000;
-  const keyPresent = settings.hasApiKey && !clearKey;
+  // The server drops the stored key when the provider changes.
+  const providerSwitched =
+    settings.provider !== null && provider !== settings.provider;
+  const keyPresent = settings.hasApiKey && !clearKey && !providerSwitched;
+  // Test connection runs on the saved settings only.
+  const unsaved =
+    provider !== settings.provider ||
+    apiKey.trim() !== "" ||
+    clearKey ||
+    baseUrl.trim() !== (settings.baseUrl ?? "") ||
+    model.trim() !== (settings.model ?? "");
   const suggestions = provider ? suggestedModels(provider) : [];
   const compatible = provider === "openai-compatible";
   const parsedPrices = parsePrices(prices);
@@ -249,6 +259,10 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
     setProvider(next);
     // A base URL belongs to its provider (the server clears it as well).
     setBaseUrl("");
+    if (!suggestedModels(next).some((m) => m.id === model.trim())) {
+      setModel("");
+      setPrices(priceText(null));
+    }
   }
 
   function onModelChange(value: string) {
@@ -369,9 +383,13 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
             onChange={(event) => setApiKey(event.target.value)}
           />
           <FieldDescription>
-            {clearKey ? t("keyRemoved") : t("apiKeyDescription")}
+            {providerSwitched && settings.hasApiKey
+              ? t("apiKeyRequired")
+              : clearKey
+                ? t("keyRemoved")
+                : t("apiKeyDescription")}
           </FieldDescription>
-          {settings.hasApiKey && (
+          {settings.hasApiKey && !providerSwitched && (
             <Button
               type="button"
               variant="outline"
@@ -483,13 +501,18 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
         <div role="status" aria-live="polite">
           {testResult && <ConnectionTestResult result={testResult} />}
         </div>
+        {settings.hasApiKey && unsaved && (
+          <p className="text-sm text-muted-foreground text-end">
+            {t("testSaveFirst")}
+          </p>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           {settings.hasApiKey && (
             <Button
               type="button"
               variant="outline"
               onClick={onTest}
-              disabled={testing || saving}
+              disabled={testing || saving || unsaved}
             >
               {testing ? t("testing") : t("test")}
             </Button>
