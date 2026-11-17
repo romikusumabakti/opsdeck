@@ -67,11 +67,16 @@ const DEFINITIONS = {
       path: str(
         "Component-prefixed path as returned by list_files/search_code."
       ),
+      // Plain numbers: z.int() emits safe-integer minimum/maximum, which
+      // strict tool schemas reject. INPUTS checks the whole-number rule.
       start_line: nullable(
-        z.number().int(),
-        "First line to read (1-based). Default 1."
+        z.number(),
+        "First line to read (1-based whole number). Default 1."
       ),
-      end_line: nullable(z.number().int(), "Last line to read, inclusive."),
+      end_line: nullable(
+        z.number(),
+        "Last line to read, inclusive (whole number)."
+      ),
     }),
   },
   get_issue: {

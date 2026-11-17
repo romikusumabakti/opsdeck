@@ -95,6 +95,31 @@ describe("buildTools", () => {
     expect(String(tools.list_files?.description)).toContain("project branches");
   });
 
+  it("sends no numeric or length bounds in tool schemas (strict tools reject them)", async () => {
+    const { asSchema } = await import("ai");
+    const BOUNDS = [
+      "minimum",
+      "maximum",
+      "exclusiveMinimum",
+      "exclusiveMaximum",
+      "multipleOf",
+      "minLength",
+      "maxLength",
+    ];
+    const found: string[] = [];
+    const walk = (node: unknown, path: string) => {
+      if (!node || typeof node !== "object") return;
+      for (const [key, value] of Object.entries(node)) {
+        if (BOUNDS.includes(key)) found.push(`${path}.${key}`);
+        walk(value, `${path}.${key}`);
+      }
+    };
+    for (const [name, tool] of Object.entries(buildTools(ctx, noRecord))) {
+      walk(await asSchema(tool.inputSchema).jsonSchema, name);
+    }
+    expect(found).toEqual([]);
+  });
+
   it("is strict: closed objects with every property required and described", async () => {
     for (const [name, tool] of Object.entries(buildTools(ctx, noRecord))) {
       expect((tool as { strict?: boolean }).strict, name).toBe(true);
