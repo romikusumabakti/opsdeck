@@ -20,6 +20,8 @@ export type TurnHistoryMessage = {
   role: "user" | "assistant";
   content: string;
   status: "queued" | "streaming" | "done" | "failed";
+  /** User messages: the environment asked about; null for project branches. */
+  environmentName: string | null;
 };
 
 export type TurnContext = {
@@ -108,6 +110,7 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       role: m.role,
       content: m.content,
       status: m.status,
+      environmentName: m.environmentName,
     })),
     attachmentIds: lastUser?.attachmentIds ?? [],
   };

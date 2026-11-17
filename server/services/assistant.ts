@@ -228,6 +228,8 @@ export async function sendMessage(
     now,
   });
   if (turn === "busy") throw await refusal(409, "assistant.busy");
+  // Deleted between the check above and the insert.
+  if (turn === "environment_gone") notFound();
 
   // After the commit, so the worker always finds the rows it is given.
   try {

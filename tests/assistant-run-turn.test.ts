@@ -106,9 +106,8 @@ const {
   STEP_LIMIT_NOTE,
   DAILY_CAP_NOTE,
 } = await import("@/lib/assistant/run-turn");
-const { buildSystemPrompt, buildVolatileSystemNote } = await import(
-  "@/lib/assistant/system-prompt"
-);
+const { buildSourceNote, buildSystemPrompt, buildVolatileSystemNote } =
+  await import("@/lib/assistant/system-prompt");
 const { SnapshotUnavailableError } = await import("@/lib/assistant/snapshot");
 
 // --- scripted mock model -----------------------------------------------------
@@ -211,6 +210,18 @@ const toolStep = (i: number): Step => ({
 const conversationOf = (call: LanguageModelV4CallOptions | undefined) =>
   (call?.prompt ?? []).filter((m) => m.role !== "system");
 
+/**
+ * The source note of a call: the first text part of its latest user message
+ * (the question being answered).
+ */
+const sourceNoteOf = (call: LanguageModelV4CallOptions | undefined) => {
+  const question = conversationOf(call)
+    .filter((m) => m.role === "user")
+    .at(-1);
+  const [first] = Array.isArray(question?.content) ? question.content : [];
+  return first && first.type === "text" ? first.text : "";
+};
+
 /** The tool definitions of a call, with their provider options. */
 const toolsOf = (call: LanguageModelV4CallOptions | undefined) =>
   (call?.tools ?? []) as Array<{ name: string; providerOptions?: unknown }>;
@@ -254,7 +265,12 @@ function baseTurn(): TurnContext {
     environmentId: "env-1",
     environmentName: "Dev 1",
     history: [
-      { role: "user", content: "Bagaimana Iuran dihitung?", status: "done" },
+      {
+        role: "user",
+        content: "Bagaimana Iuran dihitung?",
+        status: "done",
+        environmentName: "Dev 1",
+      },
     ],
     attachmentIds: [],
   };
@@ -611,6 +627,9 @@ describe("runTurn", () => {
     expect(volatile?.role).toBe("system");
     expect(volatile?.providerOptions).toBeUndefined();
     expect(String(volatile?.content)).toContain("2026-11-16");
+    // The question's source travels with the question, not in a system
+    // message, so switching it keeps the cached history prefix.
+    expect(String(volatile?.content)).not.toContain("Environment:");
     const tools = toolsOf(call);
     expect(tools).toHaveLength(7);
     expect(tools.at(-1)?.providerOptions).toEqual(CACHE);
@@ -618,9 +637,13 @@ describe("runTurn", () => {
     expect(conversationOf(call)).toEqual([
       {
         role: "user",
-        content: [{ type: "text", text: "Bagaimana Iuran dihitung?" }],
+        content: [
+          { type: "text", text: sourceNoteOf(call) },
+          { type: "text", text: "Bagaimana Iuran dihitung?" },
+        ],
       },
     ]);
+    expect(sourceNoteOf(call)).toContain("Environment: Dev 1");
   });
 
   it("sends no cache options for a provider without breakpoints", async () => {
@@ -868,9 +891,9 @@ describe("runTurn", () => {
         },
       })
     );
-    const volatile = String(calls[0]?.prompt[1]?.content);
-    expect(volatile).toContain("unavailable: unsupported-forge");
-    expect(volatile).toContain("No source code is available");
+    const note = sourceNoteOf(calls[0]);
+    expect(note).toContain("unavailable: unsupported-forge");
+    expect(note).toContain("No source code is available");
     expect(state.message.status).toBe("done");
     expect(state.message.sources).toEqual([{ ...SOURCE, commitSha: null }]);
   });
@@ -885,10 +908,10 @@ describe("runTurn", () => {
     );
     expect(resolveSources).toHaveBeenCalledExactlyOnceWith("env-1");
     expect(resolveProjectSources).not.toHaveBeenCalled();
-    const volatile = String(calls[0]?.prompt[1]?.content);
-    expect(volatile).toContain("Environment: Dev 1");
-    expect(volatile).not.toContain("Source: project branches");
-    expect(volatile).toContain(
+    const note = sourceNoteOf(calls[0]);
+    expect(note).toContain("Environment: Dev 1");
+    expect(note).not.toContain("Source: project branches");
+    expect(note).toContain(
       "- backend: repo acme/acme-membership, commit abcdef1234, deployed at"
     );
     expect(state.message.sources).toEqual([SOURCE]);
@@ -911,10 +934,10 @@ describe("runTurn", () => {
     expect(resolveProjectSources).toHaveBeenCalledExactlyOnceWith("project-1");
     expect(resolveSources).not.toHaveBeenCalled();
     expect(ensureSnapshot).toHaveBeenCalledWith(PROJECT_SOURCE);
-    const volatile = String(calls[0]?.prompt[1]?.content);
-    expect(volatile).toContain("Source: project branches");
-    expect(volatile).not.toContain("Environment:");
-    expect(volatile).toContain(
+    const note = sourceNoteOf(calls[0]);
+    expect(note).toContain("Source: project branches");
+    expect(note).not.toContain("Environment:");
+    expect(note).toContain(
       "- backend: repo acme/acme-membership, commit 9999999999, branch kestrel/development head"
     );
     // The commit read is stored, so the answer stays reproducible.
@@ -949,6 +972,60 @@ describe("runTurn", () => {
     expect(String(project?.content)).not.toContain("kestrel/development");
   });
 
+  it("replays the earlier messages byte-identically whatever the new question's source", async () => {
+    const history: TurnContext["history"] = [
+      {
+        role: "user",
+        content: "Di Dev 1?",
+        status: "done",
+        environmentName: "Dev 1",
+      },
+      {
+        role: "assistant",
+        content: "Jawab 1",
+        status: "done",
+        environmentName: null,
+      },
+      {
+        role: "user",
+        content: "Di branch?",
+        status: "done",
+        environmentName: null,
+      },
+      {
+        role: "assistant",
+        content: "Jawab 2",
+        status: "done",
+        environmentName: null,
+      },
+      { role: "user", content: "Lalu?", status: "done", environmentName: null },
+    ];
+    const promptOf = async (turn: TurnContext) => {
+      state.turn = turn;
+      state.message = {
+        status: "queued",
+        content: "",
+        errorCode: null,
+        sources: null,
+      };
+      const { model, calls } = mockModel([{ text: ["ok"], finish: "stop" }]);
+      await runTurn(MESSAGE_ID, deps(model));
+      return calls[0]?.prompt ?? [];
+    };
+    const environment = await promptOf({ ...baseTurn(), history });
+    const project = await promptOf({
+      ...baseTurn(),
+      history,
+      environmentId: null,
+      environmentName: null,
+    });
+    // Everything before the new question: both system messages and the
+    // replayed turns.
+    expect(project.slice(0, -1)).toEqual(environment.slice(0, -1));
+    expect(project.length).toBe(environment.length);
+    expect(project.at(-1)).not.toEqual(environment.at(-1));
+  });
+
   it("fails with environment_gone when the question's environment was deleted", async () => {
     state.turn = {
       ...baseTurn(),
@@ -974,11 +1051,26 @@ describe("runTurn", () => {
     state.turn = {
       ...baseTurn(),
       history: [
-        { role: "user", content: "Q1", status: "done" },
-        { role: "assistant", content: "A1", status: "done" },
-        { role: "user", content: "Q2", status: "done" },
-        { role: "assistant", content: "", status: "failed" },
-        { role: "user", content: "Q3", status: "done" },
+        { role: "user", content: "Q1", status: "done", environmentName: "UAT" },
+        {
+          role: "assistant",
+          content: "A1",
+          status: "done",
+          environmentName: null,
+        },
+        { role: "user", content: "Q2", status: "done", environmentName: null },
+        {
+          role: "assistant",
+          content: "",
+          status: "failed",
+          environmentName: null,
+        },
+        {
+          role: "user",
+          content: "Q3",
+          status: "done",
+          environmentName: "Dev 1",
+        },
       ],
       // A malformed (pre-pair) entry is dropped.
       attachmentIds: ["KST-12:10001", "10002"],
@@ -986,17 +1078,24 @@ describe("runTurn", () => {
     const { model, calls } = mockModel([{ text: ["A3"], finish: "stop" }]);
     await runTurn(MESSAGE_ID, deps(model));
     const text = (t: string) => [{ type: "text", text: t }];
+    // Earlier questions name the source they asked about, so the model
+    // knows their answers may cite other commits.
     expect(conversationOf(calls[0])).toEqual([
-      { role: "user", content: text("Q1") },
+      { role: "user", content: text("(Source: environment UAT)\nQ1") },
       { role: "assistant", content: text("A1") },
-      { role: "user", content: text("Q2") },
+      { role: "user", content: text("(Source: project branches)\nQ2") },
       {
         role: "user",
-        content: text(
-          "Q3\n\n(Attachments ticked for this question, readable with read_attachment:\n- issue_key KST-12, attachment_id 10001)"
-        ),
+        content: [
+          { type: "text", text: sourceNoteOf(calls[0]) },
+          {
+            type: "text",
+            text: "Q3\n\n(Attachments ticked for this question, readable with read_attachment:\n- issue_key KST-12, attachment_id 10001)",
+          },
+        ],
       },
     ]);
+    expect(sourceNoteOf(calls[0])).toMatch(/^# Source of this question\n/);
   });
 
   it("fails a redelivered turn that was already streaming as interrupted", async () => {
@@ -1166,15 +1265,14 @@ describe("buildSystemPrompt", () => {
       orgContext,
     });
 
-  type NoteSources = Parameters<typeof buildVolatileSystemNote>[1]["sources"];
-  const NOW = new Date("2026-11-16T05:00:00.000Z");
+  type NoteSources = Parameters<typeof buildSourceNote>[0]["sources"];
   const environmentNote = (sources: NoteSources) =>
-    buildVolatileSystemNote(NOW, {
+    buildSourceNote({
       source: { kind: "environment", environmentName: "Dev 1" },
       sources,
     });
   const projectNote = (sources: NoteSources) =>
-    buildVolatileSystemNote(NOW, { source: { kind: "project" }, sources });
+    buildSourceNote({ source: { kind: "project" }, sources });
 
   const GENERIC =
     "an internal operations portal of a company that builds and runs pension-fund (DPLK/DPPK) systems";
@@ -1213,7 +1311,7 @@ describe("buildSystemPrompt", () => {
     // Both sources are explained; which one applies is in the volatile note.
     expect(text).toContain('"Source: project branches"');
     expect(text).toContain('"Environment: <name>"');
-    expect(text).not.toContain("# Source of this question");
+    expect(text).not.toContain("Components and the source you can read");
     expect(text).not.toContain("Today's date");
     expect(text).toContain("tidak ditemukan di kode");
     expect(text).toContain("Yang dilakukan kode");
@@ -1246,7 +1344,6 @@ describe("buildSystemPrompt", () => {
         unavailableReason: "no-credentials",
       },
     ]);
-    expect(text).toContain("Today's date is 2026-11-16 (Asia/Jakarta).");
     expect(text).toContain("Environment: Dev 1");
     expect(text).toContain(
       "- backend: repo acme/acme-membership, commit abcdef1234, deployed at 2026-11-15 10:00 (Asia/Jakarta)"
@@ -1301,6 +1398,12 @@ describe("buildSystemPrompt", () => {
     expect(text).toContain("read only the line ranges you need");
     expect(text).toContain("stop exploring once the answer is supported");
     expect(text).toContain("A withheld file exists; it is not missing.");
+  });
+
+  it("keeps only the date in the volatile system message", () => {
+    expect(buildVolatileSystemNote(new Date("2026-11-16T05:00:00.000Z"))).toBe(
+      "Today's date is 2026-11-16 (Asia/Jakarta)."
+    );
   });
 
   it("is stable for the same inputs", () => {

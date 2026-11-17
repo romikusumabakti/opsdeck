@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ENV_KMEM = "0197f3a0-1b2c-7def-8000-00000000e001";
 const ENV_HMEM = "0197f3a0-1b2c-7def-8000-00000000e002";
+// Found by the send-time check, deleted before the insert (a race).
+const ENV_RACED = "0197f3a0-1b2c-7def-8000-00000000e003";
 const PROJECT_KMEM = "0197f3a0-1b2c-7def-8000-00000000a001";
 const PROJECT_HMEM = "0197f3a0-1b2c-7def-8000-00000000a002";
 const QA = "0197f3a0-1b2c-7def-8000-00000000f001";
@@ -84,6 +86,8 @@ const ENV_PROJECT: Record<string, string> = {
     "0197f3a0-1b2c-7def-8000-00000000a001",
   "0197f3a0-1b2c-7def-8000-00000000e002":
     "0197f3a0-1b2c-7def-8000-00000000a002",
+  "0197f3a0-1b2c-7def-8000-00000000e003":
+    "0197f3a0-1b2c-7def-8000-00000000a001",
 };
 
 vi.mock("@/lib/authz", async () => {
@@ -186,7 +190,14 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
     titleFrom,
     loadAssistantLimits: async () => state.limits,
     environmentOfProject: async (id: string, projectId: string) => {
-      const name = id === ENV_KMEM ? "Dev 1" : id === ENV_HMEM ? "UAT" : null;
+      const name =
+        id === ENV_KMEM
+          ? "Dev 1"
+          : id === ENV_HMEM
+            ? "UAT"
+            : id === ENV_RACED
+              ? "Raced"
+              : null;
       return name && ENV_PROJECT[id] === projectId ? { id, name } : null;
     },
     listConversationsOf: async (userId: string, projectId: string) =>
@@ -259,6 +270,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
           (m.status === "queued" || m.status === "streaming")
       );
       if (busy) return "busy";
+      if (p.environment?.id === ENV_RACED) return "environment_gone";
       const base = { conversationId: p.conversationId, errorCode: null };
       const question: Message = {
         ...base,
@@ -537,6 +549,14 @@ describe("per-question source", () => {
     for (const environmentId of [ENV_HMEM, UNKNOWN_ID]) {
       expect((await send(id, "Tanya", { environmentId })).status).toBe(404);
     }
+    expect(store.messages).toEqual([]);
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("an environment deleted between the check and the insert is 404", async () => {
+    const id = await newConversation();
+    const res = await send(id, "Tanya", { environmentId: ENV_RACED });
+    expect(res.status).toBe(404);
     expect(store.messages).toEqual([]);
     expect(queue.enqueue).not.toHaveBeenCalled();
   });

@@ -34,10 +34,12 @@ import {
   resolveEnvironmentSources as defaultResolveSources,
 } from "./sources";
 import {
+  buildSourceNote,
   buildSystemPrompt,
   buildVolatileSystemNote,
   type PromptSource,
   type QuestionSource,
+  questionSourceLabel,
 } from "./system-prompt";
 import { buildTools, type ToolContext, type ToolExecutor } from "./tool-defs";
 import type { SnapshotRef } from "./tools/code";
@@ -207,9 +209,15 @@ export function classifyError(
 /**
  * Prior messages as plain text turns. Failed assistant messages without any
  * text and unfinished ones are skipped; consecutive same-role turns are fine
- * (the API merges them).
+ * (the API merges them). Each earlier question starts with the short label of
+ * the source it asked about; the question being answered carries
+ * `sourceNote` as its first part instead. So nothing before that question
+ * depends on its source, and the cached history holds across source switches.
  */
-export function buildHistory(turn: TurnContext): ModelMessage[] {
+export function buildHistory(
+  turn: TurnContext,
+  sourceNote: string
+): ModelMessage[] {
   const messages: ModelMessage[] = [];
   const lastUserIndex = turn.history.findLastIndex((m) => m.role === "user");
   const ticked = parseAttachmentRefs(turn.attachmentIds);
@@ -220,8 +228,15 @@ export function buildHistory(turn: TurnContext): ModelMessage[] {
       messages.push({ role: "assistant", content: m.content });
       return;
     }
+    if (index !== lastUserIndex) {
+      messages.push({
+        role: "user",
+        content: `${questionSourceLabel(m.environmentName)}\n${m.content}`,
+      });
+      return;
+    }
     let text = m.content;
-    if (index === lastUserIndex && ticked.length > 0) {
+    if (ticked.length > 0) {
       const list = ticked
         .map(
           (a) => `- issue_key ${a.issueKey}, attachment_id ${a.attachmentId}`
@@ -229,7 +244,13 @@ export function buildHistory(turn: TurnContext): ModelMessage[] {
         .join("\n");
       text += `\n\n(Attachments ticked for this question, readable with read_attachment:\n${list})`;
     }
-    messages.push({ role: "user", content: text });
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: sourceNote },
+        { type: "text", text },
+      ],
+    });
   });
   return messages;
 }
@@ -553,8 +574,9 @@ async function runClaimedTurn(
 
   // Prompt-cache breakpoints, for the providers that need them: the stable
   // system message, the last tool definition, and the growing conversation
-  // (request level). The question's source is in the volatile note, so
-  // switching it between questions keeps the cached system message.
+  // (request level). The question's source travels with the question
+  // (buildHistory), so switching it keeps the system message and the
+  // replayed history cached.
   const cache = cacheControlFor(runtime.provider);
   const instructions: SystemModelMessage[] = [
     {
@@ -566,13 +588,7 @@ async function runClaimedTurn(
       }),
       ...(cache ? { providerOptions: cache } : {}),
     },
-    {
-      role: "system",
-      content: buildVolatileSystemNote(now(), {
-        source: resolved.question,
-        sources: resolved.prompt,
-      }),
-    },
+    { role: "system", content: buildVolatileSystemNote(now()) },
   ];
   const attachments: AttachmentRef[] = parseAttachmentRefs(turn.attachmentIds);
   const toolContext: ToolContext = {
@@ -643,7 +659,10 @@ async function runClaimedTurn(
   const result = streamText({
     model: runtime.model,
     instructions,
-    messages: buildHistory(turn),
+    messages: buildHistory(
+      turn,
+      buildSourceNote({ source: resolved.question, sources: resolved.prompt })
+    ),
     tools,
     toolChoice: "auto",
     maxOutputTokens: outputTokenLimitFor(runtime.provider),

@@ -294,6 +294,21 @@ export async function loadConversationDetail(
   };
 }
 
+/** The FK error of a user message naming an environment that is gone. */
+function isMissingEnvironment(error: unknown): boolean {
+  const e = error as {
+    code?: string;
+    constraint_name?: string;
+    cause?: { code?: string; constraint_name?: string };
+  };
+  const pg = e?.cause?.code ? e.cause : e;
+  return (
+    pg?.code === "23503" &&
+    pg.constraint_name ===
+      "assistant_messages_environment_id_environments_id_fk"
+  );
+}
+
 export type CreatedTurn = { userMessageId: string; assistantMessageId: string };
 
 /**
@@ -303,6 +318,8 @@ export type CreatedTurn = { userMessageId: string; assistantMessageId: string };
  * conversation's updated_at. "busy" (nothing written) when an assistant
  * message of the conversation is still queued or streaming. The conversation
  * row is locked first, so two sends at once cannot both pass that check.
+ * "environment_gone" (nothing written) when the asked-about environment was
+ * deleted after the caller's check: the message's foreign key refuses it.
  */
 export async function insertTurn(params: {
   conversationId: string;
@@ -310,62 +327,68 @@ export async function insertTurn(params: {
   attachmentIds: string[];
   environment: { id: string; name: string } | null;
   now?: Date;
-}): Promise<CreatedTurn | "busy"> {
+}): Promise<CreatedTurn | "busy" | "environment_gone"> {
   const now = params.now ?? new Date();
-  return db.transaction(async (tx) => {
-    const [conversation] = await tx
-      .select({ title: assistantConversations.title })
-      .from(assistantConversations)
-      .where(eq(assistantConversations.id, params.conversationId))
-      .for("update");
-    if (!conversation) throw new Error("conversation vanished");
+  try {
+    return await db.transaction(async (tx) => {
+      const [conversation] = await tx
+        .select({ title: assistantConversations.title })
+        .from(assistantConversations)
+        .where(eq(assistantConversations.id, params.conversationId))
+        .for("update");
+      if (!conversation) throw new Error("conversation vanished");
 
-    const [pending] = await tx
-      .select({ id: assistantMessages.id })
-      .from(assistantMessages)
-      .where(
-        and(
-          eq(assistantMessages.conversationId, params.conversationId),
-          eq(assistantMessages.role, "assistant"),
-          inArray(assistantMessages.status, ["queued", "streaming"])
+      const [pending] = await tx
+        .select({ id: assistantMessages.id })
+        .from(assistantMessages)
+        .where(
+          and(
+            eq(assistantMessages.conversationId, params.conversationId),
+            eq(assistantMessages.role, "assistant"),
+            inArray(assistantMessages.status, ["queued", "streaming"])
+          )
         )
-      )
-      .limit(1);
-    if (pending) return "busy";
+        .limit(1);
+      if (pending) return "busy";
 
-    // Two inserts, so the user message gets the smaller uuidv7 id.
-    const [question] = await tx
-      .insert(assistantMessages)
-      .values({
-        conversationId: params.conversationId,
-        role: "user",
-        status: "done",
-        content: params.text,
-        attachmentIds: params.attachmentIds,
-        environmentId: params.environment?.id ?? null,
-        environmentName: params.environment?.name ?? null,
-        finishedAt: now,
-      })
-      .returning({ id: assistantMessages.id });
-    const [answer] = await tx
-      .insert(assistantMessages)
-      .values({
-        conversationId: params.conversationId,
-        role: "assistant",
-        status: "queued",
-      })
-      .returning({ id: assistantMessages.id });
-    if (!question || !answer) throw new Error("message insert returned no row");
+      // Two inserts, so the user message gets the smaller uuidv7 id.
+      const [question] = await tx
+        .insert(assistantMessages)
+        .values({
+          conversationId: params.conversationId,
+          role: "user",
+          status: "done",
+          content: params.text,
+          attachmentIds: params.attachmentIds,
+          environmentId: params.environment?.id ?? null,
+          environmentName: params.environment?.name ?? null,
+          finishedAt: now,
+        })
+        .returning({ id: assistantMessages.id });
+      const [answer] = await tx
+        .insert(assistantMessages)
+        .values({
+          conversationId: params.conversationId,
+          role: "assistant",
+          status: "queued",
+        })
+        .returning({ id: assistantMessages.id });
+      if (!question || !answer)
+        throw new Error("message insert returned no row");
 
-    await tx
-      .update(assistantConversations)
-      .set({
-        updatedAt: now,
-        ...(conversation.title ? {} : { title: titleFrom(params.text) }),
-      })
-      .where(eq(assistantConversations.id, params.conversationId));
-    return { userMessageId: question.id, assistantMessageId: answer.id };
-  });
+      await tx
+        .update(assistantConversations)
+        .set({
+          updatedAt: now,
+          ...(conversation.title ? {} : { title: titleFrom(params.text) }),
+        })
+        .where(eq(assistantConversations.id, params.conversationId));
+      return { userMessageId: question.id, assistantMessageId: answer.id };
+    });
+  } catch (error) {
+    if (isMissingEnvironment(error)) return "environment_gone";
+    throw error;
+  }
 }
 
 /** queued → failed, for a turn whose job could not be enqueued. */

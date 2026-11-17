@@ -95,9 +95,9 @@ function componentLine(source: PromptSource, question: QuestionSource): string {
  * project and user and on the instance's organisation context — never on the
  * source a question asks about — so it is byte-identical across the requests
  * of a turn and across the turns of a conversation, whichever source each
- * question picks; the prompt-cache breakpoint sits right after it. The
- * per-question source and today's date go in the volatile note after the
- * breakpoint (buildVolatileSystemNote).
+ * question picks; the prompt-cache breakpoint sits right after it. Today's
+ * date follows in the volatile system message; the question's source travels
+ * with the question (buildSourceNote).
  */
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const intro = ctx.orgContext
@@ -116,7 +116,7 @@ You are talking with ${ctx.userName}.
 # Scope
 Project: ${ctx.projectName}
 
-Each question asks about one source, given in the source note that follows these instructions together with the components you can read for it. The note is updated for every question; always use the latest one.
+Each question asks about one source. The question you are answering starts with a "# Source of this question" note naming it and the components you can read for it; only that latest note applies. Earlier questions start with a short "(Source: …)" line instead: their answers may cite other commits than the ones you can read now.
 - "Source: project branches": each component at the head of the project's branch for it. That is the code being developed, which may differ from what any environment runs.
 - "Environment: <name>": the components of that environment. The state of each tells you which code you are reading: "deployed at" means the exact commit running in the environment; "deployed but running commit unknown" and "never deployed" mean the head of the source branch, which may differ from what runs.
 When the answer depends on it (a recent change, a bug report, a difference between environments), say which source and state apply to the component you cite. Never claim to read code of a component marked unavailable.
@@ -144,20 +144,31 @@ Some files are withheld because they may hold secrets or real participant data (
 When asked for a BRD section, a requirement or a Jira ticket draft, write it in Indonesian from what the code shows, mark anything not backed by code as an assumption, and remind the user to review it before it goes anywhere. You cannot create or edit Jira issues yourself.`;
 }
 
-/**
- * The volatile block that follows the cache breakpoint: today's date and the
- * source of the question being answered, with its components.
- */
-export function buildVolatileSystemNote(
-  now: Date,
-  note: SourceNoteContext
-): string {
+/** The volatile system message after the cache breakpoint: today's date. */
+export function buildVolatileSystemNote(now: Date): string {
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(now);
+  return `Today's date is ${today} (${APP_TIMEZONE}).`;
+}
+
+/** How a replayed earlier question names the source it asked about. */
+export function questionSourceLabel(environmentName: string | null): string {
+  return environmentName === null
+    ? "(Source: project branches)"
+    : `(Source: environment ${environmentName})`;
+}
+
+/**
+ * The source of the question being answered, with its components. Sent as
+ * the first part of that question (lib/assistant/run-turn buildHistory), not
+ * as a system message: the messages before it stay byte-identical when the
+ * next question picks another source, so the cached history still holds.
+ */
+export function buildSourceNote(note: SourceNoteContext): string {
   const { source, sources } = note;
   const project = source.kind === "project";
   const heading = project
@@ -172,9 +183,7 @@ export function buildVolatileSystemNote(
   const codeNote = sources.some((s) => !s.unavailableReason)
     ? ""
     : "\n\nNo source code is available for this question. Say so when it needs the code, and answer only from Jira issues and the knowledge base, labelling everything else as an assumption.";
-  return `Today's date is ${today} (${APP_TIMEZONE}).
-
-# Source of this question
+  return `# Source of this question
 ${heading}
 
 Components and the source you can read for each:

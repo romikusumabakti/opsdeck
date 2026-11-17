@@ -177,7 +177,7 @@ describe.skipIf(!enabled)(
         environment: { id: env.id, name: "Dev 1" },
         now,
       });
-      if (first === "busy") throw new Error("unexpected busy");
+      if (typeof first === "string") throw new Error(`unexpected ${first}`);
       expect(first.userMessageId < first.assistantMessageId).toBe(true);
 
       // The first answer is still queued: any further send is busy.
@@ -215,7 +215,7 @@ describe.skipIf(!enabled)(
       ]);
       expect([c1, c2].filter((t) => t === "busy")).toHaveLength(1);
       const second = c1 === "busy" ? c2 : c1;
-      if (second === "busy") throw new Error("expected one turn");
+      if (typeof second === "string") throw new Error("expected one turn");
 
       // A user message's stream lookup finds nothing; an answer's finds the chat.
       expect(
@@ -278,6 +278,21 @@ describe.skipIf(!enabled)(
       await d
         .delete(schema.environments)
         .where(eq(schema.environments.id, env.id));
+      // A send racing that delete: the FK refuses the question, nothing is
+      // written.
+      await client`update assistant_messages set status = 'done' where id = ${second.assistantMessageId}`;
+      expect(
+        await store.insertTurn({
+          conversationId,
+          text: "Masih ada?",
+          attachmentIds: [],
+          environment: { id: env.id, name: "Dev 1" },
+        })
+      ).toBe("environment_gone");
+      expect(
+        (await store.loadConversationDetail(conversationId))?.messages
+      ).toHaveLength(4);
+      await client`update assistant_messages set status = 'queued' where id = ${second.assistantMessageId}`;
       expect(
         (await store.loadConversationDetail(conversationId))?.messages[0]
       ).toMatchObject({

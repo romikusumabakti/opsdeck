@@ -178,6 +178,12 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       attachmentIds: ["att-1"],
     });
     expect(turn?.history.map((m) => m.content)).toEqual(["Q1", "A1", "Q2"]);
+    // Each replayed question keeps the source it asked about.
+    expect(turn?.history.map((m) => m.environmentName)).toEqual([
+      null,
+      null,
+      "Dev 1",
+    ]);
     expect(await store.loadTurn(conversation.id)).toBeNull();
 
     expect(await store.claimMessage(answer.id)).toBe(true);
