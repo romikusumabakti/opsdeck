@@ -200,4 +200,43 @@ describe("home ask-the-assistant card", () => {
     expect(nav.push).not.toHaveBeenCalled();
     expect(box().value).toBe("Hello");
   });
+
+  it("reuses the created conversation when a send is retried", async () => {
+    api.createConversation.mockResolvedValue({ id: "c1" });
+    api.sendMessage.mockRejectedValueOnce(new Error("boom"));
+    api.sendMessage.mockResolvedValue({});
+    await renderCard({});
+    await type("Hello");
+    await press(false);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await press(false);
+    expect(api.createConversation).toHaveBeenCalledTimes(1);
+    expect(api.sendMessage).toHaveBeenCalledTimes(2);
+    expect(api.sendMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conversationId: "c1" })
+    );
+    expect(nav.push).toHaveBeenCalledWith("/ACME/assistant?c=c1");
+  });
+
+  it("sends once when Enter is pressed again before the page changes", async () => {
+    api.createConversation.mockResolvedValue({ id: "c1" });
+    api.sendMessage.mockResolvedValue({});
+    await renderCard({});
+    await type("Hello");
+    await press(false);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    await press(false);
+    expect(api.createConversation).toHaveBeenCalledTimes(1);
+    expect(api.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("styles the limit message as a notice, not an error", async () => {
+    await renderCard({ allowance: { ...ENABLED, capReached: true } });
+    const note = container.querySelector('[role="status"]');
+    expect(note?.className).not.toContain("text-destructive");
+  });
 });

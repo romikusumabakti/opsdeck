@@ -99,6 +99,11 @@ vi.mock("@/lib/authz", async () => {
   }
   return {
     ForbiddenError,
+    projectScope: vi.fn(async () => ({
+      visible: (projectId: string) =>
+        state.orgRole === "admin" ||
+        (state.members[projectId] ?? []).includes(state.userId),
+    })),
     requireProjectPermission: vi.fn(
       async (
         scope: { environmentId?: string; projectId?: string },
@@ -204,9 +209,12 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       store.conversations
         .filter((c) => c.userId === userId && c.projectId === projectId)
         .map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt })),
-    latestConversationProjectOf: async (userId: string) =>
+    latestConversationProjectOf: async (
+      userId: string,
+      scope: { visible: (projectId: string) => boolean }
+    ) =>
       store.conversations
-        .filter((c) => c.userId === userId)
+        .filter((c) => c.userId === userId && scope.visible(c.projectId))
         .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0]
         ?.projectId ?? null,
     insertConversation: async (v: { userId: string; projectId: string }) => {
@@ -890,6 +898,7 @@ describe("allowance", () => {
 describe("last-project", () => {
   it("is the project of the caller's most recently updated conversation", async () => {
     as(QA, "qa");
+    state.members = { [PROJECT_KMEM]: [QA], [PROJECT_HMEM]: [QA] };
     store.conversations.push(
       {
         id: "c1",
@@ -922,6 +931,31 @@ describe("last-project", () => {
     const res = await get("/last-project");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ projectId: PROJECT_HMEM });
+  });
+
+  it("skips a project the caller can no longer see", async () => {
+    as(QA, "qa");
+    state.members = { [PROJECT_KMEM]: [QA] };
+    const conv = (id: string, projectId: string, at: string) => ({
+      id,
+      userId: QA,
+      projectId,
+      environmentId: null,
+      environmentName: null,
+      title: "",
+      updatedAt: new Date(at),
+    });
+    store.conversations.push(
+      conv("c1", PROJECT_KMEM, "2026-11-16T01:00:00Z"),
+      conv("c2", PROJECT_HMEM, "2026-11-16T02:00:00Z")
+    );
+    expect(await (await get("/last-project")).json()).toEqual({
+      projectId: PROJECT_KMEM,
+    });
+    state.members = {};
+    expect(await (await get("/last-project")).json()).toEqual({
+      projectId: null,
+    });
   });
 
   it("is null when the caller has no conversation", async () => {

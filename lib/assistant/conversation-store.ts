@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   assistantConversations,
@@ -91,14 +91,18 @@ export async function listConversationsOf(
     .orderBy(desc(assistantConversations.updatedAt));
 }
 
-/** The project of the user's most recently updated conversation, if any. */
+/**
+ * The project of the user's most recently updated conversation among the
+ * projects `scope` allows (a projectScope filter; undefined = all), if any.
+ */
 export async function latestConversationProjectOf(
-  userId: string
+  userId: string,
+  scope: SQL | undefined
 ): Promise<string | null> {
   const [row] = await db
     .select({ projectId: assistantConversations.projectId })
     .from(assistantConversations)
-    .where(eq(assistantConversations.userId, userId))
+    .where(and(eq(assistantConversations.userId, userId), scope))
     .orderBy(desc(assistantConversations.updatedAt))
     .limit(1);
   return row?.projectId ?? null;

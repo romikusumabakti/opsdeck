@@ -49,7 +49,12 @@ import {
 import { quotaDayResetsAt, spentTodayUsd } from "@/lib/assistant/usage";
 import { loadAssistantViewer } from "@/lib/assistant/viewer";
 import { requireSession } from "@/lib/auth-session";
-import { ForbiddenError, requireProjectPermission } from "@/lib/authz";
+import {
+  ForbiddenError,
+  projectScope,
+  requireProjectPermission,
+} from "@/lib/authz";
+import { assistantConversations } from "@/lib/db/schema";
 import { createJiraIssueFromDraft, JiraCreateError } from "@/lib/jira/create";
 import { uuidSchema } from "@/lib/validation";
 import { CodedHTTPException, notFound } from "@/server/errors";
@@ -147,13 +152,15 @@ export async function listConversations(input: {
 
 /**
  * The project of the caller's latest conversation, for Home's ask card. Only
- * the caller's own row; the client keeps it only if the project is still one
- * they can see.
+ * the caller's own conversations in projects they can still see.
  */
 export async function getLastProject(): Promise<{ projectId: string | null }> {
   const session = await requireSession();
   return {
-    projectId: await latestConversationProjectOf(session.user.id),
+    projectId: await latestConversationProjectOf(
+      session.user.id,
+      await projectScope(assistantConversations.projectId)
+    ),
   };
 }
 

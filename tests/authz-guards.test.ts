@@ -46,6 +46,7 @@ const SCOPED_READS: Record<string, string[]> = {
   ],
   "server/services/assistant.ts": [
     "listConversations",
+    "getLastProject",
     "listIssueAttachmentsForPicker",
   ],
   "lib/home/queries.ts": [

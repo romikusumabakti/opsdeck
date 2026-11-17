@@ -6,6 +6,7 @@ import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "@/i18n/navigation";
+import { cn } from "@/lib/utils";
 import {
   createConversation,
   getAllowanceQuery,
@@ -30,18 +31,32 @@ export function AskAssistantCard() {
   const router = useRouter();
   const allowance = useQuery(getAllowanceQuery()).data;
   const projects = useQuery(listProjectsQuery()).data;
-  const lastProjectId = useQuery(getLastProjectQuery()).data?.projectId;
+  const lastProjectId = useQuery({
+    ...getLastProjectQuery(),
+    enabled: allowance?.enabled === true,
+  }).data?.projectId;
   const [picked, setPicked] = React.useState<string | null>(null);
   const [text, setText] = React.useState("");
 
+  // The conversation made for a send that then failed: a retry for the same
+  // project reuses it instead of leaving another empty one behind.
+  const created = React.useRef<{ projectId: string; id: string } | null>(null);
+
   const ask = useMutation({
     mutationFn: async (input: { projectKey: string; projectId: string }) => {
-      const { id } = await createConversation({ projectId: input.projectId });
+      if (created.current?.projectId !== input.projectId) {
+        const { id } = await createConversation({
+          projectId: input.projectId,
+        });
+        created.current = { projectId: input.projectId, id };
+      }
+      const { id } = created.current;
       await sendMessage({
         conversationId: id,
         text: text.trim(),
         environmentId: null,
       });
+      created.current = null;
       return { projectKey: input.projectKey, conversationId: id };
     },
     onSuccess: ({ projectKey, conversationId }) =>
@@ -57,7 +72,8 @@ export function AskAssistantCard() {
   if (!project) return null;
 
   const capped = allowance.capReached;
-  const canSend = !capped && !ask.isPending && text.trim() !== "";
+  const canSend =
+    !capped && !ask.isPending && !ask.isSuccess && text.trim() !== "";
   const submit = () => {
     if (canSend) ask.mutate({ projectKey: project.key, projectId: project.id });
   };
@@ -107,7 +123,10 @@ export function AskAssistantCard() {
         {message ? (
           <p
             role={capped ? "status" : "alert"}
-            className="text-xs text-destructive"
+            className={cn(
+              "text-xs",
+              capped ? "text-amber-600 dark:text-amber-500" : "text-destructive"
+            )}
           >
             {message}
           </p>
