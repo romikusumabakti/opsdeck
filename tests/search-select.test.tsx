@@ -152,6 +152,16 @@ describe("SearchSelect", () => {
     expect(onChange).toHaveBeenLastCalledWith("s2");
   });
 
+  it("does not report a change when the current item is re-picked", async () => {
+    const onChange = vi.fn();
+    await render({ onChange, value: "s2" });
+    await open();
+    const bravo = itemEls().find((el) => el.textContent?.includes("db-bravo"));
+    await act(async () => bravo?.click());
+    await settle();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("lists every option when opened with a value picked", async () => {
     await render({ value: "s2" });
     await open();

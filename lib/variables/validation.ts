@@ -95,5 +95,9 @@ export function generateValue(length: number): string {
   const bytes = crypto.getRandomValues(
     new Uint8Array(Math.ceil((length * 3) / 4))
   );
-  return Buffer.from(bytes).toString("base64url").slice(0, length);
+  const base64url = btoa(String.fromCharCode(...bytes))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+  return base64url.slice(0, length);
 }

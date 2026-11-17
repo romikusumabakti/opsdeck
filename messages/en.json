@@ -3691,13 +3691,13 @@
     "draftSaved": "Draft saved.",
     "copyMarkdown": "Copy as markdown",
     "createJira": "Create issue",
-    "saveBeforeCreate": "Save the draft before creating the ticket.",
+    "saveBeforeCreate": "Save the draft before creating the issue.",
     "jiraPushOff": "Issue sync to the tracker is off for this project, so issues cannot be created here.",
     "noIssueWrite": "You do not have the right to create issues in this project.",
     "confirmCreateTitle": "Create the issue?",
     "confirmCreateDescription": "The issue will be created in the tracker on your behalf and also appear in the Panel's issue list. Check its content once more.",
-    "confirmCreate": "Create ticket",
-    "jiraCreated": "Ticket {jiraKey} created.",
+    "confirmCreate": "Create issue",
+    "jiraCreated": "Issue {jiraKey} created.",
     "jiraCreatedAs": "Created as {jiraKey}.",
     "openPanelIssue": "Open the issue in the Panel"
   }

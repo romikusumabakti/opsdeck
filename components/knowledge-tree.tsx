@@ -550,7 +550,7 @@ export function KnowledgeTree({
                 )}
               </button>
               {(canWrite || canManage) && (
-                <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover/col:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover/col:opacity-100 focus-within:opacity-100 has-data-[popup-open]:opacity-100 [@media(hover:none)]:opacity-100">
                   {canWrite && (
                     <Button
                       nativeButton={false}

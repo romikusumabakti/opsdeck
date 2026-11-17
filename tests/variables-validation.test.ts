@@ -157,4 +157,15 @@ describe("generateValue", () => {
     const source = readFileSync("lib/variables/validation.ts", "utf8");
     expect(source).not.toMatch(/from "node:/);
   });
+
+  it("does not use the Node-only Buffer global", () => {
+    const source = readFileSync("lib/variables/validation.ts", "utf8");
+    expect(source).not.toMatch(/\bBuffer\b/);
+  });
+
+  it("keeps the base64url alphabet and length for the maximum length", () => {
+    const value = generateValue(8192);
+    expect(value).toHaveLength(8192);
+    expect(value).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
 });

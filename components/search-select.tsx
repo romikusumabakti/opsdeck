@@ -84,7 +84,10 @@ export function SearchSelect({
       autoHighlight
       items={items}
       value={value === "" ? null : value}
-      onValueChange={(next) => onChange(next)}
+      onValueChange={(next) => {
+        // Re-picking the current item is not a change.
+        if (next !== (value === "" ? null : value)) onChange(next);
+      }}
       itemToStringLabel={(item: string | null) => {
         if (item === null) return noneLabel ?? "";
         const o = byValue.get(item);

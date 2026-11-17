@@ -3691,13 +3691,13 @@
     "draftSaved": "Draf disimpan.",
     "copyMarkdown": "Salin sebagai markdown",
     "createJira": "Buat issue",
-    "saveBeforeCreate": "Simpan draf dulu sebelum membuat tiket.",
+    "saveBeforeCreate": "Simpan draf dulu sebelum membuat issue.",
     "jiraPushOff": "Sinkronisasi issue ke tracker nonaktif untuk proyek ini, jadi issue tidak dapat dibuat di sini.",
     "noIssueWrite": "Anda tidak punya hak membuat issue di proyek ini.",
     "confirmCreateTitle": "Buat issue?",
     "confirmCreateDescription": "Issue akan dibuat di tracker atas nama Anda dan juga muncul di daftar issue Panel. Periksa isinya sekali lagi.",
-    "confirmCreate": "Buat tiket",
-    "jiraCreated": "Tiket {jiraKey} dibuat.",
+    "confirmCreate": "Buat issue",
+    "jiraCreated": "Issue {jiraKey} dibuat.",
     "jiraCreatedAs": "Dibuat sebagai {jiraKey}.",
     "openPanelIssue": "Buka issue di Panel"
   }

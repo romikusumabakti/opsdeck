@@ -3691,13 +3691,13 @@
     "draftSaved": "草稿已保存。",
     "copyMarkdown": "复制为 markdown",
     "createJira": "创建问题",
-    "saveBeforeCreate": "请先保存草稿再创建工单。",
+    "saveBeforeCreate": "请先保存草稿再创建问题。",
     "jiraPushOff": "此项目已关闭问题同步到跟踪系统，因此无法在此创建问题。",
     "noIssueWrite": "你无权在此项目中创建问题。",
     "confirmCreateTitle": "创建该问题？",
     "confirmCreateDescription": "问题将以你的名义在跟踪系统中创建，并显示在面板的问题列表中。请再检查一次内容。",
-    "confirmCreate": "创建工单",
-    "jiraCreated": "已创建工单 {jiraKey}。",
+    "confirmCreate": "创建问题",
+    "jiraCreated": "已创建问题 {jiraKey}。",
     "jiraCreatedAs": "已创建为 {jiraKey}。",
     "openPanelIssue": "在面板中打开问题"
   }

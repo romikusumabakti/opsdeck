@@ -137,6 +137,23 @@ describe("collection header actions", () => {
     expect(itemByText("Delete collection")).toBeDefined();
   });
 
+  it("keeps the action wrapper visible while the menu is open", async () => {
+    await render(
+      <KnowledgeTree
+        collections={collections}
+        nodes={nodes}
+        canManage
+        canWrite
+      />
+    );
+    const trigger = byLabel("Actions for Handbook") as Element;
+    const wrapper = trigger.parentElement as Element;
+    expect(wrapper.className).toContain("has-data-[popup-open]:opacity-100");
+    expect(trigger.hasAttribute("data-popup-open")).toBe(false);
+    await click(trigger);
+    expect(trigger.hasAttribute("data-popup-open")).toBe(true);
+  });
+
   it("gives a writer the + but no menu", async () => {
     await render(
       <KnowledgeTree collections={collections} nodes={nodes} canWrite />

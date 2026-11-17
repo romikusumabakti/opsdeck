@@ -193,6 +193,14 @@ const button = (label: string) =>
     (b) => b.textContent?.trim() === label
   );
 
+// The form's create button and the dialog's confirm button share a label.
+const confirmButton = () =>
+  [
+    ...document.querySelectorAll<HTMLButtonElement>(
+      '[role="dialog"] button, [role="alertdialog"] button'
+    ),
+  ].find((b) => b.textContent?.trim() === messages.assistant.confirmCreate);
+
 const t = messages.assistant;
 
 // --- tests -------------------------------------------------------------------
@@ -365,7 +373,7 @@ describe("Create Jira ticket", () => {
     expect(dialog?.textContent).toContain(t.confirmCreateDescription);
     expect(dialog?.textContent).toContain("Validasi NIK saat registrasi");
     expect(dialog?.textContent).toContain("Story");
-    await act(async () => button(t.confirmCreate)?.click());
+    await act(async () => confirmButton()?.click());
     expect(api.createJiraIssue).toHaveBeenCalledWith("d1");
   });
 
@@ -373,7 +381,7 @@ describe("Create Jira ticket", () => {
     api.createJiraIssue.mockRejectedValue(new ApiError(403, "Forbidden"));
     await renderForm({ jiraPushEnabled: true });
     await act(async () => button(t.createJira)?.click());
-    await act(async () => button(t.confirmCreate)?.click());
+    await act(async () => confirmButton()?.click());
     expect(text()).toContain(t.noIssueWrite);
     expect(text()).not.toContain("Forbidden");
     expect(button(t.createJira)?.disabled).toBe(true);

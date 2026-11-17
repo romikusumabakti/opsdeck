@@ -3691,13 +3691,13 @@
     "draftSaved": "Borrador guardado.",
     "copyMarkdown": "Copiar como markdown",
     "createJira": "Crear incidencia",
-    "saveBeforeCreate": "Guarda el borrador antes de crear el ticket.",
+    "saveBeforeCreate": "Guarda el borrador antes de crear la incidencia.",
     "jiraPushOff": "La sincronización de incidencias con el gestor está desactivada en este proyecto, así que aquí no se pueden crear incidencias.",
     "noIssueWrite": "No tienes permiso para crear incidencias en este proyecto.",
     "confirmCreateTitle": "¿Crear la incidencia?",
     "confirmCreateDescription": "La incidencia se creará en el gestor en tu nombre y también aparecerá en la lista de incidencias del Panel. Revisa su contenido una vez más.",
-    "confirmCreate": "Crear ticket",
-    "jiraCreated": "Ticket {jiraKey} creado.",
+    "confirmCreate": "Crear incidencia",
+    "jiraCreated": "Incidencia {jiraKey} creada.",
     "jiraCreatedAs": "Creado como {jiraKey}.",
     "openPanelIssue": "Abrir la incidencia en el Panel"
   }

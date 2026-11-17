@@ -3691,13 +3691,13 @@
     "draftSaved": "حُفظت المسودة.",
     "copyMarkdown": "نسخ بصيغة markdown",
     "createJira": "إنشاء مشكلة",
-    "saveBeforeCreate": "احفظ المسودة قبل إنشاء التذكرة.",
+    "saveBeforeCreate": "احفظ المسودة قبل إنشاء المشكلة.",
     "jiraPushOff": "مزامنة المشكلات مع أداة التتبّع متوقفة لهذا المشروع، لذا لا يمكن إنشاء مشكلات هنا.",
     "noIssueWrite": "ليست لديك صلاحية إنشاء المشكلات في هذا المشروع.",
     "confirmCreateTitle": "إنشاء المشكلة؟",
     "confirmCreateDescription": "ستُنشأ المشكلة في أداة التتبّع باسمك وستظهر أيضًا في قائمة مشكلات اللوحة. راجع محتواها مرة أخرى.",
-    "confirmCreate": "إنشاء التذكرة",
-    "jiraCreated": "أُنشئت التذكرة {jiraKey}.",
+    "confirmCreate": "إنشاء المشكلة",
+    "jiraCreated": "أُنشئت المشكلة {jiraKey}.",
     "jiraCreatedAs": "أُنشئت باسم {jiraKey}.",
     "openPanelIssue": "فتح المشكلة في اللوحة"
   }
