@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type * as React from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
@@ -23,7 +24,17 @@ vi.mock("@/web/api/assistant", () => ({
     queryKey: ["assistant", "getAllowance"],
     queryFn: () => new Promise(() => {}),
   }),
+  listConversationsQuery: () => ({
+    queryKey: ["assistant", "listConversations"],
+    queryFn: () => new Promise(() => {}),
+  }),
   ...api,
+}));
+vi.mock("@/web/api/environments", () => ({
+  listEnvironmentsQuery: () => ({
+    queryKey: ["environments", "listEnvironments"],
+    queryFn: () => new Promise(() => {}),
+  }),
 }));
 vi.mock("@/web/api/project-catalog", () => ({
   listProjectsQuery: () => ({
@@ -33,6 +44,11 @@ vi.mock("@/web/api/project-catalog", () => ({
 }));
 vi.mock("@/i18n/navigation", () => ({
   useRouter: () => ({ push: nav.push }),
+  Link: ({ href, children, ...rest }: React.ComponentProps<"a">) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 import { AskAssistantCard } from "@/web/routes/$locale/_app/-components/home/ask-assistant-card";
@@ -66,7 +82,43 @@ afterEach(() => {
   container.remove();
 });
 
-async function renderCard(opts: { allowance?: object; projects?: object[] }) {
+const CONVERSATIONS = [
+  {
+    id: "c1",
+    title: "Login flow",
+    lastContextLabel: "Acme Shop",
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "c2",
+    title: "Deploys",
+    lastContextLabel: null,
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "c3",
+    title: "Billing",
+    lastContextLabel: "Globex",
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "c4",
+    title: "Fourth",
+    lastContextLabel: null,
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+async function renderCard(opts: {
+  allowance?: object;
+  projects?: object[];
+  conversations?: object[];
+}) {
+  queryClient.setQueryData(
+    ["assistant", "listConversations"],
+    opts.conversations ?? []
+  );
+  queryClient.setQueryData(["environments", "listEnvironments"], []);
   queryClient.setQueryData(
     ["assistant", "getAllowance"],
     opts.allowance ?? ENABLED
@@ -129,17 +181,41 @@ describe("home ask-the-assistant card", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("lists only the visible projects and defaults to the first one", async () => {
+  it("shows three example questions and no recents with no conversations", async () => {
     await renderCard({});
-    const trigger = container.querySelector('[data-slot="combobox-trigger"]');
-    expect(trigger?.textContent).toContain("Acme Shop");
-    await act(async () =>
-      trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
-    );
-    const items = [
-      ...document.querySelectorAll('[data-slot="combobox-item"]'),
-    ].map((el) => el.textContent);
-    expect(items).toEqual(["Acme Shop", "Globex"]);
+    const examples = container.querySelectorAll("[data-example]");
+    expect(examples).toHaveLength(3);
+    expect(container.querySelector("[data-recent]")).toBeNull();
+  });
+
+  it("an example fills the prompt without sending", async () => {
+    await renderCard({});
+    const first = container.querySelector<HTMLButtonElement>("[data-example]");
+    await act(async () => first?.click());
+    expect(box().value).toBe(first?.textContent);
+    expect(api.createConversation).not.toHaveBeenCalled();
+  });
+
+  it("shows at most three recents with context and time, linking to them", async () => {
+    await renderCard({ conversations: CONVERSATIONS });
+    expect(container.querySelector("[data-example]")).toBeNull();
+    const recents = [...container.querySelectorAll("a[data-recent]")];
+    expect(recents.map((a) => a.getAttribute("href"))).toEqual([
+      "/assistant?c=c1",
+      "/assistant?c=c2",
+      "/assistant?c=c3",
+    ]);
+    expect(recents[0]?.textContent).toContain("Login flow");
+    expect(recents[0]?.textContent).toContain("Acme Shop");
+    expect(recents[1]?.textContent).toContain("Automatic");
+    expect(recents[0]?.querySelector("time")).not.toBeNull();
+  });
+
+  it("starts with the Automatic context chip", async () => {
+    await renderCard({});
+    expect(
+      container.querySelector('[aria-label="Context: Automatic"]')
+    ).not.toBeNull();
   });
 
   it("Enter creates the conversation, sends the question and opens it", async () => {
@@ -152,9 +228,25 @@ describe("home ask-the-assistant card", () => {
     expect(api.sendMessage).toHaveBeenCalledWith({
       conversationId: "c1",
       text: "Where is login handled?",
-      context: { kind: "project", projectId: "p1" },
+      context: { kind: "auto" },
     });
-    expect(nav.push).toHaveBeenCalledWith("/ACME/assistant?c=c1");
+    expect(nav.push).toHaveBeenCalledWith("/assistant?c=c1");
+  });
+
+  it("Shift+Enter inserts a newline and does not send", async () => {
+    await renderCard({});
+    await type("Hello");
+    const ev = new KeyboardEvent("keydown", {
+      key: "Enter",
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    await act(async () => {
+      box().dispatchEvent(ev);
+    });
+    expect(ev.defaultPrevented).toBe(false);
+    expect(api.createConversation).not.toHaveBeenCalled();
   });
 
   it("Shift+Enter does not send", async () => {
@@ -199,7 +291,7 @@ describe("home ask-the-assistant card", () => {
     expect(api.sendMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({ conversationId: "c1" })
     );
-    expect(nav.push).toHaveBeenCalledWith("/ACME/assistant?c=c1");
+    expect(nav.push).toHaveBeenCalledWith("/assistant?c=c1");
   });
 
   it("sends once when Enter is pressed again before the page changes", async () => {

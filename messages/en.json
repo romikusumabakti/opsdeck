@@ -1993,9 +1993,13 @@
     "sourcesDescription": "The apps this project deploys and the branch each component starts on in a new environment. Each environment keeps its own branch, set in its Source & Deploy settings."
   },
   "homePage": {
-    "askTitle": "Ask the assistant",
-    "askPlaceholder": "Ask about the code or issues of a project…",
-    "askProject": "Project",
+    "askPlaceholder": "Ask anything about your projects…",
+    "askExamples": {
+      "first": "Which services changed most this week?",
+      "second": "What is running on staging right now?",
+      "third": "Summarize the open issues for my project"
+    },
+    "askRecent": "Recent conversations",
     "title": "Home",
     "subtitle": "Your work and what needs attention.",
     "greeting": {
