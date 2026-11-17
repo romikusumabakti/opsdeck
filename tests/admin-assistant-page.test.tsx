@@ -234,6 +234,30 @@ describe("/admin/assistant", () => {
     expect(status).toContain(`${t.testDrafts}${t.testUnsupported}`);
   });
 
+  it("drops a connection test result once the settings it tested change", async () => {
+    api.test.mockResolvedValue({
+      ok: true,
+      tools: true,
+      structuredOutput: true,
+    });
+    await render();
+    await act(async () => button(t.test)?.click());
+    const status = () =>
+      container.querySelector("[role='status']")?.textContent ?? "";
+    expect(status()).toContain(t.testTools);
+    // Unsaved: the result described the stored settings, not these.
+    await pickProvider(t.providerGoogle);
+    expect(status()).not.toContain(t.testTools);
+    // Saved: still not tested.
+    await type(byId("assistant-api-key"), "new-key");
+    await type(byId("assistant-model"), "gemini-4-carbon");
+    await submit();
+    expect(api.save).toHaveBeenCalled();
+    await pickProvider(t.providerOpenai);
+    await type(byId("assistant-model"), "gpt-6.1-sol");
+    expect(status()).not.toContain(t.testTools);
+  });
+
   it("words a failed connection test by its class", async () => {
     api.test.mockResolvedValue({
       ok: false,

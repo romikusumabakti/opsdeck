@@ -286,6 +286,8 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
         toast.success(t("saved"));
         setApiKey("");
         setClearKey(false);
+        // The result described the settings before this save.
+        setTestResult(null);
       } else {
         toast.error(result.message);
       }
@@ -493,7 +495,10 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
           <FieldDescription>{t("orgContextDescription")}</FieldDescription>
         </Field>
         <div role="status" aria-live="polite">
-          {testResult && <ConnectionTestResult result={testResult} />}
+          {/* It describes the stored settings, so not while they are being edited. */}
+          {testResult && !unsaved && (
+            <ConnectionTestResult result={testResult} />
+          )}
         </div>
         {settings.hasApiKey && unsaved && (
           <p className="text-sm text-muted-foreground text-end">
