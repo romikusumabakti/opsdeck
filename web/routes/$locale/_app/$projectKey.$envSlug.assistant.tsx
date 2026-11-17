@@ -44,6 +44,7 @@ function AssistantPage() {
   return (
     <div className="-mx-4 -my-6 h-[calc(100svh-3.5rem)] overflow-hidden px-4 py-6 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
       <AssistantWorkspace
+        projectId={environment.projectId}
         environmentId={environmentId}
         environmentName={stripProjectPrefix(environment.name, projectName)}
         projectKey={projectKey}

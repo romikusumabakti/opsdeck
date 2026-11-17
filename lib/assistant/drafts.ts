@@ -211,16 +211,22 @@ export function buildDraftUserMessage(
   transcript: DraftTranscript
 ): string {
   const turns = transcript.messages
-    .map(
-      (m) =>
-        `<${m.role === "user" ? "user" : "assistant"}>\n${m.content}\n</${m.role === "user" ? "user" : "assistant"}>`
-    )
+    .map((m) => {
+      if (m.role === "assistant") {
+        return `<assistant>\n${m.content}\n</assistant>`;
+      }
+      const source =
+        m.environmentName === null
+          ? "project branches"
+          : `environment ${m.environmentName}`;
+      return `<user>\nSource: ${source}\n${m.content}\n</user>`;
+    })
     .join("\n");
   const ask =
     kind === "jira"
       ? "Write the Jira ticket draft for this conversation."
       : "Write the BRD chapter draft for this conversation.";
-  return `Project: ${transcript.projectName}\nEnvironment: ${transcript.environmentName}\n\n<conversation>\n${turns}\n</conversation>\n\n${ask}`;
+  return `Project: ${transcript.projectName}\n\n<conversation>\n${turns}\n</conversation>\n\n${ask}`;
 }
 
 const OUTPUT_SCHEMAS = {

@@ -116,13 +116,21 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
         .values({ name: "Kestrel Membership", key: "KMEM" })
         .returning()
     );
+    const env = one(
+      await d
+        .insert(schema.environments)
+        .values({ projectId: project.id, name: "Dev 1", slug: "dev-1" })
+        .returning()
+    );
+    // A conversation from before per-question sources: its own environment
+    // fields are not what a turn reads.
     const conversation = one(
       await d
         .insert(schema.assistantConversations)
         .values({
           userId: user.id,
           projectId: project.id,
-          environmentName: "Dev 1",
+          environmentName: "Legacy",
         })
         .returning()
     );
@@ -130,7 +138,11 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       role: "user" | "assistant",
       status: "queued" | "streaming" | "done" | "failed",
       content = "",
-      attachmentIds: string[] = []
+      attachmentIds: string[] = [],
+      environment: {
+        environmentId: string;
+        environmentName: string;
+      } | null = null
     ) =>
       one(
         await d
@@ -141,12 +153,16 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
             status,
             content,
             attachmentIds,
+            ...environment,
           })
           .returning()
       );
     await message("user", "done", "Q1");
     await message("assistant", "done", "A1");
-    await message("user", "done", "Q2", ["att-1"]);
+    await message("user", "done", "Q2", ["att-1"], {
+      environmentId: env.id,
+      environmentName: "Dev 1",
+    });
     const answer = await message("assistant", "queued");
 
     const turn = await store.loadTurn(answer.id);
@@ -154,8 +170,10 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       status: "queued",
       userId: user.id,
       userName: "Widya",
+      projectId: project.id,
       projectName: "Kestrel Membership",
-      environmentId: null,
+      // The source of the question this turn answers (Q2), not Q1's.
+      environmentId: env.id,
       environmentName: "Dev 1",
       attachmentIds: ["att-1"],
     });

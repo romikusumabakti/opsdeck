@@ -13,11 +13,23 @@ export type PromptSource = AssistantSource & {
 
 export type SystemPromptContext = {
   projectName: string;
-  environmentName: string;
-  sources: PromptSource[];
   userName: string;
   /** The admin's organisation context (Admin → Assistant), or null. */
   orgContext: string | null;
+};
+
+/**
+ * What a question asks about: the project's branches, or the commits running
+ * in one environment of the project. Chosen per question.
+ */
+export type QuestionSource =
+  | { kind: "project" }
+  | { kind: "environment"; environmentName: string };
+
+/** The per-question part of the prompt: the source and its components. */
+export type SourceNoteContext = {
+  source: QuestionSource;
+  sources: PromptSource[];
 };
 
 /**
@@ -49,10 +61,14 @@ function formatDeployedAt(iso: string): string {
 }
 
 /** The one-line state of a component, as the model should report it. */
-export function describeSourceState(source: PromptSource): string {
+export function describeSourceState(
+  source: PromptSource,
+  question: QuestionSource
+): string {
   if (source.unavailableReason) {
     return `unavailable: ${source.unavailableReason}`;
   }
+  if (question.kind === "project") return `branch ${source.ref} head`;
   if (!source.deployed) {
     return `never deployed — reading branch ${source.ref} head`;
   }
@@ -66,33 +82,24 @@ export function describeSourceState(source: PromptSource): string {
     : "deployed";
 }
 
-function componentLine(source: PromptSource): string {
+function componentLine(source: PromptSource, question: QuestionSource): string {
   const commit =
     source.commitSha && !source.unavailableReason
       ? `commit ${source.commitSha.slice(0, 10)}`
       : "no commit";
-  return `- ${source.componentKey}: repo ${source.repoFullName}, ${commit}, ${describeSourceState(source)}`;
+  return `- ${source.componentKey}: repo ${source.repoFullName}, ${commit}, ${describeSourceState(source, question)}`;
 }
 
 /**
  * The stable part of the system prompt. It depends only on the conversation's
- * project, environment, sources and user and on the instance's organisation
- * context, so it is byte-identical across the requests of a turn and across
- * turns while nothing is redeployed or reconfigured — the prompt-cache
- * breakpoint sits right after it. Volatile details (today's date)
- * go in a separate block after the breakpoint.
+ * project and user and on the instance's organisation context — never on the
+ * source a question asks about — so it is byte-identical across the requests
+ * of a turn and across the turns of a conversation, whichever source each
+ * question picks; the prompt-cache breakpoint sits right after it. The
+ * per-question source and today's date go in the volatile note after the
+ * breakpoint (buildVolatileSystemNote).
  */
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
-  const readable = ctx.sources.filter((s) => !s.unavailableReason);
-  const components =
-    ctx.sources.length === 0
-      ? "- (this environment has no deploy targets with a source repository)"
-      : ctx.sources.map(componentLine).join("\n");
-  const codeNote =
-    readable.length === 0
-      ? "\nNo source code is available for this environment in this conversation. Say so when a question needs the code, and answer only from Jira issues and the knowledge base, labelling everything else as an assumption.\n"
-      : "";
-
   const intro = ctx.orgContext
     ? `You are the code assistant of ${APP_NAME}, the internal operations portal of the organisation described under "Organisation" below.`
     : `You are the code assistant of ${APP_NAME}, an internal operations portal of ${GENERIC_ORGANISATION}.`;
@@ -108,12 +115,11 @@ You are talking with ${ctx.userName}.
 
 # Scope
 Project: ${ctx.projectName}
-Environment: ${ctx.environmentName}
 
-Components of this environment and the source you can read for each:
-${components}
-${codeNote}
-The state tells you which code you are reading: "deployed at" means the exact commit running in the environment; "deployed but running commit unknown" and "never deployed" mean the head of the source branch, which may differ from what runs. When the answer depends on it (a recent change, a bug report, a difference between environments), say which state applies to the component you cite. Never claim to read code of a component marked unavailable.
+Each question asks about one source, given in the source note that follows these instructions together with the components you can read for it. The note is updated for every question; always use the latest one.
+- "Source: project branches": each component at the head of the project's branch for it. That is the code being developed, which may differ from what any environment runs.
+- "Environment: <name>": the components of that environment. The state of each tells you which code you are reading: "deployed at" means the exact commit running in the environment; "deployed but running commit unknown" and "never deployed" mean the head of the source branch, which may differ from what runs.
+When the answer depends on it (a recent change, a bug report, a difference between environments), say which source and state apply to the component you cite. Never claim to read code of a component marked unavailable.
 
 # How to answer
 - Write your answers in Indonesian. Keep file paths, code, identifiers, class and method names, configuration keys, SQL, log lines and error messages verbatim in their original language. DPLK terms (Iuran, Kepesertaan, Manfaat Pensiun) stay as they are.
@@ -127,7 +133,7 @@ The state tells you which code you are reading: "deployed at" means the exact co
 Some files are withheld because they may hold secrets or real participant data (environment files, keystores, credential files, configuration with passwords, data dumps). The tools report them as withheld: list_files counts and names them, search_code counts them, read_file says "File withheld". A withheld file exists; it is not missing. Never try to reveal, reconstruct or guess their content, and do not ask the user to paste it. You may say that a value is configured in a withheld file.
 
 # Tools
-- list_files, search_code, read_file read the source snapshots listed above. Paths start with the component key.
+- list_files, search_code, read_file read the source snapshots listed in the source note. Paths start with the component key.
 - get_issue reads a Jira issue of a project the user can see: description, comments and the attachment list. Use it when the user mentions an issue key or when the ticket explains the expected behaviour.
 - read_attachment reads the content of a Jira attachment, and only of attachments the user ticked for the current question (their ids are given with the question). Never request any other attachment; when an unticked attachment looks relevant, tell the user to tick it.
 - search_knowledge and read_knowledge read the Panel knowledge base. Use them for business rules, procedures and client-specific context that the code does not explain.
@@ -138,13 +144,39 @@ Some files are withheld because they may hold secrets or real participant data (
 When asked for a BRD section, a requirement or a Jira ticket draft, write it in Indonesian from what the code shows, mark anything not backed by code as an assumption, and remind the user to review it before it goes anywhere. You cannot create or edit Jira issues yourself.`;
 }
 
-/** The volatile block that follows the cache breakpoint. */
-export function buildVolatileSystemNote(now: Date): string {
+/**
+ * The volatile block that follows the cache breakpoint: today's date and the
+ * source of the question being answered, with its components.
+ */
+export function buildVolatileSystemNote(
+  now: Date,
+  note: SourceNoteContext
+): string {
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(now);
-  return `Today's date is ${today} (${APP_TIMEZONE}).`;
+  const { source, sources } = note;
+  const project = source.kind === "project";
+  const heading = project
+    ? "Source: project branches"
+    : `Environment: ${source.environmentName}`;
+  const components =
+    sources.length === 0
+      ? project
+        ? "- (this project has no components in its Sources)"
+        : "- (this environment has no deploy targets with a source repository)"
+      : sources.map((s) => componentLine(s, source)).join("\n");
+  const codeNote = sources.some((s) => !s.unavailableReason)
+    ? ""
+    : "\n\nNo source code is available for this question. Say so when it needs the code, and answer only from Jira issues and the knowledge base, labelling everything else as an assumption.";
+  return `Today's date is ${today} (${APP_TIMEZONE}).
+
+# Source of this question
+${heading}
+
+Components and the source you can read for each:
+${components}${codeNote}`;
 }

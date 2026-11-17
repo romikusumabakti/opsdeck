@@ -17,6 +17,7 @@ import {
 import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import { type AssistantRuntime, loadAssistantRuntime } from "./client";
 import { CHARS_PER_TOKEN, estimateUsage, type TokenUsage } from "./pricing";
+import { resolveProjectSources as defaultResolveProjectSources } from "./project-sources";
 import {
   cacheControlFor,
   outputTokenLimitFor,
@@ -36,6 +37,7 @@ import {
   buildSystemPrompt,
   buildVolatileSystemNote,
   type PromptSource,
+  type QuestionSource,
 } from "./system-prompt";
 import { buildTools, type ToolContext, type ToolExecutor } from "./tool-defs";
 import type { SnapshotRef } from "./tools/code";
@@ -87,7 +89,10 @@ export type RunTurnDeps = {
   model?: LanguageModel;
   now?: () => Date;
   loadRuntime?: () => Promise<AssistantRuntime | null>;
+  /** The running sources of an environment. */
   resolveSources?: (environmentId: string) => Promise<AssistantSource[]>;
+  /** The project branches. */
+  resolveProjectSources?: (projectId: string) => Promise<AssistantSource[]>;
   ensureSnapshot?: (source: AssistantSource) => Promise<Snapshot>;
   loadViewer?: (userId: string) => Promise<AssistantViewer>;
   /** The user's spend on the current quota day (USD). */
@@ -229,14 +234,51 @@ export function buildHistory(turn: TurnContext): ModelMessage[] {
   return messages;
 }
 
-type ResolvedSources = { prompt: PromptSource[]; snaps: SnapshotRef[] };
+type ResolvedSources = {
+  question: QuestionSource;
+  prompt: PromptSource[];
+  snaps: SnapshotRef[];
+};
+
+type SourceDeps = Required<
+  Pick<
+    RunTurnDeps,
+    "resolveSources" | "resolveProjectSources" | "ensureSnapshot"
+  >
+>;
+
+/**
+ * The source the turn's question asked about, from its user message: the
+ * running commits of its environment, or the project branches. A question
+ * about an environment deleted since cannot be answered as asked.
+ */
+async function resolveQuestionSources(
+  turn: TurnContext,
+  deps: SourceDeps
+): Promise<{ question: QuestionSource; sources: AssistantSource[] }> {
+  if (turn.environmentId !== null) {
+    return {
+      question: {
+        kind: "environment",
+        environmentName: turn.environmentName ?? "",
+      },
+      sources: await deps.resolveSources(turn.environmentId),
+    };
+  }
+  if (turn.environmentName !== null) {
+    throw new TurnError("assistant.environment_gone");
+  }
+  return {
+    question: { kind: "project" },
+    sources: await deps.resolveProjectSources(turn.projectId),
+  };
+}
 
 async function resolveSnapshots(
-  environmentId: string | null,
-  deps: Required<Pick<RunTurnDeps, "resolveSources" | "ensureSnapshot">>
+  turn: TurnContext,
+  deps: SourceDeps
 ): Promise<ResolvedSources> {
-  if (!environmentId) return { prompt: [], snaps: [] };
-  const sources = await deps.resolveSources(environmentId);
+  const { question, sources } = await resolveQuestionSources(turn, deps);
   // Downloads run in parallel; the order of the sources is kept.
   type Outcome =
     | { source: AssistantSource; snap: Snapshot }
@@ -272,7 +314,7 @@ async function resolveSnapshots(
       prompt.push({ ...source, unavailableReason: outcome.reason });
     }
   }
-  return { prompt, snaps };
+  return { question, prompt, snaps };
 }
 
 /**
@@ -493,8 +535,10 @@ async function runClaimedTurn(
     (await spentToday(turn.userId, now())) >= runtime.dailyCapUsd;
   if (await capReached()) throw new TurnError("assistant.daily_cap_reached");
   const viewer = await (deps.loadViewer ?? loadAssistantViewer)(turn.userId);
-  const resolved = await resolveSnapshots(turn.environmentId, {
+  const resolved = await resolveSnapshots(turn, {
     resolveSources: deps.resolveSources ?? defaultResolveSources,
+    resolveProjectSources:
+      deps.resolveProjectSources ?? defaultResolveProjectSources,
     ensureSnapshot:
       deps.ensureSnapshot ?? ((source) => defaultEnsureSnapshot(source)),
   });
@@ -509,21 +553,26 @@ async function runClaimedTurn(
 
   // Prompt-cache breakpoints, for the providers that need them: the stable
   // system message, the last tool definition, and the growing conversation
-  // (request level).
+  // (request level). The question's source is in the volatile note, so
+  // switching it between questions keeps the cached system message.
   const cache = cacheControlFor(runtime.provider);
   const instructions: SystemModelMessage[] = [
     {
       role: "system",
       content: buildSystemPrompt({
         projectName: turn.projectName,
-        environmentName: turn.environmentName,
-        sources: resolved.prompt,
         userName: turn.userName,
         orgContext: runtime.orgContext,
       }),
       ...(cache ? { providerOptions: cache } : {}),
     },
-    { role: "system", content: buildVolatileSystemNote(now()) },
+    {
+      role: "system",
+      content: buildVolatileSystemNote(now(), {
+        source: resolved.question,
+        sources: resolved.prompt,
+      }),
+    },
   ];
   const attachments: AttachmentRef[] = parseAttachmentRefs(turn.attachmentIds);
   const toolContext: ToolContext = {

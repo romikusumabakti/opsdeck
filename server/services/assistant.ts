@@ -13,7 +13,7 @@ import {
   type ConversationOwner,
   type ConversationSummary,
   type CreatedTurn,
-  environmentNameOf,
+  environmentOfProject,
   failQueuedMessage,
   findAssistantMessageConversation,
   findConversation,
@@ -56,7 +56,7 @@ import { getServerTranslator } from "@/server/i18n";
 
 /**
  * The code assistant's chat API. Every function authorizes the caller itself:
- * project assistant:use for an environment, and for a conversation or message
+ * project assistant:use for a project, and for a conversation or message
  * both ownership and assistant:use on the conversation's project. A
  * conversation is visible to its owner only (admins included: audit goes
  * through the database and the usage view), and anything the caller may not
@@ -69,6 +69,10 @@ export const MAX_ATTACHMENTS = 10;
 export const sendMessageInputSchema = z.object({
   conversationId: uuidSchema,
   text: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
+  // The source the question asks about: an environment of the
+  // conversation's project (its running commits), or null for the project
+  // branches. Required, so a client cannot drop it by omission.
+  environmentId: uuidSchema.nullable(),
   // Each ticked attachment with the issue it is on, so the model can read it.
   attachments: z
     .array(
@@ -131,31 +135,26 @@ function ownConversation(conversationId: string) {
   );
 }
 
-export async function listConversations(
-  environmentId: string
-): Promise<ConversationSummary[]> {
-  const { session } = await requireProjectPermission(
-    { environmentId },
+/** The caller's conversations about a project they can see, newest first. */
+export async function listConversations(input: {
+  projectId: string;
+}): Promise<ConversationSummary[]> {
+  const { session, projectId } = await requireProjectPermission(
+    { projectId: input.projectId },
     { assistant: ["use"] }
   );
-  return listConversationsOf(session.user.id, environmentId);
+  return listConversationsOf(session.user.id, projectId);
 }
 
-export async function createConversation(
-  environmentId: string
-): Promise<{ id: string }> {
+/** A new conversation about a project; the source is picked per question. */
+export async function createConversation(input: {
+  projectId: string;
+}): Promise<{ id: string }> {
   const { session, projectId } = await requireProjectPermission(
-    { environmentId },
+    { projectId: input.projectId },
     { assistant: ["use"] }
   );
-  const environmentName = await environmentNameOf(environmentId);
-  if (environmentName === null) notFound();
-  const id = await insertConversation({
-    userId: session.user.id,
-    projectId,
-    environmentId,
-    environmentName,
-  });
+  const id = await insertConversation({ userId: session.user.id, projectId });
   return { id };
 }
 
@@ -198,14 +197,22 @@ async function requireAllowance(
 }
 
 /**
- * Stores the question and a queued answer, then queues the turn. Refuses when
- * the assistant is off or has no usable key, when the caller has spent the
- * day's cap, or while the conversation's previous answer is still running.
+ * Stores the question with its source and a queued answer, then queues the
+ * turn. The environment, when given, must be one of the conversation's
+ * project (which the caller can see, or ownConversation is a 404), else 404.
+ * Refuses when the assistant is off or has no usable key, when the caller has
+ * spent the day's cap, or while the conversation's previous answer is still
+ * running.
  */
 export async function sendMessage(
   input: SendMessageInput
 ): Promise<CreatedTurn> {
   const { conversation, userId } = await ownConversation(input.conversationId);
+  const environment =
+    input.environmentId === null
+      ? null
+      : await environmentOfProject(input.environmentId, conversation.projectId);
+  if (input.environmentId !== null && !environment) notFound();
 
   const now = new Date();
   await requireAllowance(userId, await requireRuntime(), now);
@@ -217,6 +224,7 @@ export async function sendMessage(
     attachmentIds: [
       ...new Set((input.attachments ?? []).map(formatAttachmentRef)),
     ],
+    environment,
     now,
   });
   if (turn === "busy") throw await refusal(409, "assistant.busy");
@@ -281,11 +289,11 @@ export type IssueAttachmentList = {
  * the question box. Same visibility rule and listing as the get_issue tool.
  */
 export async function listIssueAttachmentsForPicker(
-  environmentId: string,
+  projectId: string,
   issueKey: string
 ): Promise<IssueAttachmentList> {
   const { session } = await requireProjectPermission(
-    { environmentId },
+    { projectId },
     { assistant: ["use"] }
   );
   const key = normalizeJiraKey(issueKey);

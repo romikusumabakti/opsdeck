@@ -30,9 +30,16 @@ export type TurnContext = {
   conversationId: string;
   userId: string;
   userName: string;
+  projectId: string;
   projectName: string;
+  /**
+   * The source of the question this turn answers, from its user message:
+   * an environment id, or null for the project branches — unless
+   * environmentName is set, which means the asked-about environment was
+   * deleted since (the id is set null, the name snapshot stays).
+   */
   environmentId: string | null;
-  environmentName: string;
+  environmentName: string | null;
   /** Messages before this one, oldest first. */
   history: TurnHistoryMessage[];
   /** Attachment ids ticked on the user message this turn answers. */
@@ -50,9 +57,8 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       conversationId: assistantMessages.conversationId,
       userId: assistantConversations.userId,
       userName: users.name,
+      projectId: assistantConversations.projectId,
       projectName: projects.name,
-      environmentId: assistantConversations.environmentId,
-      environmentName: assistantConversations.environmentName,
     })
     .from(assistantMessages)
     .innerJoin(
@@ -74,6 +80,8 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       content: assistantMessages.content,
       status: assistantMessages.status,
       attachmentIds: assistantMessages.attachmentIds,
+      environmentId: assistantMessages.environmentId,
+      environmentName: assistantMessages.environmentName,
     })
     .from(assistantMessages)
     .where(
@@ -92,10 +100,10 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
     conversationId: row.conversationId,
     userId: row.userId,
     userName: row.userName,
+    projectId: row.projectId,
     projectName: row.projectName,
-    environmentId: row.environmentId,
-    // Transitional until project-level conversations reach the worker.
-    environmentName: row.environmentName ?? "",
+    environmentId: lastUser?.environmentId ?? null,
+    environmentName: lastUser?.environmentName ?? null,
     history: earlier.map((m) => ({
       role: m.role,
       content: m.content,

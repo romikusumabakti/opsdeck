@@ -187,13 +187,22 @@ const json = (value: unknown) => {
 beforeEach(() => {
   state.transcript = {
     projectName: "Membership",
-    environmentName: "Dev 1",
     messages: [
-      { role: "user", content: "Bagaimana iuran tambahan dihitung?" },
+      {
+        role: "user",
+        content: "Bagaimana iuran tambahan dihitung?",
+        environmentName: "Dev 1",
+      },
       {
         role: "assistant",
         content: "Dibulatkan ke bawah (IuranService.java:42).",
       },
+      {
+        role: "user",
+        content: "Dan di branch proyek?",
+        environmentName: null,
+      },
+      { role: "assistant", content: "Sama." },
     ],
   };
   state.drafts = [];
@@ -225,8 +234,14 @@ describe("generateDraft request", () => {
     expect(system?.content).toContain("Perlu konfirmasi BA");
     expect(user?.role).toBe("user");
     const userText = JSON.stringify(user?.content);
+    expect(userText).toContain("Project: Membership\\n\\n<conversation>");
+    expect(userText).not.toContain("Environment:");
+    // Each question names the source it was asked about.
     expect(userText).toContain(
-      "<user>\\nBagaimana iuran tambahan dihitung?\\n</user>"
+      "<user>\\nSource: environment Dev 1\\nBagaimana iuran tambahan dihitung?\\n</user>"
+    );
+    expect(userText).toContain(
+      "<user>\\nSource: project branches\\nDan di branch proyek?\\n</user>"
     );
     expect(userText).toContain("IuranService.java:42");
 
@@ -370,8 +385,7 @@ describe("generateDraft failures", () => {
   it("a conversation without a finished answer is assistant.nothing_to_draft, with no request", async () => {
     state.transcript = {
       projectName: "Membership",
-      environmentName: "Dev 1",
-      messages: [{ role: "user", content: "Halo" }],
+      messages: [{ role: "user", content: "Halo", environmentName: null }],
     };
     const { model, calls } = mockModel({ text: [] });
     await expect(

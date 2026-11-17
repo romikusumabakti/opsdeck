@@ -178,11 +178,16 @@ describe.skipIf(!enabled)(
       const conversationId = await store.insertConversation({
         userId: user.id,
         projectId: project.id,
-        environmentId: env.id,
-        environmentName: "Dev 1",
       });
       await d.insert(schema.assistantMessages).values([
-        { conversationId, role: "user", status: "done", content: "Tanya" },
+        {
+          conversationId,
+          role: "user",
+          status: "done",
+          content: "Tanya",
+          environmentId: env.id,
+          environmentName: "Dev 1",
+        },
         { conversationId, role: "assistant", status: "done", content: "Jawab" },
         {
           conversationId,
@@ -191,13 +196,14 @@ describe.skipIf(!enabled)(
           content: "Separuh",
         },
         { conversationId, role: "assistant", status: "done", content: "  " },
+        { conversationId, role: "user", status: "done", content: "Lagi" },
       ]);
       expect(await drafts.loadDraftTranscript(conversationId)).toEqual({
         projectName: "Kestrel Membership",
-        environmentName: "Dev 1",
         messages: [
-          { role: "user", content: "Tanya" },
+          { role: "user", content: "Tanya", environmentName: "Dev 1" },
           { role: "assistant", content: "Jawab" },
+          { role: "user", content: "Lagi", environmentName: null },
         ],
       });
 

@@ -20,12 +20,12 @@ const MAX_ATTACHMENTS = 10;
  * its code; the text is kept so it can be sent again.
  */
 export function Composer({
-  environmentId,
+  projectId,
   disabled,
   onSend,
   focusKey,
 }: {
-  environmentId: string;
+  projectId: string;
   /** An answer is still running, or the assistant cannot take questions. */
   disabled: boolean;
   onSend: (text: string, attachments: AttachmentRef[]) => Promise<void>;
@@ -158,7 +158,7 @@ export function Composer({
         </div>
       </div>
       <AttachmentPicker
-        environmentId={environmentId}
+        projectId={projectId}
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         max={MAX_ATTACHMENTS}

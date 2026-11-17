@@ -20,11 +20,15 @@ export type DraftKind = "brd" | "jira";
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+export type DraftTranscriptMessage =
+  /** A question, with the environment it asked about (null: project branches). */
+  | { role: "user"; content: string; environmentName: string | null }
+  | { role: "assistant"; content: string };
+
 export type DraftTranscript = {
   projectName: string;
-  environmentName: string;
   /** User questions and finished answers, oldest first. */
-  messages: { role: "user" | "assistant"; content: string }[];
+  messages: DraftTranscriptMessage[];
 };
 
 /** The text turns a draft is written from; null if the conversation is gone. */
@@ -32,10 +36,7 @@ export async function loadDraftTranscript(
   conversationId: string
 ): Promise<DraftTranscript | null> {
   const [conversation] = await db
-    .select({
-      projectName: projects.name,
-      environmentName: assistantConversations.environmentName,
-    })
+    .select({ projectName: projects.name })
     .from(assistantConversations)
     .innerJoin(projects, eq(projects.id, assistantConversations.projectId))
     .where(eq(assistantConversations.id, conversationId))
@@ -45,6 +46,7 @@ export async function loadDraftTranscript(
     .select({
       role: assistantMessages.role,
       content: assistantMessages.content,
+      environmentName: assistantMessages.environmentName,
     })
     .from(assistantMessages)
     .where(
@@ -63,9 +65,14 @@ export async function loadDraftTranscript(
     .orderBy(asc(assistantMessages.id));
   return {
     ...conversation,
-    // Transitional until project-level conversations reach the drafts.
-    environmentName: conversation.environmentName ?? "",
-    messages: rows.filter((m) => m.content.trim() !== ""),
+    messages: rows
+      .filter((m) => m.content.trim() !== "")
+      .map(
+        ({ role, content, environmentName }): DraftTranscriptMessage =>
+          role === "user"
+            ? { role, content, environmentName }
+            : { role, content }
+      ),
   };
 }
 

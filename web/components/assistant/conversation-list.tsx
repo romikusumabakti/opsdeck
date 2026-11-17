@@ -7,23 +7,22 @@ import { cn } from "@/lib/utils";
 import { listConversationsQuery } from "@/web/api/assistant";
 
 /**
- * The caller's conversations about this environment, newest first. The list
+ * The caller's conversations about this project, newest first. The list
  * scrolls on its own below the pinned "New conversation" button.
  */
 export function ConversationList({
-  environmentId,
+  projectId,
   selectedId,
   onSelect,
   onNew,
 }: {
-  environmentId: string;
+  projectId: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
 }) {
   const t = useTranslations("assistant");
-  const conversations =
-    useQuery(listConversationsQuery(environmentId)).data ?? [];
+  const conversations = useQuery(listConversationsQuery(projectId)).data ?? [];
 
   return (
     <nav

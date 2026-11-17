@@ -27,19 +27,16 @@ import { json, query } from "@/server/validation";
 const STREAM_POLL_INTERVAL_MS = 500;
 const STREAM_MAX_DURATION_MS = 10 * 60 * 1000;
 
-const environmentIdQuery = query(z.object({ environmentId: uuidSchema }));
+const projectIdInput = z.object({ projectId: uuidSchema });
 
 /** The code assistant chat. Each service function authorizes the caller. */
 export const assistantRouter = sessionRouter()
   .get("/allowance", async (c) => c.json(await getAllowance()))
-  .get("/list-conversations", environmentIdQuery, async (c) =>
-    c.json(await listConversations(c.req.valid("query").environmentId))
+  .get("/list-conversations", query(projectIdInput), async (c) =>
+    c.json(await listConversations(c.req.valid("query")))
   )
-  .post(
-    "/create-conversation",
-    json(z.object({ environmentId: uuidSchema })),
-    async (c) =>
-      c.json(await createConversation(c.req.valid("json").environmentId))
+  .post("/create-conversation", json(projectIdInput), async (c) =>
+    c.json(await createConversation(c.req.valid("json")))
   )
   .get(
     "/get-conversation",
@@ -63,14 +60,10 @@ export const assistantRouter = sessionRouter()
   )
   .get(
     "/list-issue-attachments",
-    query(
-      z.object({ environmentId: uuidSchema, issueKey: z.string().max(64) })
-    ),
+    query(z.object({ projectId: uuidSchema, issueKey: z.string().max(64) })),
     async (c) => {
-      const { environmentId, issueKey } = c.req.valid("query");
-      return c.json(
-        await listIssueAttachmentsForPicker(environmentId, issueKey)
-      );
+      const { projectId, issueKey } = c.req.valid("query");
+      return c.json(await listIssueAttachmentsForPicker(projectId, issueKey));
     }
   )
   /**

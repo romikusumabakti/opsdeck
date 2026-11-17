@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "@/lib/db/schema";
 
-// resolveEnvironmentSources against a real Postgres: the local
+// resolveEnvironmentSources and resolveProjectSources against a real Postgres: the local
 // menara-postgres container (postgres 18) through its published port, with
 // the container's superuser password read from the container and never
 // printed. It creates a scratch database, migrates it with `menara migrate`
@@ -244,6 +244,100 @@ describe.skipIf(!enabled)(
         "comp-c": { tag: null, commitSha: null },
         "comp-d": { tag: "v9", commitSha: null },
       });
+    });
+
+    it("resolves the project branches of every linked app, with each component's connection", async () => {
+      const d = drizzle({ client });
+      const { resolveProjectSources } = await import(
+        "@/lib/assistant/project-sources"
+      );
+      const project = one(
+        await d
+          .insert(schema.projects)
+          .values({ name: "Q", key: "q" })
+          .returning()
+      );
+      const ci = one(
+        await d
+          .insert(schema.ciConnections)
+          .values({
+            name: "ci-q",
+            provider: "woodpecker",
+            forge: "bitbucket",
+            baseUrl: "https://ci.example.net",
+          })
+          .returning()
+      );
+      const app = one(
+        await d
+          .insert(schema.apps)
+          .values({ appKey: "linked", name: "Linked" })
+          .returning()
+      );
+      // Not linked to the project: never listed.
+      const unrelated = one(
+        await d
+          .insert(schema.apps)
+          .values({ appKey: "unrelated", name: "Unrelated" })
+          .returning()
+      );
+      await d.insert(schema.projectApps).values({
+        projectId: project.id,
+        appId: app.id,
+      });
+      await d.insert(schema.appComponents).values([
+        {
+          componentKey: "q-api",
+          appId: app.id,
+          ciConnectionId: ci.id,
+          repoFullName: "org/q-api",
+          bundleImage: "q-api",
+          notifySecret: "x",
+        },
+        {
+          componentKey: "q-web",
+          appId: app.id,
+          ciConnectionId: ci.id,
+          repoFullName: "org/q-web",
+          bundleImage: "q-web",
+          notifySecret: "x",
+          buildSpec: { branches: ["develop"] } as never,
+        },
+        {
+          componentKey: "u-api",
+          appId: unrelated.id,
+          ciConnectionId: ci.id,
+          repoFullName: "org/u-api",
+          bundleImage: "u-api",
+          notifySecret: "x",
+        },
+      ]);
+      await d.insert(schema.projectComponentBranches).values({
+        projectId: project.id,
+        componentKey: "q-api",
+        branch: "q/development",
+      });
+
+      expect(await resolveProjectSources(project.id)).toEqual([
+        {
+          componentKey: "q-api",
+          repoFullName: "org/q-api",
+          ciConnectionId: ci.id,
+          commitSha: null,
+          ref: "q/development",
+          deployed: false,
+          deployedAt: null,
+        },
+        {
+          componentKey: "q-web",
+          repoFullName: "org/q-web",
+          ciConnectionId: ci.id,
+          commitSha: null,
+          ref: "develop",
+          deployed: false,
+          deployedAt: null,
+        },
+      ]);
     });
   }
 );

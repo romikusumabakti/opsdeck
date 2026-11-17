@@ -106,7 +106,9 @@ const {
   STEP_LIMIT_NOTE,
   DAILY_CAP_NOTE,
 } = await import("@/lib/assistant/run-turn");
-const { buildSystemPrompt } = await import("@/lib/assistant/system-prompt");
+const { buildSystemPrompt, buildVolatileSystemNote } = await import(
+  "@/lib/assistant/system-prompt"
+);
 const { SnapshotUnavailableError } = await import("@/lib/assistant/snapshot");
 
 // --- scripted mock model -----------------------------------------------------
@@ -228,6 +230,17 @@ const SOURCE: AssistantSource = {
   deployedAt: "2026-11-15T03:00:00.000Z",
 };
 
+/** The same component under "Project branches": its branch head. */
+const PROJECT_SOURCE: AssistantSource = {
+  componentKey: "backend",
+  repoFullName: "acme/acme-membership",
+  ciConnectionId: "conn-1",
+  commitSha: null,
+  ref: "kestrel/development",
+  deployed: false,
+  deployedAt: null,
+};
+
 function baseTurn(): TurnContext {
   return {
     messageId: MESSAGE_ID,
@@ -236,6 +249,7 @@ function baseTurn(): TurnContext {
     conversationId: "conv-1",
     userId: USER_ID,
     userName: "Widya",
+    projectId: "project-1",
     projectName: "Kestrel Membership",
     environmentId: "env-1",
     environmentName: "Dev 1",
@@ -298,6 +312,7 @@ function deps(
     }),
     spentToday: async () => 0,
     resolveSources: async () => [SOURCE],
+    resolveProjectSources: async () => [PROJECT_SOURCE],
     ensureSnapshot: async () => ({
       dir: "/cache/acme__acme-membership/abcdef1234567890",
       commitSha: "abcdef1234567890",
@@ -853,11 +868,106 @@ describe("runTurn", () => {
         },
       })
     );
-    const cached = String(calls[0]?.prompt[0]?.content);
-    expect(cached).toContain("unavailable: unsupported-forge");
-    expect(cached).toContain("No source code is available");
+    const volatile = String(calls[0]?.prompt[1]?.content);
+    expect(volatile).toContain("unavailable: unsupported-forge");
+    expect(volatile).toContain("No source code is available");
     expect(state.message.status).toBe("done");
     expect(state.message.sources).toEqual([{ ...SOURCE, commitSha: null }]);
+  });
+
+  it("reads the running commits when the question names an environment", async () => {
+    const resolveSources = vi.fn(async () => [SOURCE]);
+    const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
+    const { model, calls } = mockModel([{ text: ["ok"], finish: "stop" }]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, { resolveSources, resolveProjectSources })
+    );
+    expect(resolveSources).toHaveBeenCalledExactlyOnceWith("env-1");
+    expect(resolveProjectSources).not.toHaveBeenCalled();
+    const volatile = String(calls[0]?.prompt[1]?.content);
+    expect(volatile).toContain("Environment: Dev 1");
+    expect(volatile).not.toContain("Source: project branches");
+    expect(volatile).toContain(
+      "- backend: repo acme/acme-membership, commit abcdef1234, deployed at"
+    );
+    expect(state.message.sources).toEqual([SOURCE]);
+  });
+
+  it("reads the project branches when the question names no environment", async () => {
+    state.turn = { ...baseTurn(), environmentId: null, environmentName: null };
+    const resolveSources = vi.fn(async () => [SOURCE]);
+    const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
+    const ensureSnapshot = vi.fn(async () => ({
+      dir: "/cache/acme__acme-membership/9999999999cccc",
+      commitSha: "9999999999cccc",
+      withheld: 0,
+    }));
+    const { model, calls } = mockModel([{ text: ["ok"], finish: "stop" }]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, { resolveSources, resolveProjectSources, ensureSnapshot })
+    );
+    expect(resolveProjectSources).toHaveBeenCalledExactlyOnceWith("project-1");
+    expect(resolveSources).not.toHaveBeenCalled();
+    expect(ensureSnapshot).toHaveBeenCalledWith(PROJECT_SOURCE);
+    const volatile = String(calls[0]?.prompt[1]?.content);
+    expect(volatile).toContain("Source: project branches");
+    expect(volatile).not.toContain("Environment:");
+    expect(volatile).toContain(
+      "- backend: repo acme/acme-membership, commit 9999999999, branch kestrel/development head"
+    );
+    // The commit read is stored, so the answer stays reproducible.
+    expect(state.message.sources).toEqual([
+      { ...PROJECT_SOURCE, commitSha: "9999999999cccc" },
+    ]);
+    expect(state.message.status).toBe("done");
+  });
+
+  it("keeps the cached system message identical whatever the question's source", async () => {
+    const cachedOf = async (turn: TurnContext) => {
+      state.turn = turn;
+      state.message = {
+        status: "queued",
+        content: "",
+        errorCode: null,
+        sources: null,
+      };
+      const { model, calls } = mockModel([{ text: ["ok"], finish: "stop" }]);
+      await runTurn(MESSAGE_ID, deps(model));
+      return calls[0]?.prompt[0];
+    };
+    const environment = await cachedOf(baseTurn());
+    const project = await cachedOf({
+      ...baseTurn(),
+      environmentId: null,
+      environmentName: null,
+    });
+    expect(environment).toMatchObject({ providerOptions: CACHE });
+    expect(project).toEqual(environment);
+    expect(String(project?.content)).not.toContain("Dev 1");
+    expect(String(project?.content)).not.toContain("kestrel/development");
+  });
+
+  it("fails with environment_gone when the question's environment was deleted", async () => {
+    state.turn = {
+      ...baseTurn(),
+      environmentId: null,
+      environmentName: "Dev 1",
+    };
+    const resolveSources = vi.fn(async () => [SOURCE]);
+    const resolveProjectSources = vi.fn(async () => [PROJECT_SOURCE]);
+    const { model, calls } = mockModel([]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, { resolveSources, resolveProjectSources })
+    );
+    expect(calls).toHaveLength(0);
+    expect(resolveSources).not.toHaveBeenCalled();
+    expect(resolveProjectSources).not.toHaveBeenCalled();
+    expect(state.message.status).toBe("failed");
+    expect(state.message.errorCode).toBe("assistant.environment_gone");
+    expect(state.usage).toEqual([]);
   });
 
   it("rebuilds the history as text and skips empty failed answers", async () => {
@@ -1049,32 +1159,34 @@ describe("classifyError", () => {
 });
 
 describe("buildSystemPrompt", () => {
-  const prompt = (
-    sources: Parameters<typeof buildSystemPrompt>[0]["sources"],
-    orgContext: string | null = null
-  ) =>
+  const prompt = (orgContext: string | null = null) =>
     buildSystemPrompt({
       projectName: "Kestrel Membership",
-      environmentName: "Dev 1",
       userName: "Widya",
-      sources,
       orgContext,
     });
+
+  type NoteSources = Parameters<typeof buildVolatileSystemNote>[1]["sources"];
+  const NOW = new Date("2026-11-16T05:00:00.000Z");
+  const environmentNote = (sources: NoteSources) =>
+    buildVolatileSystemNote(NOW, {
+      source: { kind: "environment", environmentName: "Dev 1" },
+      sources,
+    });
+  const projectNote = (sources: NoteSources) =>
+    buildVolatileSystemNote(NOW, { source: { kind: "project" }, sources });
 
   const GENERIC =
     "an internal operations portal of a company that builds and runs pension-fund (DPLK/DPPK) systems";
 
   it("describes the organisation generically when none is configured", () => {
-    const text = prompt([SOURCE]);
+    const text = prompt();
     expect(text).toContain(GENERIC);
     expect(text).not.toContain("# Organisation");
   });
 
   it("explains the pension-fund domain with or without a context", () => {
-    for (const text of [
-      prompt([SOURCE]),
-      prompt([SOURCE], "Example Org runs pension funds."),
-    ]) {
+    for (const text of [prompt(), prompt("Example Org runs pension funds.")]) {
       expect(text).toContain("# Domain");
       for (const term of [
         "DPLK (Dana Pensiun Lembaga Keuangan)",
@@ -1089,14 +1201,29 @@ describe("buildSystemPrompt", () => {
   });
 
   it("includes the configured organisation context instead", () => {
-    const text = prompt([SOURCE], "Example Org runs pension funds.");
+    const text = prompt("Example Org runs pension funds.");
     expect(text).toContain("# Organisation\nExample Org runs pension funds.");
     expect(text).not.toContain(GENERIC);
-    expect(prompt([SOURCE], "Example Org runs pension funds.")).toBe(text);
+    expect(prompt("Example Org runs pension funds.")).toBe(text);
   });
 
-  it("states each component's source state", () => {
-    const text = prompt([
+  it("names the project and the answer rules, but no source", () => {
+    const text = prompt();
+    expect(text).toContain("Project: Kestrel Membership");
+    // Both sources are explained; which one applies is in the volatile note.
+    expect(text).toContain('"Source: project branches"');
+    expect(text).toContain('"Environment: <name>"');
+    expect(text).not.toContain("# Source of this question");
+    expect(text).not.toContain("Today's date");
+    expect(text).toContain("tidak ditemukan di kode");
+    expect(text).toContain("Yang dilakukan kode");
+    expect(text).toContain("Asumsi");
+    expect(text).toContain("Indonesian");
+    expect(text).toContain("component/path:line");
+  });
+
+  it("states each component's source state for an environment", () => {
+    const text = environmentNote([
       SOURCE,
       {
         ...SOURCE,
@@ -1119,7 +1246,7 @@ describe("buildSystemPrompt", () => {
         unavailableReason: "no-credentials",
       },
     ]);
-    expect(text).toContain("Project: Kestrel Membership");
+    expect(text).toContain("Today's date is 2026-11-16 (Asia/Jakarta).");
     expect(text).toContain("Environment: Dev 1");
     expect(text).toContain(
       "- backend: repo acme/acme-membership, commit abcdef1234, deployed at 2026-11-15 10:00 (Asia/Jakarta)"
@@ -1133,16 +1260,41 @@ describe("buildSystemPrompt", () => {
     expect(text).toContain(
       "cms: repo acme/acme-membership, no commit, unavailable: no-credentials"
     );
-    expect(text).toContain("tidak ditemukan di kode");
-    expect(text).toContain("Yang dilakukan kode");
-    expect(text).toContain("Asumsi");
-    expect(text).toContain("Indonesian");
-    expect(text).toContain("component/path:line");
     expect(text).not.toContain("No source code is available");
   });
 
+  it("states the branch read for each component of the project branches", () => {
+    const text = projectNote([
+      { ...PROJECT_SOURCE, commitSha: "3333333333dddd" },
+      {
+        ...PROJECT_SOURCE,
+        componentKey: "portal",
+        ciConnectionId: null,
+        unavailableReason: "no-connection",
+      },
+    ]);
+    expect(text).toContain("Source: project branches");
+    expect(text).not.toContain("Environment:");
+    expect(text).toContain(
+      "- backend: repo acme/acme-membership, commit 3333333333, branch kestrel/development head"
+    );
+    expect(text).toContain(
+      "- portal: repo acme/acme-membership, no commit, unavailable: no-connection"
+    );
+  });
+
+  it("says when no source code can be read", () => {
+    expect(projectNote([])).toContain("No source code is available");
+    expect(projectNote([])).toContain(
+      "this project has no components in its Sources"
+    );
+    expect(environmentNote([])).toContain(
+      "this environment has no deploy targets with a source repository"
+    );
+  });
+
   it("guides a cheap search strategy and explains withheld files", () => {
-    const text = prompt([SOURCE]);
+    const text = prompt();
     expect(text).toContain("targeted search_code using a specific glob");
     expect(text).toContain("**/*Iuran*.java");
     expect(text).toContain("never list `**/*` across the whole repository");
@@ -1152,6 +1304,6 @@ describe("buildSystemPrompt", () => {
   });
 
   it("is stable for the same inputs", () => {
-    expect(prompt([SOURCE])).toBe(prompt([SOURCE]));
+    expect(prompt()).toBe(prompt());
   });
 });

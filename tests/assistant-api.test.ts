@@ -22,13 +22,15 @@ type Message = {
   status: "queued" | "streaming" | "done" | "failed";
   errorCode: string | null;
   attachmentIds: string[];
+  environmentId: string | null;
+  environmentName: string | null;
 };
 type Conversation = {
   id: string;
   userId: string;
   projectId: string;
-  environmentId: string;
-  environmentName: string;
+  environmentId: string | null;
+  environmentName: string | null;
   title: string;
   updatedAt: Date;
 };
@@ -183,17 +185,24 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
   return {
     titleFrom,
     loadAssistantLimits: async () => state.limits,
-    environmentNameOf: async (id: string) =>
-      id === ENV_KMEM ? "Dev 1" : id === ENV_HMEM ? "UAT" : null,
-    listConversationsOf: async (userId: string, environmentId: string) =>
+    environmentOfProject: async (id: string, projectId: string) => {
+      const name = id === ENV_KMEM ? "Dev 1" : id === ENV_HMEM ? "UAT" : null;
+      return name && ENV_PROJECT[id] === projectId ? { id, name } : null;
+    },
+    listConversationsOf: async (userId: string, projectId: string) =>
       store.conversations
-        .filter((c) => c.userId === userId && c.environmentId === environmentId)
+        .filter((c) => c.userId === userId && c.projectId === projectId)
         .map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt })),
-    insertConversation: async (
-      v: Omit<Conversation, "id" | "title" | "updatedAt">
-    ) => {
+    insertConversation: async (v: { userId: string; projectId: string }) => {
       const id = nextId();
-      store.conversations.push({ ...v, id, title: "", updatedAt: new Date() });
+      store.conversations.push({
+        ...v,
+        environmentId: null,
+        environmentName: null,
+        id,
+        title: "",
+        updatedAt: new Date(),
+      });
       return id;
     },
     findConversation: async (id: string) =>
@@ -216,6 +225,8 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
           .filter((m) => m.conversationId === id)
           .map((m) => ({
             ...m,
+            environmentDeleted:
+              m.environmentId === null && m.environmentName !== null,
             sources: null,
             createdAt: new Date(0),
             toolCalls: callsOf(m.id),
@@ -238,6 +249,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       conversationId: string;
       text: string;
       attachmentIds: string[];
+      environment: { id: string; name: string } | null;
       now: Date;
     }) => {
       const busy = store.messages.some(
@@ -255,9 +267,13 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
         content: p.text,
         status: "done",
         attachmentIds: p.attachmentIds,
+        environmentId: p.environment?.id ?? null,
+        environmentName: p.environment?.name ?? null,
       };
       const answer: Message = {
         ...base,
+        environmentId: null,
+        environmentName: null,
         id: nextId(),
         role: "assistant",
         content: "",
@@ -358,8 +374,8 @@ function as(userId: string, orgRole = "qa") {
   state.orgRole = orgRole;
 }
 
-async function newConversation(environmentId = ENV_KMEM): Promise<string> {
-  const res = await post("/create-conversation", { environmentId });
+async function newConversation(projectId = PROJECT_KMEM): Promise<string> {
+  const res = await post("/create-conversation", { projectId });
   expect(res.status).toBe(200);
   return ((await res.json()) as { id: string }).id;
 }
@@ -369,7 +385,12 @@ function send(
   text = "Bagaimana iuran dihitung?",
   extra = {}
 ) {
-  return post("/send-message", { conversationId, text, ...extra });
+  return post("/send-message", {
+    conversationId,
+    text,
+    environmentId: null,
+    ...extra,
+  });
 }
 
 beforeEach(() => {
@@ -415,30 +436,157 @@ afterEach(() => {
 });
 
 describe("project scope", () => {
-  it("a qa who is not a member of another project gets 404 on its environment", async () => {
-    expect(
-      (await get(`/list-conversations?environmentId=${ENV_HMEM}`)).status
-    ).toBe(404);
-    expect(
-      (await post("/create-conversation", { environmentId: ENV_HMEM })).status
-    ).toBe(404);
-    expect(
-      (
-        await get(
-          `/list-issue-attachments?environmentId=${ENV_HMEM}&issueKey=HMEM-1`
-        )
-      ).status
-    ).toBe(404);
-    expect(store.conversations).toEqual([]);
+  it.each([
+    ["qa", "qa"],
+    ["engineer", "engineer"],
+  ])(
+    "a %s who is not a member of another project gets 404 on it",
+    async (_label, orgRole) => {
+      as(QA, orgRole);
+      expect(
+        (await get(`/list-conversations?projectId=${PROJECT_HMEM}`)).status
+      ).toBe(404);
+      expect(
+        (await post("/create-conversation", { projectId: PROJECT_HMEM })).status
+      ).toBe(404);
+      expect(
+        (
+          await get(
+            `/list-issue-attachments?projectId=${PROJECT_HMEM}&issueKey=HMEM-1`
+          )
+        ).status
+      ).toBe(404);
+      expect(store.conversations).toEqual([]);
+    }
+  );
+
+  it("an engineer who is no longer a member cannot send to their own conversation", async () => {
+    as(QA, "engineer");
+    const id = await newConversation();
+    state.members[PROJECT_KMEM] = [OTHER];
+    expect((await send(id)).status).toBe(404);
+    expect((await send(id, "Tanya", { environmentId: ENV_KMEM })).status).toBe(
+      404
+    );
+    expect(store.messages).toEqual([]);
+    expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
-  it("lists only the caller's own conversations of the environment", async () => {
+  it("an unknown project is 404", async () => {
+    expect(
+      (await get(`/list-conversations?projectId=${UNKNOWN_ID}`)).status
+    ).toBe(404);
+    expect(
+      (await post("/create-conversation", { projectId: UNKNOWN_ID })).status
+    ).toBe(404);
+  });
+
+  it("lists only the caller's own conversations of the project", async () => {
     const mine = await newConversation();
     as(OTHER);
     await newConversation();
+    await newConversation(PROJECT_HMEM);
     as(QA);
-    const res = await get(`/list-conversations?environmentId=${ENV_KMEM}`);
+    const res = await get(`/list-conversations?projectId=${PROJECT_KMEM}`);
     expect((await res.json()).map((c: { id: string }) => c.id)).toEqual([mine]);
+  });
+
+  it("creates a project conversation without an environment", async () => {
+    const id = await newConversation();
+    expect(store.conversations).toEqual([
+      expect.objectContaining({
+        id,
+        userId: QA,
+        projectId: PROJECT_KMEM,
+        environmentId: null,
+        environmentName: null,
+      }),
+    ]);
+  });
+});
+
+describe("per-question source", () => {
+  it("stores the chosen environment and its name on the user message", async () => {
+    const id = await newConversation();
+    const res = await send(id, "Di Dev 1?", { environmentId: ENV_KMEM });
+    expect(res.status).toBe(200);
+    expect(store.messages[0]).toMatchObject({
+      role: "user",
+      environmentId: ENV_KMEM,
+      environmentName: "Dev 1",
+    });
+    expect(store.messages[1]).toMatchObject({
+      role: "assistant",
+      environmentId: null,
+    });
+  });
+
+  it("stores no environment for a question about the project branches", async () => {
+    const id = await newConversation();
+    expect((await send(id)).status).toBe(200);
+    expect(store.messages[0]).toMatchObject({
+      environmentId: null,
+      environmentName: null,
+    });
+  });
+
+  it("an environment of another project is 404, even one the caller can see", async () => {
+    // OTHER is a member of both projects.
+    as(OTHER);
+    const id = await newConversation();
+    for (const environmentId of [ENV_HMEM, UNKNOWN_ID]) {
+      expect((await send(id, "Tanya", { environmentId })).status).toBe(404);
+    }
+    expect(store.messages).toEqual([]);
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("requires the source to be given (null for the project branches)", async () => {
+    const id = await newConversation();
+    const res = await post("/send-message", { conversationId: id, text: "x" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns each user message's source, and marks a deleted environment", async () => {
+    const id = await newConversation();
+    await send(id, "Di Dev 1?", { environmentId: ENV_KMEM });
+    Object.assign(store.messages[1] ?? {}, { status: "done" });
+    await send(id, "Di branch?");
+    Object.assign(store.messages[3] ?? {}, { status: "done" });
+    await send(id, "Di UAT lama?", { environmentId: ENV_KMEM });
+    // The environment was deleted since: the FK is set null, the name stays.
+    Object.assign(store.messages[4] ?? {}, { environmentId: null });
+
+    const res = await get(`/get-conversation?conversationId=${id}`);
+    const body = (await res.json()) as {
+      messages: {
+        role: string;
+        environmentId: string | null;
+        environmentName: string | null;
+        environmentDeleted: boolean;
+      }[];
+    };
+    expect(
+      body.messages
+        .filter((m) => m.role === "user")
+        .map(({ environmentId, environmentName, environmentDeleted }) => ({
+          environmentId,
+          environmentName,
+          environmentDeleted,
+        }))
+    ).toEqual([
+      {
+        environmentId: ENV_KMEM,
+        environmentName: "Dev 1",
+        environmentDeleted: false,
+      },
+      { environmentId: null, environmentName: null, environmentDeleted: false },
+      {
+        environmentId: null,
+        environmentName: "Dev 1",
+        environmentDeleted: true,
+      },
+    ]);
   });
 });
 
@@ -722,7 +870,7 @@ describe("list-issue-attachments", () => {
       error: null,
     });
     const res = await get(
-      `/list-issue-attachments?environmentId=${ENV_KMEM}&issueKey=kmem-12`
+      `/list-issue-attachments?projectId=${PROJECT_KMEM}&issueKey=kmem-12`
     );
     expect(await res.json()).toEqual({
       key: "KMEM-12",
@@ -748,7 +896,7 @@ describe("list-issue-attachments", () => {
     jira.viewer.mockResolvedValue({ userId: QA, projectIds: [PROJECT_KMEM] });
     jira.visible.mockResolvedValue(null);
     const res = await get(
-      `/list-issue-attachments?environmentId=${ENV_KMEM}&issueKey=HMEM-3`
+      `/list-issue-attachments?projectId=${PROJECT_KMEM}&issueKey=HMEM-3`
     );
     expect(res.status).toBe(404);
     expect(jira.list).not.toHaveBeenCalled();
@@ -762,7 +910,7 @@ describe("list-issue-attachments", () => {
       error: "Jira request failed (HTTP 500)",
     });
     const res = await get(
-      `/list-issue-attachments?environmentId=${ENV_KMEM}&issueKey=KMEM-12`
+      `/list-issue-attachments?projectId=${PROJECT_KMEM}&issueKey=KMEM-12`
     );
     const text = await res.text();
     expect(text).not.toContain("HTTP 500");

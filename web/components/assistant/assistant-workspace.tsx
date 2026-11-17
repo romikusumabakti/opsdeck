@@ -35,19 +35,23 @@ function useIsLarge() {
 }
 
 /**
- * The environment's Assistant tab: the caller's conversations, the open
+ * The Assistant: the caller's conversations about the project, the open
  * thread with its question box, and, on demand, the drafts of that
- * conversation. It fills the height its route gives it: the conversation
+ * conversation. Questions ask about `environmentId` (its running commits) or,
+ * when null, the project branches; the source picker arrives with the
+ * project page. It fills the height its route gives it: the conversation
  * list and the thread scroll on their own while the question box stays at
  * the bottom. A new conversation is created by its first question.
  */
 export function AssistantWorkspace({
+  projectId,
   environmentId,
   environmentName,
   projectKey,
   canCreateIssue,
 }: {
-  environmentId: string;
+  projectId: string;
+  environmentId: string | null;
   environmentName: string;
   projectKey: string;
   canCreateIssue: boolean;
@@ -88,12 +92,13 @@ export function AssistantWorkspace({
   const send = async (text: string, attachments: AttachmentRef[]) => {
     let conversationId = selectedId;
     if (!conversationId) {
-      conversationId = (await createConversation(environmentId)).id;
+      conversationId = (await createConversation({ projectId })).id;
       setSelectedId(conversationId);
     }
     await sendMessage({
       conversationId,
       text,
+      environmentId,
       ...(attachments.length > 0 ? { attachments } : {}),
     });
   };
@@ -140,7 +145,7 @@ export function AssistantWorkspace({
       >
         <div className="flex max-h-40 min-h-0 shrink-0 flex-col lg:max-h-none">
           <ConversationList
-            environmentId={environmentId}
+            projectId={projectId}
             selectedId={selectedId}
             onSelect={setSelectedId}
             onNew={() => setSelectedId(null)}
@@ -173,7 +178,7 @@ export function AssistantWorkspace({
           )}
           <div className="shrink-0">
             <Composer
-              environmentId={environmentId}
+              projectId={projectId}
               disabled={busy || capped}
               onSend={send}
               focusKey={selectedId ?? "new"}

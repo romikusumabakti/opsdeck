@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -125,7 +126,26 @@ describe.skipIf(!enabled)(
           .returning()
       );
 
-      expect(await store.environmentNameOf(env.id)).toBe("Dev 1");
+      const otherProject = one(
+        await d
+          .insert(schema.projects)
+          .values({ name: "Heron Membership", key: "HMEM" })
+          .returning()
+      );
+      const otherEnv = one(
+        await d
+          .insert(schema.environments)
+          .values({ projectId: otherProject.id, name: "UAT", slug: "uat" })
+          .returning()
+      );
+      expect(await store.environmentOfProject(env.id, project.id)).toEqual({
+        id: env.id,
+        name: "Dev 1",
+      });
+      // An environment of another project is not one of this project's.
+      expect(
+        await store.environmentOfProject(otherEnv.id, project.id)
+      ).toBeNull();
       expect(await store.loadAssistantLimits()).toEqual({
         enabled: false,
         hasApiKey: false,
@@ -135,8 +155,13 @@ describe.skipIf(!enabled)(
       const conversationId = await store.insertConversation({
         userId: user.id,
         projectId: project.id,
-        environmentId: env.id,
-        environmentName: "Dev 1",
+      });
+      const [row] =
+        await client`select environment_id, environment_name from assistant_conversations where id = ${conversationId}`;
+      expect(row).toEqual({ environment_id: null, environment_name: null });
+      await store.insertConversation({
+        userId: user.id,
+        projectId: otherProject.id,
       });
       expect(await store.findConversation(conversationId)).toEqual({
         id: conversationId,
@@ -149,6 +174,7 @@ describe.skipIf(!enabled)(
         conversationId,
         text: "Bagaimana iuran dihitung?\n\nJelaskan.",
         attachmentIds: ["10001"],
+        environment: { id: env.id, name: "Dev 1" },
         now,
       });
       if (first === "busy") throw new Error("unexpected busy");
@@ -156,19 +182,35 @@ describe.skipIf(!enabled)(
 
       // The first answer is still queued: any further send is busy.
       const [a, b] = await Promise.all([
-        store.insertTurn({ conversationId, text: "x", attachmentIds: [] }),
-        store.insertTurn({ conversationId, text: "y", attachmentIds: [] }),
+        store.insertTurn({
+          conversationId,
+          text: "x",
+          attachmentIds: [],
+          environment: null,
+        }),
+        store.insertTurn({
+          conversationId,
+          text: "y",
+          attachmentIds: [],
+          environment: null,
+        }),
       ]);
       expect([a, b]).toEqual(["busy", "busy"]);
 
       await client`update assistant_messages set status = 'done', content = 'Di IuranService.' where id = ${first.assistantMessageId}`;
       // Two sends at once: the conversation row lock lets exactly one through.
       const [c1, c2] = await Promise.all([
-        store.insertTurn({ conversationId, text: "Lalu?", attachmentIds: [] }),
+        store.insertTurn({
+          conversationId,
+          text: "Lalu?",
+          attachmentIds: [],
+          environment: null,
+        }),
         store.insertTurn({
           conversationId,
           text: "Lalu lagi?",
           attachmentIds: [],
+          environment: null,
         }),
       ]);
       expect([c1, c2].filter((t) => t === "busy")).toHaveLength(1);
@@ -190,7 +232,8 @@ describe.skipIf(!enabled)(
         resultMeta: { paths: ["backend/Iuran.java"] },
       });
 
-      const listed = await store.listConversationsOf(user.id, env.id);
+      // Only this project's conversations.
+      const listed = await store.listConversationsOf(user.id, project.id);
       expect(listed).toEqual([
         {
           id: conversationId,
@@ -209,12 +252,39 @@ describe.skipIf(!enabled)(
       expect(detail?.messages[0]).toMatchObject({
         content: "Bagaimana iuran dihitung?\n\nJelaskan.",
         attachmentIds: ["10001"],
+        environmentId: env.id,
+        environmentName: "Dev 1",
+        environmentDeleted: false,
         toolCalls: [],
+      });
+      // The answer carries no source; the second question asked about the
+      // project branches.
+      expect(detail?.messages[1]).toMatchObject({
+        environmentId: null,
+        environmentName: null,
+        environmentDeleted: false,
+      });
+      expect(detail?.messages[2]).toMatchObject({
+        environmentId: null,
+        environmentName: null,
+        environmentDeleted: false,
       });
       expect(detail?.messages[1]?.toolCalls).toEqual([
         { tool: "read_file", meta: { paths: ["backend/Iuran.java"] } },
       ]);
       expect(detail?.drafts).toEqual([]);
+
+      // Deleting the environment keeps the question's name snapshot.
+      await d
+        .delete(schema.environments)
+        .where(eq(schema.environments.id, env.id));
+      expect(
+        (await store.loadConversationDetail(conversationId))?.messages[0]
+      ).toMatchObject({
+        environmentId: null,
+        environmentName: "Dev 1",
+        environmentDeleted: true,
+      });
 
       expect(await store.readStreamSnapshot(first.assistantMessageId)).toEqual({
         content: "Di IuranService.",

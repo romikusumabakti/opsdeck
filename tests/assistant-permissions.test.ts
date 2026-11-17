@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   canOrg,
   canProject,
@@ -6,6 +6,10 @@ import {
   type ProjectRole,
   requiresStrongSignIn,
 } from "@/lib/permissions";
+
+vi.mock("@/lib/db", () => ({ db: {} }));
+
+const { resolveProjectAccess } = await import("@/lib/authz");
 
 describe("assistant permissions", () => {
   it.each(["viewer", "qa", "engineer"] as ProjectRole[])(
@@ -34,5 +38,20 @@ describe("assistant permissions", () => {
 
   it("managing the assistant needs a strong sign-in", () => {
     expect(requiresStrongSignIn({ assistant: ["manage"] })).toBe(true);
+  });
+
+  it("an engineer or qa sees the assistant of their projects only", () => {
+    for (const orgRole of ["engineer", "qa"]) {
+      const access = resolveProjectAccess(
+        orgRole,
+        ["p-member", "p-other"],
+        ["p-member"]
+      );
+      expect(
+        canProject(access.roles["p-member"] ?? null, { assistant: ["use"] })
+      ).toBe(true);
+      // No role: the guard answers 404, as if the project did not exist.
+      expect(access.roles["p-other"]).toBeUndefined();
+    }
   });
 });

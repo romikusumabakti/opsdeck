@@ -295,7 +295,7 @@ describe("daily cap", () => {
     );
     await render(
       <Composer
-        environmentId="e1"
+        projectId="p1"
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -486,8 +486,6 @@ describe("answer stream", () => {
   const conversation = (status: string) => ({
     id: "c1",
     title: "Iuran",
-    environmentId: "e1",
-    environmentName: "Dev",
     drafts: [],
     jiraPushEnabled: false,
     messages: [
@@ -739,7 +737,7 @@ describe("answer stream", () => {
 describe("composer attachments", () => {
   it("sends each ticked attachment with its issue key", async () => {
     queryClient.setQueryData(
-      ["assistant", "listIssueAttachments", ["e1", "KST-12"]],
+      ["assistant", "listIssueAttachments", ["p1", "KST-12"]],
       {
         key: "KST-12",
         unavailable: false,
@@ -756,7 +754,7 @@ describe("composer attachments", () => {
     const onSend = vi.fn().mockResolvedValue(undefined);
     await render(
       <Composer
-        environmentId="e1"
+        projectId="p1"
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -802,7 +800,7 @@ describe("composer attachments", () => {
 describe("composer focus and keys", () => {
   const composer = (focusKey: string | null) => (
     <Composer
-      environmentId="e1"
+      projectId="p1"
       disabled={false}
       onSend={vi.fn().mockResolvedValue(undefined)}
       focusKey={focusKey}
@@ -840,7 +838,7 @@ describe("composer focus and keys", () => {
     const onSend = vi.fn().mockResolvedValue(undefined);
     await render(
       <Composer
-        environmentId="e1"
+        projectId="p1"
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -885,8 +883,6 @@ describe("draft panel", () => {
   const conversation = {
     id: "c1",
     title: "Iuran",
-    environmentId: "e1",
-    environmentName: "Dev",
     drafts: [],
     jiraPushEnabled: false,
     messages: [
@@ -943,8 +939,6 @@ describe("drafts panel in the workspace", () => {
   const conversation = {
     id: "c1",
     title: "Iuran",
-    environmentId: "e1",
-    environmentName: "Dev",
     drafts: [] as ReturnType<typeof draft>[],
     jiraPushEnabled: false,
     messages: [],
@@ -963,12 +957,13 @@ describe("drafts panel in the workspace", () => {
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
     queryClient.setQueryData(
-      ["assistant", "listConversations", ["e1"]],
+      ["assistant", "listConversations", ["p1"]],
       [{ id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }]
     );
     queryClient.setQueryData(conversationKey, conversation);
     await render(
       <AssistantWorkspace
+        projectId="p1"
         environmentId="e1"
         environmentName="Dev"
         projectKey="ACME"
@@ -1029,7 +1024,7 @@ describe("drafts panel in the workspace", () => {
   it("does not open when switching to a conversation that already has drafts", async () => {
     await renderWorkspace();
     queryClient.setQueryData(
-      ["assistant", "listConversations", ["e1"]],
+      ["assistant", "listConversations", ["p1"]],
       [
         { id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" },
         { id: "c2", title: "Pajak", updatedAt: "2026-11-16T01:00:00Z" },
@@ -1058,7 +1053,7 @@ describe("drafts panel in the workspace", () => {
 describe("attachment picker", () => {
   it("shows already-picked attachments locked and counts them in the limit", async () => {
     queryClient.setQueryData(
-      ["assistant", "listIssueAttachments", ["e1", "KST-1"]],
+      ["assistant", "listIssueAttachments", ["p1", "KST-1"]],
       {
         key: "KST-1",
         unavailable: false,
@@ -1082,7 +1077,7 @@ describe("attachment picker", () => {
     const onAdd = vi.fn();
     await render(
       <AttachmentPicker
-        environmentId="e1"
+        projectId="p1"
         open
         onOpenChange={() => {}}
         max={2}

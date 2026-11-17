@@ -52,14 +52,16 @@ export async function loadAssistantLimits(): Promise<{
   };
 }
 
-export async function environmentNameOf(
-  environmentId: string
-): Promise<string | null> {
+/** The environment, if it exists and belongs to the project. */
+export async function environmentOfProject(
+  environmentId: string,
+  projectId: string
+): Promise<{ id: string; name: string } | null> {
   const env = await db.query.environments.findFirst({
-    where: { id: environmentId },
-    columns: { name: true },
+    where: { id: environmentId, projectId },
+    columns: { id: true, name: true },
   });
-  return env?.name ?? null;
+  return env ?? null;
 }
 
 export type ConversationSummary = {
@@ -68,10 +70,10 @@ export type ConversationSummary = {
   updatedAt: Date;
 };
 
-/** The user's conversations about one environment, newest first. */
+/** The user's conversations about one project, newest first. */
 export async function listConversationsOf(
   userId: string,
-  environmentId: string
+  projectId: string
 ): Promise<ConversationSummary[]> {
   return db
     .select({
@@ -83,17 +85,19 @@ export async function listConversationsOf(
     .where(
       and(
         eq(assistantConversations.userId, userId),
-        eq(assistantConversations.environmentId, environmentId)
+        eq(assistantConversations.projectId, projectId)
       )
     )
     .orderBy(desc(assistantConversations.updatedAt));
 }
 
+/**
+ * A project conversation. Its environment fields stay null: the source is
+ * chosen per question (insertTurn).
+ */
 export async function insertConversation(values: {
   userId: string;
   projectId: string;
-  environmentId: string;
-  environmentName: string;
 }): Promise<string> {
   const [row] = await db
     .insert(assistantConversations)
@@ -159,6 +163,15 @@ export type ConversationMessage = {
   errorCode: string | null;
   sources: AssistantSource[] | null;
   attachmentIds: string[];
+  /**
+   * User messages: the environment the question asked about; both null for
+   * the project branches. Once that environment is deleted the id is null,
+   * the name snapshot stays and environmentDeleted is true. Always null and
+   * false on assistant messages.
+   */
+  environmentId: string | null;
+  environmentName: string | null;
+  environmentDeleted: boolean;
   createdAt: Date;
   /** Assistant messages only; result metadata, never the tool input. */
   toolCalls: ToolCallMeta[];
@@ -180,8 +193,6 @@ export type ConversationDraft = {
 export type ConversationDetail = {
   id: string;
   title: string;
-  environmentId: string | null;
-  environmentName: string;
   messages: ConversationMessage[];
   drafts: ConversationDraft[];
   /** The project's Jira link is on and may write: a Jira draft can be created. */
@@ -217,8 +228,6 @@ export async function loadConversationDetail(
     .select({
       id: assistantConversations.id,
       title: assistantConversations.title,
-      environmentId: assistantConversations.environmentId,
-      environmentName: assistantConversations.environmentName,
       projectId: assistantConversations.projectId,
     })
     .from(assistantConversations)
@@ -237,6 +246,8 @@ export async function loadConversationDetail(
         errorCode: assistantMessages.errorCode,
         sources: assistantMessages.sources,
         attachmentIds: assistantMessages.attachmentIds,
+        environmentId: assistantMessages.environmentId,
+        environmentName: assistantMessages.environmentName,
         createdAt: assistantMessages.createdAt,
       })
       .from(assistantMessages)
@@ -272,9 +283,12 @@ export async function loadConversationDetail(
   );
   return {
     ...head,
-    // Transitional until project-level conversations reach the UI.
-    environmentName: head.environmentName ?? "",
-    messages: messages.map((m) => ({ ...m, toolCalls: calls.get(m.id) ?? [] })),
+    messages: messages.map((m) => ({
+      ...m,
+      environmentDeleted:
+        m.environmentId === null && m.environmentName !== null,
+      toolCalls: calls.get(m.id) ?? [],
+    })),
     drafts,
     jiraPushEnabled: !!(link?.enabled && link.pushEnabled),
   };
@@ -283,7 +297,8 @@ export async function loadConversationDetail(
 export type CreatedTurn = { userMessageId: string; assistantMessageId: string };
 
 /**
- * In one transaction: the user message (done) and the assistant message
+ * In one transaction: the user message (done) with the source it asks about
+ * (`environment`, null for the project branches) and the assistant message
  * (queued) that answers it, the title from the first message, and the
  * conversation's updated_at. "busy" (nothing written) when an assistant
  * message of the conversation is still queued or streaming. The conversation
@@ -293,6 +308,7 @@ export async function insertTurn(params: {
   conversationId: string;
   text: string;
   attachmentIds: string[];
+  environment: { id: string; name: string } | null;
   now?: Date;
 }): Promise<CreatedTurn | "busy"> {
   const now = params.now ?? new Date();
@@ -326,6 +342,8 @@ export async function insertTurn(params: {
         status: "done",
         content: params.text,
         attachmentIds: params.attachmentIds,
+        environmentId: params.environment?.id ?? null,
+        environmentName: params.environment?.name ?? null,
         finishedAt: now,
       })
       .returning({ id: assistantMessages.id });

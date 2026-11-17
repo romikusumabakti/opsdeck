@@ -20,9 +20,10 @@ export const getAllowanceQuery = () =>
     queryFn: getAllowance,
   });
 
-export async function listConversations(environmentId: string) {
+/** The caller's conversations about a project, newest first. */
+export async function listConversations(projectId: string) {
   return parseResponse(
-    routes["list-conversations"].$get({ query: { environmentId } })
+    routes["list-conversations"].$get({ query: { projectId } })
   );
 }
 
@@ -49,12 +50,12 @@ export const getConversationQuery = (
   });
 
 export async function listIssueAttachments(
-  environmentId: string,
+  projectId: string,
   issueKey: string
 ) {
   return parseResponse(
     routes["list-issue-attachments"].$get({
-      query: { environmentId, issueKey },
+      query: { projectId, issueKey },
     })
   );
 }
@@ -67,14 +68,15 @@ export const listIssueAttachmentsQuery = (
     queryFn: () => listIssueAttachments(...args),
   });
 
-export async function createConversation(
-  environmentId: Body<"create-conversation">["environmentId"]
-) {
-  return parseResponse(
-    routes["create-conversation"].$post({ json: { environmentId } })
-  );
+/** A new project conversation; each question then picks its source. */
+export async function createConversation(input: Body<"create-conversation">) {
+  return parseResponse(routes["create-conversation"].$post({ json: input }));
 }
 
+/**
+ * Sends a question. `environmentId` is the source it asks about: an
+ * environment of the conversation's project, or null for the project branches.
+ */
 export async function sendMessage(input: Body<"send-message">) {
   return parseResponse(routes["send-message"].$post({ json: input }));
 }
