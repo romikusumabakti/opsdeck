@@ -874,9 +874,7 @@ describe("POST commit-pipeline-file", () => {
       },
     });
     expect(state.calls).toEqual(["commit:main", "commit:release/1.x"]);
-    expect(at(forge.commitFile.mock.calls)[1]).toBe(
-      "acme/acme-accounting"
-    );
+    expect(at(forge.commitFile.mock.calls)[1]).toBe("acme/acme-accounting");
   });
 
   it("retries only the branch given in ?branch=", async () => {

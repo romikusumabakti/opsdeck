@@ -142,7 +142,9 @@ describe("repoPickable", () => {
   it("refuses any registered repository once a new app's is picked", () => {
     expect(repoPickable(row("acme/a", "kmem"), [], null)).toBe(true);
     expect(repoPickable(row("acme/a", "kmem"), ["acme/new"], null)).toBe(false);
-    expect(repoPickable(row("acme/other", null), ["acme/new"], null)).toBe(true);
+    expect(repoPickable(row("acme/other", null), ["acme/new"], null)).toBe(
+      true
+    );
   });
 });
 

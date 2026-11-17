@@ -14,9 +14,7 @@ describe("renderComposeOverlay", () => {
   it("joins the services to the external network next to default", () => {
     const yaml = renderComposeOverlay(["hris-backend"], "shared-postgres");
     expect(COMPOSE_OVERLAY_FILE).toBe("compose.menara.yaml");
-    expect(yaml.split("\n")[0]).toMatch(
-      /^# Written by Menara; do not edit/
-    );
+    expect(yaml.split("\n")[0]).toMatch(/^# Written by Menara; do not edit/);
     expect(parse(yaml)).toEqual({
       services: {
         "hris-backend": { networks: ["default", "shared-postgres"] },

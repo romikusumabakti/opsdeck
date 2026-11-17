@@ -100,7 +100,6 @@ messages/       i18n catalogs: ar, en, es, id, zh
 i18n/           Locale list and labels
 scripts/        `menara` CLI (scripts/cli.ts) and other ops scripts
 ops/install/    Installer, production compose file and host updater
-ops/backup/     Interim off-host backup timer (see ops/backup/README.md)
 tests/          Vitest suites
 e2e/            Playwright suites
 docs/           Feature docs

@@ -468,9 +468,7 @@ describe("resolveNewEnvironment", () => {
       });
       expect(generated.warnings).toEqual([]);
       const custom = resolveNewEnvironment(
-        choose([
-          { repoFullName: "acme/panel-canary-2", mode: "custom" },
-        ]),
+        choose([{ repoFullName: "acme/panel-canary-2", mode: "custom" }]),
         freshRepo()
       );
       expect(custom.registrations[0]).toMatchObject({
@@ -483,9 +481,7 @@ describe("resolveNewEnvironment", () => {
         { field: "repos.0", code: "pipelineFileMissing" },
       ]);
       const withFile = resolveNewEnvironment(
-        choose([
-          { repoFullName: "acme/panel-canary-2", mode: "custom" },
-        ]),
+        choose([{ repoFullName: "acme/panel-canary-2", mode: "custom" }]),
         freshRepo({ kind: "custom", notifiesPanel: true })
       );
       expect(withFile.warnings).toEqual([]);

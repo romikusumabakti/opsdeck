@@ -683,7 +683,9 @@ describe("SQL Server statements", () => {
   });
 
   it("creates with a bracketed identifier", () => {
-    expect(mssqlCreateDatabaseQuery("heron2")).toBe("CREATE DATABASE [heron2];");
+    expect(mssqlCreateDatabaseQuery("heron2")).toBe(
+      "CREATE DATABASE [heron2];"
+    );
     expect(mssqlCreateDatabaseQuery("we]ird")).toBe(
       "CREATE DATABASE [we]]ird];"
     );
@@ -796,7 +798,11 @@ describe("parseMssqlFileList", () => {
 
   it("parses logical name, physical path and type", () => {
     expect(parseMssqlFileList(OUTPUT)).toEqual([
-      { logical: "heron2", physical: "/var/opt/mssql/data/heron2.mdf", type: "D" },
+      {
+        logical: "heron2",
+        physical: "/var/opt/mssql/data/heron2.mdf",
+        type: "D",
+      },
       {
         logical: "heron2_log",
         physical: "/var/opt/mssql/data/heron2_log.ldf",
@@ -838,7 +844,11 @@ describe("parseMssqlFileList", () => {
 
 describe("buildMssqlMoveClauses", () => {
   const FILES = [
-    { logical: "heron2", physical: "/var/opt/mssql/data/heron2.mdf", type: "D" },
+    {
+      logical: "heron2",
+      physical: "/var/opt/mssql/data/heron2.mdf",
+      type: "D",
+    },
     {
       logical: "heron2_log",
       physical: "/var/opt/mssql/data/heron2_log.ldf",
@@ -930,7 +940,9 @@ describe("MySQL/MariaDB statements", () => {
   });
 
   it("creates and drops with escaped identifiers", () => {
-    expect(mysqlCreateDatabaseQuery("heron2")).toBe("CREATE DATABASE `heron2`;");
+    expect(mysqlCreateDatabaseQuery("heron2")).toBe(
+      "CREATE DATABASE `heron2`;"
+    );
     expect(mysqlDropDatabaseQuery("we`ird")).toBe(
       "DROP DATABASE IF EXISTS `we``ird`;"
     );
@@ -939,13 +951,25 @@ describe("MySQL/MariaDB statements", () => {
 
 describe("mysqlBackupPipeline", () => {
   it("resolves the dump binary, preferring MariaDB's rename", () => {
-    const cmd = mysqlBackupPipeline("heron2", "/b/heron2.sql", false, "root", "pw");
+    const cmd = mysqlBackupPipeline(
+      "heron2",
+      "/b/heron2.sql",
+      false,
+      "root",
+      "pw"
+    );
     expect(cmd).toContain("command -v mariadb-dump");
     expect(cmd).toContain("command -v mysqldump");
   });
 
   it("carries the flags that keep stored programs in the dump", () => {
-    const cmd = mysqlBackupPipeline("heron2", "/b/heron2.sql", false, "root", "pw");
+    const cmd = mysqlBackupPipeline(
+      "heron2",
+      "/b/heron2.sql",
+      false,
+      "root",
+      "pw"
+    );
     // Each of these is off by default; omitting one silently drops objects.
     expect(cmd).toContain("--single-transaction");
     expect(cmd).toContain("--routines");
@@ -980,7 +1004,13 @@ describe("mysqlBackupPipeline", () => {
   });
 
   it("keeps the password out of argv", () => {
-    const cmd = mysqlBackupPipeline("heron2", "/b/x.sql", false, "root", "p@ss");
+    const cmd = mysqlBackupPipeline(
+      "heron2",
+      "/b/x.sql",
+      false,
+      "root",
+      "p@ss"
+    );
     expect(cmd).toContain("export MYSQL_PWD='p@ss'");
     expect(cmd).not.toContain("-pp@ss");
   });

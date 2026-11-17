@@ -112,7 +112,12 @@ beforeEach(() => {
   mocks.requireProjectPermission.mockResolvedValue({});
   mocks.appendBuildSpecBranch.mockResolvedValue(true);
   mocks.listRepos.mockResolvedValue([
-    { ciRepoId: "7", fullName: "acme/hris", forgeRemoteId: "{a}", active: true },
+    {
+      ciRepoId: "7",
+      fullName: "acme/hris",
+      forgeRemoteId: "{a}",
+      active: true,
+    },
   ]);
   mocks.activateRepo.mockResolvedValue({
     ciRepoId: "7",

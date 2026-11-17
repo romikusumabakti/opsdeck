@@ -562,7 +562,11 @@ describe("New environment page", () => {
     await settle();
     expect(api.preview).toHaveBeenCalledOnce();
     expect(api.preview.mock.calls[0]?.[0].repos).toEqual([
-      { ciConnectionId: CONN, repoFullName: "acme/kmem-api", branch: "develop" },
+      {
+        ciConnectionId: CONN,
+        repoFullName: "acme/kmem-api",
+        branch: "develop",
+      },
       // The repository's main branch on the forge.
       {
         ciConnectionId: CONN,
@@ -591,7 +595,11 @@ describe("New environment page", () => {
     await settle();
     expect(api.preview).toHaveBeenCalledTimes(2);
     expect(api.preview.mock.calls[1]?.[0].repos).toEqual([
-      { ciConnectionId: CONN, repoFullName: "acme/kmem-api", branch: "develop" },
+      {
+        ciConnectionId: CONN,
+        repoFullName: "acme/kmem-api",
+        branch: "develop",
+      },
       { ciConnectionId: CONN, repoFullName: "acme/kmem-web", branch: "main" },
     ]);
     expect(container.textContent).not.toContain(
@@ -855,7 +863,9 @@ describe("New environment page", () => {
         },
       });
       await openPicker();
-      await act(async () => byText('[role="option"]', "acme/kmem-api")?.click());
+      await act(async () =>
+        byText('[role="option"]', "acme/kmem-api")?.click()
+      );
       await settle();
       expect(api.preview).toHaveBeenCalledOnce();
       expect(api.preview.mock.calls[0]?.[0].repos).toEqual([
@@ -922,7 +932,9 @@ describe("New environment page", () => {
       expect(hris?.textContent).toContain("HRIS");
       // The source app's and an unregistered repository stay pickable.
       expect(
-        byText('[role="option"]', "acme/kmem-api")?.getAttribute("aria-disabled")
+        byText('[role="option"]', "acme/kmem-api")?.getAttribute(
+          "aria-disabled"
+        )
       ).not.toBe("true");
       expect(
         byText('[role="option"]', "acme/fresh")?.getAttribute("aria-disabled")

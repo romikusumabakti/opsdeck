@@ -42,9 +42,7 @@ describe("findServiceKeyByContainerName", () => {
 describe("composeNetworks", () => {
   it("maps each alias to the real Docker network it names", () => {
     const networks = composeNetworks(FIXTURE);
-    expect(networks.get("customer-portal")).toBe(
-      "acme-portal_default"
-    );
+    expect(networks.get("customer-portal")).toBe("acme-portal_default");
     expect(networks.get("dms")).toBe("acme-dms_default");
     expect(networks.size).toBe(8);
   });
