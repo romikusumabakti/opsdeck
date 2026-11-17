@@ -175,6 +175,7 @@ export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
   "databases",
   "mock-time",
   "mail",
+  "assistant",
   "history",
   "settings",
 ]);
@@ -185,6 +186,7 @@ export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
 export const SECTION_PERMS = {
   "mock-time": { clock: ["control"] },
   mail: { mail: ["read"] },
+  assistant: { assistant: ["use"] },
   settings: { environment: ["update"] },
   variables: { variable: ["read"] },
 } satisfies Record<string, ProjectPermissions>;

@@ -5,6 +5,7 @@ import { jiraProjectLinks } from "@/lib/db/schema";
 import { sweepExpiredLocks } from "@/lib/deploy/lock-release";
 import { failStaleDeployments } from "@/lib/jobs/deploy";
 import { processJob } from "@/lib/jobs/processor";
+import { registerShutdown } from "@/lib/jobs/shutdown";
 import { failStaleProvisionRuns } from "@/lib/provisioning/repository";
 import {
   createRedisConnection,
@@ -50,13 +51,9 @@ export function startWorker(): Worker | null {
   });
 
   // Drain in-flight jobs on shutdown instead of leaving them stalled for the
-  // stalled-job reaper. Registered once, alongside the single worker instance.
-  const shutdown = async () => {
-    await worker.close();
-    process.exit(0);
-  };
-  process.once("SIGTERM", shutdown);
-  process.once("SIGINT", shutdown);
+  // stalled-job reaper. Registered once, alongside the single worker instance;
+  // the shared handler also drains the assistant worker before exiting.
+  registerShutdown(() => worker.close());
 
   // Job schedulers live in Redis, so they normally survive a restart — but a
   // flushed Redis, a fresh deploy, or a link created while the worker was down

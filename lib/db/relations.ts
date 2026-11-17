@@ -256,4 +256,44 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.users.id,
     }),
   },
+  assistantConversations: {
+    user: r.one.users({
+      from: r.assistantConversations.userId,
+      to: r.users.id,
+    }),
+    project: r.one.projects({
+      from: r.assistantConversations.projectId,
+      to: r.projects.id,
+    }),
+    messages: r.many.assistantMessages({
+      from: r.assistantConversations.id,
+      to: r.assistantMessages.conversationId,
+    }),
+    drafts: r.many.assistantDrafts({
+      from: r.assistantConversations.id,
+      to: r.assistantDrafts.conversationId,
+    }),
+  },
+  assistantMessages: {
+    conversation: r.one.assistantConversations({
+      from: r.assistantMessages.conversationId,
+      to: r.assistantConversations.id,
+    }),
+    toolCalls: r.many.assistantToolCalls({
+      from: r.assistantMessages.id,
+      to: r.assistantToolCalls.messageId,
+    }),
+  },
+  assistantToolCalls: {
+    message: r.one.assistantMessages({
+      from: r.assistantToolCalls.messageId,
+      to: r.assistantMessages.id,
+    }),
+  },
+  assistantDrafts: {
+    conversation: r.one.assistantConversations({
+      from: r.assistantDrafts.conversationId,
+      to: r.assistantConversations.id,
+    }),
+  },
 }));

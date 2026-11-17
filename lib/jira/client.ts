@@ -1,10 +1,16 @@
 import type { z } from "zod";
 import {
   ISSUE_FIELDS,
+  type JiraAttachmentMeta,
   type JiraComment,
+  type JiraCreateMetaField,
   type JiraIssue,
   jiraCommentPageSchema,
   jiraCommentSchema,
+  jiraCreatedIssueSchema,
+  jiraCreateMetaFieldsSchema,
+  jiraCreateMetaIssueTypesSchema,
+  jiraIssueAttachmentsSchema,
   jiraIssueSchema,
   jiraMyselfSchema,
   jiraProjectSchema,
@@ -62,6 +68,19 @@ export function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
 }
 
+/** A download larger than the caller's cap; nothing past the cap is buffered. */
+export class AttachmentTooLargeError extends Error {
+  constructor(readonly maxBytes: number) {
+    super(`Attachment exceeds ${maxBytes} bytes`);
+    this.name = "AttachmentTooLargeError";
+  }
+}
+
+/** Default and hard ceiling for `downloadAttachment`. */
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+const MAX_REDIRECTS = 5;
+
 const MAX_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = 30_000;
 // Jira caps page size at 100 for both search and comments.
@@ -85,6 +104,42 @@ function retryDelayMs(attempt: number, retryAfter: string | null): number {
   return 2 ** attempt * 500 + Math.floor(Math.random() * 250);
 }
 
+/** Buffer a response body, aborting as soon as it passes `maxBytes`. */
+async function readCapped(
+  response: Response,
+  maxBytes: number
+): Promise<Uint8Array> {
+  if (!response.body) return new Uint8Array(0);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new AttachmentTooLargeError(maxBytes);
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+/**
+ * When a failed call is sent again. `transient`: on 429, 5xx, network errors
+ * and timeouts, for reads and idempotent writes. `rate-limit`: on 429 only
+ * (Jira processed nothing), for writes a repeat would duplicate, such as
+ * creating an issue: a 5xx or a timeout may come after Jira committed it.
+ */
+export type RetryPolicy = "transient" | "rate-limit";
+
 export class JiraClient {
   private readonly baseUrl: string;
   private readonly flavor: "cloud" | "datacenter";
@@ -107,9 +162,10 @@ export class JiraClient {
   }
 
   /**
-   * One authenticated call, retried on 429 and 5xx. The response is parsed
-   * with `schema` so malformed payloads fail here rather than three layers
-   * deep in the mapper.
+   * One authenticated call, retried per `retry` (default `transient`: 429,
+   * 5xx, network errors and timeouts). The response is parsed with `schema`
+   * so malformed payloads fail here rather than three layers deep in the
+   * mapper.
    */
   private async request<S extends z.ZodType>(
     path: string,
@@ -118,8 +174,10 @@ export class JiraClient {
       body?: unknown;
       query?: Record<string, string | number | undefined>;
       schema: S;
+      retry?: RetryPolicy;
     }
   ): Promise<z.infer<S>> {
+    const policy = options.retry ?? "transient";
     const url = new URL(`${this.baseUrl}${this.apiBase}${path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
       if (value !== undefined) url.searchParams.set(key, String(value));
@@ -149,7 +207,9 @@ export class JiraClient {
             error instanceof Error ? error.message : String(error)
           }`
         );
-        if (attempt === MAX_ATTEMPTS) throw lastError;
+        // The request may have reached Jira: only a policy that allows a
+        // repeat retries it.
+        if (policy !== "transient" || attempt === MAX_ATTEMPTS) throw lastError;
         await sleep(retryDelayMs(attempt, null));
         continue;
       }
@@ -163,7 +223,9 @@ export class JiraClient {
 
       const body = await response.text().catch(() => "");
       lastError = new JiraError(response.status, body);
-      const retryable = response.status === 429 || response.status >= 500;
+      const retryable =
+        response.status === 429 ||
+        (policy === "transient" && response.status >= 500);
       if (!retryable || attempt === MAX_ATTEMPTS) throw lastError;
       await sleep(retryDelayMs(attempt, response.headers.get("Retry-After")));
     }
@@ -268,6 +330,91 @@ export class JiraClient {
     };
   }
 
+  /** The issue's attachment list (metadata only), from its `attachment` field. */
+  async getAttachments(idOrKey: string): Promise<JiraAttachmentMeta[]> {
+    const result = await this.request(`/issue/${encodeURIComponent(idOrKey)}`, {
+      query: { fields: "attachment" },
+      schema: jiraIssueAttachmentsSchema,
+    });
+    return (result.fields.attachment ?? []).map((a) => ({
+      id: a.id,
+      filename: a.filename,
+      mimeType: a.mimeType ?? "application/octet-stream",
+      sizeBytes: a.size ?? 0,
+      created: a.created ?? null,
+    }));
+  }
+
+  /**
+   * Download one attachment's bytes, at most `maxBytes` (default and ceiling
+   * 20 MiB). Cloud answers `/attachment/content/{id}` with a redirect to the
+   * media host; redirects are followed by hand so the Authorization header is
+   * only ever sent to the Jira site's own origin, never to another host.
+   */
+  async downloadAttachment(
+    id: string,
+    options: { maxBytes?: number } = {}
+  ): Promise<{ mime: string; bytes: Uint8Array }> {
+    const maxBytes = Math.min(
+      options.maxBytes ?? MAX_ATTACHMENT_BYTES,
+      MAX_ATTACHMENT_BYTES
+    );
+    const siteOrigin = new URL(this.baseUrl).origin;
+    const signal = AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS);
+    let url = new URL(
+      `${this.baseUrl}${this.apiBase}/attachment/content/${encodeURIComponent(id)}`
+    );
+
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      const sameOrigin = url.origin === siteOrigin;
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "*/*",
+          ...(sameOrigin ? { Authorization: this.authHeader } : {}),
+        },
+        redirect: "manual",
+        signal,
+        cache: "no-store",
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("Location");
+        await response.body?.cancel();
+        if (!location) {
+          throw new JiraError(response.status, "", "Redirect without Location");
+        }
+        const next = new URL(location, url);
+        if (next.protocol !== "https:" && next.protocol !== url.protocol) {
+          throw new JiraError(
+            response.status,
+            "",
+            "Refusing insecure redirect"
+          );
+        }
+        url = next;
+        continue;
+      }
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new JiraError(response.status, body);
+      }
+
+      const declared = Number(response.headers.get("Content-Length"));
+      if (Number.isFinite(declared) && declared > maxBytes) {
+        await response.body?.cancel();
+        throw new AttachmentTooLargeError(maxBytes);
+      }
+      const bytes = await readCapped(response, maxBytes);
+      const mime =
+        response.headers.get("Content-Type")?.split(";")[0]?.trim() ||
+        "application/octet-stream";
+      return { mime, bytes };
+    }
+    throw new JiraError(0, "", "Too many redirects");
+  }
+
   // --- Write side (only reached when a link has pushEnabled) ---
 
   async updateIssueFields(
@@ -318,5 +465,57 @@ export class JiraClient {
       body: { body },
       schema: jiraCommentSchema,
     });
+  }
+
+  /**
+   * Create an issue; `fields` are already in the flavor's shapes. Retried on
+   * 429 only: any other failure may follow a committed create, and a repeat
+   * would make a second issue.
+   */
+  async createIssue(
+    fields: Record<string, unknown>
+  ): Promise<{ id: string; key: string }> {
+    const created = await this.request("/issue", {
+      method: "POST",
+      body: { fields },
+      schema: jiraCreatedIssueSchema,
+      retry: "rate-limit",
+    });
+    return { id: created.id, key: created.key };
+  }
+
+  /**
+   * What creating an issue in `projectKey` takes: the issue type named
+   * `issueTypeName` (case-insensitive), else "Task", else the first
+   * non-subtask type, with the fields that type offers on the create screen.
+   * Null when the project offers no issue type at all.
+   */
+  async getCreateMeta(
+    projectKey: string,
+    issueTypeName: string
+  ): Promise<{
+    issueType: { id: string; name: string };
+    fields: JiraCreateMetaField[];
+  } | null> {
+    const base = `/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes`;
+    const page = await this.request(base, {
+      query: { maxResults: 200 },
+      schema: jiraCreateMetaIssueTypesSchema,
+    });
+    const types = (page.issueTypes ?? page.values ?? []).filter(
+      (t) => t.subtask !== true
+    );
+    const named = (name: string) =>
+      types.find((t) => t.name.toLowerCase() === name.toLowerCase());
+    const issueType = named(issueTypeName) ?? named("Task") ?? types[0];
+    if (!issueType) return null;
+    const fieldPage = await this.request(
+      `${base}/${encodeURIComponent(issueType.id)}`,
+      { query: { maxResults: 200 }, schema: jiraCreateMetaFieldsSchema }
+    );
+    return {
+      issueType: { id: issueType.id, name: issueType.name },
+      fields: fieldPage.fields ?? fieldPage.results ?? fieldPage.values ?? [],
+    };
   }
 }

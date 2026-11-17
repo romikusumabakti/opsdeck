@@ -33,6 +33,7 @@ import { Route as LocaleAppAccountChangePasswordRouteImport } from './routes/$lo
 import { Route as LocaleAppAdminIndexRouteImport } from './routes/$locale/_app/admin.index'
 import { Route as LocaleAppAdminAccessRouteImport } from './routes/$locale/_app/admin.access'
 import { Route as LocaleAppAdminActivityRouteImport } from './routes/$locale/_app/admin.activity'
+import { Route as LocaleAppAdminAssistantRouteImport } from './routes/$locale/_app/admin.assistant'
 import { Route as LocaleAppAdminInstanceRouteImport } from './routes/$locale/_app/admin.instance'
 import { Route as LocaleAppAdminUsersRouteImport } from './routes/$locale/_app/admin.users'
 import { Route as LocaleAppAppsIndexRouteImport } from './routes/$locale/_app/apps.index'
@@ -48,6 +49,7 @@ import { Route as LocaleAppServersNewRouteImport } from './routes/$locale/_app/s
 import { Route as LocaleAppStorageIndexRouteImport } from './routes/$locale/_app/storage.index'
 import { Route as LocaleAppStorageNewRouteImport } from './routes/$locale/_app/storage.new'
 import { Route as LocaleAppProjectKeyEnvSlugIndexRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.index'
+import { Route as LocaleAppProjectKeyEnvSlugAssistantRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.assistant'
 import { Route as LocaleAppProjectKeyEnvSlugBackupDatabaseRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-database'
 import { Route as LocaleAppProjectKeyEnvSlugBackupRestoreRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.backup-restore'
 import { Route as LocaleAppProjectKeyEnvSlugDatabasesRouteImport } from './routes/$locale/_app/$projectKey.$envSlug.databases'
@@ -225,6 +227,11 @@ const LocaleAppAdminActivityRoute = LocaleAppAdminActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => LocaleAppAdminRouteRoute,
 } as any)
+const LocaleAppAdminAssistantRoute = LocaleAppAdminAssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
+  getParentRoute: () => LocaleAppAdminRouteRoute,
+} as any)
 const LocaleAppAdminInstanceRoute = LocaleAppAdminInstanceRouteImport.update({
   id: '/instance',
   path: '/instance',
@@ -300,6 +307,12 @@ const LocaleAppProjectKeyEnvSlugIndexRoute =
   LocaleAppProjectKeyEnvSlugIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
+  } as any)
+const LocaleAppProjectKeyEnvSlugAssistantRoute =
+  LocaleAppProjectKeyEnvSlugAssistantRouteImport.update({
+    id: '/assistant',
+    path: '/assistant',
     getParentRoute: () => LocaleAppProjectKeyEnvSlugRouteRoute,
   } as any)
 const LocaleAppProjectKeyEnvSlugBackupDatabaseRoute =
@@ -615,6 +628,7 @@ export interface FileRoutesByFullPath {
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/admin/assistant': typeof LocaleAppAdminAssistantRoute
   '/$locale/admin/instance': typeof LocaleAppAdminInstanceRoute
   '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/apps/new': typeof LocaleAppAppsNewRoute
@@ -632,6 +646,7 @@ export interface FileRoutesByFullPath {
   '/$locale/projects/': typeof LocaleAppProjectsIndexRoute
   '/$locale/servers/': typeof LocaleAppServersIndexRoute
   '/$locale/storage/': typeof LocaleAppStorageIndexRoute
+  '/$locale/$projectKey/$envSlug/assistant': typeof LocaleAppProjectKeyEnvSlugAssistantRoute
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -701,6 +716,7 @@ export interface FileRoutesByTo {
   '/$locale/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/admin/assistant': typeof LocaleAppAdminAssistantRoute
   '/$locale/admin/instance': typeof LocaleAppAdminInstanceRoute
   '/$locale/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/apps/new': typeof LocaleAppAppsNewRoute
@@ -718,6 +734,7 @@ export interface FileRoutesByTo {
   '/$locale/projects': typeof LocaleAppProjectsIndexRoute
   '/$locale/servers': typeof LocaleAppServersIndexRoute
   '/$locale/storage': typeof LocaleAppStorageIndexRoute
+  '/$locale/$projectKey/$envSlug/assistant': typeof LocaleAppProjectKeyEnvSlugAssistantRoute
   '/$locale/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -793,6 +810,7 @@ export interface FileRoutesById {
   '/$locale/_app/account/change-password': typeof LocaleAppAccountChangePasswordRoute
   '/$locale/_app/admin/access': typeof LocaleAppAdminAccessRoute
   '/$locale/_app/admin/activity': typeof LocaleAppAdminActivityRoute
+  '/$locale/_app/admin/assistant': typeof LocaleAppAdminAssistantRoute
   '/$locale/_app/admin/instance': typeof LocaleAppAdminInstanceRoute
   '/$locale/_app/admin/users': typeof LocaleAppAdminUsersRoute
   '/$locale/_app/apps/new': typeof LocaleAppAppsNewRoute
@@ -810,6 +828,7 @@ export interface FileRoutesById {
   '/$locale/_app/projects/': typeof LocaleAppProjectsIndexRoute
   '/$locale/_app/servers/': typeof LocaleAppServersIndexRoute
   '/$locale/_app/storage/': typeof LocaleAppStorageIndexRoute
+  '/$locale/_app/$projectKey/$envSlug/assistant': typeof LocaleAppProjectKeyEnvSlugAssistantRoute
   '/$locale/_app/$projectKey/$envSlug/backup-database': typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   '/$locale/_app/$projectKey/$envSlug/backup-restore': typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   '/$locale/_app/$projectKey/$envSlug/databases': typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -885,6 +904,7 @@ export interface FileRouteTypes {
     | '/$locale/account/change-password'
     | '/$locale/admin/access'
     | '/$locale/admin/activity'
+    | '/$locale/admin/assistant'
     | '/$locale/admin/instance'
     | '/$locale/admin/users'
     | '/$locale/apps/new'
@@ -902,6 +922,7 @@ export interface FileRouteTypes {
     | '/$locale/projects/'
     | '/$locale/servers/'
     | '/$locale/storage/'
+    | '/$locale/$projectKey/$envSlug/assistant'
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
     | '/$locale/$projectKey/$envSlug/databases'
@@ -971,6 +992,7 @@ export interface FileRouteTypes {
     | '/$locale/account/change-password'
     | '/$locale/admin/access'
     | '/$locale/admin/activity'
+    | '/$locale/admin/assistant'
     | '/$locale/admin/instance'
     | '/$locale/admin/users'
     | '/$locale/apps/new'
@@ -988,6 +1010,7 @@ export interface FileRouteTypes {
     | '/$locale/projects'
     | '/$locale/servers'
     | '/$locale/storage'
+    | '/$locale/$projectKey/$envSlug/assistant'
     | '/$locale/$projectKey/$envSlug/backup-database'
     | '/$locale/$projectKey/$envSlug/backup-restore'
     | '/$locale/$projectKey/$envSlug/databases'
@@ -1062,6 +1085,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/account/change-password'
     | '/$locale/_app/admin/access'
     | '/$locale/_app/admin/activity'
+    | '/$locale/_app/admin/assistant'
     | '/$locale/_app/admin/instance'
     | '/$locale/_app/admin/users'
     | '/$locale/_app/apps/new'
@@ -1079,6 +1103,7 @@ export interface FileRouteTypes {
     | '/$locale/_app/projects/'
     | '/$locale/_app/servers/'
     | '/$locale/_app/storage/'
+    | '/$locale/_app/$projectKey/$envSlug/assistant'
     | '/$locale/_app/$projectKey/$envSlug/backup-database'
     | '/$locale/_app/$projectKey/$envSlug/backup-restore'
     | '/$locale/_app/$projectKey/$envSlug/databases'
@@ -1307,6 +1332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocaleAppAdminActivityRouteImport
       parentRoute: typeof LocaleAppAdminRouteRoute
     }
+    '/$locale/_app/admin/assistant': {
+      id: '/$locale/_app/admin/assistant'
+      path: '/assistant'
+      fullPath: '/$locale/admin/assistant'
+      preLoaderRoute: typeof LocaleAppAdminAssistantRouteImport
+      parentRoute: typeof LocaleAppAdminRouteRoute
+    }
     '/$locale/_app/admin/instance': {
       id: '/$locale/_app/admin/instance'
       path: '/instance'
@@ -1410,6 +1442,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/$locale/$projectKey/$envSlug/'
       preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugIndexRouteImport
+      parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
+    }
+    '/$locale/_app/$projectKey/$envSlug/assistant': {
+      id: '/$locale/_app/$projectKey/$envSlug/assistant'
+      path: '/assistant'
+      fullPath: '/$locale/$projectKey/$envSlug/assistant'
+      preLoaderRoute: typeof LocaleAppProjectKeyEnvSlugAssistantRouteImport
       parentRoute: typeof LocaleAppProjectKeyEnvSlugRouteRoute
     }
     '/$locale/_app/$projectKey/$envSlug/backup-database': {
@@ -1768,6 +1807,7 @@ declare module '@tanstack/react-router' {
 interface LocaleAppAdminRouteRouteChildren {
   LocaleAppAdminAccessRoute: typeof LocaleAppAdminAccessRoute
   LocaleAppAdminActivityRoute: typeof LocaleAppAdminActivityRoute
+  LocaleAppAdminAssistantRoute: typeof LocaleAppAdminAssistantRoute
   LocaleAppAdminInstanceRoute: typeof LocaleAppAdminInstanceRoute
   LocaleAppAdminUsersRoute: typeof LocaleAppAdminUsersRoute
   LocaleAppAdminIndexRoute: typeof LocaleAppAdminIndexRoute
@@ -1797,6 +1837,7 @@ interface LocaleAppAdminRouteRouteChildren {
 const LocaleAppAdminRouteRouteChildren: LocaleAppAdminRouteRouteChildren = {
   LocaleAppAdminAccessRoute: LocaleAppAdminAccessRoute,
   LocaleAppAdminActivityRoute: LocaleAppAdminActivityRoute,
+  LocaleAppAdminAssistantRoute: LocaleAppAdminAssistantRoute,
   LocaleAppAdminInstanceRoute: LocaleAppAdminInstanceRoute,
   LocaleAppAdminUsersRoute: LocaleAppAdminUsersRoute,
   LocaleAppAdminIndexRoute: LocaleAppAdminIndexRoute,
@@ -1854,6 +1895,7 @@ const LocaleAppKnowledgeRouteRouteWithChildren =
   )
 
 interface LocaleAppProjectKeyEnvSlugRouteRouteChildren {
+  LocaleAppProjectKeyEnvSlugAssistantRoute: typeof LocaleAppProjectKeyEnvSlugAssistantRoute
   LocaleAppProjectKeyEnvSlugBackupDatabaseRoute: typeof LocaleAppProjectKeyEnvSlugBackupDatabaseRoute
   LocaleAppProjectKeyEnvSlugBackupRestoreRoute: typeof LocaleAppProjectKeyEnvSlugBackupRestoreRoute
   LocaleAppProjectKeyEnvSlugDatabasesRoute: typeof LocaleAppProjectKeyEnvSlugDatabasesRoute
@@ -1872,6 +1914,8 @@ interface LocaleAppProjectKeyEnvSlugRouteRouteChildren {
 
 const LocaleAppProjectKeyEnvSlugRouteRouteChildren: LocaleAppProjectKeyEnvSlugRouteRouteChildren =
   {
+    LocaleAppProjectKeyEnvSlugAssistantRoute:
+      LocaleAppProjectKeyEnvSlugAssistantRoute,
     LocaleAppProjectKeyEnvSlugBackupDatabaseRoute:
       LocaleAppProjectKeyEnvSlugBackupDatabaseRoute,
     LocaleAppProjectKeyEnvSlugBackupRestoreRoute:

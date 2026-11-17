@@ -153,7 +153,7 @@ describe("app sidebar", () => {
     );
   });
 
-  it("admin group: Activity, Users, Repositories, Instance, then Integrations: Jira, CI, Cloudflare; no Tunnels", async () => {
+  it("admin group: Activity, Users, Repositories, Instance, then Integrations: Jira, CI, Cloudflare, Assistant; no Tunnels", async () => {
     await renderSidebar("admin", "/admin/activity");
     expect(groupRows(messages.nav.admin)).toEqual([
       messages.nav.activity,
@@ -165,6 +165,7 @@ describe("app sidebar", () => {
       messages.nav.jira,
       messages.nav.ci,
       messages.nav.cloudflare,
+      messages.nav.assistant,
     ]);
     const headings = [...container.querySelectorAll("h2")].map(
       (h) => h.textContent

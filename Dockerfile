@@ -48,11 +48,13 @@ RUN chmod 644 /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
 # .node addon bundled with the server (ssh2's cpufeatures) and fails with EACCES
 # if $HOME does not exist. `menara` on PATH runs the CLI (bun dist/cli.js).
 # /var/lib/menara/backups holds local backups (bind-mounted from ${dir}/backups).
+# /var/lib/menara/assistant holds the code assistant's source cache (a named
+# volume, which inherits this ownership on first mount).
 RUN groupadd --system --gid 1001 app \
     && useradd --system --create-home --uid 1001 --gid app app \
     && printf '#!/bin/sh\nexec bun /app/dist/cli.js "$@"\n' > /usr/local/bin/menara \
     && chmod 755 /usr/local/bin/menara \
-    && install -d -o app -g app /var/lib/menara/backups
+    && install -d -o app -g app /var/lib/menara/backups /var/lib/menara/assistant
 
 # The release workflow passes the version without the leading v (1.2.3). It is
 # baked in so /api/health and the update check can report what is running.

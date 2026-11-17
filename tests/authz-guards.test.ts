@@ -44,6 +44,10 @@ const SCOPED_READS: Record<string, string[]> = {
     "listPersonOpenIssues",
     "listPersonRecentRuns",
   ],
+  "server/services/assistant.ts": [
+    "listConversations",
+    "listIssueAttachmentsForPicker",
+  ],
   "lib/home/queries.ts": [
     "getAttentionGroups",
     "listMyOpenIssues",
@@ -173,6 +177,11 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     applyTemplate: /variable: \["write"\]/,
     setEnvFileManaged: /variable: \["write"\], deploy: \["configure"\]/,
   },
+  "server/services/assistant.ts": {
+    createConversation: /assistant: \["use"\]/,
+    // The conversation's owner, on a project they can still ask about.
+    sendMessage: /ownConversation\(/,
+  },
   "server/services/jira.ts": {
     getJiraLink: /project: \["read"\]/,
     saveJiraLink: /environment: \["update"\]/,
@@ -254,6 +263,21 @@ describe("mention notifications only reach users who can see the project", () =>
 });
 
 describe("lookups by client-supplied id check the caller first", () => {
+  it("assistant conversations are their owner's, on a project with assistant:use", () => {
+    const source = readFileSync("server/services/assistant.ts", "utf8");
+    expect(source).toMatch(
+      /conversation\.userId !== session\.user\.id\) notFound\(\)/
+    );
+    expect(source).toMatch(
+      /requireProjectPermission\(\s*\{ projectId: conversation\.projectId \},\s*\{ assistant: \["use"\] \}/
+    );
+    for (const fn of ["getConversation", "sendMessage"]) {
+      expect(body(source, fn)).toMatch(/ownConversation\(/);
+    }
+    expect(body(source, "authorizeMessageStream")).toMatch(
+      /requireOwnConversation\(/
+    );
+  });
   it("recordEnvironmentAccess only records visible environments", () => {
     const fn = body(
       readFileSync("server/services/environments.ts", "utf8"),

@@ -64,6 +64,17 @@ function message(
   switch (row.action) {
     case "issue.created":
       return t("issueCreated", { actor, key: String(d.key) });
+    case "issue.created_from_assistant":
+      return t("issueCreatedFromAssistant", {
+        actor,
+        key: String(d.key),
+        jiraKey: String(d.jiraKey),
+      });
+    case "issue.jira_create_unlinked":
+      return t("issueJiraCreateUnlinked", {
+        actor,
+        jiraKey: String(d.jiraKey),
+      });
     case "issue.status_changed":
       return t("issueStatusChanged", {
         actor,
@@ -200,6 +211,15 @@ function message(
       return t("mailpitConfigured", {
         actor,
         environment: String(d.environment),
+      });
+    case "assistant.configured":
+      return t("assistantConfigured", {
+        actor,
+        enabled: String(d.enabled),
+        model: String(d.model),
+        effort: String(d.effort),
+        dailyCapUsd: Number(d.dailyCapUsd),
+        keyChanged: String(d.keyChanged),
       });
     case "variables.revealed":
       return t("variablesRevealed", {

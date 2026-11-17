@@ -41,6 +41,7 @@ import {
   projects,
   users as userTable,
 } from "@/lib/db/schema";
+import { insertIssueWithNextNumber } from "@/lib/issue-number";
 import {
   type IssueSort,
   type IssueView,
@@ -684,63 +685,40 @@ export async function createIssue(
     return { success: false, message: "Invalid issue data" };
   }
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const created = await db.transaction(async (tx) => {
-        const [highest] = await tx
-          .select({
-            max: sql<number>`coalesce(max(${issues.number}), 0)`,
-          })
-          .from(issues)
-          .where(eq(issues.projectId, input.projectId));
-        // A bare aggregate always yields one row, and the coalesce already
-        // makes it 0 for an empty project — so the fallback is that same 0.
-        const max = highest?.max ?? 0;
-        const row = one(
-          await tx
-            .insert(issues)
-            .values({
-              projectId: input.projectId,
-              number: Number(max) + 1,
-              title: input.title,
-              description: input.description ?? "",
-              type: input.type,
-              priority: input.priority,
-              environmentId: input.environmentId ?? null,
-              assigneeId: input.assigneeId ?? null,
-              parentId: input.parentId ?? null,
-              createdById: session.user.id,
-            })
-            .returning(),
-          "issue"
-        );
-        return row;
-      });
-      const projectKey = await projectKeyOf(input.projectId);
-      if (input.assigneeId) {
-        await notifyIssueAssigned({
-          assigneeId: input.assigneeId,
-          actorId: session.user.id,
-          projectKey,
-          number: created.number,
-          title: created.title,
-        });
-      }
-      await recordActivity({
+  try {
+    // The next per-project number, retried on a lost race (lib/issue-number).
+    const created = await insertIssueWithNextNumber(db, input.projectId, {
+      title: input.title,
+      description: input.description ?? "",
+      type: input.type,
+      priority: input.priority,
+      environmentId: input.environmentId ?? null,
+      assigneeId: input.assigneeId ?? null,
+      parentId: input.parentId ?? null,
+      createdById: session.user.id,
+    });
+    const projectKey = await projectKeyOf(input.projectId);
+    if (input.assigneeId) {
+      await notifyIssueAssigned({
+        assigneeId: input.assigneeId,
         actorId: session.user.id,
-        action: "issue.created",
-        entityType: "issue",
-        entityId: created.id,
-        data: { key: `${projectKey}-${created.number}`, title: created.title },
+        projectKey,
+        number: created.number,
+        title: created.title,
       });
-      return { success: true, data: created };
-    } catch (error) {
-      if ((error as { code?: string })?.code === "23505") continue; // retry
-      console.error("Failed to create issue:", error);
-      return { success: false, message: "Failed to create issue" };
     }
+    await recordActivity({
+      actorId: session.user.id,
+      action: "issue.created",
+      entityType: "issue",
+      entityId: created.id,
+      data: { key: `${projectKey}-${created.number}`, title: created.title },
+    });
+    return { success: true, data: created };
+  } catch (error) {
+    console.error("Failed to create issue:", error);
+    return { success: false, message: "Failed to create issue" };
   }
-  return { success: false, message: "Failed to create issue" };
 }
 
 export async function updateIssue(

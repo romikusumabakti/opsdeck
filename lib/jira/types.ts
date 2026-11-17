@@ -181,3 +181,96 @@ export const ISSUE_FIELDS = [
   "labels",
   "parent",
 ] as const;
+
+/**
+ * One entry of an issue's `attachment` field. Cloud and Data Center return the
+ * same shape; `id` is a numeric string on both, coerced in case a version
+ * returns a number.
+ */
+export const jiraAttachmentSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).transform(String),
+    filename: z.string(),
+    mimeType: z.string().nullish(),
+    size: z.number().nullish(),
+    created: z.string().nullish(),
+  })
+  .loose();
+
+export const jiraIssueAttachmentsSchema = z
+  .object({
+    fields: z
+      .object({ attachment: z.array(jiraAttachmentSchema).nullish() })
+      .loose()
+      .default({}),
+  })
+  .loose();
+
+export type JiraAttachmentMeta = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  created: string | null;
+};
+
+// --- Create metadata (Cloud: /issue/createmeta/{project}/issuetypes) --------
+
+export const jiraCreateMetaIssueTypesSchema = z
+  .object({
+    // Cloud names the page `issueTypes`; Data Center 9 calls it `values`.
+    issueTypes: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            subtask: z.boolean().optional(),
+          })
+          .loose()
+      )
+      .optional(),
+    values: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            subtask: z.boolean().optional(),
+          })
+          .loose()
+      )
+      .optional(),
+  })
+  .loose();
+
+const jiraCreateMetaFieldSchema = z
+  .object({
+    fieldId: z.string(),
+    key: z.string().optional(),
+    name: z.string(),
+    required: z.boolean().optional(),
+    schema: z
+      .object({
+        type: z.string(),
+        custom: z.string().optional(),
+        system: z.string().optional(),
+      })
+      .loose()
+      .optional(),
+  })
+  .loose();
+
+export const jiraCreateMetaFieldsSchema = z
+  .object({
+    fields: z.array(jiraCreateMetaFieldSchema).optional(),
+    results: z.array(jiraCreateMetaFieldSchema).optional(),
+    values: z.array(jiraCreateMetaFieldSchema).optional(),
+  })
+  .loose();
+
+export type JiraCreateMetaField = z.infer<typeof jiraCreateMetaFieldSchema>;
+
+export const jiraCreatedIssueSchema = z
+  .object({ id: z.string(), key: z.string() })
+  .loose();

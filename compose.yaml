@@ -94,6 +94,9 @@ services:
       IMGPROXY_URL: ${IMGPROXY_URL:-http://imgproxy:8080}
       IMGPROXY_KEY: ${IMGPROXY_KEY:?IMGPROXY_KEY is required}
       IMGPROXY_SALT: ${IMGPROXY_SALT:?IMGPROXY_SALT is required}
+    volumes:
+      # Source snapshots the code assistant downloads (a cache: safe to lose).
+      - assistant_cache:/var/lib/menara/assistant
     healthcheck:
       # Use Bun's built-in fetch — `curl` isn't in oven/bun:slim, and there is
       # no `node` binary in the image at all.
@@ -257,3 +260,5 @@ volumes:
     name: menara_caddy_data
   caddy_config:
     name: menara_caddy_config
+  assistant_cache:
+    name: menara_assistant_cache

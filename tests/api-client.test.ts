@@ -162,6 +162,24 @@ describe("apiFetch", () => {
     expect((error as ApiError).code).toBeUndefined();
   });
 
+  it("carries a coded refusal's params", async () => {
+    const { apiFetch } = setup(
+      Response.json(
+        {
+          error: "Cap reached",
+          code: "assistant.daily_cap_reached",
+          params: { capUsd: 1.5, resetsAt: "2026-11-16T17:00:00.000Z" },
+        },
+        { status: 429 }
+      )
+    );
+    const error = await apiFetch("/api/x").catch((e: unknown) => e);
+    expect((error as ApiError).params).toEqual({
+      capUsd: 1.5,
+      resetsAt: "2026-11-16T17:00:00.000Z",
+    });
+  });
+
   it("falls back to the status text for a non-JSON error body", async () => {
     const { apiFetch } = setup(
       new Response("nope", { status: 502, statusText: "Bad Gateway" })

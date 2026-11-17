@@ -43,6 +43,8 @@ const orgStatements = {
   audit: ["read"],
   // The Panel instance itself: its backups and updates (Admin → Instance).
   instance: ["manage"],
+  // The code assistant's settings: API key, model, effort and daily cap.
+  assistant: ["manage"],
 } as const;
 
 export const orgAc = createAccessControl(orgStatements);
@@ -63,6 +65,7 @@ export const orgRoles = {
     knowledge: ["read", "write", "manage"],
     audit: ["read"],
     instance: ["manage"],
+    assistant: ["manage"],
   }),
   infra: orgAc.newRole({
     ...infraOps,
@@ -122,6 +125,8 @@ const projectStatements = {
   // Client releases of legacy artifacts: engineers only; listing needs
   // `deploy: view`, deleting is the org-level `server:manage`.
   release: ["create", "download"],
+  // Ask the code assistant about a project; every role that sees the project.
+  assistant: ["use"],
 } as const;
 
 export const projectAc = createAccessControl(projectStatements);
@@ -130,6 +135,7 @@ const viewerStatements = {
   project: ["read"],
   service: ["logs"],
   deploy: ["view"],
+  assistant: ["use"],
 } as const;
 
 const qaStatements = {
@@ -159,6 +165,7 @@ export const projectRoles = {
     deploy: ["view", "run", "rollback", "configure"],
     variable: ["read", "write"],
     release: ["create", "download"],
+    assistant: ["use"],
   }),
 } satisfies Record<ProjectRole, unknown>;
 

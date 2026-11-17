@@ -10,9 +10,11 @@ import {
   boolean,
   check,
   customType,
+  date,
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -22,6 +24,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { AccentColor } from "@/lib/accents";
+import type { AssistantSource } from "@/lib/assistant/sources";
 import type { BuildSpec } from "@/lib/ci/build-spec";
 import type { PipelineFileCommits } from "@/lib/ci/types";
 import type { MotifPreference } from "@/lib/motifs";
@@ -2475,6 +2478,20 @@ export const instanceSettings = pgTable(
     autoUpdate: boolean("auto_update").notNull().default(false),
     // HH:MM in the instance time zone.
     autoUpdateWindow: text("auto_update_window").notNull().default("03:00"),
+    // Code assistant. The API key is stored as ciphertext (encryptSecret).
+    assistantEnabled: boolean("assistant_enabled").notNull().default(false),
+    anthropicApiKey: text("anthropic_api_key"),
+    assistantModel: text("assistant_model")
+      .notNull()
+      .default("claude-opus-5-5"),
+    assistantEffort: text("assistant_effort").notNull().default("medium"),
+    // Per-user daily spend cap in USD (quota day in APP_TIMEZONE).
+    assistantDailyCapUsd: numeric("assistant_daily_cap_usd", {
+      precision: 8,
+      scale: 2,
+    })
+      .notNull()
+      .default("1.50"),
   },
   (t) => [
     check("instance_settings_singleton", sql`${t.id} = 1`),
@@ -2631,3 +2648,166 @@ export type TeardownStep = InferSelectModel<typeof teardownSteps>;
 export type EnvironmentArchive = InferSelectModel<typeof environmentArchives>;
 export type InstanceBackup = InferSelectModel<typeof instanceBackups>;
 export type NewInstanceBackup = InferInsertModel<typeof instanceBackups>;
+
+// =========================
+// Code assistant
+// =========================
+
+export const assistantMessageRoleEnum = pgEnum("assistant_message_role", [
+  "user",
+  "assistant",
+]);
+
+export const assistantMessageStatusEnum = pgEnum("assistant_message_status", [
+  "queued",
+  "streaming",
+  "done",
+  "failed",
+]);
+
+export const assistantDraftKindEnum = pgEnum("assistant_draft_kind", [
+  "brd",
+  "jira",
+]);
+
+// One chat per user, scoped to a project. `environmentName` is a snapshot, so
+// the title survives the environment being deleted (environmentId then nulls).
+export const assistantConversations = pgTable(
+  "assistant_conversations",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, {
+        name: "assistant_conversations_user_id_users_id_fk",
+        onDelete: "cascade",
+      }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, {
+        name: "assistant_conversations_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
+    environmentId: uuid("environment_id").references(() => environments.id, {
+      name: "assistant_conversations_environment_id_environments_id_fk",
+      onDelete: "set null",
+    }),
+    environmentName: text("environment_name").notNull(),
+    title: text("title").notNull().default(""),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("assistant_conversations_user_updated_idx").on(
+      t.userId,
+      t.updatedAt.desc()
+    ),
+  ]
+);
+
+export const assistantMessages = pgTable(
+  "assistant_messages",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => assistantConversations.id, {
+        name: "assistant_messages_conversation_id_conversations_fk",
+        onDelete: "cascade",
+      }),
+    role: assistantMessageRoleEnum("role").notNull(),
+    content: text("content").notNull().default(""),
+    status: assistantMessageStatusEnum("status").notNull(),
+    errorCode: text("error_code"),
+    sources: jsonb("sources").$type<AssistantSource[]>(),
+    // Jira attachment ids the user ticked for this question.
+    attachmentIds: text("attachment_ids").array().notNull().default(sql`'{}'`),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (t) => [
+    index("assistant_messages_conversation_idx").on(
+      t.conversationId,
+      t.createdAt
+    ),
+  ]
+);
+
+export const assistantToolCalls = pgTable(
+  "assistant_tool_calls",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => assistantMessages.id, {
+        name: "assistant_tool_calls_message_id_assistant_messages_id_fk",
+        onDelete: "cascade",
+      }),
+    tool: text("tool").notNull(),
+    input: jsonb("input").$type<Record<string, unknown>>().notNull(),
+    // What came back, without the content: paths, ranges, issue keys, doc
+    // slugs and the count of withheld files.
+    resultMeta: jsonb("result_meta").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("assistant_tool_calls_message_idx").on(t.messageId)]
+);
+
+export const assistantUsage = pgTable(
+  "assistant_usage",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    messageId: uuid("message_id").references(() => assistantMessages.id, {
+      name: "assistant_usage_message_id_assistant_messages_id_fk",
+      onDelete: "set null",
+    }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, {
+        name: "assistant_usage_user_id_users_id_fk",
+        onDelete: "cascade",
+      }),
+    model: text("model"),
+    inputTokens: integer("input_tokens"),
+    cacheReadTokens: integer("cache_read_tokens"),
+    cacheWriteTokens: integer("cache_write_tokens"),
+    outputTokens: integer("output_tokens"),
+    costUsd: numeric("cost_usd", { precision: 10, scale: 6 }).notNull(),
+    // The quota day, in APP_TIMEZONE.
+    day: date("day").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("assistant_usage_user_day_idx").on(t.userId, t.day)]
+);
+
+// A BRD or Jira issue the assistant drafted. `issueId` is set once the draft
+// was filed as a panel issue.
+export const assistantDrafts = pgTable(
+  "assistant_drafts",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => assistantConversations.id, {
+        name: "assistant_drafts_conversation_id_assistant_conversations_id_fk",
+        onDelete: "cascade",
+      }),
+    kind: assistantDraftKindEnum("kind").notNull(),
+    content: jsonb("content").$type<Record<string, unknown>>().notNull(),
+    issueId: uuid("issue_id").references(() => issues.id, {
+      name: "assistant_drafts_issue_id_issues_id_fk",
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("assistant_drafts_conversation_idx").on(t.conversationId)]
+);
+
+export type AssistantConversation = InferSelectModel<
+  typeof assistantConversations
+>;
+export type AssistantMessage = InferSelectModel<typeof assistantMessages>;
+export type AssistantToolCall = InferSelectModel<typeof assistantToolCalls>;
+export type AssistantUsage = InferSelectModel<typeof assistantUsage>;
+export type AssistantDraft = InferSelectModel<typeof assistantDrafts>;
