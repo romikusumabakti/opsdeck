@@ -1,104 +1,48 @@
-// `menara seed demo`: sample projects, placeholder servers, a few issues and
-// one sign-in account per role, for beta instances. Everything is keyed by a
-// fixed key and kept when present, so a second run changes nothing.
+// `menara seed demo`: fictional sample data for beta instances — projects
+// with environments, placeholder servers, apps, a month of deploy history,
+// staff, issues and a knowledge base — plus one sign-in account per role.
+// Everything is keyed by a fixed key and kept when present, and rows that
+// hang off a parent (comments, deployments, revisions) are added only with a
+// parent created in the same run, so a second run changes nothing.
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { instanceSettings } from "@/lib/db/schema";
 import {
-  accounts,
-  environments,
-  type IssuePriority,
-  type IssueStatus,
-  type IssueType,
-  instanceSettings,
-  issues,
-  projectMembers,
-  projects,
-  servers,
-  users,
-} from "@/lib/db/schema";
-import type { OrgRole } from "@/lib/permissions";
+  seedApps,
+  seedEnvironments,
+  seedProjects,
+  seedServers,
+} from "./seed-steps/catalog";
+import type { SeedContext } from "./seed-steps/context";
+import { seedDeploys } from "./seed-steps/deploys";
+import { seedIssues } from "./seed-steps/issues";
+import { seedKnowledge } from "./seed-steps/knowledge";
+import { seedAccounts, seedStaff } from "./seed-steps/people";
+
+export { DEMO_ACCOUNTS } from "./seed-steps/people";
 
 export const SEED_USAGE = `Usage: menara seed demo [--print-passwords] [--force]
   (in the image: bun dist/cli.js seed demo [--print-passwords] [--force])
 
-Creates (or keeps, when present) the demo projects DEMO and DEMOPORTAL with
-Dev and QA environments, two placeholder servers (sandbox-N.invalid, never
-reachable), a few issues, and one account per role (demo-admin, demo-infra,
-demo-observer, demo-engineer, demo-qa @example.invalid) with
-email+password sign-in. Existing rows and accounts are never changed or reset.
+Creates (or keeps, when present) fictional demo data:
+- projects DEMO, DEMOPORTAL, NPMB, NPCP and BSAC, each with Dev, QA and Demo
+  environments, on three placeholder servers (sandbox-N.invalid, never
+  reachable);
+- apps Demo Membership, Demo Portal and Demo Accounting (repositories under
+  demo-org/, a placeholder CI connection) with a deploy target per
+  environment and component, and 30 days of finished builds and deployments;
+- ten staff members @example.invalid who cannot sign in, project
+  memberships, issues with comments, labels and milestones, notifications,
+  activity entries, and a small knowledge base;
+- one account per role (demo-admin, demo-infra, demo-observer,
+  demo-engineer, demo-qa @example.invalid) with email+password sign-in.
+Existing rows and accounts are never changed or reset.
 --print-passwords  Print the generated password of each account created now.
 --force            Seed even when NODE_ENV=production and the update channel
                    is stable (refused otherwise).`;
 
 export const DEMO_EMAIL_DOMAIN = "example.invalid";
-
-interface DemoAccount {
-  name: string;
-  orgRole: OrgRole;
-  // A member of both demo projects: what makes them visible to an engineer
-  // or QA.
-  member: boolean;
-}
-
-export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
-  { name: "demo-admin", orgRole: "admin", member: false },
-  { name: "demo-infra", orgRole: "infra", member: false },
-  { name: "demo-observer", orgRole: "observer", member: false },
-  { name: "demo-engineer", orgRole: "engineer", member: true },
-  { name: "demo-qa", orgRole: "qa", member: true },
-];
-
-const DEMO_PROJECTS = [
-  { key: "DEMO", name: "Demo Membership" },
-  { key: "DEMOPORTAL", name: "Demo Portal" },
-] as const;
-
-const DEMO_ENVIRONMENTS = [
-  { name: "Dev", slug: "dev", kind: "dev" },
-  { name: "QA", slug: "qa", kind: "qa" },
-] as const;
-
-const DEMO_SERVERS = ["sandbox-1.invalid", "sandbox-2.invalid"] as const;
-
-interface DemoIssue {
-  number: number;
-  title: string;
-  status: IssueStatus;
-  type: IssueType;
-  priority: IssuePriority;
-}
-
-const DEMO_ISSUES: readonly DemoIssue[] = [
-  {
-    number: 1,
-    title: "Member import rejects empty rows",
-    status: "open",
-    type: "bug",
-    priority: "high",
-  },
-  {
-    number: 2,
-    title: "Add a contribution summary report",
-    status: "in_progress",
-    type: "story",
-    priority: "medium",
-  },
-  {
-    number: 3,
-    title: "Document the QA release checklist",
-    status: "resolved",
-    type: "task",
-    priority: "low",
-  },
-  {
-    number: 4,
-    title: "Retire the old export endpoint",
-    status: "closed",
-    type: "task",
-    priority: "low",
-  },
-];
 
 export interface SeedOptions {
   printPasswords: boolean;
@@ -107,16 +51,21 @@ export interface SeedOptions {
   hashPassword: (password: string) => Promise<string>;
   encryptSecret: (plaintext: string) => string;
   out: (line: string) => void;
+  // The moment the demo history ends at (tests pin it); defaults to now.
+  now?: Date;
 }
 
 export class SeedRefusedError extends Error {}
 
 const newPassword = () => randomBytes(18).toString("base64url");
 
+/** Rows inserted per area by one run; all zero on a re-run. */
+export type SeedCounts = Record<string, number>;
+
 export async function seedDemo(
   db: PostgresJsDatabase,
   opts: SeedOptions
-): Promise<void> {
+): Promise<SeedCounts> {
   const [settings] = await db
     .select({ channel: instanceSettings.updateChannel })
     .from(instanceSettings)
@@ -131,90 +80,38 @@ export async function seedDemo(
   // Printed once the transaction commits: a password for an account that a
   // rollback never created would be worthless, and misleading.
   const lines: string[] = [];
+  const inserted: SeedCounts = {};
   await db.transaction(async (tx) => {
-    const projectIds: string[] = [];
-    for (const project of DEMO_PROJECTS) {
-      await tx.insert(projects).values(project).onConflictDoNothing();
-      const [row] = await tx
-        .select({ id: projects.id })
-        .from(projects)
-        .where(eq(projects.key, project.key));
-      if (!row) throw new Error(`Project ${project.key} was not created`);
-      projectIds.push(row.id);
-    }
-
-    for (const projectId of projectIds) {
-      await tx
-        .insert(environments)
-        .values(DEMO_ENVIRONMENTS.map((e) => ({ ...e, projectId })))
-        .onConflictDoNothing();
-      await tx
-        .insert(issues)
-        .values(DEMO_ISSUES.map((i) => ({ ...i, projectId })))
-        .onConflictDoNothing();
-    }
-
-    for (const host of DEMO_SERVERS) {
-      const [existing] = await tx
-        .select({ id: servers.id })
-        .from(servers)
-        .where(eq(servers.host, host));
-      if (existing) continue;
-      await tx.insert(servers).values({
-        name: host.replace(/\.invalid$/, ""),
-        host,
-        username: "demo",
-        // A dummy: nothing can connect, so the value only has to be a valid
-        // envelope under this instance's SECRETS_KEY.
-        password: opts.encryptSecret(newPassword()),
-        placement: "open",
-      });
-    }
-
-    for (const account of DEMO_ACCOUNTS) {
-      const email = `${account.name}@${DEMO_EMAIL_DOMAIN}`;
-      const [existing] = await tx
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, email));
-      let userId = existing?.id;
-      if (!userId) {
-        userId = Bun.randomUUIDv7();
-        const password = newPassword();
-        // Written directly, not through auth.api: the user.create hook rejects
-        // any email outside ALLOWED_EMAIL_DOMAIN, and public sign-up is off.
-        // The hash comes from better-auth, so sign-in verifies it unchanged.
-        await tx.insert(users).values({
-          id: userId,
-          name: account.name,
-          email,
-          emailVerified: true,
-          role: account.orgRole,
-        });
-        await tx.insert(accounts).values({
-          id: Bun.randomUUIDv7(),
-          userId,
-          accountId: userId,
-          providerId: "credential",
-          password: await opts.hashPassword(password),
-        });
-        lines.push(
-          opts.printPasswords
-            ? `created ${email} (${account.orgRole}) password: ${password}`
-            : `created ${email} (${account.orgRole})`
-        );
-      } else {
-        lines.push(`exists  ${email}`);
-      }
-      if (account.member) {
-        await tx
-          .insert(projectMembers)
-          .values(projectIds.map((projectId) => ({ projectId, userId })))
-          .onConflictDoNothing();
-      }
-    }
+    const ctx: SeedContext = {
+      tx,
+      now: opts.now ?? new Date(),
+      encryptSecret: opts.encryptSecret,
+      newPassword,
+      emailDomain: DEMO_EMAIL_DOMAIN,
+      servers: new Map(),
+      projects: new Map(),
+      environments: new Map(),
+      apps: new Map(),
+      people: new Map(),
+      inserted,
+    };
+    await seedServers(ctx);
+    await seedProjects(ctx);
+    await seedApps(ctx);
+    await seedEnvironments(ctx);
+    await seedAccounts(ctx, opts, lines);
+    await seedStaff(ctx);
+    await seedDeploys(ctx);
+    await seedIssues(ctx);
+    await seedKnowledge(ctx);
   });
   for (const line of lines) opts.out(line);
+  const summary = Object.entries(inserted)
+    .filter(([, n]) => n > 0)
+    .map(([area, n]) => `${area} ${n}`)
+    .join(", ");
+  opts.out(`demo data added: ${summary || "nothing (already present)"}`);
+  return inserted;
 }
 
 export async function runSeed(args: string[]): Promise<number> {

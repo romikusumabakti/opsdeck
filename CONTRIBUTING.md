@@ -38,7 +38,9 @@ Valkey publishes no host port, so background jobs only run in the full Compose
 stack. Without `REDIS_URL` the app still boots, with the worker disabled.
 
 For sample data on a scratch instance, `bun scripts/cli.ts seed demo
---print-passwords` creates demo projects and one account per role.
+--print-passwords` creates fictional projects, environments, deploy history,
+issues, staff and knowledge documents, plus one sign-in account per role
+(data definitions in `scripts/cli/seed-data/`).
 
 ### Full stack with Compose
 

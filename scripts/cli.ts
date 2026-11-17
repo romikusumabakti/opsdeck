@@ -16,7 +16,7 @@ Commands:
                       Back up the instance to its S3 destination (or local)
   restore <objectKey> Restore an instance backup (the host updater runs it)
   seed demo [--print-passwords] [--force]
-                      Sample projects and one test account per role (beta)
+                      Fictional demo data and one test account per role (beta)
 
 Run a command with --help for its options.`;
 

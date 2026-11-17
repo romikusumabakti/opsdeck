@@ -109,6 +109,12 @@ menara restore <objectKey>     Restore an instance backup (run by the updater)
 menara seed demo [--print-passwords] [--force]
 ```
 
+`seed demo` fills a beta or test instance with fictional data: five projects
+with Dev/QA/Demo environments on placeholder `.invalid` servers, apps with a
+month of finished deploy history, staff who cannot sign in, issues with
+comments and milestones, a small knowledge base, and one sign-in account per
+role. It never changes existing rows; a second run adds nothing.
+
 In production: `docker exec <app container> menara <command>`. Locally:
 `bun scripts/cli.ts <command>`.
 
