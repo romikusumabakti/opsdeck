@@ -10,6 +10,7 @@ import {
   getConversationQuery,
 } from "@/web/api/assistant";
 import { MessageView } from "./message-view";
+import { isNearBottom } from "./stick-to-bottom";
 import { useMessageStream } from "./use-message-stream";
 
 const isPending = (m: ConversationMessage) =>
@@ -23,9 +24,9 @@ export function pendingAnswer(
 }
 
 /**
- * The messages of one conversation. The unfinished answer follows its SSE
- * stream; once it ends the conversation (sources, final status) and the
- * allowance are refetched.
+ * The messages of one conversation in their own scroll area. The unfinished
+ * answer follows its SSE stream; once it ends the conversation (sources,
+ * final status) and the allowance are refetched.
  */
 export function ChatThread({ conversationId }: { conversationId: string }) {
   const t = useTranslations("assistant");
@@ -44,31 +45,39 @@ export function ChatThread({ conversationId }: { conversationId: string }) {
     snapshot && m.id === pending?.id ? { ...m, ...snapshot } : m
   );
 
-  // While an answer runs, keep its newest text in view.
-  const endRef = React.useRef<HTMLDivElement>(null);
-  const follow = pending
-    ? `${pending.id}:${snapshot?.content.length ?? 0}`
-    : null;
-  React.useEffect(() => {
-    if (follow) endRef.current?.scrollIntoView?.({ block: "nearest" });
-  }, [follow]);
-
-  if (conversation && messages.length === 0) {
-    return (
-      <EmptyState
-        icon={MessagesSquare}
-        title={t("emptyThreadTitle")}
-        description={t("emptyThreadDescription")}
-      />
-    );
-  }
+  // Follow new content only while the reader is at the end; scrolling up to
+  // an older answer stops it until they scroll back down.
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const stuck = React.useRef(true);
+  const last = messages.at(-1);
+  const contentKey = `${messages.length}:${last?.status}:${last?.content.length ?? 0}`;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: contentKey is the trigger
+  React.useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (el && stuck.current) el.scrollTop = el.scrollHeight;
+  }, [contentKey]);
 
   return (
-    <div className="flex flex-col gap-6">
-      {messages.map((message) => (
-        <MessageView key={message.id} message={message} />
-      ))}
-      <div ref={endRef} />
+    <div
+      ref={scrollerRef}
+      onScroll={(e) => {
+        stuck.current = isNearBottom(e.currentTarget);
+      }}
+      className="min-h-0 flex-1 overflow-y-auto"
+    >
+      {conversation && messages.length === 0 ? (
+        <EmptyState
+          icon={MessagesSquare}
+          title={t("emptyThreadTitle")}
+          description={t("emptyThreadDescription")}
+        />
+      ) : (
+        <div className="flex flex-col gap-6">
+          {messages.map((message) => (
+            <MessageView key={message.id} message={message} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

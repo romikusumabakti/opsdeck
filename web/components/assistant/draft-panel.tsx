@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Loader2, Ticket } from "lucide-react";
+import { FileText, Loader2, Ticket, X } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
@@ -16,20 +16,22 @@ import { JiraDraftForm } from "./jira-draft-form";
 type DraftKind = "brd" | "jira";
 
 /**
- * Drafts written by Claude from the conversation: a BRD section set or a
- * Jira ticket, newest first, each editable before anything leaves the Panel.
+ * Drafts written by Claude from the conversation: a BRD section set or an
+ * issue, newest first, each editable before anything leaves the Panel.
  */
 export function DraftPanel({
   conversationId,
   projectKey,
   canCreateIssue,
   disabled,
+  onClose,
 }: {
   conversationId: string;
   projectKey: string;
   canCreateIssue: boolean;
   /** An answer is running or the day's cap is spent. */
   disabled: boolean;
+  onClose?: () => void;
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
@@ -59,15 +61,28 @@ export function DraftPanel({
   };
 
   const drafts = [...(conversation?.drafts ?? [])].reverse();
+  const title = t("drafts", { count: drafts.length });
   const hasAnswer = conversation?.messages.some(
     (m) => m.role === "assistant" && m.status === "done"
   );
 
   return (
-    <section aria-label={t("drafts")} className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-medium">{t("drafts")}</h2>
-        <p className="text-sm text-muted-foreground">{t("draftsHint")}</p>
+    <section aria-label={title} className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-base font-medium">{title}</h2>
+          <p className="text-sm text-muted-foreground">{t("draftsHint")}</p>
+        </div>
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label={t("closeDrafts")}
+          >
+            <X />
+          </Button>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {(["brd", "jira"] as const).map((kind) => (

@@ -97,6 +97,7 @@ vi.mock("@/components/ui/sidebar", () => {
 import { AppSidebar } from "@/components/app-sidebar";
 import { ApiError } from "@/web/api/client";
 import { AllowanceBadge } from "@/web/components/assistant/allowance-badge";
+import { AssistantWorkspace } from "@/web/components/assistant/assistant-workspace";
 import { AttachmentPicker } from "@/web/components/assistant/attachment-picker";
 import { ChatThread } from "@/web/components/assistant/chat-thread";
 import { Composer } from "@/web/components/assistant/composer";
@@ -833,6 +834,93 @@ describe("draft panel", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
     expect(text()).toContain(messages.assistantErrors.failed);
     expect(text()).not.toContain("Gateway Timeout");
+  });
+});
+
+describe("drafts panel in the workspace", () => {
+  const draft = (id: string) => ({
+    id,
+    kind: "brd" as const,
+    content: { title: "BRD", sections: [] },
+    issueId: null,
+    jiraKey: null,
+    issueNumber: null,
+    createdAt: "2026-11-16T01:00:00Z",
+    updatedAt: "2026-11-16T01:00:00Z",
+  });
+  const conversation = {
+    id: "c1",
+    title: "Iuran",
+    environmentId: "e1",
+    environmentName: "Dev",
+    drafts: [] as ReturnType<typeof draft>[],
+    jiraPushEnabled: false,
+    messages: [],
+  };
+  const conversationKey = ["assistant", "getConversation", ["c1"]];
+  const panel = () => document.querySelector('section[aria-label^="Drafts"]');
+  const toggle = (count: number) =>
+    button(t.drafts.replace("{count}", String(count)));
+
+  const renderWorkspace = async () => {
+    queryClient.setQueryData(["assistant", "getAllowance"], {
+      enabled: true,
+      capUsd: 1.5,
+      spentUsd: 0,
+      remainingUsd: 1.5,
+      resetsAt: "2026-11-16T17:00:00.000Z",
+    });
+    queryClient.setQueryData(
+      ["assistant", "listConversations", ["e1"]],
+      [{ id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }]
+    );
+    queryClient.setQueryData(conversationKey, conversation);
+    await render(
+      <AssistantWorkspace
+        environmentId="e1"
+        environmentName="Dev"
+        projectKey="ACME"
+        canCreateIssue
+      />
+    );
+  };
+
+  it("has no drafts toggle until a conversation is selected", async () => {
+    await renderWorkspace();
+    expect(toggle(0)).toBeUndefined();
+    expect(panel()).toBeNull();
+  });
+
+  it("is closed initially and the Drafts button toggles it", async () => {
+    await renderWorkspace();
+    const item = [...document.querySelectorAll("nav button")].find((b) =>
+      b.textContent?.includes("Iuran")
+    ) as HTMLButtonElement | undefined;
+    await act(async () => item?.click());
+    expect(panel()).toBeNull();
+    await act(async () => toggle(0)?.click());
+    expect(panel()).not.toBeNull();
+    await act(async () => toggle(0)?.click());
+    expect(panel()).toBeNull();
+  });
+
+  it("opens when the conversation gains a draft", async () => {
+    await renderWorkspace();
+    const item = [...document.querySelectorAll("nav button")].find((b) =>
+      b.textContent?.includes("Iuran")
+    ) as HTMLButtonElement | undefined;
+    await act(async () => item?.click());
+    expect(panel()).toBeNull();
+    await act(async () => {
+      queryClient.setQueryData(conversationKey, {
+        ...conversation,
+        drafts: [draft("d1")],
+      });
+      // React Query notifies observers on a zero-delay timer.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(panel()).not.toBeNull();
+    expect(toggle(1)).toBeDefined();
   });
 });
 

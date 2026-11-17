@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { listConversationsQuery } from "@/web/api/assistant";
 
-/** The caller's conversations about this environment, newest first. */
+/**
+ * The caller's conversations about this environment, newest first. The list
+ * scrolls on its own below the pinned "New conversation" button.
+ */
 export function ConversationList({
   environmentId,
   selectedId,
@@ -23,8 +26,15 @@ export function ConversationList({
     useQuery(listConversationsQuery(environmentId)).data ?? [];
 
   return (
-    <nav aria-label={t("conversations")} className="flex flex-col gap-2">
-      <Button variant="outline" onClick={onNew} className="justify-start">
+    <nav
+      aria-label={t("conversations")}
+      className="flex min-h-0 flex-col gap-2"
+    >
+      <Button
+        variant="outline"
+        onClick={onNew}
+        className="shrink-0 justify-start"
+      >
         <Plus data-icon="inline-start" />
         {t("newConversation")}
       </Button>
@@ -33,7 +43,7 @@ export function ConversationList({
           {t("noConversations")}
         </p>
       ) : (
-        <ul className="flex flex-col gap-0.5">
+        <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
           {conversations.map((c) => (
             <li key={c.id}>
               <button
