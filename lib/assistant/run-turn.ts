@@ -412,6 +412,48 @@ function storedSource({
   return unavailableReason ? { ...source, commitSha: null } : source;
 }
 
+/** Projects whose sources list_projects resolves at once. */
+const LIST_PROJECTS_CONCURRENCY = 4;
+
+/**
+ * The cached promise for `key`, else a new one from `load`. A rejected
+ * promise is dropped, so a transient failure can be retried in the turn.
+ */
+function memoised<T>(
+  cache: Map<string, Promise<T>>,
+  key: string,
+  load: () => Promise<T>
+): Promise<T> {
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const pending = load();
+  cache.set(key, pending);
+  pending.catch(() => {
+    if (cache.get(key) === pending) cache.delete(key);
+  });
+  return pending;
+}
+
+/** `fn` over `items` with at most `limit` running at once; order kept. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index] as T);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker)
+  );
+  return results;
+}
+
 /**
  * The automatic context's project access for one turn. A key resolves only
  * against the viewer's visible projects (`projects`, already filtered); each
@@ -435,14 +477,10 @@ function projectAccess(
   const opened: AssistantSource[] = [];
   let saving: Promise<void> = Promise.resolve();
 
-  const sources = (project: ProjectEntry) => {
-    let pending = sourcesOf.get(project.id);
-    if (!pending) {
-      pending = deps.resolveProjectSources(project.id);
-      sourcesOf.set(project.id, pending);
-    }
-    return pending;
-  };
+  const sources = (project: ProjectEntry) =>
+    memoised(sourcesOf, project.id, () =>
+      deps.resolveProjectSources(project.id)
+    );
 
   const open = async (project: ProjectEntry): Promise<SnapshotRef[]> => {
     const { prompt, snaps } = await snapshotSources(
@@ -471,23 +509,18 @@ function projectAccess(
     snapshotsFor: (projectKey) => {
       const project = byKey.get(projectKey);
       if (!project) return Promise.resolve({ error: "unknown_project" });
-      let pending = snapsOf.get(project.id);
-      if (!pending) {
-        pending = open(project);
-        snapsOf.set(project.id, pending);
-      }
-      return pending;
+      return memoised(snapsOf, project.id, () => open(project));
     },
     listProjects: () =>
-      Promise.all(
-        projects.map(
-          async (project): Promise<ListedProject> => ({
-            key: project.key,
-            name: project.name,
-            description: project.description,
-            components: (await sources(project)).map((s) => s.componentKey),
-          })
-        )
+      mapLimit(
+        projects,
+        LIST_PROJECTS_CONCURRENCY,
+        async (project): Promise<ListedProject> => ({
+          key: project.key,
+          name: project.name,
+          description: project.description,
+          components: (await sources(project)).map((s) => s.componentKey),
+        })
       ),
   };
 }

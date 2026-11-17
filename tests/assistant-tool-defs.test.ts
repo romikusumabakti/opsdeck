@@ -114,13 +114,13 @@ describe("buildTools", () => {
       "list_projects",
       ...Object.keys(pinned),
     ]);
-    expect(auto.list_projects?.schema).toEqual(
-      expect.objectContaining({
-        type: "object",
-        properties: {},
-        additionalProperties: false,
-      })
-    );
+    // Explicit: strict tools need the empty required list.
+    expect(auto.list_projects?.schema).toEqual({
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    });
     for (const name of CODE_TOOLS) {
       const schema = auto[name]?.schema as JsonSchema;
       const base = pinned[name]?.schema as JsonSchema;
@@ -218,8 +218,7 @@ describe("buildTools", () => {
         .jsonSchema) as JsonSchema;
       expect(schema.type, name).toBe("object");
       expect(schema.additionalProperties, name).toBe(false);
-      // An object without properties (list_projects) has no required list.
-      expect(schema.required ?? [], name).toEqual(
+      expect(schema.required, name).toEqual(
         Object.keys(schema.properties ?? {})
       );
       for (const [prop, def] of Object.entries(schema.properties ?? {})) {
@@ -450,6 +449,16 @@ describe("executeTool in automatic context", () => {
       data: null,
       meta: { project: "KST" },
     });
+  });
+
+  it("normalises the project key before looking it up", async () => {
+    const result = await executeTool(
+      "list_files",
+      { project: " kst ", glob: "backend/**" },
+      autoCtx
+    );
+    expect(snapshotsFor).toHaveBeenCalledExactlyOnceWith("KST");
+    expect(result.meta).toEqual({ project: "KST" });
   });
 
   it("refuses a project the user cannot see without reading anything", async () => {

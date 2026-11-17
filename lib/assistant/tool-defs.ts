@@ -1,5 +1,5 @@
 import type { ToolResultOutput } from "@ai-sdk/provider-utils";
-import { type ToolSet, tool } from "ai";
+import { type FlexibleSchema, jsonSchema, type ToolSet, tool } from "ai";
 import { z } from "zod";
 import type { AttachmentRef } from "./attachment-refs";
 import type { ProviderOptions } from "./providers";
@@ -130,7 +130,14 @@ const AUTO_DEFINITIONS = {
   list_projects: {
     description:
       "List the projects the user can see: key, name, short description and component keys. Use it when the context note does not make clear which project a question is about; the code tools take one of these keys as project.",
-    inputSchema: z.strictObject({}),
+    // Written out: zod emits no `required` for an empty object, and strict
+    // tools expect the (empty) list. executeTool validates with AUTO_INPUTS.
+    inputSchema: jsonSchema<Record<string, never>>({
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    }),
   },
   list_files: {
     description: `List file paths in one project's branches (the project given by key), matching a glob (e.g. "backend/src/**/*.java"). Paths are prefixed with the component key and are relative to that project. At most ${MAX_LIST_PATHS} paths, so use a specific glob. Files that may hold secrets are withheld: counted in "withheld" and named (up to ${MAX_WITHHELD_PATHS}) in "withheldPaths", never readable.`,
@@ -225,13 +232,15 @@ export function buildTools(
   const execute = options.execute ?? executeTool;
   const entries = Object.entries(
     ctx.mode === "auto" ? AUTO_DEFINITIONS : DEFINITIONS
-  ) as Array<[ToolName, { description: string; inputSchema: z.ZodType }]>;
+  ) as Array<
+    [ToolName, { description: string; inputSchema: FlexibleSchema<unknown> }]
+  >;
   return Object.fromEntries(
     entries.map(([name, definition], index) => [
       name,
       tool({
         description: definition.description,
-        inputSchema: definition.inputSchema as z.ZodType<
+        inputSchema: definition.inputSchema as FlexibleSchema<
           Record<string, unknown>
         >,
         strict: true,
@@ -411,7 +420,9 @@ async function runProjectCode(
   data: unknown,
   ctx: Extract<ToolContext, { mode: "auto" }>
 ): Promise<ToolResult<unknown>> {
-  const { project, ...input } = data as { project: string };
+  const { project: given, ...input } = data as { project: string };
+  // Keys are stored uppercase; the model may echo one loosely.
+  const project = given.trim().toUpperCase();
   const snaps = await ctx.snapshotsFor(project);
   if ("error" in snaps) {
     return {

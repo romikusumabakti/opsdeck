@@ -1289,6 +1289,98 @@ describe("runTurn", () => {
     expect(state.message.status).toBe("done");
   });
 
+  it("loads list_projects' components at most 4 projects at a time", async () => {
+    state.turn = autoTurn();
+    const many = Array.from({ length: 10 }, (_, i) => ({
+      id: `project-${i + 1}`,
+      key: `P${i + 1}`,
+      name: `Project ${i + 1}`,
+      client: null,
+      description: null,
+    }));
+    let inFlight = 0;
+    let peak = 0;
+    const resolveProjectSources = vi.fn(async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return [PROJECT_SOURCE];
+    });
+    const { model, calls } = mockModel([
+      {
+        toolCalls: [{ id: "tu_1", name: "list_projects", input: {} }],
+        finish: "tool-calls",
+      },
+      { text: ["ok"], finish: "stop" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        resolveProjectSources,
+        loadProjects: async () => many,
+        loadViewer: async () => ({
+          userId: USER_ID,
+          orgRole: "admin",
+          projectIds: "all",
+          canManageKnowledge: true,
+        }),
+        executeTool: undefined,
+      })
+    );
+    expect(resolveProjectSources).toHaveBeenCalledTimes(10);
+    expect(peak).toBeLessThanOrEqual(4);
+    const listed = JSON.stringify(calls[1]?.prompt);
+    expect(listed).toContain("Project 10");
+    expect(state.message.status).toBe("done");
+  });
+
+  it("retries a project whose sources failed to load earlier in the turn", async () => {
+    state.turn = autoTurn();
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const resolveProjectSources = vi
+      .fn(sourcesOfProject)
+      .mockRejectedValueOnce(new Error("db blip"));
+    const read = (id: string) => ({
+      id,
+      name: "read_file",
+      input: {
+        project: "KST",
+        path: "backend/src/Iuran.java",
+        start_line: null,
+        end_line: null,
+      },
+    });
+    const { model, calls } = mockModel([
+      { toolCalls: [read("tu_1")], finish: "tool-calls" },
+      { toolCalls: [read("tu_2")], finish: "tool-calls" },
+      { text: ["ok"], finish: "stop" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        resolveProjectSources,
+        ensureSnapshot: snapshotOf,
+        loadProjects: async () => PROJECTS,
+        executeTool: undefined,
+      })
+    );
+    spy.mockRestore();
+    expect(JSON.stringify(calls[1]?.prompt)).toContain(
+      "read_file failed unexpectedly"
+    );
+    expect(resolveProjectSources).toHaveBeenCalledTimes(2);
+    expect(state.message.sources).toEqual([
+      {
+        ...PROJECT_SOURCE,
+        commitSha: "kst0000000001",
+        projectKey: "KST",
+        projectName: "Kestrel Membership",
+      },
+    ]);
+    expect(state.message.status).toBe("done");
+  });
+
   it("keeps the sources of two projects apart when they share a component key", async () => {
     state.turn = autoTurn();
     const read = (id: string, project: string) => ({
