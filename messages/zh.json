@@ -3673,6 +3673,7 @@
     "docsRead": "知识库文档",
     "withheld": "{count, plural, other {已隐藏 # 个文件（机密）}}",
     "drafts": "草稿（{count}）",
+    "draftsTitle": "草稿",
     "closeDrafts": "关闭草稿",
     "draftsHint": "根据此对话生成草稿，检查并编辑内容，然后保存。",
     "draftBrd": "BRD 草稿",

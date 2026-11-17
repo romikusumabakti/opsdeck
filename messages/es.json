@@ -3673,6 +3673,7 @@
     "docsRead": "Documentos de conocimiento",
     "withheld": "{count, plural, one {# archivo ocultado (secreto)} other {# archivos ocultados (secretos)}}",
     "drafts": "Borradores ({count})",
+    "draftsTitle": "Borradores",
     "closeDrafts": "Cerrar borradores",
     "draftsHint": "Crea un borrador a partir de esta conversación, revisa y edita su contenido y guárdalo.",
     "draftBrd": "Borrador de BRD",

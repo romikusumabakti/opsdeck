@@ -190,7 +190,7 @@ export function AssistantWorkspace({
               <SheetContent
                 side="right"
                 showCloseButton={false}
-                aria-label={t("drafts", { count: draftCount })}
+                aria-label={t("draftsTitle")}
                 className="overflow-y-auto p-4"
               >
                 {draftPanel}

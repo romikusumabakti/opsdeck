@@ -61,7 +61,7 @@ export function DraftPanel({
   };
 
   const drafts = [...(conversation?.drafts ?? [])].reverse();
-  const title = t("drafts", { count: drafts.length });
+  const title = t("draftsTitle");
   const hasAnswer = conversation?.messages.some(
     (m) => m.role === "assistant" && m.status === "done"
   );

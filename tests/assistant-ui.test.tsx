@@ -1006,6 +1006,18 @@ describe("drafts panel in the workspace", () => {
     expect(panel()).not.toBeNull();
     expect(toggle(1)).toBeDefined();
   });
+
+  it("titles the panel plain Drafts; only the toggle shows the count", async () => {
+    await renderWorkspace();
+    const item = [...document.querySelectorAll("nav button")].find((b) =>
+      b.textContent?.includes("Iuran")
+    ) as HTMLButtonElement | undefined;
+    await act(async () => item?.click());
+    await act(async () => toggle(0)?.click());
+    expect(panel()?.querySelector("h2")?.textContent).toBe(t.draftsTitle);
+    expect(t.draftsTitle).toBe("Drafts");
+    expect(toggle(0)).toBeDefined();
+  });
   it("does not open when switching to a conversation that already has drafts", async () => {
     await renderWorkspace();
     queryClient.setQueryData(

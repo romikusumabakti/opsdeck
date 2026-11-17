@@ -3673,6 +3673,7 @@
     "docsRead": "Knowledge documents",
     "withheld": "{count, plural, one {# file withheld (secret)} other {# files withheld (secret)}}",
     "drafts": "Drafts ({count})",
+    "draftsTitle": "Drafts",
     "closeDrafts": "Close drafts",
     "draftsHint": "Draft from this conversation, review and edit the content, then save.",
     "draftBrd": "BRD draft",

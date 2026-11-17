@@ -3673,6 +3673,7 @@
     "docsRead": "Dokumen pengetahuan",
     "withheld": "{count, plural, other {# file disembunyikan (rahasia)}}",
     "drafts": "Draf ({count})",
+    "draftsTitle": "Draf",
     "closeDrafts": "Tutup draf",
     "draftsHint": "Buat draf dari percakapan ini, periksa dan ubah isinya, lalu simpan.",
     "draftBrd": "Draf BRD",
