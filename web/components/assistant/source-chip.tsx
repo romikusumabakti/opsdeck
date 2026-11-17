@@ -50,7 +50,7 @@ export function SourceChip({
       placeholder={t("sourceProjectBranches")}
       aria-label={`${t("sourceLabel")}: ${selected}`}
       disabled={disabled}
-      className="w-auto max-w-56"
+      className="w-auto max-w-56 min-w-0 shrink"
     />
   );
 }

@@ -83,8 +83,9 @@ export function Composer({
       );
     });
 
+  // A container, so the footer adapts to the chat column, not the viewport.
   return (
-    <div className="flex flex-col gap-2">
+    <div className="@container/composer flex flex-col gap-2">
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -162,7 +163,7 @@ export function Composer({
           {source}
         </div>
         <div className="flex items-center gap-3">
-          <span className="hidden text-xs text-muted-foreground sm:inline">
+          <span className="hidden text-xs text-muted-foreground @2xl/composer:inline">
             {t("sendHint")}
           </span>
           <Button size="sm" onClick={() => void send()} disabled={!canSend}>
