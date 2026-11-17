@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { qualifiedEnvName } from "@/lib/nav-path";
 import { uuidSchema } from "@/lib/validation";
 
 /**
@@ -147,4 +148,16 @@ export function messageContextOf(row: ContextRow): MessageContext {
         environmentId: null,
       };
   }
+}
+
+/**
+ * A question's context as a conversation list names it: an environment with
+ * its project ("Kestrel Membership · Dev 1"), as the question bubble does,
+ * since every project may have a "Dev"; null for an automatic question.
+ */
+export function contextListLabel(row: ContextRow): string | null {
+  if (row.environmentName !== null && row.projectName) {
+    return qualifiedEnvName(row.environmentName, row.projectName);
+  }
+  return messageContextOf(row).label;
 }

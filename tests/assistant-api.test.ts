@@ -213,7 +213,9 @@ vi.mock("@/lib/assistant/tools/context", async (importOriginal) => ({
 vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
   const { titleFrom } =
     await importOriginal<typeof import("@/lib/assistant/conversation-store")>();
-  const { messageContextOf } = await import("@/lib/assistant/context");
+  const { contextListLabel, messageContextOf } = await import(
+    "@/lib/assistant/context"
+  );
   const nextId = () =>
     `0197f3a0-1b2c-7def-8000-${String(++store.seq).padStart(12, "0")}`;
   const owner = (c: Conversation | undefined) =>
@@ -253,7 +255,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
             id: c.id,
             title: c.title,
             updatedAt: c.updatedAt,
-            lastContextLabel: last ? messageContextOf(last).label : null,
+            lastContextLabel: last ? contextListLabel(last) : null,
           };
         }),
     insertConversation: async (v: { userId: string }) => {
@@ -660,7 +662,7 @@ describe("list-conversations", () => {
       lastContextLabel: string | null;
     }[];
     expect(body.map((c) => [c.id, c.lastContextLabel])).toEqual([
-      [hmem, "UAT"],
+      [hmem, "Heron Membership · UAT"],
       [kmem, "Kestrel Membership"],
       ["stage2", "Kestrel Membership"],
     ]);

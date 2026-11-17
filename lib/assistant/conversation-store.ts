@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/schema";
 import {
   contextColumns,
+  contextListLabel,
   type MessageContext,
   messageContextOf,
   type QuestionContext,
@@ -96,8 +97,9 @@ export type ConversationSummary = {
   title: string;
   updatedAt: Date;
   /**
-   * The name of the project or environment the latest question pinned
-   * (kept once deleted); null for an automatic one or no question yet.
+   * The name of the project or environment (with its project) the latest
+   * question pinned, kept once deleted; null for an automatic one or no
+   * question yet.
    */
   lastContextLabel: string | null;
 };
@@ -137,7 +139,7 @@ export async function listConversationsOf(
     )
     .orderBy(assistantMessages.conversationId, desc(assistantMessages.id));
   const labelOf = new Map(
-    latest.map((row) => [row.conversationId, messageContextOf(row).label])
+    latest.map((row) => [row.conversationId, contextListLabel(row)])
   );
   return conversations.map((c) => ({
     ...c,

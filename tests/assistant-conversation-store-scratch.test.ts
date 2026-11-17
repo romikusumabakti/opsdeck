@@ -196,6 +196,12 @@ describe.skipIf(!enabled)(
       });
       if (typeof first === "string") throw new Error(`unexpected ${first}`);
       expect(first.userMessageId < first.assistantMessageId).toBe(true);
+      // The list names an environment with its project.
+      expect(
+        (await store.listConversationsOf(user.id)).find(
+          (c) => c.id === conversationId
+        )?.lastContextLabel
+      ).toBe("Kestrel Membership · Dev 1");
 
       // The first answer is still queued: any further send is busy.
       const [a, b] = await Promise.all([

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   contextFromRow,
+  contextListLabel,
   questionContextInputSchema,
 } from "@/lib/assistant/context";
 
@@ -98,5 +99,46 @@ describe("questionContextInputSchema", () => {
     { kind: "auto", projectId: PROJECT },
   ])("rejects %o", (input) => {
     expect(questionContextInputSchema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe("contextListLabel", () => {
+  const row = {
+    projectId: PROJECT,
+    projectName: "Kestrel Membership",
+    environmentId: ENV,
+    environmentName: "Dev 1",
+  };
+
+  it("names an environment with its project, as the question bubble does", () => {
+    expect(contextListLabel(row)).toBe("Kestrel Membership · Dev 1");
+  });
+
+  it("drops the project prefix an environment name repeats", () => {
+    expect(
+      contextListLabel({ ...row, environmentName: "Kestrel Membership Dev 1" })
+    ).toBe("Kestrel Membership · Dev 1");
+  });
+
+  it("keeps the project name for a deleted environment", () => {
+    expect(contextListLabel({ ...row, environmentId: null })).toBe(
+      "Kestrel Membership · Dev 1"
+    );
+  });
+
+  it("a project, a deleted project and automatic", () => {
+    const project = { ...row, environmentId: null, environmentName: null };
+    expect(contextListLabel(project)).toBe("Kestrel Membership");
+    expect(contextListLabel({ ...project, projectId: null })).toBe(
+      "Kestrel Membership"
+    );
+    expect(
+      contextListLabel({
+        projectId: null,
+        projectName: null,
+        environmentId: null,
+        environmentName: null,
+      })
+    ).toBeNull();
   });
 });
