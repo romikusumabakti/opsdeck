@@ -3694,6 +3694,7 @@
     "sourceCode": "Código",
     "sourceDeployedAt": "desplegado {at}",
     "sourceUnknownCommit": "commit en ejecución desconocido: se usa la punta de la rama {ref}",
+    "sourceBranchHead": "último commit de la rama {ref}",
     "sourceNotDeployed": "nunca desplegado: se usa la punta de la rama {ref}",
     "filesRead": "Archivos leídos",
     "issuesRead": "Incidencias",

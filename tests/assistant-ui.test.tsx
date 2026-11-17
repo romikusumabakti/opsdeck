@@ -23,6 +23,10 @@ const api = vi.hoisted(() => ({
   generateDraft: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ pathname: "/" }));
+// A test's own get-conversation result (e.g. a 404); default: never settles.
+const conversationFetch = vi.hoisted(
+  () => new Map<string, () => Promise<unknown>>()
+);
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/web/api/assistant", () => ({
@@ -32,7 +36,7 @@ vi.mock("@/web/api/assistant", () => ({
   }),
   getConversationQuery: (id: string) => ({
     queryKey: ["assistant", "getConversation", [id]],
-    queryFn: () => new Promise(() => {}),
+    queryFn: () => conversationFetch.get(id)?.() ?? new Promise(() => {}),
   }),
   listConversationsQuery: (id: string) => ({
     queryKey: ["assistant", "listConversations", [id]],
@@ -163,6 +167,7 @@ beforeEach(() => {
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
   for (const fn of Object.values(api)) fn.mockReset();
+  conversationFetch.clear();
 });
 
 afterEach(() => {
@@ -468,6 +473,79 @@ describe("sources", () => {
     );
     expect(text()).toContain(
       "running commit unknown — using the head of branch kestrel/development"
+    );
+  });
+
+  it("labels a project-branch answer with its branch head, not as never deployed", async () => {
+    await render(
+      <MessageSources
+        sources={[
+          {
+            ...source,
+            commitSha: "0123456789abcdef",
+            deployed: false,
+            deployedAt: null,
+          },
+        ]}
+        toolCalls={[]}
+        projectBranches
+      />
+    );
+    await act(async () => button(t.sources)?.click());
+    expect(text()).toContain("acme/membership @ 0123456");
+    expect(text()).toContain(
+      t.sourceBranchHead.replace("{ref}", "kestrel/development")
+    );
+    expect(text()).not.toContain("never deployed");
+  });
+
+  it("the thread passes each answer the source of its question", async () => {
+    const message = (
+      id: string,
+      role: string,
+      environmentId: string | null,
+      environmentName: string | null
+    ) => ({
+      id,
+      role,
+      content: role === "user" ? "Q" : "A",
+      status: "done",
+      errorCode: null,
+      sources:
+        role === "user"
+          ? null
+          : [{ ...source, commitSha: null, deployed: false, deployedAt: null }],
+      attachmentIds: [],
+      createdAt: "2026-11-16T01:00:00Z",
+      toolCalls: [],
+      environmentId,
+      environmentName,
+      environmentDeleted: false,
+    });
+    queryClient.setQueryData(["assistant", "getConversation", ["c1"]], {
+      id: "c1",
+      title: "Iuran",
+      drafts: [],
+      jiraPushEnabled: false,
+      messages: [
+        message("u1", "user", null, null),
+        message("a1", "assistant", null, null),
+        message("u2", "user", ENV_ID, "Dev 1"),
+        message("a2", "assistant", null, null),
+      ],
+    });
+    await render(<ChatThread conversationId="c1" />);
+    const triggers = [...document.querySelectorAll("button")].filter(
+      (b) => b.textContent?.trim() === t.sources
+    );
+    for (const trigger of triggers) await act(async () => trigger.click());
+    const all = text();
+    expect(all).toContain(
+      t.sourceBranchHead.replace("{ref}", "kestrel/development")
+    );
+    // The environment question keeps the deployment wording.
+    expect(all).toContain(
+      "never deployed — using the head of branch kestrel/development"
     );
   });
 
@@ -949,6 +1027,7 @@ describe("drafts panel in the workspace", () => {
   });
   const conversation = {
     id: "c1",
+    projectId: "p1",
     title: "Iuran",
     drafts: [] as ReturnType<typeof draft>[],
     jiraPushEnabled: false,
@@ -1043,6 +1122,7 @@ describe("drafts panel in the workspace", () => {
     queryClient.setQueryData(["assistant", "getConversation", ["c2"]], {
       ...conversation,
       id: "c2",
+      projectId: "p1",
       title: "Pajak",
       drafts: [draft("d1"), draft("d2")],
     });
@@ -1128,6 +1208,7 @@ describe("source chip", () => {
     );
     queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
       id: CONV_ID,
+      projectId: "p1",
       title: "Iuran",
       drafts: [],
       jiraPushEnabled: false,
@@ -1258,6 +1339,76 @@ describe("source chip", () => {
     ) as HTMLButtonElement | undefined;
     await act(async () => item?.click());
     expect(onConversationChange).toHaveBeenLastCalledWith(CONV_ID);
+  });
+
+  it("names the source and its value in the chip's label", async () => {
+    await renderWorkspace({ initialEnvironmentId: ENV_ID });
+    expect(chip()?.getAttribute("aria-label")).toBe(`${t.sourceLabel}: Dev 1`);
+  });
+
+  it("locks the chip while an answer is running", async () => {
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", null, null),
+      { ...answer, status: "streaming" },
+    ]);
+    expect(chip()?.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("drops a ?c= conversation of another project", async () => {
+    const onConversationChange = vi.fn();
+    await renderWorkspace({ conversationId: CONV_ID, onConversationChange }, [
+      answer,
+    ]);
+    await act(async () => {
+      queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
+        id: CONV_ID,
+        projectId: "p2",
+        title: "Elsewhere",
+        drafts: [],
+        jiraPushEnabled: false,
+        messages: [answer],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(onConversationChange).toHaveBeenLastCalledWith(null);
+    expect(text()).not.toContain("Jawaban");
+    expect(button(t.newDraft)).toBeUndefined();
+  });
+
+  it("drops a ?c= conversation that is not found", async () => {
+    const missing = "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4aff";
+    conversationFetch.set(missing, () =>
+      Promise.reject(new ApiError(404, "Not Found"))
+    );
+    const onConversationChange = vi.fn();
+    await renderWorkspace({ conversationId: missing, onConversationChange });
+    await settle();
+    expect(onConversationChange).toHaveBeenLastCalledWith(null);
+    expect(button(t.newDraft)).toBeUndefined();
+  });
+
+  it("does not show an old draft error again after the panel is reopened", async () => {
+    api.generateDraft.mockRejectedValue(new ApiError(504, "Gateway Timeout"));
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", null, null),
+      answer,
+    ]);
+    await act(async () => button(t.newDraft)?.click());
+    await settle();
+    const brd = [
+      ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ].find((el) => el.textContent?.includes(t.newDraftBrd));
+    await act(async () => brd?.click());
+    await settle();
+    expect(text()).toContain(messages.assistantErrors.failed);
+    const toggle = () => button(t.drafts.replace("{count}", "0"));
+    await act(async () => toggle()?.click());
+    await act(async () => toggle()?.click());
+    await settle();
+    expect(
+      document.querySelector('section[aria-label="Drafts"]')
+    ).not.toBeNull();
+    expect(text()).not.toContain(messages.assistantErrors.failed);
   });
 
   it("New draft › Issue opens the panel and generates an issue draft", async () => {

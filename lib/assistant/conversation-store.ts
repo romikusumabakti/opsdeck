@@ -192,6 +192,8 @@ export type ConversationDraft = {
 
 export type ConversationDetail = {
   id: string;
+  /** Its project: a page checks a conversation link against its own. */
+  projectId: string;
   title: string;
   messages: ConversationMessage[];
   drafts: ConversationDraft[];
@@ -234,7 +236,7 @@ export async function loadConversationDetail(
     .where(eq(assistantConversations.id, conversationId))
     .limit(1);
   if (!conversation) return null;
-  const { projectId, ...head } = conversation;
+  const { projectId } = conversation;
 
   const [messages, drafts, [link]] = await Promise.all([
     db
@@ -282,7 +284,7 @@ export async function loadConversationDetail(
     messages.filter((m) => m.role === "assistant").map((m) => m.id)
   );
   return {
-    ...head,
+    ...conversation,
     messages: messages.map((m) => ({
       ...m,
       environmentDeleted:

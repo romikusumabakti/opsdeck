@@ -230,8 +230,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       return {
         id: c.id,
         title: c.title,
-        environmentId: c.environmentId,
-        environmentName: c.environmentName,
+        projectId: c.projectId,
         messages: store.messages
           .filter((m) => m.conversationId === id)
           .map((m) => ({

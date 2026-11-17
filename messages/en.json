@@ -3694,6 +3694,7 @@
     "sourceCode": "Code",
     "sourceDeployedAt": "deployed {at}",
     "sourceUnknownCommit": "running commit unknown — using the head of branch {ref}",
+    "sourceBranchHead": "head of branch {ref}",
     "sourceNotDeployed": "never deployed — using the head of branch {ref}",
     "filesRead": "Files read",
     "issuesRead": "Issues",

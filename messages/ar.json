@@ -3694,6 +3694,7 @@
     "sourceCode": "الشيفرة",
     "sourceDeployedAt": "نُشر {at}",
     "sourceUnknownCommit": "الإيداع العامل غير معروف — يُستخدم رأس الفرع {ref}",
+    "sourceBranchHead": "أحدث commit في الفرع {ref}",
     "sourceNotDeployed": "لم يُنشر قط — يُستخدم رأس الفرع {ref}",
     "filesRead": "الملفات المقروءة",
     "issuesRead": "المشكلات",

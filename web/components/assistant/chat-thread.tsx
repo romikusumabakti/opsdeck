@@ -16,6 +16,15 @@ import { useMessageStream } from "./use-message-stream";
 const isPending = (m: ConversationMessage) =>
   m.role === "assistant" && (m.status === "queued" || m.status === "streaming");
 
+/** The question asked about the project branches (no environment, not even a deleted one). */
+function isProjectBranches(question: ConversationMessage | undefined) {
+  return (
+    question !== undefined &&
+    question.environmentId === null &&
+    !question.environmentDeleted
+  );
+}
+
 /** The conversation's unfinished answer, if any (at most one at a time). */
 export function pendingAnswer(
   conversation: Conversation | undefined
@@ -95,11 +104,14 @@ export function ChatThread({
         />
       ) : (
         <div ref={observeList} className="flex flex-col gap-6">
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <MessageView
               key={message.id}
               message={message}
               projectName={projectName}
+              projectBranches={isProjectBranches(
+                messages.slice(0, index).findLast((m) => m.role === "user")
+              )}
             />
           ))}
         </div>

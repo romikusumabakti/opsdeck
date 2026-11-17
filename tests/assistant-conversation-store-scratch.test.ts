@@ -243,6 +243,8 @@ describe.skipIf(!enabled)(
       ]);
 
       const detail = await store.loadConversationDetail(conversationId);
+      // The page checks a ?c= link against its own project.
+      expect(detail?.projectId).toBe(project.id);
       expect(detail?.messages.map((m) => [m.role, m.status])).toEqual([
         ["user", "done"],
         ["assistant", "done"],

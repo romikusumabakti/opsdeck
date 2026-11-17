@@ -28,6 +28,7 @@ import {
   getConversationQuery,
   sendMessage,
 } from "@/web/api/assistant";
+import { ApiError } from "@/web/api/client";
 import { AllowanceBadge, capReached } from "./allowance-badge";
 import { ChatThread, pendingAnswer } from "./chat-thread";
 import { Composer } from "./composer";
@@ -124,10 +125,23 @@ export function AssistantWorkspace({
     setSelectedIdState(id);
     onConversationChange?.(id);
   };
-  const conversation = useQuery({
+  const conversationQuery = useQuery({
     ...getConversationQuery(selectedId ?? ""),
     enabled: selectedId !== null,
-  }).data;
+  });
+  // A link (`?c=`) to another project's conversation, or to one that is gone,
+  // opens nothing here: the selection is cleared and the URL with it.
+  const foreign =
+    selectedId !== null &&
+    ((conversationQuery.data !== undefined &&
+      conversationQuery.data.projectId !== projectId) ||
+      (conversationQuery.error instanceof ApiError &&
+        conversationQuery.error.status === 404));
+  const conversation = foreign ? undefined : conversationQuery.data;
+  const dropForeign = React.useEffectEvent(() => select(null));
+  React.useEffect(() => {
+    if (foreign) dropForeign();
+  }, [foreign]);
 
   if (
     conversation &&
@@ -215,7 +229,7 @@ export function AssistantWorkspace({
     );
   }
 
-  const draftPanel = selectedId && (
+  const draftPanel = selectedId && !foreign && (
     <DraftPanel
       conversationId={selectedId}
       projectKey={projectKey}
@@ -246,7 +260,7 @@ export function AssistantWorkspace({
           />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-          {selectedId ? (
+          {selectedId && !foreign ? (
             <>
               <div className="flex shrink-0 justify-end gap-2">
                 <DropdownMenu>
@@ -315,6 +329,7 @@ export function AssistantWorkspace({
                   projectId={projectId}
                   value={environmentId}
                   onChange={setSource}
+                  disabled={busy || capped}
                 />
               }
             />

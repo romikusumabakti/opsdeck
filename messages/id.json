@@ -3694,6 +3694,7 @@
     "sourceCode": "Kode",
     "sourceDeployedAt": "dideploy {at}",
     "sourceUnknownCommit": "commit berjalan tidak diketahui — memakai ujung branch {ref}",
+    "sourceBranchHead": "head dari branch {ref}",
     "sourceNotDeployed": "belum pernah dideploy — memakai ujung branch {ref}",
     "filesRead": "File yang dibaca",
     "issuesRead": "Issue",

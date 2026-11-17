@@ -38,6 +38,9 @@ export function SourceChip({
 }) {
   const t = useTranslations("assistant");
   const { environments } = useSourceEnvironments(projectId);
+  const selected =
+    environments.find((e) => e.id === value)?.name ??
+    t("sourceProjectBranches");
   return (
     <SearchSelect
       value={value}
@@ -45,7 +48,7 @@ export function SourceChip({
       options={environments.map((e) => ({ value: e.id, label: e.name }))}
       noneLabel={t("sourceProjectBranches")}
       placeholder={t("sourceProjectBranches")}
-      aria-label={t("sourceLabel")}
+      aria-label={`${t("sourceLabel")}: ${selected}`}
       disabled={disabled}
       className="w-auto max-w-56"
     />

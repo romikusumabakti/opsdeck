@@ -53,10 +53,13 @@ function AnswerMarkdown({ content }: { content: string }) {
 export function MessageView({
   message,
   projectName = "",
+  projectBranches = false,
 }: {
   message: ConversationMessage;
   /** Dropped from the front of environment names. */
   projectName?: string;
+  /** An answer to a question about the project branches. */
+  projectBranches?: boolean;
 }) {
   const t = useTranslations("assistant");
   const { codeText } = useAssistantErrorText();
@@ -126,6 +129,7 @@ export function MessageView({
         <MessageSources
           sources={message.sources}
           toolCalls={message.toolCalls}
+          projectBranches={projectBranches}
         />
       )}
     </div>

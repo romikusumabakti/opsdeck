@@ -5,6 +5,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { FileText, Loader2, Ticket, X } from "lucide-react";
+import * as React from "react";
 import { useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,12 @@ export function canDraftFrom(conversation: Conversation | undefined): boolean {
   );
 }
 
+const draftMutationKey = (conversationId: string) => [
+  "assistant",
+  "generateDraft",
+  conversationId,
+];
+
 /**
  * Has the model write a draft of the conversation. One mutation key per
  * conversation, so the panel shows a generation started from elsewhere (the
@@ -37,7 +44,7 @@ export function canDraftFrom(conversation: Conversation | undefined): boolean {
  */
 export function useDraftGeneration(conversationId: string) {
   const queryClient = useQueryClient();
-  const mutationKey = ["assistant", "generateDraft", conversationId];
+  const mutationKey = draftMutationKey(conversationId);
   const { mutate } = useMutation({
     mutationKey,
     mutationFn: (kind: DraftKind) => generateDraft({ conversationId, kind }),
@@ -60,7 +67,17 @@ export function useDraftGeneration(conversationId: string) {
       error: m.state.error,
     }),
   }).at(-1);
+  // Forgets finished attempts, so an old error is not shown again. A running
+  // one stays: the panel opened by "New draft" shows it.
+  const clearSettled = React.useCallback(() => {
+    const cache = queryClient.getMutationCache();
+    const mutationKey = draftMutationKey(conversationId);
+    for (const m of cache.findAll({ mutationKey, exact: true })) {
+      if (m.state.status !== "pending") cache.remove(m);
+    }
+  }, [queryClient, conversationId]);
   return {
+    clearSettled,
     generate: (kind: DraftKind) => mutate(kind),
     generating: latest?.status === "pending" ? (latest.kind ?? null) : null,
     error: latest?.status === "error" ? latest.error : null,
@@ -88,7 +105,10 @@ export function DraftPanel({
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
   const conversation = useQuery(getConversationQuery(conversationId)).data;
-  const { generate, generating, error } = useDraftGeneration(conversationId);
+  const { generate, generating, error, clearSettled } =
+    useDraftGeneration(conversationId);
+  // Opening the panel (or another conversation's) starts without an old error.
+  React.useEffect(() => clearSettled(), [clearSettled]);
 
   const drafts = [...(conversation?.drafts ?? [])].reverse();
   const title = t("draftsTitle");

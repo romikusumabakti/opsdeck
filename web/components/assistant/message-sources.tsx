@@ -49,21 +49,32 @@ export function summarizeReads(toolCalls: ToolCall[]) {
   };
 }
 
-function SourceLine({ source }: { source: AssistantSource }) {
+function SourceLine({
+  source,
+  projectBranches,
+}: {
+  source: AssistantSource;
+  projectBranches: boolean;
+}) {
   const t = useTranslations("assistant");
   const format = useFormatter();
   const at = source.commitSha
     ? source.commitSha.slice(0, 7)
     : source.ref || source.componentKey;
-  const state = !source.deployed
-    ? t("sourceNotDeployed", { ref: source.ref })
-    : source.commitSha
-      ? t("sourceDeployedAt", {
-          at: source.deployedAt
-            ? format.dateTime(new Date(source.deployedAt), DATE_TIME)
-            : "—",
-        })
-      : t("sourceUnknownCommit", { ref: source.ref });
+  // A project-branch answer reads each branch head: nothing was deployed, so
+  // there is nothing to warn about.
+  const neutral = projectBranches || (source.deployed && !!source.commitSha);
+  const state = projectBranches
+    ? t("sourceBranchHead", { ref: source.ref })
+    : !source.deployed
+      ? t("sourceNotDeployed", { ref: source.ref })
+      : source.commitSha
+        ? t("sourceDeployedAt", {
+            at: source.deployedAt
+              ? format.dateTime(new Date(source.deployedAt), DATE_TIME)
+              : "—",
+          })
+        : t("sourceUnknownCommit", { ref: source.ref });
   return (
     <li className="flex flex-col">
       <span className="font-mono text-xs">
@@ -71,7 +82,7 @@ function SourceLine({ source }: { source: AssistantSource }) {
       </span>
       <span
         className={
-          source.deployed && source.commitSha
+          neutral
             ? "text-muted-foreground"
             : "text-amber-600 dark:text-amber-500"
         }
@@ -98,13 +109,18 @@ function ReadList({ label, items }: { label: string; items: string[] }) {
   );
 }
 
-/** The collapsible "Sources" of one assistant answer. */
+/**
+ * The collapsible "Sources" of one assistant answer. `projectBranches`: its
+ * question asked about the project branches, not an environment.
+ */
 export function MessageSources({
   sources,
   toolCalls,
+  projectBranches = false,
 }: {
   sources: AssistantSource[] | null;
   toolCalls: ToolCall[];
+  projectBranches?: boolean;
 }) {
   const t = useTranslations("assistant");
   const reads = summarizeReads(toolCalls);
@@ -133,6 +149,7 @@ export function MessageSources({
                 <SourceLine
                   key={`${source.componentKey}:${source.repoFullName}`}
                   source={source}
+                  projectBranches={projectBranches}
                 />
               ))}
             </ul>

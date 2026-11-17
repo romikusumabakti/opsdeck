@@ -3694,6 +3694,7 @@
     "sourceCode": "代码",
     "sourceDeployedAt": "部署于 {at}",
     "sourceUnknownCommit": "运行中的提交未知——使用分支 {ref} 的最新提交",
+    "sourceBranchHead": "分支 {ref} 的最新提交",
     "sourceNotDeployed": "从未部署——使用分支 {ref} 的最新提交",
     "filesRead": "已读取的文件",
     "issuesRead": "问题",
