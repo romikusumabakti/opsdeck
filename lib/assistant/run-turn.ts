@@ -1,10 +1,11 @@
 import {
   APICallError,
+  type ContentPart,
   type LanguageModel,
+  type LanguageModelUsage,
   LoadAPIKeyError,
   type ModelMessage,
   RetryError,
-  type StepResult,
   StreamProviderError,
   type SystemModelMessage,
   stepCountIs,
@@ -15,7 +16,7 @@ import {
 } from "ai";
 import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import { type AssistantRuntime, loadAssistantRuntime } from "./client";
-import { estimateUsage, type TokenUsage } from "./pricing";
+import { CHARS_PER_TOKEN, estimateUsage, type TokenUsage } from "./pricing";
 import {
   cacheControlFor,
   type ProviderOptions,
@@ -126,9 +127,14 @@ function providerFailureOf(
 }
 
 const MENTIONS_BILLING = /credit|billing|quota/i;
+// A 429 is a rate limit unless it names an exhausted balance or a daily quota;
+// per-minute quotas ("… quota … Please retry in 30s") stay transient.
+const EXHAUSTED_BALANCE = /insufficient_quota|credit balance|PerDay/i;
+const TRANSIENT_LIMIT = /retry|per.?minute|PerMinute/i;
 const MENTIONS_API_KEY = /api[_ ]?key/i;
-const MENTIONS_TOOLS = /\btools?\b|tool[ _-]?(use|call)|function[ _-]?call/i;
-const MENTIONS_SUPPORT = /support/i;
+const TOOLS_FUNCTIONALITY = /tool|function/i;
+const NO_TOOL_SUPPORT =
+  /does not support (tools|tool use|tool calling|function calling)|(tools?|tool use|tool calling|function calling) (are|is) not supported/i;
 
 /** Maps an error thrown by the SDK (or the loop) to the message's error code. */
 export function classifyError(error: unknown): AssistantErrorCode {
@@ -136,7 +142,7 @@ export function classifyError(error: unknown): AssistantErrorCode {
   if (RetryError.isInstance(error)) return classifyError(error.lastError);
   if (LoadAPIKeyError.isInstance(error)) return "assistant.not_configured";
   if (UnsupportedFunctionalityError.isInstance(error)) {
-    return MENTIONS_TOOLS.test(error.functionality)
+    return TOOLS_FUNCTIONALITY.test(error.functionality)
       ? "assistant.model_no_tools"
       : "assistant.failed";
   }
@@ -146,18 +152,17 @@ export function classifyError(error: unknown): AssistantErrorCode {
   if (status === 401 || status === 403) return "assistant.not_configured";
   if (
     status === 402 ||
-    ((status === 400 || status === 429) && MENTIONS_BILLING.test(text))
+    (status === 400 && MENTIONS_BILLING.test(text)) ||
+    (status === 429 &&
+      EXHAUSTED_BALANCE.test(text) &&
+      !TRANSIENT_LIMIT.test(text))
   ) {
     return "assistant.credit_exhausted";
   }
   if (status === 400 && MENTIONS_API_KEY.test(text)) {
     return "assistant.not_configured";
   }
-  if (
-    status === 400 &&
-    MENTIONS_TOOLS.test(text) &&
-    MENTIONS_SUPPORT.test(text)
-  ) {
+  if (status === 400 && NO_TOOL_SUPPORT.test(text)) {
     return "assistant.model_no_tools";
   }
   if (status === undefined) {
@@ -381,8 +386,7 @@ function mergeProviderOptions(
  * The tokens a step reports, split the way they are billed, or null when the
  * provider reported none.
  */
-function reportedUsage(step: StepResult<ToolSet>): TokenUsage | null {
-  const { usage } = step;
+function reportedUsage(usage: LanguageModelUsage): TokenUsage | null {
   if (usage.inputTokens == null && usage.outputTokens == null) return null;
   const details = usage.inputTokenDetails;
   const cacheRead = details?.cacheReadTokens ?? 0;
@@ -394,11 +398,53 @@ function reportedUsage(step: StepResult<ToolSet>): TokenUsage | null {
 }
 
 /** Characters a step produced: answer, reasoning and tool inputs. */
-function outputCharsOf(step: StepResult<ToolSet>): number {
+function outputCharsOf(content: ReadonlyArray<ContentPart<ToolSet>>): number {
+  let chars = 0;
+  for (const part of content) {
+    if (part.type === "text" || part.type === "reasoning") {
+      chars += part.text.length;
+    } else if (part.type === "tool-call") {
+      chars += JSON.stringify(part.input ?? null).length;
+    }
+  }
+  return chars;
+}
+
+/** Input tokens a provider typically charges for one image. */
+export const IMAGE_TOKEN_ALLOWANCE = 1_600;
+/** The most input tokens one PDF is estimated at. */
+export const PDF_TOKEN_CAP = 100_000;
+
+/**
+ * The prompt's size in characters for a usage estimate. File parts (an
+ * attachment read with read_attachment) count as a token allowance, not as
+ * their base64 text: an image as IMAGE_TOKEN_ALLOWANCE, a PDF scaled by its
+ * size up to PDF_TOKEN_CAP.
+ */
+export function promptCharsOf(value: unknown): number {
+  let fileChars = 0;
+  const json = JSON.stringify(value, (_key, item: unknown) => {
+    if (!isFilePart(item)) return item;
+    const base64 = typeof item.data.data === "string" ? item.data.data : "";
+    const tokens = item.mediaType.startsWith("image/")
+      ? IMAGE_TOKEN_ALLOWANCE
+      : Math.min(Math.ceil((base64.length * 3) / 4 / 3), PDF_TOKEN_CAP);
+    fileChars += tokens * CHARS_PER_TOKEN;
+    return { type: item.type, mediaType: item.mediaType };
+  });
+  return (json?.length ?? 0) + fileChars;
+}
+
+function isFilePart(
+  item: unknown
+): item is { type: string; mediaType: string; data: { data?: unknown } } {
+  if (typeof item !== "object" || item === null) return false;
+  const part = item as Record<string, unknown>;
   return (
-    step.text.length +
-    (step.reasoningText?.length ?? 0) +
-    JSON.stringify(step.toolCalls.map((call) => call.input)).length
+    (part.type === "file" || part.type === "image-data") &&
+    typeof part.mediaType === "string" &&
+    typeof part.data === "object" &&
+    part.data !== null
   );
 }
 
@@ -459,24 +505,36 @@ async function runClaimedTurn(
   // Set by prepareStep for the step about to run.
   let capped = false;
   let promptChars = 0;
+  let stepMetered = false;
   // A tool call that could not be audited ends the turn.
   let auditError: unknown;
   const abort = new AbortController();
+  const audit = (
+    tool: string,
+    input: unknown,
+    resultMeta: Record<string, unknown>
+  ) =>
+    recordToolCall(
+      turn.messageId,
+      tool,
+      typeof input === "object" && input !== null && !Array.isArray(input)
+        ? (input as Record<string, unknown>)
+        : { input },
+      resultMeta
+    );
 
   const tools = buildTools(
     toolContext,
     async (call) => {
       try {
-        await recordToolCall(
-          turn.messageId,
-          call.tool,
-          call.input,
-          call.resultMeta
-        );
+        await audit(call.tool, call.input, call.resultMeta);
       } catch (error) {
+        console.error("[assistant] failed to audit a tool call", error);
         auditError ??= error;
-        abort.abort(error);
-        throw error;
+        abort.abort();
+        // The tool error the SDK makes of this reaches the model: no
+        // internal text in it.
+        throw new Error("audit failed");
       }
     },
     { execute: deps.executeTool, lastToolProviderOptions: cache }
@@ -484,7 +542,25 @@ async function runClaimedTurn(
   const toolsChars = JSON.stringify(
     Object.entries(tools).map(([name, t]) => [name, t.description])
   ).length;
-  const instructionsChars = JSON.stringify(instructions).length;
+  const instructionsChars = promptCharsOf(instructions);
+
+  const meter = (
+    modelId: string,
+    usage: LanguageModelUsage,
+    content: ReadonlyArray<ContentPart<ToolSet>>
+  ) => {
+    stepMetered = true;
+    const reported = reportedUsage(usage);
+    return recordUsage({
+      messageId: turn.messageId,
+      userId: turn.userId,
+      modelId: modelId || runtime.modelId,
+      prices: runtime.prices,
+      usage: reported ?? estimateUsage(promptChars, outputCharsOf(content)),
+      estimated: !reported,
+      now: now(),
+    });
+  };
 
   const result = streamText({
     model: runtime.model,
@@ -492,7 +568,11 @@ async function runClaimedTurn(
     messages: buildHistory(turn),
     tools,
     toolChoice: "auto",
-    maxOutputTokens: MAX_TOKENS,
+    // Anthropic requires a limit; the others default to the model's maximum,
+    // and a fixed one can exceed what a smaller model accepts.
+    ...(runtime.provider === "anthropic"
+      ? { maxOutputTokens: MAX_TOKENS }
+      : {}),
     providerOptions: mergeProviderOptions(
       providerOptionsFor(runtime.provider, runtime.effort),
       cache
@@ -500,8 +580,8 @@ async function runClaimedTurn(
     abortSignal: abort.signal,
     stopWhen: stepCountIs(MAX_ITERATIONS),
     prepareStep: async ({ stepNumber, messages }) => {
-      promptChars =
-        instructionsChars + toolsChars + JSON.stringify(messages).length;
+      stepMetered = false;
+      promptChars = instructionsChars + toolsChars + promptCharsOf(messages);
       let note: string | undefined;
       // Never more than one request past the cap: with tool choice none the
       // capped step either answers (the loop ends) or its tool calls are a
@@ -519,17 +599,22 @@ async function runClaimedTurn(
         messages: [...messages, { role: "user", content: note }],
       };
     },
+    // Metered as soon as the model call ends, before its tools run, so a turn
+    // that fails in a tool (an audit failure) still pays for the call.
+    onLanguageModelCallEnd: async (event) => {
+      await meter(event.modelId, event.usage, event.content);
+    },
     onStepEnd: async (step) => {
-      const reported = reportedUsage(step);
-      await recordUsage({
-        messageId: turn.messageId,
-        userId: turn.userId,
-        modelId: step.response.modelId || runtime.modelId,
-        prices: runtime.prices,
-        usage: reported ?? estimateUsage(promptChars, outputCharsOf(step)),
-        estimated: !reported,
-        now: now(),
-      });
+      // A call that ended in a stream error reaches no call end.
+      if (!stepMetered) {
+        await meter(step.response.modelId, step.usage, step.content);
+      }
+      // Calls the SDK rejected (unknown tool, input not matching the schema)
+      // never reach execute; audited here, with no result.
+      for (const call of step.toolCalls) {
+        if (call.invalid)
+          await audit(call.toolName, call.input, { invalid: true });
+      }
     },
     // Errors are read from the stream below; the default logs them.
     onError: () => {},

@@ -473,6 +473,72 @@ describe("runTurn", () => {
     });
   });
 
+  it.each([
+    ["a PDF", "application/pdf", "document", 100_000],
+    ["an image", "image/png", "image", 1_600],
+  ])(
+    "bounds the estimate after %s attachment",
+    async (_label, mediaType, kind, allowance) => {
+      const { model } = mockModel([
+        {
+          toolCalls: [
+            {
+              id: "tu_1",
+              name: "read_attachment",
+              input: { issue_key: "KST-1", attachment_id: "900" },
+            },
+          ],
+          finish: "tool-calls",
+        },
+        { text: ["Isi lampiran: ..."], finish: "stop", usage: NO_USAGE },
+      ]);
+      // 5 MB of base64: counted as characters it would be ~1.7M tokens.
+      const executeTool = vi.fn(async () => ({
+        ok: true as const,
+        data: { kind, mediaType, base64: "A".repeat(5_000_000) },
+        meta: {},
+      }));
+      await runTurn(MESSAGE_ID, deps(model, { executeTool }));
+      expect(state.message.status).toBe("done");
+      const estimate = state.usage[1];
+      expect(estimate).toMatchObject({ estimated: true });
+      const input = Number(estimate?.inputTokens);
+      expect(input).toBeGreaterThanOrEqual(allowance);
+      // The allowance plus the text prompt (system prompt, tools, history).
+      expect(input).toBeLessThan(allowance + 20_000);
+    }
+  );
+
+  it("sends a token limit only to Anthropic", async () => {
+    const { model, calls } = mockModel([{ text: ["Halo"], finish: "stop" }]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, { loadRuntime: async () => runtime({ provider: "openai" }) })
+    );
+    expect(calls[0]?.maxOutputTokens).toBeUndefined();
+  });
+
+  it("audits invalid tool calls without running them", async () => {
+    const { model } = mockModel([
+      {
+        toolCalls: [
+          { id: "tu_1", name: "bash", input: { cmd: "ls" } },
+          { id: "tu_2", name: "list_files", input: { glob: 1 } },
+        ],
+        finish: "tool-calls",
+      },
+      { text: ["ok"], finish: "stop" },
+    ]);
+    const executeTool = vi.fn();
+    await runTurn(MESSAGE_ID, deps(model, { executeTool }));
+    expect(executeTool).not.toHaveBeenCalled();
+    expect(state.toolCalls).toEqual([
+      { tool: "bash", input: { cmd: "ls" }, resultMeta: { invalid: true } },
+      { tool: "list_files", input: { glob: 1 }, resultMeta: { invalid: true } },
+    ]);
+    expect(state.message.status).toBe("done");
+  });
+
   it("keeps the partial text and meters an estimate when the stream fails", async () => {
     const overloaded = new StreamProviderError({
       message: "Overloaded",
@@ -703,6 +769,18 @@ describe("runTurn", () => {
     expect(calls).toHaveLength(1);
     expect(state.message.status).toBe("failed");
     expect(state.message.errorCode).toBe("assistant.failed");
+    // The step that asked for the tool is still metered.
+    expect(state.usage).toHaveLength(1);
+    expect(state.usage[0]).toMatchObject({
+      estimated: false,
+      inputTokens: 1000,
+    });
+    // The original error is logged, never sent to the model.
+    expect(
+      error.mock.calls.some((args) =>
+        args.some((a) => a instanceof Error && a.message === "db down")
+      )
+    ).toBe(true);
     error.mockRestore();
   });
 
@@ -843,14 +921,43 @@ describe("classifyError", () => {
       "assistant.credit_exhausted",
     ],
     [
-      "429 quota",
-      api(429, '{"error":{"code":"insufficient_quota"}}'),
+      "400 quota",
+      api(400, '{"message":"quota exceeded for this key"}'),
       "assistant.credit_exhausted",
     ],
     [
-      "429 billing",
-      api(429, '{"message":"check your plan and billing details"}'),
+      "429 insufficient_quota",
+      api(
+        429,
+        '{"error":{"message":"You exceeded your current quota, please check your plan and billing details.","type":"insufficient_quota","code":"insufficient_quota"}}'
+      ),
       "assistant.credit_exhausted",
+    ],
+    [
+      "429 credit balance",
+      api(429, '{"message":"Your credit balance is too low"}'),
+      "assistant.credit_exhausted",
+    ],
+    [
+      "429 per-day quota",
+      api(
+        429,
+        '{"error":{"details":[{"quotaId":"GenerateRequestsPerDayPerProjectPerModel"}]}}'
+      ),
+      "assistant.credit_exhausted",
+    ],
+    [
+      "429 per-minute quota",
+      api(
+        429,
+        '{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details. Please retry in 30s.","status":"RESOURCE_EXHAUSTED","details":[{"quotaId":"GenerateRequestsPerMinutePerProjectPerModel"}]}}'
+      ),
+      "assistant.unavailable",
+    ],
+    [
+      "429 billing wording only",
+      api(429, '{"message":"check your plan and billing details"}'),
+      "assistant.unavailable",
     ],
     [
       "429 rate limit",
@@ -899,6 +1006,16 @@ describe("classifyError", () => {
       "400 function calling unsupported",
       api(400, '{"message":"Function calling is not supported by this model"}'),
       "assistant.model_no_tools",
+    ],
+    [
+      "400 tool use unsupported",
+      api(400, '{"error":"this endpoint does not support tool use"}'),
+      "assistant.model_no_tools",
+    ],
+    [
+      "400 tool schema, not support",
+      api(400, '{"message":"tools[0].input_schema: unsupported keyword"}'),
+      "assistant.failed",
     ],
     [
       "unsupported other",
