@@ -9,8 +9,8 @@ import { addAttribution, stripAttribution } from "@/lib/jira/attribution";
  */
 describe("addAttribution", () => {
   it("prefixes the body with an italic author line", () => {
-    expect(addAttribution("Fixed on staging.", "Rafi Pratama")).toBe(
-      "*Written by Rafi Pratama via Menara*\n\nFixed on staging."
+    expect(addAttribution("Fixed on staging.", "Jane Doe")).toBe(
+      "*Written by Jane Doe via Menara*\n\nFixed on staging."
     );
   });
 });
@@ -29,6 +29,13 @@ describe("stripAttribution", () => {
       markdownToAdf(addAttribution(body, "Ajeng"))
     );
     expect(stripAttribution(roundTripped)).toBe(body);
+  });
+
+  it("removes the line older releases added", () => {
+    // Comments pushed before the rename carry "via <Name> Panel".
+    expect(
+      stripAttribution("*Written by Jane Doe via Example Panel*\n\nFixed.")
+    ).toBe("Fixed.");
   });
 
   it("leaves a comment written in Jira untouched", () => {

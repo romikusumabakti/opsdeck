@@ -5,9 +5,11 @@
  * Menara copy keeps its original body.
  *
  * The wording is fixed (not localized) because the pull side recognizes it by
- * shape.
+ * shape. Older releases wrote "via <Name> Panel"; comments they pushed are
+ * still recognized.
  */
-const ATTRIBUTION_PATTERN = /^\*Written by .+ via Menara\*\n\n/;
+const ATTRIBUTION_PATTERN =
+  /^\*Written by .+ via (?:Menara|[A-Z][A-Za-z]* Panel)\*\n\n/;
 
 export function addAttribution(body: string, authorName: string): string {
   return `*Written by ${authorName} via Menara*\n\n${body}`;
