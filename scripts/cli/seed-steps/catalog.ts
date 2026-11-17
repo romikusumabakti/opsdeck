@@ -51,10 +51,17 @@ export async function seedServers(ctx: SeedContext): Promise<void> {
   }
 }
 
+/**
+ * The demo projects. A project with a demo key that this run did not create
+ * is seeded further only when it is recognisably demo data: the name the
+ * seed gives it with the seed's client (or none, as the first seed wrote
+ * it), or the demo app already among its sources. Any other project with
+ * that key belongs to someone; nothing is added under it.
+ */
 export async function seedProjects(ctx: SeedContext): Promise<void> {
   const { tx } = ctx;
   for (const project of DEMO_PROJECTS) {
-    const inserted = await tx
+    const [inserted] = await tx
       .insert(projects)
       .values({
         key: project.key,
@@ -66,14 +73,32 @@ export async function seedProjects(ctx: SeedContext): Promise<void> {
         updatedAt: addDays(ctx.now, -35),
       })
       .onConflictDoNothing()
-      .returning({ id: projects.id });
-    count(ctx, "projects", inserted.length);
+      .returning({ id: projects.id, name: projects.name });
+    if (inserted) {
+      count(ctx, "projects");
+      ctx.projects.set(project.key, inserted);
+      continue;
+    }
     const [row] = await tx
-      .select({ id: projects.id, name: projects.name })
+      .select({ id: projects.id, name: projects.name, client: projects.client })
       .from(projects)
       .where(eq(projects.key, project.key));
     if (!row) throw new Error(`Project ${project.key} was not created`);
-    ctx.projects.set(project.key, row);
+    const [source] = await tx
+      .select({ appId: projectApps.appId })
+      .from(projectApps)
+      .innerJoin(apps, eq(apps.id, projectApps.appId))
+      .where(
+        and(eq(projectApps.projectId, row.id), eq(apps.appKey, project.app))
+      );
+    const named =
+      row.name === project.name &&
+      (row.client === null || row.client === project.client);
+    if (!named && !source) {
+      ctx.lines.push(`skipped ${project.key} (not demo data)`);
+      continue;
+    }
+    ctx.projects.set(project.key, { id: row.id, name: row.name });
   }
 }
 

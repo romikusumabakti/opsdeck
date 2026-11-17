@@ -20,6 +20,7 @@ export interface SeedContext {
   newPassword: () => string;
   emailDomain: string;
   servers: Map<string, string>;
+  // Only projects the seed owns (created now, or recognised as demo data).
   projects: Map<string, { id: string; name: string }>;
   // Keyed by `${projectKey}/${slug}`.
   environments: Map<string, SeedEnvironment>;
@@ -28,6 +29,8 @@ export interface SeedContext {
   // already holds is left out, and so is everything only they would author.
   people: Map<PersonRef, { id: string; name: string }>;
   inserted: Record<string, number>;
+  // For the operator, printed only after the transaction commits.
+  lines: string[];
 }
 
 export function count(ctx: SeedContext, area: string, n = 1): void {

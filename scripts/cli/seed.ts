@@ -37,7 +37,9 @@ Creates (or keeps, when present) fictional demo data:
   activity entries, and a small knowledge base;
 - one account per role (demo-admin, demo-infra, demo-observer,
   demo-engineer, demo-qa @example.invalid) with email+password sign-in.
-Existing rows and accounts are never changed or reset.
+Existing rows and accounts are never changed or reset. A project with a demo
+key, or a collection with a demo name, that is not demo data is skipped with
+nothing added under it; so is an account whose name someone else holds.
 --print-passwords  Print the generated password of each account created now.
 --force            Seed even when NODE_ENV=production and the update channel
                    is stable (refused otherwise).`;
@@ -94,12 +96,13 @@ export async function seedDemo(
       apps: new Map(),
       people: new Map(),
       inserted,
+      lines,
     };
     await seedServers(ctx);
     await seedProjects(ctx);
     await seedApps(ctx);
     await seedEnvironments(ctx);
-    await seedAccounts(ctx, opts, lines);
+    await seedAccounts(ctx, opts);
     await seedStaff(ctx);
     await seedDeploys(ctx);
     await seedIssues(ctx);

@@ -37,18 +37,17 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
 const ACCOUNT_PROJECTS = ["DEMO", "DEMOPORTAL"];
 
 /**
- * The sign-in accounts. Lines for the operator go to `lines`, printed only
- * after the transaction commits.
+ * The sign-in accounts. An account whose name an unrelated active user
+ * holds is skipped (display names are unique), not the whole seed.
  */
 export async function seedAccounts(
   ctx: SeedContext,
   opts: {
     printPasswords: boolean;
     hashPassword: (password: string) => Promise<string>;
-  },
-  lines: string[]
+  }
 ): Promise<void> {
-  const { tx } = ctx;
+  const { tx, lines } = ctx;
   for (const account of DEMO_ACCOUNTS) {
     const email = `${account.name}@${ctx.emailDomain}`;
     const [existing] = await tx
@@ -57,6 +56,10 @@ export async function seedAccounts(
       .where(eq(users.email, email));
     let userId = existing?.id;
     if (!userId) {
+      if (await nameTaken(ctx, account.name)) {
+        lines.push(`skipped ${account.name} (name taken)`);
+        continue;
+      }
       userId = Bun.randomUUIDv7();
       const password = ctx.newPassword();
       // Written directly, not through auth.api: the user.create hook rejects
@@ -114,16 +117,7 @@ export async function seedStaff(ctx: SeedContext): Promise<void> {
       // Active display names are unique (mentions resolve by name): leave
       // the person out rather than fail the whole seed on someone else's
       // account.
-      const [taken] = await tx
-        .select({ id: users.id })
-        .from(users)
-        .where(
-          and(
-            eq(users.banned, false),
-            sql`lower(${users.name}) = lower(${staff.name})`
-          )
-        );
-      if (taken) continue;
+      if (await nameTaken(ctx, staff.name)) continue;
       const createdAt = addDays(ctx.now, -45);
       person = { id: Bun.randomUUIDv7(), name: staff.name };
       await tx.insert(users).values({
@@ -165,4 +159,15 @@ export async function seedStaff(ctx: SeedContext): Promise<void> {
       count(ctx, "activity");
     }
   }
+}
+
+/** Whether an active user already has this display name (case-insensitive). */
+async function nameTaken(ctx: SeedContext, name: string): Promise<boolean> {
+  const [taken] = await ctx.tx
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(eq(users.banned, false), sql`lower(${users.name}) = lower(${name})`)
+    );
+  return taken !== undefined;
 }

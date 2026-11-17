@@ -161,10 +161,19 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     });
     db = drizzle({ client: sql });
     await migrate(db, { migrationsFolder: "drizzle" });
-    // Rows an operator made before seeding: a renamed DEMO project with a
-    // Dev environment that has no app, a real DEMO-1, and someone else
-    // already called Joko Santoso.
+    // Rows that exist before seeding: a real project under the DEMO key
+    // (with a Dev environment without an app and a real DEMO-1), a real
+    // NPMB, DEMOPORTAL as the first seed wrote it (no client: demo data), a
+    // real collection named like a demo one, and someone else already
+    // called Joko Santoso.
     await sql`insert into projects (key, name) values ('DEMO', 'Customer Demo')`;
+    await sql`
+      insert into projects (key, name, client)
+      values ('NPMB', 'Membership (in-house)', 'In-house')`;
+    await sql`insert into projects (key, name) values ('DEMOPORTAL', 'Demo Portal')`;
+    await sql`
+      insert into knowledge_collections (name, description, rank)
+      values ('Catatan Teknis', 'Our own notes', 'a0')`;
     await sql`
       insert into environments (project_id, name, slug, kind)
       select id, 'Dev', 'dev', 'dev' from projects where key = 'DEMO'`;
@@ -187,48 +196,58 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     const inserted = await seedDemo(db, options({ printPasswords: true }));
     first = await counts();
     const newIssues = Object.values(PROJECT_ISSUES).flat().length;
+    expect(newIssues).toBe(45);
     expect(first).toMatchObject({
       projects: 5,
-      environments: 15,
+      // DEMO keeps its own Dev; NPMB gets none; the other 3 × 3.
+      environments: 10,
       servers: 3,
       // 5 sign-in accounts, 9 staff (Joko's name was taken), 1 pre-existing.
       users: 15,
       accounts: 5,
-      // demo-engineer and demo-qa in 2 projects each, staff in 16.
-      members: 20,
+      // demo-engineer and demo-qa in DEMOPORTAL, staff in NPCP/BSAC (11).
+      members: 13,
       apps: 3,
       components: 5,
       ci: 1,
-      projectApps: 5,
-      branches: 9,
-      // 27 planned, minus DEMO Dev's two (its environment has no app).
-      targets: 25,
-      // 8 per original demo project (DEMO-1 pre-existing) + 15 × 3.
-      issues: 16 + newIssues,
+      projectApps: 3,
+      branches: 5,
+      targets: 15,
+      // DEMO-1 (real) + DEMOPORTAL 8 + NPCP and BSAC 15 each.
+      issues: 39,
       labels: 9,
-      milestones: 6,
+      milestones: 4,
+      // Panduan Operasional (4 documents) is seeded; the real Catatan Teknis
+      // gets none of its 3.
       collections: 2,
-      documents: 7,
-      revisions: 2,
+      documents: 4,
+      revisions: 1,
       links: 2,
     });
-    expect(newIssues).toBe(45);
-    expect(first.builds).toBeGreaterThan(30);
-    expect(first.deployments).toBeGreaterThan(50);
+    expect(first.builds).toBe(66);
+    expect(first.deployments).toBeGreaterThan(40);
     expect(first.runs).toBe(first.deployments);
-    expect(first.comments).toBeGreaterThan(40);
-    expect(first.issueLabels).toBeGreaterThan(40);
+    expect(first.comments).toBeGreaterThan(30);
+    expect(first.issueLabels).toBeGreaterThan(30);
     expect(first.notifications).toBeGreaterThan(0);
-    expect(first.activity).toBeGreaterThan(50);
-    expect(inserted.projects).toBe(4);
-    expect(inserted.issues).toBe((first.issues ?? 0) - 1);
+    expect(first.activity).toBeGreaterThan(40);
+    expect(inserted.projects).toBe(2);
+    expect(inserted.issues).toBe(38);
+    expect(lines).toEqual(
+      expect.arrayContaining([
+        "skipped DEMO (not demo data)",
+        "skipped NPMB (not demo data)",
+        'skipped collection "Catatan Teknis" (not demo data)',
+      ])
+    );
+    expect(lines.filter((l) => l.startsWith("skipped"))).toHaveLength(3);
     expect(accountLines()).toHaveLength(5);
     expect(
       accountLines().every(
         (l) => l.startsWith("created") && l.includes("password: ")
       )
     ).toBe(true);
-    expect(lines.at(-1)).toMatch(/^demo data added: .*issues 60/);
+    expect(lines.at(-1)).toMatch(/^demo data added: .*issues 38/);
   });
 
   it("inserts nothing on a second run", async () => {
@@ -286,6 +305,62 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     expect(joko).toEqual([{ email: "joko@other.invalid", role: "engineer" }]);
   });
 
+  it("adds nothing under projects and collections the seed does not own", async () => {
+    for (const key of ["DEMO", "NPMB"]) {
+      const [row] = await sql`
+        select
+          (select count(*) from environments e where e.project_id = p.id)::int as environments,
+          (select count(*) from issues i where i.project_id = p.id)::int as issues,
+          (select count(*) from project_apps a where a.project_id = p.id)::int as sources,
+          (select count(*) from project_component_branches b where b.project_id = p.id)::int as branches,
+          (select count(*) from project_members m where m.project_id = p.id)::int as members,
+          (select count(*) from milestones m where m.project_id = p.id)::int as milestones,
+          (select count(*) from knowledge_documents d where d.project_id = p.id)::int as documents,
+          p.name, p.client, p.default_server_id
+        from projects p where p.key = ${key}`;
+      expect(row).toEqual(
+        key === "DEMO"
+          ? {
+              environments: 1,
+              issues: 1,
+              sources: 0,
+              branches: 0,
+              members: 0,
+              milestones: 0,
+              documents: 0,
+              name: "Customer Demo",
+              client: null,
+              default_server_id: null,
+            }
+          : {
+              environments: 0,
+              issues: 0,
+              sources: 0,
+              branches: 0,
+              members: 0,
+              milestones: 0,
+              documents: 0,
+              name: "Membership (in-house)",
+              client: "In-house",
+              default_server_id: null,
+            }
+      );
+    }
+    // DEMOPORTAL as the first seed wrote it is demo data: it is filled in
+    // (its own row stays as it was).
+    const [portal] = await sql`
+      select p.client,
+        (select count(*) from environments e where e.project_id = p.id)::int as environments,
+        (select count(*) from issues i where i.project_id = p.id)::int as issues
+      from projects p where p.key = 'DEMOPORTAL'`;
+    expect(portal).toEqual({ client: null, environments: 3, issues: 8 });
+    const [collection] = await sql`
+      select c.description,
+        (select count(*) from knowledge_documents d where d.collection_id = c.id)::int as documents
+      from knowledge_collections c where c.name = 'Catatan Teknis'`;
+    expect(collection).toEqual({ description: "Our own notes", documents: 0 });
+  });
+
   it("numbers issues uniquely and contiguously per project", async () => {
     const dupes = await sql`
       select project_id, number from issues group by project_id, number having count(*) > 1`;
@@ -300,7 +375,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     expect(parents).toHaveLength(0);
     const children =
       await sql`select count(*)::int as n from issues where parent_id is not null`;
-    expect(children[0]?.n).toBeGreaterThanOrEqual(6);
+    expect(children[0]?.n).toBeGreaterThanOrEqual(4);
   });
 
   it("leaves no queued or running deploys, only finished history", async () => {
@@ -399,10 +474,11 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
       select u.email, p.key from project_members m
       join users u on u.id = m.user_id join projects p on p.id = m.project_id
       where u.email like 'demo-%'`;
-    expect(members).toHaveLength(4);
+    // DEMO here is a real project, so only DEMOPORTAL.
+    expect(members).toHaveLength(2);
     for (const name of ["demo-engineer", "demo-qa"]) {
       const mine = members.filter((m) => m.email === `${name}@example.invalid`);
-      expect(mine.map((m) => m.key).sort()).toEqual(["DEMO", "DEMOPORTAL"]);
+      expect(mine.map((m) => m.key)).toEqual(["DEMOPORTAL"]);
     }
     expect(DEMO_ACCOUNTS).toHaveLength(5);
     const credential = await sql`select provider_id from accounts`;
@@ -417,6 +493,21 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     ).toBe(true);
     const statuses = await sql`select distinct status from issues`;
     expect(statuses.length).toBeGreaterThan(1);
+  });
+
+  it("skips a demo account whose name someone else holds", async () => {
+    await sql`delete from users where email = 'demo-observer@example.invalid'`;
+    await sql`
+      insert into users (id, name, email, role)
+      values (uuidv7(), 'Demo-Observer', 'observer@other.invalid', 'observer')`;
+    lines.length = 0;
+    await seedDemo(db, options());
+    expect(lines).toContain("skipped demo-observer (name taken)");
+    const rows =
+      await sql`select email from users where lower(name) = 'demo-observer'`;
+    expect(rows).toEqual([{ email: "observer@other.invalid" }]);
+    await sql`delete from users where email = 'observer@other.invalid'`;
+    await seedDemo(db, options());
   });
 
   it("refuses on a stable channel in production, unless forced", async () => {

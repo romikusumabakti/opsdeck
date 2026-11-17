@@ -19,11 +19,22 @@ export async function seedKnowledge(ctx: SeedContext): Promise<void> {
   const collectionIds = new Map<string, string>();
   for (const collection of DEMO_COLLECTIONS) {
     const [existing] = await tx
-      .select({ id: knowledgeCollections.id })
+      .select({
+        id: knowledgeCollections.id,
+        description: knowledgeCollections.description,
+      })
       .from(knowledgeCollections)
       .where(eq(knowledgeCollections.name, collection.name));
     if (existing) {
-      collectionIds.set(collection.name, existing.id);
+      // Only a collection the seed wrote (same name and description) gets
+      // demo documents; one someone made with that name is left alone.
+      if (existing.description === collection.description) {
+        collectionIds.set(collection.name, existing.id);
+      } else {
+        ctx.lines.push(
+          `skipped collection "${collection.name}" (not demo data)`
+        );
+      }
       continue;
     }
     const [last] = await tx
