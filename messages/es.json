@@ -3658,6 +3658,8 @@
     "nothingToDraft": "Todavía no hay ninguna respuesta en esta conversación para redactar un borrador. Pregunta primero al asistente.",
     "invalidDraft": "Este borrador está incompleto, es demasiado largo o el gestor rechazó uno de sus campos. Revisa los campos e inténtalo de nuevo.",
     "jiraPushDisabled": "La sincronización de incidencias con el gestor está desactivada en este proyecto. Pide a un administrador que la active.",
+    "draftChanged": "Este borrador se movió a otro proyecto mientras se creaba la incidencia. Revisa el proyecto e inténtalo de nuevo.",
+    "draftProjectLocked": "Este borrador ya tiene una incidencia creada en el gestor en su proyecto, así que su proyecto no puede cambiar. Vuelve a crear la incidencia para vincularla.",
     "draftProjectRequired": "Elige el proyecto de este borrador antes de crear la incidencia.",
     "draftAlreadyCreated": "Ya se creó una incidencia a partir de este borrador.",
     "jiraCreateFailed": "No se pudo crear la incidencia. Inténtalo de nuevo en un momento."

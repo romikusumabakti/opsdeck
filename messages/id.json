@@ -3658,6 +3658,8 @@
     "nothingToDraft": "Belum ada jawaban di percakapan ini untuk dijadikan draf. Tanyakan ke asisten dulu.",
     "invalidDraft": "Draf ini belum lengkap, terlalu panjang, atau salah satu isiannya ditolak tracker. Periksa isiannya lalu coba lagi.",
     "jiraPushDisabled": "Sinkronisasi issue ke tracker nonaktif untuk proyek ini. Minta admin mengaktifkannya.",
+    "draftChanged": "Draf ini dipindahkan ke proyek lain saat issue sedang dibuat. Periksa proyeknya lalu coba lagi.",
+    "draftProjectLocked": "Draf ini sudah punya issue di tracker yang dibuat di proyeknya, jadi proyeknya tidak dapat diubah. Buat issue lagi untuk menautkannya.",
     "draftProjectRequired": "Pilih proyek untuk draf ini sebelum membuat issue.",
     "draftAlreadyCreated": "Issue sudah dibuat dari draf ini.",
     "jiraCreateFailed": "Issue tidak dapat dibuat. Coba lagi sebentar lagi."

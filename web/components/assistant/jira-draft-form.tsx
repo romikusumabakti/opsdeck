@@ -101,11 +101,21 @@ export function JiraDraftForm({
   const [forbidden, setForbidden] = React.useState(false);
 
   const created = draft.issueId !== null;
+  const contentDirty =
+    JSON.stringify(toContent(form)) !== JSON.stringify(toContent(saved));
+  // A new saved project (a save elsewhere, or the server blanking a lost
+  // one) moves the picker while the form has no unsaved edits; an unsaved
+  // pick stands. Adjusted during render, not in an effect.
+  const [seenProjectId, setSeenProjectId] = React.useState(draft.projectId);
+  if (draft.projectId !== seenProjectId) {
+    setSeenProjectId(draft.projectId);
+    if (projectId === seenProjectId && !contentDirty) {
+      setProjectId(draft.projectId);
+    }
+  }
   const project = projects?.find((p) => p.id === projectId) ?? null;
   const savedProject = projects?.find((p) => p.id === draft.projectId) ?? null;
-  const dirty =
-    projectId !== draft.projectId ||
-    JSON.stringify(toContent(form)) !== JSON.stringify(toContent(saved));
+  const dirty = projectId !== draft.projectId || contentDirty;
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 

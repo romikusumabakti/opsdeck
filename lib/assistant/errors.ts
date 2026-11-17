@@ -22,6 +22,8 @@ export const ASSISTANT_ERROR_MESSAGE_KEYS = {
   "assistant.invalid_draft": "invalidDraft",
   "assistant.jira_push_disabled": "jiraPushDisabled",
   "assistant.draft_project_required": "draftProjectRequired",
+  "assistant.draft_changed": "draftChanged",
+  "assistant.draft_project_locked": "draftProjectLocked",
   "assistant.draft_already_created": "draftAlreadyCreated",
   "assistant.jira_create_failed": "jiraCreateFailed",
 } as const;

@@ -122,7 +122,10 @@ export async function suggestDraftProject(
       .where(eq(assistantConversations.id, conversationId))
       .limit(1),
   ]);
-  // The project key each code tool of the answer read (automatic context).
+  // "The last answer" is the latest finished (done) assistant message. Each
+  // code tool call of it counts once for the project key it names, failed
+  // reads included (the audit keeps no outcome); keys that name no project
+  // count for none, and `sees` drops projects the caller cannot see.
   const readKeys = answer
     ? (
         await db
@@ -360,25 +363,34 @@ export async function claimIssueCreator(
  */
 export const UNLINKED_CREATE_ACTION = "issue.jira_create_unlinked";
 
-export type UnlinkedRemote = { jiraIssueId: string; jiraKey: string };
+export type UnlinkedRemote = {
+  jiraIssueId: string;
+  jiraKey: string;
+  /** The project it was created in; null on records older than that. */
+  projectId: string | null;
+};
 
 export async function recordUnlinkedRemote(
   draftId: string,
   actorId: string,
-  remote: UnlinkedRemote
+  remote: { jiraIssueId: string; jiraKey: string; projectId: string }
 ): Promise<void> {
   await db.insert(activityLog).values({
     actorId,
     action: UNLINKED_CREATE_ACTION,
     entityType: "assistant_draft",
     entityId: draftId,
-    data: { jiraIssueId: remote.jiraIssueId, jiraKey: remote.jiraKey },
+    data: {
+      jiraIssueId: remote.jiraIssueId,
+      jiraKey: remote.jiraKey,
+      projectId: remote.projectId,
+    },
   });
 }
 
 /** The Jira issue an earlier, failed create of this draft left behind. */
 export async function findUnlinkedRemote(
-  tx: Tx,
+  tx: Tx | typeof db,
   draftId: string
 ): Promise<UnlinkedRemote | null> {
   const [row] = await tx
@@ -395,5 +407,19 @@ export async function findUnlinkedRemote(
     .limit(1);
   const id = row?.data.jiraIssueId;
   const key = row?.data.jiraKey;
-  return id && key ? { jiraIssueId: String(id), jiraKey: String(key) } : null;
+  const projectId = row?.data.projectId;
+  return id && key
+    ? {
+        jiraIssueId: String(id),
+        jiraKey: String(key),
+        projectId: projectId ? String(projectId) : null,
+      }
+    : null;
+}
+
+/** findUnlinkedRemote outside a transaction (a save's check). */
+export function findUnlinkedRemoteOf(
+  draftId: string
+): Promise<UnlinkedRemote | null> {
+  return findUnlinkedRemote(db, draftId);
 }

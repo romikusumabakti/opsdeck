@@ -3658,6 +3658,8 @@
     "nothingToDraft": "此对话中还没有可用于起草的回答。请先向助手提问。",
     "invalidDraft": "此草稿不完整、过长，或跟踪系统拒绝了其中某个字段。请检查各字段后重试。",
     "jiraPushDisabled": "此项目已关闭问题同步到跟踪系统。请让管理员开启。",
+    "draftChanged": "创建问题时，此草稿已被移到另一个项目。请检查项目后重试。",
+    "draftProjectLocked": "此草稿已在其项目中于跟踪系统创建了问题，因此不能更改项目。请再次创建问题以关联它。",
     "draftProjectRequired": "创建问题前，请先为此草稿选择项目。",
     "draftAlreadyCreated": "已根据此草稿创建过问题。",
     "jiraCreateFailed": "无法创建该问题。请稍后重试。"

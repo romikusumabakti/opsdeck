@@ -3658,6 +3658,8 @@
     "nothingToDraft": "There is no answer in this conversation to draft from yet. Ask the assistant first.",
     "invalidDraft": "This draft is incomplete, too long, or the tracker rejected one of its fields. Check the fields and try again.",
     "jiraPushDisabled": "Issue sync to the tracker is off for this project. Ask an admin to turn it on.",
+    "draftChanged": "This draft was moved to another project while the issue was being created. Check the project and try again.",
+    "draftProjectLocked": "This draft already has a tracker issue created in its project, so its project cannot change. Create the issue again to link it.",
     "draftProjectRequired": "Choose the project for this draft before creating the issue.",
     "draftAlreadyCreated": "An issue was already created from this draft.",
     "jiraCreateFailed": "The issue could not be created. Try again in a moment."

@@ -34,6 +34,7 @@ import {
   type DraftOwner,
   type DraftProject,
   findDraftOwner,
+  findUnlinkedRemoteOf,
   loadDraftProjects,
   suggestDraftProject,
   updateDraftContent,
@@ -508,15 +509,24 @@ export async function saveDraft(
   const { draft } = await ownDraft(input.draftId);
   const parsed = draftContentSchema(draft.kind).safeParse(input.content);
   if (!parsed.success) throw await refusal(400, "assistant.invalid_draft");
-  // A chosen project must be one the caller sees (else 404, as unknown).
-  const { projectId } = input;
+  // Only an issue draft has a project; one sent with a BRD draft is ignored.
+  const projectId = draft.kind === "jira" ? input.projectId : undefined;
   if (projectId) {
+    // A chosen project must be one the caller sees (else 404, as unknown).
     await usableOr404(() =>
       requireProjectPermission({ projectId }, { assistant: ["use"] })
     );
   }
   if (draft.issueId)
     throw await refusal(409, "assistant.draft_already_created");
+  if (projectId && projectId !== draft.projectId) {
+    // A Jira issue an earlier create left unlinked belongs to the project
+    // it was created in: the draft stays there until the retry links it.
+    const unlinked = await findUnlinkedRemoteOf(input.draftId);
+    if (unlinked && projectId !== (unlinked.projectId ?? draft.projectId)) {
+      throw await refusal(409, "assistant.draft_project_locked");
+    }
+  }
   if (!(await updateDraftContent(input.draftId, parsed.data, { projectId }))) {
     throw await refusal(409, "assistant.draft_already_created");
   }
@@ -546,7 +556,12 @@ export async function createJiraIssue(
   if (draft.issueId)
     throw await refusal(409, "assistant.draft_already_created");
   try {
-    return await createJiraIssueFromDraft(input.draftId, userId);
+    // The project just authorised: a draft moved since is refused.
+    return await createJiraIssueFromDraft(
+      input.draftId,
+      userId,
+      draft.projectId
+    );
   } catch (error) {
     if (error instanceof JiraCreateError) {
       throw await refusal(

@@ -33,6 +33,7 @@ import type { JiraCreateMetaField, JiraIssue } from "./types";
 
 export type JiraCreateErrorCode =
   | "assistant.draft_project_required"
+  | "assistant.draft_changed"
   | "assistant.jira_push_disabled"
   | "assistant.draft_already_created"
   | "assistant.invalid_draft";
@@ -159,7 +160,9 @@ type Created = {
 /**
  * Creates the Jira issue for a Jira draft, inserts its local mirror, links
  * the draft and records `issue.created_from_assistant`. The caller has
- * authorized `actorId` on the project.
+ * authorized `actorId` on `projectId`; a draft (or the Jira issue an earlier
+ * try left unlinked) found in another project once locked is refused with
+ * assistant.draft_changed, so a save racing this request cannot redirect it.
  *
  * One reviewed request makes at most one Jira issue:
  * - the draft row stays locked throughout, so a second request waits and
@@ -172,7 +175,8 @@ type Created = {
  */
 export async function createJiraIssueFromDraft(
   draftId: string,
-  actorId: string
+  actorId: string,
+  authorizedProjectId: string
 ): Promise<{ issueId: string; jiraKey: string }> {
   // Set once the Jira issue exists; survives the rollback below.
   let remote: { id: string; key: string } | null = null;
@@ -196,6 +200,15 @@ export async function createJiraIssueFromDraft(
       if (!projectId) {
         throw new JiraCreateError("assistant.draft_project_required");
       }
+      if (projectId !== authorizedProjectId) {
+        throw new JiraCreateError("assistant.draft_changed");
+      }
+      const earlier = await findUnlinkedRemote(tx, draftId);
+      // Linked only into the project it was created in (no project: a record
+      // from before drafts could change project).
+      if (earlier?.projectId && earlier.projectId !== projectId) {
+        throw new JiraCreateError("assistant.draft_changed");
+      }
       const resolved = await resolveLink(projectId);
       if (!(resolved?.link.enabled && resolved.link.pushEnabled)) {
         throw new JiraCreateError("assistant.jira_push_disabled");
@@ -205,7 +218,6 @@ export async function createJiraIssueFromDraft(
       const client = new JiraClient(credentials);
 
       let issueTypeName: string = content.issueType;
-      const earlier = await findUnlinkedRemote(tx, draftId);
       if (earlier) {
         remote = { id: earlier.jiraIssueId, key: earlier.jiraKey };
         recorded = true;
@@ -308,6 +320,8 @@ export async function createJiraIssueFromDraft(
       await recordUnlinkedRemote(draftId, actorId, {
         jiraIssueId: left.id,
         jiraKey: left.key,
+        // Only ever created in the authorised project (checked above).
+        projectId: authorizedProjectId,
       }).catch((recordError) => {
         console.error(
           `[assistant] could not record ${left.key} for draft ${draftId}`,

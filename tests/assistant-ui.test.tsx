@@ -541,6 +541,33 @@ describe("Create Jira ticket", () => {
     });
   });
 
+  it("follows a new saved project while clean, and keeps an unsaved pick", async () => {
+    const rerender = (projectId: string) =>
+      act(async () =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <IntlProvider
+              locale="en"
+              messages={messages}
+              timeZone="Asia/Jakarta"
+              now={new Date("2026-11-16T05:00:00Z")}
+            >
+              <JiraDraftForm
+                draft={{ ...draft, projectId } as never}
+                projects={projects}
+              />
+            </IntlProvider>
+          </QueryClientProvider>
+        )
+      );
+    await renderForm();
+    await rerender("p2");
+    expect(picker()?.textContent).toContain("Kestrel Membership");
+    await pick("Osprey Portal");
+    await rerender("p1");
+    expect(picker()?.textContent).toContain("Osprey Portal");
+  });
+
   it("asks for confirmation (project, summary and type) before creating", async () => {
     api.createJiraIssue.mockResolvedValue({ issueId: "i1", jiraKey: "KST-9" });
     await renderForm();

@@ -22,8 +22,16 @@ const state = vi.hoisted(() => ({
   // What the next insert does instead of succeeding.
   insertError: null as unknown,
   claimed: [] as string[],
-  unlinked: null as null | { jiraIssueId: string; jiraKey: string },
-  recordedUnlinked: [] as Array<{ jiraIssueId: string; jiraKey: string }>,
+  unlinked: null as null | {
+    jiraIssueId: string;
+    jiraKey: string;
+    projectId: string | null;
+  },
+  recordedUnlinked: [] as Array<{
+    jiraIssueId: string;
+    jiraKey: string;
+    projectId: string;
+  }>,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -50,7 +58,7 @@ vi.mock("@/lib/assistant/draft-store", () => ({
     async (
       _draftId: string,
       _actorId: string,
-      remote: { jiraIssueId: string; jiraKey: string }
+      remote: { jiraIssueId: string; jiraKey: string; projectId: string }
     ) => {
       state.recordedUnlinked.push(remote);
     }
@@ -264,7 +272,7 @@ describe("createJiraIssueFromDraft guards", () => {
       null,
     ]) {
       state.link = link;
-      const error = await createJiraIssueFromDraft(DRAFT, ACTOR).catch(
+      const error = await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT).catch(
         (e: unknown) => e
       );
       expect(error).toBeInstanceOf(JiraCreateError);
@@ -280,14 +288,18 @@ describe("createJiraIssueFromDraft guards", () => {
     state.link = { enabled: true, pushEnabled: false };
     const OTHER_PROJECT = "0197f3a0-1b2c-7def-8000-00000000a002";
     state.draft = { ...jiraDraft(), projectId: OTHER_PROJECT };
-    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, OTHER_PROJECT)
+    ).rejects.toMatchObject({
       code: "assistant.jira_push_disabled",
     });
     expect(resolveLink).toHaveBeenLastCalledWith(OTHER_PROJECT);
 
     vi.mocked(resolveLink).mockClear();
     state.draft = { ...jiraDraft(), projectId: null };
-    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toMatchObject({
       code: "assistant.draft_project_required",
     });
     expect(resolveLink).not.toHaveBeenCalled();
@@ -297,7 +309,9 @@ describe("createJiraIssueFromDraft guards", () => {
   it("refuses a second create for a draft that already has an issue", async () => {
     const calls = mockJira();
     state.draft = { ...jiraDraft(), issueId: "issue-0" };
-    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toMatchObject({
       code: "assistant.draft_already_created",
     });
     expect(calls).toEqual([]);
@@ -306,11 +320,15 @@ describe("createJiraIssueFromDraft guards", () => {
   it("refuses a BRD draft or invalid content as assistant.invalid_draft", async () => {
     const calls = mockJira();
     state.draft = { ...jiraDraft(), kind: "brd" };
-    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toMatchObject({
       code: "assistant.invalid_draft",
     });
     state.draft = jiraDraft({ summary: "" });
-    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toMatchObject({
       code: "assistant.invalid_draft",
     });
     expect(calls).toEqual([]);
@@ -320,7 +338,7 @@ describe("createJiraIssueFromDraft guards", () => {
 describe("createJiraIssueFromDraft", () => {
   it("posts the draft, inserts the local issue with its Jira key and links the draft", async () => {
     const calls = mockJira();
-    const result = await createJiraIssueFromDraft(DRAFT, ACTOR);
+    const result = await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
     expect(result).toEqual({ issueId: "issue-1", jiraKey: "KST-901" });
 
     expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
@@ -388,7 +406,7 @@ describe("createJiraIssueFromDraft", () => {
         },
       ],
     });
-    await createJiraIssueFromDraft(DRAFT, ACTOR);
+    await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
     const fields = postedFields(calls);
     const criteria = fields.customfield_10050;
     expect(criteria).toMatchObject({ type: "doc" });
@@ -406,7 +424,7 @@ describe("createJiraIssueFromDraft", () => {
       },
     });
     state.draft = jiraDraft({ issueType: "Bug" });
-    await createJiraIssueFromDraft(DRAFT, ACTOR);
+    await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
     expect(calls[1]?.url).toBe(
       "/rest/api/3/issue/createmeta/KST/issuetypes/10001"
     );
@@ -418,7 +436,7 @@ describe("createJiraIssueFromDraft", () => {
     mockJira({ getIssueFails: true });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const before = Date.now();
-    await createJiraIssueFromDraft(DRAFT, ACTOR);
+    await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
     const at =
       (
         state.inserted[0]?.values.jiraUpdatedAt as Date | undefined
@@ -496,9 +514,9 @@ describe("JiraClient.createIssue retries", () => {
 describe("createJiraIssueFromDraft idempotency", () => {
   it("a 502 on the create POST is one attempt, nothing stored or recorded", async () => {
     const calls = mockJira({ post: 502 });
-    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toBeInstanceOf(
-      JiraError
-    );
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toBeInstanceOf(JiraError);
     expect(posts(calls)).toHaveLength(1);
     expect(state.inserted).toEqual([]);
     expect(state.recordedUnlinked).toEqual([]);
@@ -507,7 +525,9 @@ describe("createJiraIssueFromDraft idempotency", () => {
   it("a Jira 400 on create is assistant.invalid_draft", async () => {
     const calls = mockJira({ post: 400 });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toMatchObject({
       code: "assistant.invalid_draft",
     });
     expect(posts(calls)).toHaveLength(1);
@@ -517,7 +537,7 @@ describe("createJiraIssueFromDraft idempotency", () => {
   it("adopts the mirror the webhook sync stored first: draft linked, no insert, one POST", async () => {
     const calls = mockJira();
     state.synced = { id: "issue-synced", number: 44 };
-    const result = await createJiraIssueFromDraft(DRAFT, ACTOR);
+    const result = await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
     expect(result).toEqual({ issueId: "issue-synced", jiraKey: "KST-901" });
     expect(posts(calls)).toHaveLength(1);
     expect(state.inserted).toEqual([]);
@@ -541,7 +561,7 @@ describe("createJiraIssueFromDraft idempotency", () => {
         constraint_name: "issues_jira_issue_id_idx",
       },
     });
-    const result = await createJiraIssueFromDraft(DRAFT, ACTOR);
+    const result = await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
     expect(result.issueId).toBe("issue-synced");
     expect(posts(calls)).toHaveLength(1);
     expect(state.linked).toEqual([{ draftId: DRAFT, issueId: "issue-synced" }]);
@@ -552,22 +572,63 @@ describe("createJiraIssueFromDraft idempotency", () => {
     const calls = mockJira();
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     state.insertError = new Error("connection reset");
-    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toThrow(
-      "connection reset"
-    );
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toThrow("connection reset");
+    // With the project it was created in.
     expect(state.recordedUnlinked).toEqual([
-      { jiraIssueId: "20001", jiraKey: "KST-901" },
+      { jiraIssueId: "20001", jiraKey: "KST-901", projectId: PROJECT },
     ]);
     expect(state.linked).toEqual([]);
 
     // The retry finds the record (in the real store: the activity row).
     state.unlinked = state.recordedUnlinked[0] ?? null;
-    const result = await createJiraIssueFromDraft(DRAFT, ACTOR);
+    const result = await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
     expect(result).toEqual({ issueId: "issue-1", jiraKey: "KST-901" });
     expect(posts(calls)).toHaveLength(1);
     expect(state.linked).toEqual([{ draftId: DRAFT, issueId: "issue-1" }]);
     expect(state.recordedUnlinked).toHaveLength(1);
     error.mockRestore();
+  });
+});
+
+describe("createJiraIssueFromDraft stays in the authorised project", () => {
+  it("refuses with assistant.draft_changed when the locked draft moved to another project", async () => {
+    const calls = mockJira();
+    const { resolveLink } = await import("@/lib/jira/sync");
+    vi.mocked(resolveLink).mockClear();
+    const MOVED = "0197f3a0-1b2c-7def-8000-00000000a003";
+    // issue:write was checked on PROJECT; a save moved the draft meanwhile.
+    state.draft = { ...jiraDraft(), projectId: MOVED };
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toMatchObject({ code: "assistant.draft_changed" });
+    expect(resolveLink).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+    expect(state.inserted).toEqual([]);
+  });
+
+  it("refuses to link an unlinked Jira issue created in another project", async () => {
+    const calls = mockJira();
+    state.unlinked = {
+      jiraIssueId: "20001",
+      jiraKey: "OTH-1",
+      projectId: "0197f3a0-1b2c-7def-8000-00000000a003",
+    };
+    await expect(
+      createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT)
+    ).rejects.toMatchObject({ code: "assistant.draft_changed" });
+    expect(calls).toEqual([]);
+    expect(state.inserted).toEqual([]);
+    expect(state.linked).toEqual([]);
+    // A record from before projects were stored still links.
+    state.unlinked = {
+      jiraIssueId: "20001",
+      jiraKey: "KST-901",
+      projectId: null,
+    };
+    const result = await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
+    expect(result).toMatchObject({ jiraKey: "KST-901" });
   });
 });
 
@@ -584,7 +645,7 @@ describe("createJiraIssueFromDraft mirror", () => {
         assignee: { accountId: "acc-wulan" },
       },
     });
-    await createJiraIssueFromDraft(DRAFT, ACTOR);
+    await createJiraIssueFromDraft(DRAFT, ACTOR, PROJECT);
     expect(state.inserted[0]?.values).toMatchObject({
       status: "in_progress",
       priority: "high",

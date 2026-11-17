@@ -288,8 +288,8 @@ describe.skipIf(!enabled)(
       try {
         // Two creates at once: the draft row lock lets exactly one through.
         const results = await Promise.allSettled([
-          createJiraIssueFromDraft(draftId, user.id),
-          createJiraIssueFromDraft(draftId, user.id),
+          createJiraIssueFromDraft(draftId, user.id, project.id),
+          createJiraIssueFromDraft(draftId, user.id, project.id),
         ]);
         expect(posts).toBe(1);
         const ok = results.filter((r) => r.status === "fulfilled");
@@ -417,7 +417,11 @@ describe.skipIf(!enabled)(
         })
       );
       try {
-        const result = await createJiraIssueFromDraft(draftId, user.id);
+        const result = await createJiraIssueFromDraft(
+          draftId,
+          user.id,
+          project.id
+        );
         // The test's own client has one connection: free it for the reads.
         sync.release();
         expect(posts).toBe(1);
@@ -449,11 +453,19 @@ describe.skipIf(!enabled)(
       await drafts.recordUnlinkedRemote(other, user.id, {
         jiraIssueId: "20003",
         jiraKey: "KST-903",
+        projectId: project.id,
       });
       const { db } = await import("@/lib/db");
       expect(
         await db.transaction((tx) => drafts.findUnlinkedRemote(tx, other))
-      ).toEqual({ jiraIssueId: "20003", jiraKey: "KST-903" });
+      ).toEqual({
+        jiraIssueId: "20003",
+        jiraKey: "KST-903",
+        projectId: project.id,
+      });
+      expect(await drafts.findUnlinkedRemoteOf(other)).toMatchObject({
+        projectId: project.id,
+      });
       expect(
         await db.transaction((tx) => drafts.findUnlinkedRemote(tx, draftId))
       ).toBeNull();

@@ -72,6 +72,11 @@ const store = vi.hoisted(() => ({
     content: Record<string, unknown>;
     issueId: string | null;
   }[],
+  // draft id -> the Jira issue an earlier failed create left unlinked.
+  unlinked: {} as Record<
+    string,
+    { jiraIssueId: string; jiraKey: string; projectId: string | null }
+  >,
   seq: 0,
 }));
 
@@ -419,6 +424,8 @@ vi.mock("@/lib/assistant/draft-store", () => ({
     return !!d;
   },
   suggestDraftProject: drafting.suggest,
+  findUnlinkedRemoteOf: async (draftId: string) =>
+    store.unlinked[draftId] ?? null,
   loadDraftProjects: async (ids: string[]) =>
     Object.entries(PROJECT_NAME)
       .filter(([id]) => ids.includes(id))
@@ -527,6 +534,7 @@ beforeEach(() => {
   store.messages = [];
   store.toolCalls = [];
   store.drafts = [];
+  store.unlinked = {};
   state.viewers = [];
   state.jiraPush = { [PROJECT_KMEM]: true };
   drafting.suggest.mockResolvedValue(PROJECT_KMEM);
@@ -1350,7 +1358,67 @@ describe("drafts", () => {
       { projectId: PROJECT_HMEM },
       { issue: ["write"] }
     );
-    expect(drafting.create).toHaveBeenCalledWith(draftId, QA);
+    // The project just authorised: the create refuses a draft moved since.
+    expect(drafting.create).toHaveBeenCalledWith(draftId, QA, PROJECT_HMEM);
+  });
+
+  it("keeps a draft in the project of a Jira issue it left unlinked", async () => {
+    state.members[PROJECT_HMEM] = [QA, OTHER];
+    const { draftId } = await draftOf();
+    store.unlinked[draftId] = {
+      jiraIssueId: "20001",
+      jiraKey: "KST-901",
+      projectId: PROJECT_KMEM,
+    };
+    const moved = await post("/save-draft", {
+      draftId,
+      content: JIRA_DRAFT,
+      projectId: PROJECT_HMEM,
+    });
+    expect(moved.status).toBe(409);
+    expect(await moved.json()).toMatchObject({
+      code: "assistant.draft_project_locked",
+    });
+    expect(store.drafts[0]?.projectId).toBe(PROJECT_KMEM);
+    // Its own project and a content-only edit still save.
+    for (const extra of [{ projectId: PROJECT_KMEM }, {}]) {
+      const res = await post("/save-draft", {
+        draftId,
+        content: { ...JIRA_DRAFT, summary: "Diubah" },
+        ...extra,
+      });
+      expect(res.status).toBe(200);
+    }
+    // A record from before projects were stored holds the draft's project.
+    store.unlinked[draftId] = {
+      jiraIssueId: "20001",
+      jiraKey: "KST-901",
+      projectId: null,
+    };
+    expect(
+      (
+        await post("/save-draft", {
+          draftId,
+          content: JIRA_DRAFT,
+          projectId: PROJECT_HMEM,
+        })
+      ).status
+    ).toBe(409);
+  });
+
+  it("ignores a project sent with a BRD draft", async () => {
+    const { draftId } = await draftOf("brd");
+    const res = await post("/save-draft", {
+      draftId,
+      content: { title: "T2", sections: [] },
+      // Not even visible: a BRD draft has no project to choose.
+      projectId: PROJECT_HMEM,
+    });
+    expect(res.status).toBe(200);
+    expect(store.drafts[0]).toMatchObject({
+      projectId: PROJECT_KMEM,
+      content: { title: "T2", sections: [] },
+    });
   });
 
   it("refuses to generate at the daily cap or when off, without a request", async () => {
@@ -1487,7 +1555,7 @@ describe("drafts", () => {
       issueId: "0197f3a0-1b2c-7def-8000-0000000011ee",
       jiraKey: "KST-901",
     });
-    expect(drafting.create).toHaveBeenCalledWith(draftId, QA);
+    expect(drafting.create).toHaveBeenCalledWith(draftId, QA, PROJECT_KMEM);
 
     const again = await post("/create-jira-issue", { draftId });
     expect(again.status).toBe(409);
@@ -1536,8 +1604,17 @@ describe("drafts", () => {
     expect(await res.json()).toMatchObject({ code: "assistant.invalid_draft" });
   });
 
-  it("words a disabled push and a Jira failure with stable codes", async () => {
+  it("words a disabled push, a moved draft and a Jira failure with stable codes", async () => {
     const { draftId } = await draftOf();
+    drafting.create.mockRejectedValueOnce(
+      new JiraCreateError("assistant.draft_changed")
+    );
+    const changed = await post("/create-jira-issue", { draftId });
+    expect(changed.status).toBe(409);
+    expect(await changed.json()).toMatchObject({
+      code: "assistant.draft_changed",
+    });
+
     drafting.create.mockRejectedValueOnce(
       new JiraCreateError("assistant.jira_push_disabled")
     );
