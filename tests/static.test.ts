@@ -190,11 +190,11 @@ describe("brandShell", () => {
 
   it("puts the runtime app name, brand and its accent into the shell", async () => {
     const brandShell = await freshBrandShell({
-      APP_NAME: "Menara",
+      APP_NAME: "Acme Ops",
       BRAND: "acme",
     });
     expect(brandShell(INDEX_HTML)).toBe(
-      '<!doctype html><html data-brand="acme" data-accent="blue" lang="en"><head><title>Menara</title></head><div id="root"></div></html>'
+      '<!doctype html><html data-brand="acme" data-accent="blue" lang="en"><head><title>Acme Ops</title></head><div id="root"></div></html>'
     );
   });
 

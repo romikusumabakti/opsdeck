@@ -63,7 +63,7 @@ function grid(
 export const BRAND_LOGO_DEFS: Record<BrandName, LogoDef> = {
   // Neutral product mark: a plain dashboard grid.
   default: { tiles: (g) => grid(g, { tr: g.radius, br: g.radius }) },
-  // Menara: the right-hand tiles round their outer corners into a "D".
+  // Acme brand: the right-hand tiles round their outer corners into a "D".
   acme: {
     tiles: (g) => grid(g, { tr: g.tile - g.radius, br: g.tile - g.radius }),
   },
