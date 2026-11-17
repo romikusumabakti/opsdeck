@@ -154,6 +154,7 @@ async function draft(
   const result = await generateDraft("conv-1", kind, "user-1", {
     runtime: runtime(overrides),
     model,
+    projectId: "project-2",
   });
   return { result, calls };
 }
@@ -186,13 +187,17 @@ const json = (value: unknown) => {
 
 beforeEach(() => {
   state.transcript = {
-    projectId: "project-1",
-    projectName: "Membership",
     messages: [
       {
         role: "user",
         content: "Bagaimana iuran tambahan dihitung?",
-        environmentName: "Dev 1",
+        context: {
+          kind: "environment",
+          environmentId: "env-1",
+          environmentName: "Dev 1",
+          projectId: "project-1",
+          projectName: "Membership",
+        },
       },
       {
         role: "assistant",
@@ -201,9 +206,29 @@ beforeEach(() => {
       {
         role: "user",
         content: "Dan di branch proyek?",
-        environmentName: null,
+        context: {
+          kind: "project",
+          projectId: "project-1",
+          projectName: "Membership",
+        },
       },
       { role: "assistant", content: "Sama." },
+      {
+        role: "user",
+        content: "Proyek mana yang menghitung manfaat?",
+        context: { kind: "auto" },
+      },
+      { role: "assistant", content: "KST (BenefitService.java:10)." },
+      {
+        role: "user",
+        content: "Dan di proyek lama?",
+        context: { kind: "gone", of: "project", label: "Old Membership" },
+      },
+      {
+        role: "user",
+        content: "Dan di UAT lama?",
+        context: { kind: "gone", of: "environment", label: "Old UAT" },
+      },
     ],
   };
   state.drafts = [];
@@ -235,21 +260,32 @@ describe("generateDraft request", () => {
     expect(system?.content).toContain("Perlu konfirmasi BA");
     expect(user?.role).toBe("user");
     const userText = JSON.stringify(user?.content);
-    expect(userText).toContain("Project: Membership\\n\\n<conversation>");
-    expect(userText).not.toContain("Environment:");
-    // Each question names the source it was asked about.
+    expect(userText).toContain("<conversation>");
+    expect(userText).not.toContain("Project:");
+    // Each question names the context it was asked in.
     expect(userText).toContain(
-      "<user>\\nSource: environment Dev 1\\nBagaimana iuran tambahan dihitung?\\n</user>"
+      "<user>\\nContext: environment Dev 1 of project Membership\\nBagaimana iuran tambahan dihitung?\\n</user>"
     );
     expect(userText).toContain(
-      "<user>\\nSource: project branches\\nDan di branch proyek?\\n</user>"
+      "<user>\\nContext: project Membership (its branches)\\nDan di branch proyek?\\n</user>"
     );
+    expect(userText).toContain(
+      "<user>\\nContext: automatic (the assistant chose which project to read)\\nProyek mana yang menghitung manfaat?\\n</user>"
+    );
+    expect(userText).toContain(
+      "<user>\\nContext: project Old Membership (deleted since)\\nDan di proyek lama?\\n</user>"
+    );
+    expect(userText).toContain(
+      "<user>\\nContext: environment Old UAT (deleted since)\\nDan di UAT lama?\\n</user>"
+    );
+    expect(userText).not.toContain("project branches");
     expect(userText).toContain("IuranService.java:42");
 
     expect(state.drafts).toEqual([
       {
         conversationId: "conv-1",
-        projectId: "project-1",
+        // The project the service chose (suggestDraftProject).
+        projectId: "project-2",
         kind: "jira",
         content: JIRA_JSON,
       },
@@ -267,18 +303,13 @@ describe("generateDraft request", () => {
     });
   });
 
-  it("leaves the project line out and stores no project when the conversation has none", async () => {
-    state.transcript = {
-      messages: state.transcript?.messages ?? [],
+  it("stores no project when none was suggested", async () => {
+    const { model } = mockModel({ text: json(JIRA_JSON) });
+    await generateDraft("conv-1", "jira", "user-1", {
+      runtime: runtime(),
+      model,
       projectId: null,
-      projectName: null,
-    };
-    const { calls } = await draft({ text: json(JIRA_JSON) }, "jira");
-    const userText = JSON.stringify(
-      (calls[0] as CallOptions).prompt[1]?.content
-    );
-    expect(userText).not.toContain("Project:");
-    expect(userText).toContain("<conversation>");
+    });
     expect(state.drafts[0]).toMatchObject({ projectId: null });
   });
 
@@ -313,7 +344,7 @@ describe("generateDraft request", () => {
     }
     expect(state.drafts[0]).toEqual({
       conversationId: "conv-1",
-      projectId: "project-1",
+      projectId: "project-2",
       kind: "brd",
       content: brd,
     });
@@ -406,13 +437,15 @@ describe("generateDraft failures", () => {
 
   it("a conversation without a finished answer is assistant.nothing_to_draft, with no request", async () => {
     state.transcript = {
-      projectId: "project-1",
-      projectName: "Membership",
-      messages: [{ role: "user", content: "Halo", environmentName: null }],
+      messages: [{ role: "user", content: "Halo", context: { kind: "auto" } }],
     };
     const { model, calls } = mockModel({ text: [] });
     await expect(
-      generateDraft("conv-1", "brd", "user-1", { runtime: runtime(), model })
+      generateDraft("conv-1", "brd", "user-1", {
+        runtime: runtime(),
+        model,
+        projectId: null,
+      })
     ).rejects.toMatchObject({ code: "assistant.nothing_to_draft" });
     expect(calls).toEqual([]);
     expect(state.usage).toEqual([]);

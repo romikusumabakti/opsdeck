@@ -11,6 +11,7 @@ import {
 } from "ai";
 import { z } from "zod";
 import type { AssistantRuntime } from "./client";
+import type { StoredQuestionContext } from "./context";
 import {
   type DraftKind,
   type DraftTranscript,
@@ -205,31 +206,37 @@ ${JSON_ANSWER}
 {"title": "…", "sections": [{"heading": "…", "body": "…"}]}`;
 }
 
+/** What a question of the transcript was asked about, for the model. */
+export function transcriptContextLine(context: StoredQuestionContext): string {
+  switch (context.kind) {
+    case "auto":
+      return "Context: automatic (the assistant chose which project to read)";
+    case "project":
+      return `Context: project ${context.projectName} (its branches)`;
+    case "environment":
+      return `Context: environment ${context.environmentName} of project ${context.projectName}`;
+    case "gone":
+      return `Context: ${context.of} ${context.label} (deleted since)`;
+  }
+}
+
 /** The conversation as one user message: a transcript, then the request. */
 export function buildDraftUserMessage(
   kind: DraftKind,
   transcript: DraftTranscript
 ): string {
   const turns = transcript.messages
-    .map((m) => {
-      if (m.role === "assistant") {
-        return `<assistant>\n${m.content}\n</assistant>`;
-      }
-      const source =
-        m.environmentName === null
-          ? "project branches"
-          : `environment ${m.environmentName}`;
-      return `<user>\nSource: ${source}\n${m.content}\n</user>`;
-    })
+    .map((m) =>
+      m.role === "assistant"
+        ? `<assistant>\n${m.content}\n</assistant>`
+        : `<user>\n${transcriptContextLine(m.context)}\n${m.content}\n</user>`
+    )
     .join("\n");
   const ask =
     kind === "jira"
       ? "Write the Jira ticket draft for this conversation."
       : "Write the BRD chapter draft for this conversation.";
-  const project = transcript.projectName
-    ? `Project: ${transcript.projectName}\n\n`
-    : "";
-  return `${project}<conversation>\n${turns}\n</conversation>\n\n${ask}`;
+  return `<conversation>\n${turns}\n</conversation>\n\n${ask}`;
 }
 
 const OUTPUT_SCHEMAS = {
@@ -239,6 +246,11 @@ const OUTPUT_SCHEMAS = {
 
 export type GenerateDraftDeps = {
   runtime: AssistantRuntime;
+  /**
+   * The project the draft is stored with (the service's suggestDraftProject,
+   * a project the caller sees); null for none.
+   */
+  projectId: string | null;
   /** Replaces the runtime's model (tests inject a mock). */
   model?: LanguageModel;
   now?: () => Date;
@@ -367,7 +379,7 @@ export async function generateDraft(
   }
   const draftId = await insertDraft({
     conversationId,
-    projectId: transcript.projectId,
+    projectId: deps.projectId,
     kind,
     content,
   });

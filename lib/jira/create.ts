@@ -32,6 +32,7 @@ import type { JiraCreateMetaField, JiraIssue } from "./types";
  */
 
 export type JiraCreateErrorCode =
+  | "assistant.draft_project_required"
   | "assistant.jira_push_disabled"
   | "assistant.draft_already_created"
   | "assistant.invalid_draft";
@@ -190,13 +191,13 @@ export async function createJiraIssueFromDraft(
       if (!parsed.success) throw new JiraCreateError("assistant.invalid_draft");
       const content = parsed.data;
 
+      // The project chosen on the draft, with its own Jira link.
       const { projectId } = draft;
-      const resolved = projectId ? await resolveLink(projectId) : null;
-      if (
-        !projectId ||
-        !resolved ||
-        !(resolved.link.enabled && resolved.link.pushEnabled)
-      ) {
+      if (!projectId) {
+        throw new JiraCreateError("assistant.draft_project_required");
+      }
+      const resolved = await resolveLink(projectId);
+      if (!(resolved?.link.enabled && resolved.link.pushEnabled)) {
         throw new JiraCreateError("assistant.jira_push_disabled");
       }
       const { link, connection, credentials } = resolved;

@@ -1,7 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { z } from "zod";
 import { ProjectRoleProvider } from "@/components/project-role";
-import { canProject } from "@/lib/permissions";
 import { getAllowanceQuery } from "@/web/api/assistant";
 import {
   getProjectByKeyWithEnvironmentsQuery,
@@ -42,7 +41,6 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/assistant")({
 });
 
 function AssistantPage() {
-  const { projectKey } = Route.useParams();
   const { projectId, projectName, role } = Route.useRouteContext();
   const { c, env } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -55,8 +53,6 @@ function AssistantPage() {
         <AssistantWorkspace
           projectId={projectId}
           projectName={projectName}
-          projectKey={projectKey}
-          canCreateIssue={canProject(role, { issue: ["write"] })}
           initialEnvironmentId={env ?? null}
           conversationId={c ?? null}
           onConversationChange={(id) =>

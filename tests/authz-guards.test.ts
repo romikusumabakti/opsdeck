@@ -48,7 +48,14 @@ const SCOPED_READS: Record<string, string[]> = {
   // read by their owner only (listConversationsOf(session.user.id)), behind
   // the global assistant gate; the project a question pins is checked when
   // it is sent and again when it runs (see the ownership tests below).
-  "server/services/assistant.ts": ["listIssueAttachmentsForPicker"],
+  // A draft's project: suggested, listed and shown among the caller's
+  // visible projects only.
+  "server/services/assistant.ts": [
+    "listIssueAttachmentsForPicker",
+    "listDraftProjects",
+    "generateConversationDraft",
+    "getConversation",
+  ],
   "lib/home/queries.ts": [
     "getAttentionGroups",
     "listMyOpenIssues",
@@ -185,6 +192,11 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     // The conversation's owner, then the question's pinned project or
     // environment with assistant:use.
     sendMessage: /ownConversation\([\s\S]*resolveQuestionContext\(/,
+    // The draft's owner, then a chosen project the caller may use.
+    saveDraft:
+      /ownDraft\([\s\S]*requireProjectPermission\(\{ projectId \}, \{ assistant: \["use"\] \}\)/,
+    createJiraIssue:
+      /ownDraft\([\s\S]*\{ projectId: draft\.projectId \},\s*\{ issue: \["write"\] \}/,
   },
   "server/services/jira.ts": {
     getJiraLink: /project: \["read"\]/,

@@ -42,6 +42,10 @@ vi.mock("@/web/api/assistant", () => ({
     queryKey: ["assistant", "listConversations"],
     queryFn: () => new Promise(() => {}),
   }),
+  listDraftProjectsQuery: () => ({
+    queryKey: ["assistant", "listDraftProjects"],
+    queryFn: () => new Promise(() => {}),
+  }),
   listIssueAttachmentsQuery: (env: string, key: string) => ({
     queryKey: ["assistant", "listIssueAttachments", [env, key]],
     queryFn: () => new Promise(() => {}),
@@ -415,46 +419,138 @@ describe("Create Jira ticket", () => {
       acceptanceCriteria: ["NIK 16 digit"],
     },
     issueId: null,
+    projectId: "p1" as string | null,
     jiraKey: null,
     issueNumber: null,
     createdAt: "2026-11-16T01:00:00Z",
     updatedAt: "2026-11-16T01:00:00Z",
   };
-  const renderForm = (props: {
-    jiraPushEnabled: boolean;
-    canCreateIssue?: boolean;
-    draft?: typeof draft | Record<string, unknown>;
-  }) =>
+  // What /draft-projects returns: the caller's visible projects, each with
+  // its own Jira write-back switch and issue:write.
+  const projects = [
+    {
+      id: "p1",
+      key: "HMEM",
+      name: "Heron Membership",
+      jiraPushEnabled: true,
+      canCreateIssue: true,
+    },
+    {
+      id: "p2",
+      key: "KMEM",
+      name: "Kestrel Membership",
+      jiraPushEnabled: false,
+      canCreateIssue: true,
+    },
+    {
+      id: "p3",
+      key: "OSP",
+      name: "Osprey Portal",
+      jiraPushEnabled: true,
+      canCreateIssue: false,
+    },
+  ];
+  const renderForm = (
+    props: { draft?: typeof draft | Record<string, unknown> } = {}
+  ) =>
     render(
       <JiraDraftForm
         draft={(props.draft ?? draft) as never}
-        projectKey="HMEM"
-        jiraPushEnabled={props.jiraPushEnabled}
-        canCreateIssue={props.canCreateIssue ?? true}
+        projects={projects}
       />
     );
+  const picker = () =>
+    container.querySelector<HTMLElement>("#draft-d1-project");
+  const pick = async (name: string) => {
+    await act(async () => picker()?.click());
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+    }
+    const item = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
+    ].find((el) => el.textContent?.includes(name));
+    if (!item) throw new Error(`no project item ${name}`);
+    await act(async () => item.click());
+  };
+
+  it("preselects the draft's project and lists the visible projects", async () => {
+    await renderForm();
+    expect(picker()?.textContent).toContain("Heron Membership");
+    await act(async () => picker()?.click());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    const items = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="combobox-item"]'),
+    ].map((el) => el.textContent);
+    expect(items).toEqual([
+      "Heron MembershipHMEM",
+      "Kestrel MembershipKMEM",
+      "Osprey PortalOSP",
+    ]);
+  });
+
+  it("without a project, Create is disabled with the project hint", async () => {
+    await renderForm({ draft: { ...draft, projectId: null } });
+    expect(picker()?.textContent).toContain(t.draftProjectPlaceholder);
+    expect(button(t.createJira)?.disabled).toBe(true);
+    expect(text()).toContain(t.draftProjectRequired);
+  });
 
   it("is disabled with a hint when the project's Jira push is off", async () => {
-    await renderForm({ jiraPushEnabled: false });
+    await renderForm({ draft: { ...draft, projectId: "p2" } });
     expect(button(t.createJira)?.disabled).toBe(true);
     expect(text()).toContain(t.jiraPushOff);
   });
 
   it("is disabled with a hint without the right to create issues", async () => {
-    await renderForm({ jiraPushEnabled: true, canCreateIssue: false });
+    await renderForm({ draft: { ...draft, projectId: "p3" } });
     expect(button(t.createJira)?.disabled).toBe(true);
     expect(text()).toContain(t.noIssueWrite);
   });
 
-  it("asks for confirmation (summary and type) before creating", async () => {
+  it("the push hint follows the picked project", async () => {
+    await renderForm();
+    expect(text()).not.toContain(t.jiraPushOff);
+    await pick("Kestrel Membership");
+    expect(picker()?.textContent).toContain("Kestrel Membership");
+    expect(text()).toContain(t.jiraPushOff);
+    await pick("Heron Membership");
+    expect(text()).not.toContain(t.jiraPushOff);
+  });
+
+  it("a picked project is an edit, saved with the draft", async () => {
+    api.saveDraft.mockResolvedValue({ id: "d1" });
+    await renderForm({ draft: { ...draft, projectId: null } });
+    await pick("Heron Membership");
+    // A new project is an unsaved edit: saved before the issue is created.
+    expect(button(t.createJira)?.disabled).toBe(true);
+    expect(text()).toContain(t.saveBeforeCreate);
+    await act(async () => button(t.saveDraft)?.click());
+    expect(api.saveDraft).toHaveBeenCalledWith({
+      draftId: "d1",
+      content: {
+        summary: "Validasi NIK saat registrasi",
+        issueType: "Story",
+        description: "Deskripsi",
+        acceptanceCriteria: ["NIK 16 digit"],
+      },
+      projectId: "p1",
+    });
+  });
+
+  it("asks for confirmation (project, summary and type) before creating", async () => {
     api.createJiraIssue.mockResolvedValue({ issueId: "i1", jiraKey: "KST-9" });
-    await renderForm({ jiraPushEnabled: true });
+    await renderForm();
     const create = button(t.createJira);
     expect(create?.disabled).toBe(false);
     await act(async () => create?.click());
     expect(api.createJiraIssue).not.toHaveBeenCalled();
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.textContent).toContain(t.confirmCreateDescription);
+    expect(dialog?.textContent).toContain("Heron Membership");
     expect(dialog?.textContent).toContain("Validasi NIK saat registrasi");
     expect(dialog?.textContent).toContain("Story");
     await act(async () => confirmButton()?.click());
@@ -463,7 +559,7 @@ describe("Create Jira ticket", () => {
 
   it("a 403 from the server becomes the no-right hint", async () => {
     api.createJiraIssue.mockRejectedValue(new ApiError(403, "Forbidden"));
-    await renderForm({ jiraPushEnabled: true });
+    await renderForm();
     await act(async () => button(t.createJira)?.click());
     await act(async () => confirmButton()?.click());
     expect(text()).toContain(t.noIssueWrite);
@@ -472,7 +568,7 @@ describe("Create Jira ticket", () => {
   });
 
   it("is disabled while the draft has unsaved edits", async () => {
-    await renderForm({ jiraPushEnabled: true });
+    await renderForm();
     const summary =
       container.querySelector<HTMLInputElement>("#draft-d1-summary");
     if (!summary) throw new Error("no summary");
@@ -487,9 +583,8 @@ describe("Create Jira ticket", () => {
     expect(text()).toContain(t.saveBeforeCreate);
   });
 
-  it("links the created issue to the Panel issue", async () => {
+  it("links the created issue to the Panel issue of the draft's project", async () => {
     await renderForm({
-      jiraPushEnabled: true,
       draft: { ...draft, issueId: "i1", jiraKey: "KST-9", issueNumber: 42 },
     });
     expect(text()).toContain("Created as KST-9.");
@@ -596,7 +691,6 @@ describe("sources", () => {
       id: "c1",
       title: "Iuran",
       drafts: [],
-      jiraPushEnabled: false,
       messages: [
         message("u1", "user", null, null),
         message("a1", "assistant", null, null),
@@ -672,7 +766,6 @@ describe("sources", () => {
       id: "c1",
       title: "Iuran",
       drafts: [],
-      jiraPushEnabled: false,
       messages: [
         { ...base, id: "u1", role: "user", sources: null, context: auto },
         {
@@ -725,7 +818,6 @@ describe("answer stream", () => {
     id: "c1",
     title: "Iuran",
     drafts: [],
-    jiraPushEnabled: false,
     messages: [
       {
         id: "m1",
@@ -1123,7 +1215,6 @@ describe("draft panel", () => {
     id: "c1",
     title: "Iuran",
     drafts: [],
-    jiraPushEnabled: false,
     messages: [
       {
         id: "m2",
@@ -1145,14 +1236,7 @@ describe("draft panel", () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     // A proxy timeout: no problem+json body, so no code.
     api.generateDraft.mockRejectedValue(new ApiError(504, "Gateway Timeout"));
-    await render(
-      <DraftPanel
-        conversationId="c1"
-        projectKey="HMEM"
-        canCreateIssue
-        disabled={false}
-      />
-    );
+    await render(<DraftPanel conversationId="c1" disabled={false} />);
     await act(async () => button(t.draftBrd)?.click());
     // React Query notifies observers on a zero-delay timer.
     await act(async () => {
@@ -1183,7 +1267,6 @@ describe("drafts panel in the workspace", () => {
     id: "c1",
     title: "Iuran",
     drafts: [] as ReturnType<typeof draft>[],
-    jiraPushEnabled: false,
     messages: [],
   };
   const conversationKey = ["assistant", "getConversation", ["c1"]];
@@ -1204,12 +1287,7 @@ describe("drafts panel in the workspace", () => {
     );
     queryClient.setQueryData(conversationKey, conversation);
     await render(
-      <AssistantWorkspace
-        projectId="p1"
-        projectName="Heron Membership"
-        projectKey="ACME"
-        canCreateIssue
-      />
+      <AssistantWorkspace projectId="p1" projectName="Heron Membership" />
     );
   };
 
@@ -1364,15 +1442,12 @@ describe("source chip", () => {
       id: CONV_ID,
       title: "Iuran",
       drafts: [],
-      jiraPushEnabled: false,
       messages: messagesOfC1,
     });
     await render(
       <AssistantWorkspace
         projectId="p1"
         projectName="Heron Membership"
-        projectKey="HMEM"
-        canCreateIssue
         {...props}
       />
     );
@@ -1423,8 +1498,6 @@ describe("source chip", () => {
           <AssistantWorkspace
             projectId="p1"
             projectName="Heron Membership"
-            projectKey="HMEM"
-            canCreateIssue
             initialEnvironmentId={env}
           />
         </IntlProvider>

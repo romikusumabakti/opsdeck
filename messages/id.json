@@ -3658,6 +3658,7 @@
     "nothingToDraft": "Belum ada jawaban di percakapan ini untuk dijadikan draf. Tanyakan ke asisten dulu.",
     "invalidDraft": "Draf ini belum lengkap, terlalu panjang, atau salah satu isiannya ditolak tracker. Periksa isiannya lalu coba lagi.",
     "jiraPushDisabled": "Sinkronisasi issue ke tracker nonaktif untuk proyek ini. Minta admin mengaktifkannya.",
+    "draftProjectRequired": "Pilih proyek untuk draf ini sebelum membuat issue.",
     "draftAlreadyCreated": "Issue sudah dibuat dari draf ini.",
     "jiraCreateFailed": "Issue tidak dapat dibuat. Coba lagi sebentar lagi."
   },
@@ -3726,6 +3727,9 @@
     "createJira": "Buat issue",
     "saveBeforeCreate": "Simpan draf dulu sebelum membuat issue.",
     "jiraPushOff": "Sinkronisasi issue ke tracker nonaktif untuk proyek ini, jadi issue tidak dapat dibuat di sini.",
+    "draftProject": "Proyek",
+    "draftProjectPlaceholder": "Pilih proyek",
+    "draftProjectRequired": "Pilih proyek tempat issue dibuat.",
     "noIssueWrite": "Anda tidak punya hak membuat issue di proyek ini.",
     "confirmCreateTitle": "Buat issue?",
     "confirmCreateDescription": "Issue akan dibuat di tracker atas nama Anda dan juga muncul di daftar issue Panel. Periksa isinya sekali lagi.",

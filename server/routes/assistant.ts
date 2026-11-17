@@ -12,6 +12,7 @@ import {
   getAllowance,
   getConversation,
   listConversations,
+  listDraftProjects,
   listIssueAttachmentsForPicker,
   saveDraft,
   saveDraftInputSchema,
@@ -47,6 +48,8 @@ export const assistantRouter = sessionRouter()
   .post("/generate-draft", json(generateDraftInputSchema), async (c) =>
     c.json(await generateConversationDraft(c.req.valid("json")))
   )
+  // The projects a draft can be filed in, each with its push switch.
+  .get("/draft-projects", async (c) => c.json(await listDraftProjects()))
   .post("/save-draft", json(saveDraftInputSchema), async (c) =>
     c.json(await saveDraft(c.req.valid("json")))
   )

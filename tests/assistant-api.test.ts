@@ -51,7 +51,8 @@ const state = vi.hoisted(() => ({
   spend: [] as { userId: string; at: Date; costUsd: number }[],
   // project members whose project role is viewer (no issue:write).
   viewers: [] as string[],
-  jiraPushEnabled: true,
+  // project id -> its Jira link's write-back switch (no entry: no link).
+  jiraPush: {} as Record<string, boolean>,
 }));
 
 const store = vi.hoisted(() => ({
@@ -119,6 +120,17 @@ vi.mock("@/lib/authz", async () => {
         ? "all"
         : Object.keys(state.members).filter((id) => sees(id))
     ),
+    getProjectAccess: vi.fn(async () => ({
+      all: state.orgRole === "admin",
+      roles: Object.fromEntries(
+        Object.keys(PROJECT_NAME)
+          .filter((id) => sees(id))
+          .map((id) => [
+            id,
+            state.viewers.includes(state.userId) ? "viewer" : "qa",
+          ])
+      ),
+    })),
     requireProjectPermission: vi.fn(
       async (
         scope: { environmentId?: string; projectId?: string },
@@ -285,11 +297,11 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
             kind: d.kind,
             content: d.content,
             issueId: d.issueId,
+            projectId: d.projectId,
             jiraKey: d.issueId ? "KST-901" : null,
             createdAt: new Date(0),
             updatedAt: new Date(0),
           })),
-        jiraPushEnabled: state.jiraPushEnabled,
       };
     },
     insertTurn: async (p: {
@@ -378,6 +390,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
 const drafting = vi.hoisted(() => ({
   generate: vi.fn(),
   create: vi.fn(),
+  suggest: vi.fn(),
 }));
 
 vi.mock("@/lib/assistant/draft-store", () => ({
@@ -395,12 +408,27 @@ vi.mock("@/lib/assistant/draft-store", () => ({
   },
   updateDraftContent: async (
     draftId: string,
-    content: Record<string, unknown>
+    content: Record<string, unknown>,
+    options: { projectId?: string } = {}
   ) => {
     const d = store.drafts.find((x) => x.id === draftId && !x.issueId);
-    if (d) d.content = content;
+    if (d) {
+      d.content = content;
+      if (options.projectId) d.projectId = options.projectId;
+    }
     return !!d;
   },
+  suggestDraftProject: drafting.suggest,
+  loadDraftProjects: async (ids: string[]) =>
+    Object.entries(PROJECT_NAME)
+      .filter(([id]) => ids.includes(id))
+      .map(([id, name]) => ({
+        id,
+        key: id === PROJECT_KMEM ? "KMEM" : "HMEM",
+        name,
+        jiraPushEnabled: state.jiraPush[id] ?? false,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
 }));
 
 vi.mock("@/lib/assistant/drafts", async (importOriginal) => ({
@@ -500,14 +528,20 @@ beforeEach(() => {
   store.toolCalls = [];
   store.drafts = [];
   state.viewers = [];
-  state.jiraPushEnabled = true;
+  state.jiraPush = { [PROJECT_KMEM]: true };
+  drafting.suggest.mockResolvedValue(PROJECT_KMEM);
   drafting.generate.mockImplementation(
-    async (conversationId: string, kind: "brd" | "jira") => {
+    async (
+      conversationId: string,
+      kind: "brd" | "jira",
+      _userId: string,
+      deps: { projectId: string | null }
+    ) => {
       const id = `0197f3a0-1b2c-7def-8000-${String(++store.seq).padStart(12, "0")}`;
       store.drafts.push({
         id,
         conversationId,
-        projectId: PROJECT_KMEM,
+        projectId: deps.projectId,
         kind,
         content:
           kind === "jira" ? { ...JIRA_DRAFT } : { title: "T", sections: [] },
@@ -1183,18 +1217,29 @@ describe("drafts", () => {
     return { conversationId: id, draftId };
   }
 
-  it("generates a draft for the owner and lists it with jiraPushEnabled", async () => {
+  it("generates a draft for the owner with the suggested project and lists it", async () => {
     const { conversationId, draftId } = await draftOf();
+    // The suggestion only ever considers projects the caller sees.
+    expect(drafting.suggest).toHaveBeenCalledExactlyOnceWith(
+      conversationId,
+      expect.any(Function)
+    );
+    const sees = drafting.suggest.mock.calls[0]?.[1] as (id: string) => boolean;
+    expect(sees(PROJECT_KMEM)).toBe(true);
+    expect(sees(PROJECT_HMEM)).toBe(false);
     expect(drafting.generate).toHaveBeenCalledWith(
       conversationId,
       "jira",
       QA,
-      expect.objectContaining({ runtime: state.runtime })
+      expect.objectContaining({
+        runtime: state.runtime,
+        projectId: PROJECT_KMEM,
+      })
     );
     const body = await (
       await get(`/get-conversation?conversationId=${conversationId}`)
     ).json();
-    expect(body.jiraPushEnabled).toBe(true);
+    expect(body).not.toHaveProperty("jiraPushEnabled");
     expect(body.drafts).toEqual([
       expect.objectContaining({
         id: draftId,
@@ -1202,8 +1247,110 @@ describe("drafts", () => {
         content: JIRA_DRAFT,
         issueId: null,
         jiraKey: null,
+        projectId: PROJECT_KMEM,
       }),
     ]);
+  });
+
+  it("generates a draft without a project when nothing suggests one", async () => {
+    drafting.suggest.mockResolvedValueOnce(null);
+    const { conversationId } = await draftOf();
+    expect(drafting.generate).toHaveBeenCalledWith(
+      conversationId,
+      "jira",
+      QA,
+      expect.objectContaining({ projectId: null })
+    );
+    const body = await (
+      await get(`/get-conversation?conversationId=${conversationId}`)
+    ).json();
+    expect(body.drafts[0]).toMatchObject({ projectId: null });
+  });
+
+  it("shows a draft's project only while the caller can see it", async () => {
+    const { conversationId } = await draftOf();
+    Object.assign(store.drafts[0] ?? {}, { projectId: PROJECT_HMEM });
+    const body = await (
+      await get(`/get-conversation?conversationId=${conversationId}`)
+    ).json();
+    expect(body.drafts[0]).toMatchObject({ projectId: null });
+  });
+
+  it("lists the projects a draft can choose, each with its own push switch and issue right", async () => {
+    state.jiraPush = { [PROJECT_KMEM]: false, [PROJECT_HMEM]: true };
+    as(OTHER);
+    const res = await get("/draft-projects");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([
+      {
+        id: PROJECT_HMEM,
+        key: "HMEM",
+        name: "Heron Membership",
+        jiraPushEnabled: true,
+        canCreateIssue: true,
+      },
+      {
+        id: PROJECT_KMEM,
+        key: "KMEM",
+        name: "Kestrel Membership",
+        jiraPushEnabled: false,
+        canCreateIssue: true,
+      },
+    ]);
+    // QA sees one project; a viewer may pick it but not create the issue.
+    as(QA);
+    state.viewers = [QA];
+    expect(await (await get("/draft-projects")).json()).toEqual([
+      expect.objectContaining({ id: PROJECT_KMEM, canCreateIssue: false }),
+    ]);
+    // Behind the global gate like every assistant read.
+    state.limits = { ...state.limits, enabled: false };
+    expect((await get("/draft-projects")).status).toBe(503);
+  });
+
+  it("saves the project chosen for a draft only when the caller can see it", async () => {
+    state.members[PROJECT_HMEM] = [QA, OTHER];
+    const { draftId } = await draftOf();
+    const saved = await post("/save-draft", {
+      draftId,
+      content: JIRA_DRAFT,
+      projectId: PROJECT_HMEM,
+    });
+    expect(saved.status).toBe(200);
+    expect(store.drafts[0]?.projectId).toBe(PROJECT_HMEM);
+
+    state.members[PROJECT_HMEM] = [OTHER];
+    for (const projectId of [PROJECT_HMEM, UNKNOWN_ID]) {
+      const res = await post("/save-draft", {
+        draftId,
+        content: { ...JIRA_DRAFT, summary: "Diubah" },
+        projectId,
+      });
+      expect(res.status).toBe(404);
+    }
+    // Nothing of the refused saves was stored.
+    expect(store.drafts[0]).toMatchObject({
+      projectId: PROJECT_HMEM,
+      content: JIRA_DRAFT,
+    });
+  });
+
+  it("creates the issue in the project chosen for the draft", async () => {
+    state.members[PROJECT_HMEM] = [QA, OTHER];
+    const { draftId } = await draftOf();
+    await post("/save-draft", {
+      draftId,
+      content: JIRA_DRAFT,
+      projectId: PROJECT_HMEM,
+    });
+    const { requireProjectPermission } = await import("@/lib/authz");
+    vi.mocked(requireProjectPermission).mockClear();
+    expect((await post("/create-jira-issue", { draftId })).status).toBe(200);
+    expect(requireProjectPermission).toHaveBeenCalledWith(
+      { projectId: PROJECT_HMEM },
+      { issue: ["write"] }
+    );
+    expect(drafting.create).toHaveBeenCalledWith(draftId, QA);
   });
 
   it("refuses to generate at the daily cap or when off, without a request", async () => {
@@ -1364,13 +1511,13 @@ describe("drafts", () => {
     expect(drafting.create).not.toHaveBeenCalled();
   });
 
-  it("a draft without a project cannot become a Jira issue yet", async () => {
+  it("a draft without a project needs one before it becomes a Jira issue", async () => {
     const { draftId } = await draftOf();
     Object.assign(store.drafts[0] ?? {}, { projectId: null });
     const res = await post("/create-jira-issue", { draftId });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({
-      code: "assistant.jira_push_disabled",
+      code: "assistant.draft_project_required",
     });
     expect(drafting.create).not.toHaveBeenCalled();
   });

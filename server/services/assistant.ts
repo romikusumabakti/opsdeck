@@ -32,7 +32,10 @@ import {
 import {
   type DraftKind,
   type DraftOwner,
+  type DraftProject,
   findDraftOwner,
+  loadDraftProjects,
+  suggestDraftProject,
   updateDraftContent,
 } from "@/lib/assistant/draft-store";
 import {
@@ -57,9 +60,11 @@ import { requireSession } from "@/lib/auth-session";
 import {
   accessibleProjectIds,
   ForbiddenError,
+  getProjectAccess,
   requireProjectPermission,
 } from "@/lib/authz";
 import { createJiraIssueFromDraft, JiraCreateError } from "@/lib/jira/create";
+import { canProject } from "@/lib/permissions";
 import { uuidSchema } from "@/lib/validation";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
@@ -226,13 +231,25 @@ export async function resolveQuestionContext(
   }
 }
 
+/**
+ * The caller's conversation. A draft's project shows only while the caller
+ * sees it: one they lost reads as none, to be chosen again.
+ */
 export async function getConversation(
   conversationId: string
 ): Promise<ConversationDetail> {
   await ownConversation(conversationId);
   const detail = await loadConversationDetail(conversationId);
   if (!detail) notFound();
-  return detail;
+  const { roles } = await getProjectAccess();
+  return {
+    ...detail,
+    drafts: detail.drafts.map((draft) => ({
+      ...draft,
+      projectId:
+        draft.projectId && roles[draft.projectId] ? draft.projectId : null,
+    })),
+  };
 }
 
 /** The usable runtime, else the assistant.not_configured refusal. */
@@ -385,6 +402,8 @@ export const saveDraftInputSchema = z.object({
   draftId: uuidSchema,
   // Checked against the draft's own kind in saveDraft.
   content: z.record(z.string(), z.unknown()),
+  // The project the draft's issue goes to; omitted keeps the current one.
+  projectId: uuidSchema.optional(),
 });
 
 export const draftIdInputSchema = z.object({ draftId: uuidSchema });
@@ -432,12 +451,19 @@ export async function generateConversationDraft(
   const { conversation, userId } = await ownConversation(input.conversationId);
   const runtime = await requireRuntime();
   await requireAllowance(userId, runtime, new Date());
+  // Preselected for the user to confirm or change; never a project the
+  // caller cannot see.
+  const { roles } = await getProjectAccess();
+  const projectId = await suggestDraftProject(
+    conversation.id,
+    (id) => roles[id] !== undefined
+  );
   try {
     return await (deps.generateDraft ?? defaultGenerateDraft)(
       conversation.id,
       input.kind as DraftKind,
       userId,
-      { runtime }
+      { runtime, projectId }
     );
   } catch (error) {
     const code = classifyError(error, { phase: "draft" });
@@ -453,6 +479,28 @@ export async function generateConversationDraft(
   }
 }
 
+export type DraftProjectOption = DraftProject & {
+  /** The caller has issue:write on it (creating the issue needs it). */
+  canCreateIssue: boolean;
+};
+
+/**
+ * The projects a draft can be filed in: the caller's visible projects, by
+ * name, each with its own Jira write-back switch and the caller's issue
+ * right, behind the global gate.
+ */
+export async function listDraftProjects(): Promise<DraftProjectOption[]> {
+  await requireAssistantGate();
+  const { roles } = await getProjectAccess();
+  const projects = await loadDraftProjects(Object.keys(roles));
+  return projects.map((project) => ({
+    ...project,
+    canCreateIssue: canProject(roles[project.id] ?? null, {
+      issue: ["write"],
+    }),
+  }));
+}
+
 /** Saves the user's edit of a draft, validated against its kind's shape. */
 export async function saveDraft(
   input: z.infer<typeof saveDraftInputSchema>
@@ -460,33 +508,41 @@ export async function saveDraft(
   const { draft } = await ownDraft(input.draftId);
   const parsed = draftContentSchema(draft.kind).safeParse(input.content);
   if (!parsed.success) throw await refusal(400, "assistant.invalid_draft");
+  // A chosen project must be one the caller sees (else 404, as unknown).
+  const { projectId } = input;
+  if (projectId) {
+    await usableOr404(() =>
+      requireProjectPermission({ projectId }, { assistant: ["use"] })
+    );
+  }
   if (draft.issueId)
     throw await refusal(409, "assistant.draft_already_created");
-  if (!(await updateDraftContent(input.draftId, parsed.data))) {
+  if (!(await updateDraftContent(input.draftId, parsed.data, { projectId }))) {
     throw await refusal(409, "assistant.draft_already_created");
   }
   return { id: input.draftId };
 }
 
 /**
- * Creates the Jira issue of the caller's Jira draft. Besides owning the
- * conversation, the caller needs issue:write on the draft's project: the
- * issue lands in the Panel's issue list too. A draft without a project has
- * no Jira link to file it with.
+ * Creates the Jira issue of the caller's Jira draft in the draft's project
+ * (chosen on the draft), with that project's Jira link. Besides owning the
+ * conversation, the caller needs issue:write on it: the issue lands in the
+ * Panel's issue list too. A draft without a project is refused until one is
+ * chosen.
  */
 export async function createJiraIssue(
   input: z.infer<typeof draftIdInputSchema>
 ): Promise<{ issueId: string; jiraKey: string }> {
   const { draft, userId } = await ownDraft(input.draftId);
+  if (draft.kind !== "jira")
+    throw await refusal(400, "assistant.invalid_draft");
   if (!draft.projectId) {
-    throw await refusal(409, "assistant.jira_push_disabled");
+    throw await refusal(400, "assistant.draft_project_required");
   }
   await requireProjectPermission(
     { projectId: draft.projectId },
     { issue: ["write"] }
   );
-  if (draft.kind !== "jira")
-    throw await refusal(400, "assistant.invalid_draft");
   if (draft.issueId)
     throw await refusal(409, "assistant.draft_already_created");
   try {
@@ -494,7 +550,10 @@ export async function createJiraIssue(
   } catch (error) {
     if (error instanceof JiraCreateError) {
       throw await refusal(
-        error.code === "assistant.invalid_draft" ? 400 : 409,
+        error.code === "assistant.invalid_draft" ||
+          error.code === "assistant.draft_project_required"
+          ? 400
+          : 409,
         error.code
       );
     }

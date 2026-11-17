@@ -3658,6 +3658,7 @@
     "nothingToDraft": "There is no answer in this conversation to draft from yet. Ask the assistant first.",
     "invalidDraft": "This draft is incomplete, too long, or the tracker rejected one of its fields. Check the fields and try again.",
     "jiraPushDisabled": "Issue sync to the tracker is off for this project. Ask an admin to turn it on.",
+    "draftProjectRequired": "Choose the project for this draft before creating the issue.",
     "draftAlreadyCreated": "An issue was already created from this draft.",
     "jiraCreateFailed": "The issue could not be created. Try again in a moment."
   },
@@ -3726,6 +3727,9 @@
     "createJira": "Create issue",
     "saveBeforeCreate": "Save the draft before creating the issue.",
     "jiraPushOff": "Issue sync to the tracker is off for this project, so issues cannot be created here.",
+    "draftProject": "Project",
+    "draftProjectPlaceholder": "Choose a project",
+    "draftProjectRequired": "Choose the project to create the issue in.",
     "noIssueWrite": "You do not have the right to create issues in this project.",
     "confirmCreateTitle": "Create the issue?",
     "confirmCreateDescription": "The issue will be created in the tracker on your behalf and also appear in the Panel's issue list. Check its content once more.",

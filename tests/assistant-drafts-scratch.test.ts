@@ -206,14 +206,30 @@ describe.skipIf(!enabled)(
           projectName: project.name,
         },
       ]);
-      // The draft is about the latest question's project.
+      // Each question with the context it was asked in.
       expect(await drafts.loadDraftTranscript(conversationId)).toEqual({
-        projectId: project.id,
-        projectName: "Kestrel Membership",
         messages: [
-          { role: "user", content: "Tanya", environmentName: "Dev 1" },
+          {
+            role: "user",
+            content: "Tanya",
+            context: {
+              kind: "environment",
+              environmentId: env.id,
+              environmentName: "Dev 1",
+              projectId: project.id,
+              projectName: "Kestrel Membership",
+            },
+          },
           { role: "assistant", content: "Jawab" },
-          { role: "user", content: "Lagi", environmentName: null },
+          {
+            role: "user",
+            content: "Lagi",
+            context: {
+              kind: "project",
+              projectId: project.id,
+              projectName: "Kestrel Membership",
+            },
+          },
         ],
       });
 
@@ -320,10 +336,11 @@ describe.skipIf(!enabled)(
         });
 
         const detail = await store.loadConversationDetail(conversationId);
-        expect(detail?.jiraPushEnabled).toBe(true);
+        expect(detail).not.toHaveProperty("jiraPushEnabled");
         expect(detail?.drafts).toEqual([
           expect.objectContaining({
             id: draftId,
+            projectId: project.id,
             kind: "jira",
             issueId: created.issueId,
             jiraKey: "KST-901",
@@ -440,6 +457,189 @@ describe.skipIf(!enabled)(
       expect(
         await db.transaction((tx) => drafts.findUnlinkedRemote(tx, draftId))
       ).toBeNull();
+    });
+
+    it("suggests a draft's project from the last question, else the last answer's reads", async () => {
+      const d = drizzle({ client });
+      const drafts = await import("@/lib/assistant/draft-store");
+      const store = await import("@/lib/assistant/conversation-store");
+      const [user] = await d.select().from(schema.users).limit(1);
+      if (!user) throw new Error("first test's rows missing");
+      const [a, b, c] = await d
+        .insert(schema.projects)
+        .values([
+          { name: "Alpha", key: "ALP" },
+          { name: "Bravo", key: "BRV" },
+          { name: "Charlie", key: "CHR" },
+        ])
+        .returning();
+      if (!a || !b || !c) throw new Error("projects not inserted");
+      const all = () => true;
+
+      // A pinned, then B pinned: B.
+      const mixed = await store.insertConversation({ userId: user.id });
+      await d.insert(schema.assistantMessages).values([
+        {
+          conversationId: mixed,
+          role: "user",
+          status: "done",
+          content: "A?",
+          projectId: a.id,
+          projectName: a.name,
+        },
+        {
+          conversationId: mixed,
+          role: "assistant",
+          status: "done",
+          content: "A",
+        },
+        {
+          conversationId: mixed,
+          role: "user",
+          status: "done",
+          content: "B?",
+          projectId: b.id,
+          projectName: b.name,
+        },
+        {
+          conversationId: mixed,
+          role: "assistant",
+          status: "done",
+          content: "B",
+        },
+      ]);
+      expect(await drafts.suggestDraftProject(mixed, all)).toBe(b.id);
+      expect(
+        await drafts.suggestDraftProject(mixed, (id) => id !== b.id)
+      ).toBeNull();
+
+      // Automatic only: the project the last finished answer read most.
+      const auto = await store.insertConversation({ userId: user.id });
+      await d.insert(schema.assistantMessages).values({
+        conversationId: auto,
+        role: "user",
+        status: "done",
+        content: "Mana?",
+      });
+      const [answer] = await d
+        .insert(schema.assistantMessages)
+        .values({
+          conversationId: auto,
+          role: "assistant",
+          status: "done",
+          content: "Di CHR",
+          sources: [],
+        })
+        .returning();
+      if (!answer) throw new Error("answer not inserted");
+      await d.insert(schema.assistantToolCalls).values([
+        {
+          messageId: answer.id,
+          tool: "list_projects",
+          input: {},
+          resultMeta: { projectKeys: ["ALP", "CHR"] },
+        },
+        {
+          messageId: answer.id,
+          tool: "read_file",
+          input: {},
+          resultMeta: { project: "ALP" },
+        },
+        {
+          messageId: answer.id,
+          tool: "read_file",
+          input: {},
+          resultMeta: { project: "CHR" },
+        },
+        {
+          messageId: answer.id,
+          tool: "search_code",
+          input: {},
+          resultMeta: { project: "CHR" },
+        },
+        {
+          messageId: answer.id,
+          tool: "read_file",
+          input: {},
+          resultMeta: { project: "NOPE" },
+        },
+      ]);
+      expect(await drafts.suggestDraftProject(auto, all)).toBe(c.id);
+      expect(await drafts.suggestDraftProject(auto, (id) => id !== c.id)).toBe(
+        a.id
+      );
+
+      // Nothing names a project.
+      const empty = await store.insertConversation({ userId: user.id });
+      await d.insert(schema.assistantMessages).values([
+        {
+          conversationId: empty,
+          role: "user",
+          status: "done",
+          content: "Halo",
+        },
+        {
+          conversationId: empty,
+          role: "assistant",
+          status: "done",
+          content: "Hai",
+        },
+      ]);
+      expect(await drafts.suggestDraftProject(empty, all)).toBeNull();
+
+      // A Stage 2 conversation's own project, only when nothing else does.
+      await d
+        .update(schema.assistantConversations)
+        .set({ projectId: a.id })
+        .where(eq(schema.assistantConversations.id, auto));
+      expect(await drafts.suggestDraftProject(auto, all)).toBe(c.id);
+      expect(await drafts.suggestDraftProject(auto, (id) => id === a.id)).toBe(
+        a.id
+      );
+
+      // The projects a draft may choose, with their Jira write-back switch.
+      const [link] = await d
+        .select({ projectId: schema.jiraProjectLinks.projectId })
+        .from(schema.jiraProjectLinks)
+        .limit(1);
+      const listed = await drafts.loadDraftProjects([a.id, b.id]);
+      expect(listed).toEqual([
+        { id: a.id, key: "ALP", name: "Alpha", jiraPushEnabled: false },
+        { id: b.id, key: "BRV", name: "Bravo", jiraPushEnabled: false },
+      ]);
+      if (!link) throw new Error("first test's link missing");
+      expect(await drafts.loadDraftProjects([link.projectId])).toEqual([
+        expect.objectContaining({ jiraPushEnabled: true }),
+      ]);
+      expect(await drafts.loadDraftProjects([])).toEqual([]);
+
+      // Saving a draft can move it to another project.
+      const draftId = await drafts.insertDraft({
+        conversationId: auto,
+        projectId: null,
+        kind: "jira",
+        content: {
+          summary: "S",
+          issueType: "Task",
+          description: "",
+          acceptanceCriteria: [],
+        },
+      });
+      expect(
+        await drafts.updateDraftContent(
+          draftId,
+          {
+            summary: "T",
+            issueType: "Task",
+            description: "",
+            acceptanceCriteria: [],
+          },
+          { projectId: c.id }
+        )
+      ).toBe(true);
+      expect(await drafts.findDraftOwner(draftId)).toMatchObject({
+        projectId: c.id,
+      });
     });
 
     it("insertIssueWithNextNumber takes the next number inside an open transaction", async () => {

@@ -266,13 +266,6 @@ describe.skipIf(!enabled)(
           lastContextLabel: null,
         },
       ]);
-      // A draft would be about the latest question's project.
-      expect(await store.questionProjectOf(conversationId)).toEqual({
-        id: project.id,
-        name: "Kestrel Membership",
-      });
-      expect(await store.questionProjectOf(empty)).toBeNull();
-
       const detail = await store.loadConversationDetail(conversationId);
       expect(detail).not.toHaveProperty("projectId");
       expect(detail?.messages.map((m) => [m.role, m.status])).toEqual([

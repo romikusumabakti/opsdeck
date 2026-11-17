@@ -3658,6 +3658,7 @@
     "nothingToDraft": "Todavía no hay ninguna respuesta en esta conversación para redactar un borrador. Pregunta primero al asistente.",
     "invalidDraft": "Este borrador está incompleto, es demasiado largo o el gestor rechazó uno de sus campos. Revisa los campos e inténtalo de nuevo.",
     "jiraPushDisabled": "La sincronización de incidencias con el gestor está desactivada en este proyecto. Pide a un administrador que la active.",
+    "draftProjectRequired": "Elige el proyecto de este borrador antes de crear la incidencia.",
     "draftAlreadyCreated": "Ya se creó una incidencia a partir de este borrador.",
     "jiraCreateFailed": "No se pudo crear la incidencia. Inténtalo de nuevo en un momento."
   },
@@ -3726,6 +3727,9 @@
     "createJira": "Crear incidencia",
     "saveBeforeCreate": "Guarda el borrador antes de crear la incidencia.",
     "jiraPushOff": "La sincronización de incidencias con el gestor está desactivada en este proyecto, así que aquí no se pueden crear incidencias.",
+    "draftProject": "Proyecto",
+    "draftProjectPlaceholder": "Elige un proyecto",
+    "draftProjectRequired": "Elige el proyecto en el que se creará la incidencia.",
     "noIssueWrite": "No tienes permiso para crear incidencias en este proyecto.",
     "confirmCreateTitle": "¿Crear la incidencia?",
     "confirmCreateDescription": "La incidencia se creará en el gestor en tu nombre y también aparecerá en la lista de incidencias del Panel. Revisa su contenido una vez más.",

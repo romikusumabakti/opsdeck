@@ -274,6 +274,26 @@ describe("createJiraIssueFromDraft guards", () => {
     expect(state.inserted).toEqual([]);
   });
 
+  it("uses the push switch of the draft's own project; none chosen is assistant.draft_project_required", async () => {
+    const calls = mockJira();
+    const { resolveLink } = await import("@/lib/jira/sync");
+    state.link = { enabled: true, pushEnabled: false };
+    const OTHER_PROJECT = "0197f3a0-1b2c-7def-8000-00000000a002";
+    state.draft = { ...jiraDraft(), projectId: OTHER_PROJECT };
+    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+      code: "assistant.jira_push_disabled",
+    });
+    expect(resolveLink).toHaveBeenLastCalledWith(OTHER_PROJECT);
+
+    vi.mocked(resolveLink).mockClear();
+    state.draft = { ...jiraDraft(), projectId: null };
+    await expect(createJiraIssueFromDraft(DRAFT, ACTOR)).rejects.toMatchObject({
+      code: "assistant.draft_project_required",
+    });
+    expect(resolveLink).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+  });
+
   it("refuses a second create for a draft that already has an issue", async () => {
     const calls = mockJira();
     state.draft = { ...jiraDraft(), issueId: "issue-0" };

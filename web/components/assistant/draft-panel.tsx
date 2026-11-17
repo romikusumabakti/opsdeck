@@ -14,6 +14,7 @@ import {
   generateDraft,
   getAllowanceQuery,
   getConversationQuery,
+  listDraftProjectsQuery,
 } from "@/web/api/assistant";
 import { BrdDraftForm } from "./brd-draft-form";
 import { useAssistantErrorText } from "./error-text";
@@ -86,18 +87,15 @@ export function useDraftGeneration(conversationId: string) {
 
 /**
  * Drafts written by the model from the conversation: a BRD section set or an
- * issue, newest first, each editable before anything leaves the Panel.
+ * issue, newest first, each editable before anything leaves the Panel. An
+ * issue draft picks its project among the caller's visible ones.
  */
 export function DraftPanel({
   conversationId,
-  projectKey,
-  canCreateIssue,
   disabled,
   onClose,
 }: {
   conversationId: string;
-  projectKey: string;
-  canCreateIssue: boolean;
   /** An answer is running or the day's cap is spent. */
   disabled: boolean;
   onClose?: () => void;
@@ -111,6 +109,10 @@ export function DraftPanel({
   React.useEffect(() => clearSettled(), [clearSettled]);
 
   const drafts = [...(conversation?.drafts ?? [])].reverse();
+  const projects = useQuery({
+    ...listDraftProjectsQuery(),
+    enabled: drafts.some((d) => d.kind === "jira"),
+  }).data;
   const title = t("draftsTitle");
   const hasAnswer = canDraftFrom(conversation);
 
@@ -171,12 +173,7 @@ export function DraftPanel({
             />
           </header>
           {draft.kind === "jira" ? (
-            <JiraDraftForm
-              draft={draft}
-              projectKey={projectKey}
-              jiraPushEnabled={conversation?.jiraPushEnabled ?? false}
-              canCreateIssue={canCreateIssue}
-            />
+            <JiraDraftForm draft={draft} projects={projects} />
           ) : (
             <BrdDraftForm draft={draft} />
           )}

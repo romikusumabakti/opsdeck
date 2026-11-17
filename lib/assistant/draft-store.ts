@@ -1,18 +1,19 @@
-import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   activityLog,
   assistantConversations,
   assistantDrafts,
   assistantMessages,
+  assistantToolCalls,
   issues,
+  jiraProjectLinks,
   projects,
   users,
 } from "@/lib/db/schema";
-import {
-  type ConversationOwner,
-  questionProjectOf,
-} from "./conversation-store";
+import { contextFromRow, type StoredQuestionContext } from "./context";
+import type { ConversationOwner } from "./conversation-store";
+import { pickDraftProject } from "./draft-project";
 
 /**
  * The Postgres side of assistant drafts. No authorization here: the service
@@ -24,14 +25,11 @@ export type DraftKind = "brd" | "jira";
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type DraftTranscriptMessage =
-  /** A question, with the environment it asked about (null: project branches). */
-  | { role: "user"; content: string; environmentName: string | null }
+  /** A question, with the context it was asked in. */
+  | { role: "user"; content: string; context: StoredQuestionContext }
   | { role: "assistant"; content: string };
 
 export type DraftTranscript = {
-  /** The project the draft is about (questionProjectOf); null if none. */
-  projectId: string | null;
-  projectName: string | null;
   /** User questions and finished answers, oldest first. */
   messages: DraftTranscriptMessage[];
 };
@@ -46,11 +44,13 @@ export async function loadDraftTranscript(
     .where(eq(assistantConversations.id, conversationId))
     .limit(1);
   if (!conversation) return null;
-  const project = await questionProjectOf(conversationId);
   const rows = await db
     .select({
       role: assistantMessages.role,
       content: assistantMessages.content,
+      projectId: assistantMessages.projectId,
+      projectName: assistantMessages.projectName,
+      environmentId: assistantMessages.environmentId,
       environmentName: assistantMessages.environmentName,
     })
     .from(assistantMessages)
@@ -69,17 +69,133 @@ export async function loadDraftTranscript(
     // uuidv7 ids sort by creation.
     .orderBy(asc(assistantMessages.id));
   return {
-    projectId: project?.id ?? null,
-    projectName: project?.name ?? null,
     messages: rows
       .filter((m) => m.content.trim() !== "")
       .map(
-        ({ role, content, environmentName }): DraftTranscriptMessage =>
+        ({ role, content, ...row }): DraftTranscriptMessage =>
           role === "user"
-            ? { role, content, environmentName }
+            ? { role, content, context: contextFromRow(row) }
             : { role, content }
       ),
   };
+}
+
+/**
+ * The project a new draft of the conversation is preselected with
+ * (lib/assistant/draft-project.ts): the latest question's project, else the
+ * project the latest finished answer read most, else a Stage 2
+ * conversation's project; only one `sees` accepts (the caller's visible
+ * projects), else null.
+ */
+export async function suggestDraftProject(
+  conversationId: string,
+  sees: (projectId: string) => boolean
+): Promise<string | null> {
+  // uuidv7 ids sort by creation.
+  const [[question], [answer], [conversation]] = await Promise.all([
+    db
+      .select({ projectId: assistantMessages.projectId })
+      .from(assistantMessages)
+      .where(
+        and(
+          eq(assistantMessages.conversationId, conversationId),
+          eq(assistantMessages.role, "user")
+        )
+      )
+      .orderBy(desc(assistantMessages.id))
+      .limit(1),
+    db
+      .select({ id: assistantMessages.id, sources: assistantMessages.sources })
+      .from(assistantMessages)
+      .where(
+        and(
+          eq(assistantMessages.conversationId, conversationId),
+          eq(assistantMessages.role, "assistant"),
+          eq(assistantMessages.status, "done")
+        )
+      )
+      .orderBy(desc(assistantMessages.id))
+      .limit(1),
+    db
+      .select({ projectId: assistantConversations.projectId })
+      .from(assistantConversations)
+      .where(eq(assistantConversations.id, conversationId))
+      .limit(1),
+  ]);
+  // The project key each code tool of the answer read (automatic context).
+  const readKeys = answer
+    ? (
+        await db
+          .select({
+            key: sql<
+              string | null
+            >`${assistantToolCalls.resultMeta}->>'project'`,
+          })
+          .from(assistantToolCalls)
+          .where(eq(assistantToolCalls.messageId, answer.id))
+          .orderBy(asc(assistantToolCalls.id))
+      ).flatMap((call) => (call.key ? [call.key] : []))
+    : [];
+  const sourceKeys = (answer?.sources ?? []).flatMap((source) =>
+    source.projectKey ? [source.projectKey] : []
+  );
+  const keys = [...new Set([...readKeys, ...sourceKeys])];
+  const idOfKey = new Map(
+    keys.length === 0
+      ? []
+      : (
+          await db
+            .select({ id: projects.id, key: projects.key })
+            .from(projects)
+            .where(inArray(projects.key, keys))
+        ).map((p) => [p.key, p.id])
+  );
+  // A key that names no project (any more) counts for none.
+  const idsOf = (list: string[]) =>
+    list.flatMap((key) => {
+      const id = idOfKey.get(key);
+      return id ? [id] : [];
+    });
+  return pickDraftProject(
+    {
+      lastQuestionProjectId: question?.projectId ?? null,
+      answerReads: idsOf(readKeys),
+      answerSources: idsOf(sourceKeys),
+      conversationProjectId: conversation?.projectId ?? null,
+    },
+    sees
+  );
+}
+
+export type DraftProject = {
+  id: string;
+  key: string;
+  name: string;
+  /** Its Jira link is on and may write back: an issue can be created. */
+  jiraPushEnabled: boolean;
+};
+
+/** The projects of `ids` by name, for a draft to pick. */
+export async function loadDraftProjects(
+  ids: readonly string[]
+): Promise<DraftProject[]> {
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({
+      id: projects.id,
+      key: projects.key,
+      name: projects.name,
+      enabled: jiraProjectLinks.enabled,
+      pushEnabled: jiraProjectLinks.pushEnabled,
+    })
+    .from(projects)
+    .leftJoin(jiraProjectLinks, eq(jiraProjectLinks.projectId, projects.id))
+    .where(inArray(projects.id, [...ids]))
+    .orderBy(asc(projects.name), asc(projects.key));
+  return rows.map(({ enabled, pushEnabled, ...project }) => ({
+    ...project,
+    jiraPushEnabled: !!(enabled && pushEnabled),
+  }));
 }
 
 export async function insertDraft(values: {
@@ -128,15 +244,22 @@ export async function findDraftOwner(
   return { conversation, projectId, kind, issueId };
 }
 
-/** Replaces a draft's content; false once it has become a Jira issue. */
+/**
+ * Replaces a draft's content and, given one, its project; false once it has
+ * become a Jira issue.
+ */
 export async function updateDraftContent(
   draftId: string,
   content: Record<string, unknown>,
-  now: Date = new Date()
+  options: { projectId?: string; now?: Date } = {}
 ): Promise<boolean> {
   const rows = await db
     .update(assistantDrafts)
-    .set({ content, updatedAt: now })
+    .set({
+      content,
+      ...(options.projectId ? { projectId: options.projectId } : {}),
+      updatedAt: options.now ?? new Date(),
+    })
     // A draft that became a Jira issue stays the record of what was sent.
     .where(
       and(eq(assistantDrafts.id, draftId), isNull(assistantDrafts.issueId))
@@ -150,7 +273,7 @@ export type LockedDraft = {
   kind: DraftKind;
   content: Record<string, unknown>;
   issueId: string | null;
-  /** The draft's project; null when it has none (no Jira link to use). */
+  /** The draft's project; null when none was chosen (no Jira link to use). */
   projectId: string | null;
 };
 

@@ -8,7 +8,6 @@ import {
   environments,
   instanceSettings,
   issues,
-  jiraProjectLinks,
   projects,
 } from "@/lib/db/schema";
 import {
@@ -146,37 +145,6 @@ export async function listConversationsOf(
   }));
 }
 
-/**
- * The project a draft of the conversation is about: the one its latest
- * question pinned (or the pinned environment's), else a Stage 2
- * conversation's project, else none.
- */
-export async function questionProjectOf(
-  conversationId: string
-): Promise<{ id: string; name: string } | null> {
-  const [question] = await db
-    .select({ projectId: assistantMessages.projectId })
-    .from(assistantMessages)
-    .where(
-      and(
-        eq(assistantMessages.conversationId, conversationId),
-        eq(assistantMessages.role, "user")
-      )
-    )
-    .orderBy(desc(assistantMessages.id))
-    .limit(1);
-  let projectId = question?.projectId ?? null;
-  if (!projectId) {
-    const [conversation] = await db
-      .select({ projectId: assistantConversations.projectId })
-      .from(assistantConversations)
-      .where(eq(assistantConversations.id, conversationId))
-      .limit(1);
-    projectId = conversation?.projectId ?? null;
-  }
-  return projectId ? findProject(projectId) : null;
-}
-
 /** A conversation; each question then carries its own context (insertTurn). */
 export async function insertConversation(values: {
   userId: string;
@@ -254,6 +222,11 @@ export type ConversationDraft = {
   kind: "brd" | "jira";
   content: Record<string, unknown>;
   issueId: string | null;
+  /**
+   * The project the draft files its issue in; null when none is chosen (the
+   * service also blanks one the caller no longer sees).
+   */
+  projectId: string | null;
   /** The created issue's Jira key; null before creation or once unlinked. */
   jiraKey: string | null;
   /** The created Panel issue's number (`/<KEY>/issues/<n>`); null before. */
@@ -267,11 +240,6 @@ export type ConversationDetail = {
   title: string;
   messages: ConversationMessage[];
   drafts: ConversationDraft[];
-  /**
-   * The Jira link of the project a new draft would be about
-   * (questionProjectOf) is on and may write: a Jira draft can be created.
-   */
-  jiraPushEnabled: boolean;
 };
 
 async function toolCallsByMessage(
@@ -308,9 +276,8 @@ export async function loadConversationDetail(
     .where(eq(assistantConversations.id, conversationId))
     .limit(1);
   if (!conversation) return null;
-  const project = await questionProjectOf(conversationId);
 
-  const [messages, drafts, [link]] = await Promise.all([
+  const [messages, drafts] = await Promise.all([
     db
       .select({
         id: assistantMessages.id,
@@ -336,6 +303,7 @@ export async function loadConversationDetail(
         kind: assistantDrafts.kind,
         content: assistantDrafts.content,
         issueId: assistantDrafts.issueId,
+        projectId: assistantDrafts.projectId,
         jiraKey: issues.jiraKey,
         issueNumber: issues.number,
         createdAt: assistantDrafts.createdAt,
@@ -345,16 +313,6 @@ export async function loadConversationDetail(
       .leftJoin(issues, eq(issues.id, assistantDrafts.issueId))
       .where(eq(assistantDrafts.conversationId, conversationId))
       .orderBy(asc(assistantDrafts.id)),
-    project
-      ? db
-          .select({
-            enabled: jiraProjectLinks.enabled,
-            pushEnabled: jiraProjectLinks.pushEnabled,
-          })
-          .from(jiraProjectLinks)
-          .where(eq(jiraProjectLinks.projectId, project.id))
-          .limit(1)
-      : [],
   ]);
   const calls = await toolCallsByMessage(
     messages.filter((m) => m.role === "assistant").map((m) => m.id)
@@ -377,7 +335,6 @@ export async function loadConversationDetail(
       })
     ),
     drafts,
-    jiraPushEnabled: !!(link?.enabled && link.pushEnabled),
   };
 }
 

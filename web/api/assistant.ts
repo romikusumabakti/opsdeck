@@ -86,12 +86,33 @@ export async function generateDraft(input: Body<"generate-draft">) {
   return parseResponse(routes["generate-draft"].$post({ json: input }));
 }
 
-/** Saves the user's edit; refused once a Jira draft became an issue. */
+/**
+ * The projects a draft can be filed in (the caller's visible ones, by name),
+ * each with its own Jira write-back switch and the caller's issue:write.
+ */
+export async function listDraftProjects() {
+  return parseResponse(routes["draft-projects"].$get());
+}
+
+export const listDraftProjectsQuery = () =>
+  queryOptions({
+    queryKey: ["assistant", "listDraftProjects"],
+    queryFn: listDraftProjects,
+  });
+
+/**
+ * Saves the user's edit, with the project chosen for the draft
+ * (`projectId`, omitted: unchanged); refused once a Jira draft became an
+ * issue, 404 for a project the caller does not see.
+ */
 export async function saveDraft(input: Body<"save-draft">) {
   return parseResponse(routes["save-draft"].$post({ json: input }));
 }
 
-/** Creates the Jira issue of a Jira draft (needs a push-enabled link). */
+/**
+ * Creates the Jira issue of a Jira draft in the draft's project (needs one
+ * chosen, with a push-enabled link).
+ */
 export async function createJiraIssue(
   draftId: Body<"create-jira-issue">["draftId"]
 ) {
@@ -109,6 +130,9 @@ export type Allowance = Awaited<ReturnType<typeof getAllowance>>;
 export type Conversation = Awaited<ReturnType<typeof getConversation>>;
 export type ConversationMessage = Conversation["messages"][number];
 export type ConversationDraft = Conversation["drafts"][number];
+export type DraftProjectOption = Awaited<
+  ReturnType<typeof listDraftProjects>
+>[number];
 /** A user message's context; null on assistant messages. */
 export type MessageContext = NonNullable<ConversationMessage["context"]>;
 export type ConversationSummary = Awaited<

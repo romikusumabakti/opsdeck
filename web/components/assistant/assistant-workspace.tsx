@@ -80,16 +80,12 @@ function lastSourceOf(conversation: Conversation): string | null | undefined {
 export function AssistantWorkspace({
   projectId,
   projectName,
-  projectKey,
-  canCreateIssue,
   initialEnvironmentId = null,
   conversationId = null,
   onConversationChange,
 }: {
   projectId: string;
   projectName: string;
-  projectKey: string;
-  canCreateIssue: boolean;
   /** The chip's first value (an environment of this project), e.g. `?env=`. */
   initialEnvironmentId?: string | null;
   /** The open conversation, e.g. `?c=`; a change from outside opens it. */
@@ -238,8 +234,6 @@ export function AssistantWorkspace({
   const draftPanel = selectedId && !foreign && (
     <DraftPanel
       conversationId={selectedId}
-      projectKey={projectKey}
-      canCreateIssue={canCreateIssue}
       disabled={busy || capped}
       onClose={() => setDraftsOpen(false)}
     />
