@@ -35,7 +35,7 @@ export function RunningCard({ environmentId }: { environmentId: string }) {
               key={item.componentKey}
               className={i === 0 ? "py-2" : "py-2 border-t border-border/40"}
             >
-              <RunningRow item={item} t={t} />
+              <RunningRow item={item} />
             </li>
           ))}
         </ul>
@@ -44,13 +44,8 @@ export function RunningCard({ environmentId }: { environmentId: string }) {
   );
 }
 
-function RunningRow({
-  item,
-  t,
-}: {
-  item: EnvironmentRunningItem;
-  t: (key: "notDeployed" | "unknownCommit") => string;
-}) {
+function RunningRow({ item }: { item: EnvironmentRunningItem }) {
+  const t = useTranslations("dashboard");
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
       <div className="flex flex-1 basis-48 flex-col min-w-0">

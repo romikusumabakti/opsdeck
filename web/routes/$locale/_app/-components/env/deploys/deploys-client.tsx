@@ -108,6 +108,10 @@ export function DeploysClient({
     if (open) return;
     setRun(null);
     queryClient.invalidateQueries({ queryKey: ["deploys"] });
+    // The dashboard's Running card shows what the deployment left running.
+    queryClient.invalidateQueries({
+      queryKey: ["environments", "getEnvironmentRunning"],
+    });
   }
 
   return (

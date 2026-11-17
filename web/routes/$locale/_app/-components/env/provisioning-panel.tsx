@@ -160,6 +160,9 @@ export function ProvisioningPanel({
   React.useEffect(() => {
     if (previousRunId.current && !activeRunId) {
       queryClient.invalidateQueries({ queryKey: ["deploys"] });
+      queryClient.invalidateQueries({
+        queryKey: ["environments", "getEnvironmentRunning"],
+      });
     }
     previousRunId.current = activeRunId;
   }, [activeRunId, queryClient]);

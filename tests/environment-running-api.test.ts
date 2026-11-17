@@ -28,66 +28,65 @@ vi.mock("@/lib/db", async () => {
     q.orderBy = async () => rows();
     return self();
   };
-  return {
-    db: {
-      select: () => ({
-        from: (table: unknown) => {
-          if (table === schema.projects) {
-            return answer(() => [{ id: P1 }, { id: P2 }]);
-          }
-          if (table === schema.projectMembers) {
-            return answer(() =>
-              state.memberProjectIds.map((projectId) => ({ projectId }))
-            );
-          }
-          if (table === schema.environments) {
-            return answer(() => [{ projectId: P1 }]);
-          }
-          if (table === schema.deployTargets) {
-            return answer(() => [
-              {
-                id: T_API,
-                componentKey: "api",
-                sourceBranch: "main",
-                repoFullName: "acme/api",
-                ciConnectionId: "ci-1",
-              },
-              {
-                id: T_WEB,
-                componentKey: "web",
-                sourceBranch: "develop",
-                repoFullName: "acme/web",
-                ciConnectionId: "ci-1",
-              },
-            ]);
-          }
-          if (table === schema.deployments) {
-            return answer(() => [
-              {
-                targetId: T_API,
-                status: "success",
-                buildId: B1,
-                tag: "v1.4.0",
-                createdAt: new Date("2026-11-10T08:00:00Z"),
-                finishedAt: new Date("2026-11-10T08:03:00Z"),
-              },
-            ]);
-          }
-          if (table === schema.builds) {
-            return answer(() => [
-              {
-                id: B1,
-                componentKey: "api",
-                tag: "v1.4.0",
-                commitSha: "0123456789abcdef0123456789abcdef01234567",
-                receivedAt: new Date("2026-11-10T07:50:00Z"),
-              },
-            ]);
-          }
-          throw new Error("unexpected table");
-        },
-      }),
+  const select = () => ({
+    from: (table: unknown) => {
+      if (table === schema.projects) {
+        return answer(() => [{ id: P1 }, { id: P2 }]);
+      }
+      if (table === schema.projectMembers) {
+        return answer(() =>
+          state.memberProjectIds.map((projectId) => ({ projectId }))
+        );
+      }
+      if (table === schema.environments) {
+        return answer(() => [{ projectId: P1 }]);
+      }
+      if (table === schema.deployTargets) {
+        return answer(() => [
+          {
+            id: T_API,
+            componentKey: "api",
+            sourceBranch: "main",
+            repoFullName: "acme/api",
+            ciConnectionId: "ci-1",
+          },
+          {
+            id: T_WEB,
+            componentKey: "web",
+            sourceBranch: "develop",
+            repoFullName: "acme/web",
+            ciConnectionId: "ci-1",
+          },
+        ]);
+      }
+      if (table === schema.deployments) {
+        return answer(() => [
+          {
+            targetId: T_API,
+            status: "success",
+            buildId: B1,
+            tag: "v1.4.0",
+            createdAt: new Date("2026-11-10T08:00:00Z"),
+            finishedAt: new Date("2026-11-10T08:03:00Z"),
+          },
+        ]);
+      }
+      if (table === schema.builds) {
+        return answer(() => [
+          {
+            id: B1,
+            componentKey: "api",
+            tag: "v1.4.0",
+            commitSha: "0123456789abcdef0123456789abcdef01234567",
+            receivedAt: new Date("2026-11-10T07:50:00Z"),
+          },
+        ]);
+      }
+      throw new Error("unexpected table");
     },
+  });
+  return {
+    db: { select, selectDistinctOn: select },
     pgClient: vi.fn(),
   };
 });

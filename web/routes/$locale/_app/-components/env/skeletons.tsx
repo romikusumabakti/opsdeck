@@ -12,7 +12,7 @@ import { RunningCardSkeleton } from "./running-card";
 export function DashboardPending() {
   return (
     <>
-      <PageHeaderSkeleton withAction={false} />
+      <PageHeaderSkeleton withAction />
       <DashboardKpisSkeleton />
       <RunningCardSkeleton />
       <EnvironmentStackSkeleton />

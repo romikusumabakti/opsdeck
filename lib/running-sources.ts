@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   appComponents,
@@ -98,8 +98,19 @@ export async function resolveRunningSources(
     .orderBy(deployTargets.componentKey, deployTargets.id);
   if (targets.length === 0) return [];
 
+  // Only what runs: the newest successful deployment per target (the same
+  // order pickRunningCommit applies), then only the builds those deployments
+  // name, by id or, without one, by their component's tag.
+  const deployedAt = sql`coalesce(${deployments.finishedAt}, ${deployments.createdAt})`;
   const succeeded = await db
-    .select()
+    .selectDistinctOn([deployments.targetId], {
+      targetId: deployments.targetId,
+      status: deployments.status,
+      buildId: deployments.buildId,
+      tag: deployments.tag,
+      createdAt: deployments.createdAt,
+      finishedAt: deployments.finishedAt,
+    })
     .from(deployments)
     .where(
       and(
@@ -109,12 +120,35 @@ export async function resolveRunningSources(
         ),
         eq(deployments.status, "success")
       )
-    );
-  const componentKeys = [...new Set(targets.map((t) => t.componentKey))];
-  const buildRows = await db
-    .select()
-    .from(builds)
-    .where(inArray(builds.componentKey, componentKeys));
+    )
+    .orderBy(deployments.targetId, desc(deployedAt), desc(deployments.id));
+
+  const componentOf = new Map(targets.map((t) => [t.id, t.componentKey]));
+  const buildIds = succeeded.flatMap((d) => (d.buildId ? [d.buildId] : []));
+  const byTag = succeeded.flatMap((d) => {
+    const componentKey = componentOf.get(d.targetId);
+    return !d.buildId && componentKey
+      ? [and(eq(builds.componentKey, componentKey), eq(builds.tag, d.tag))]
+      : [];
+  });
+  const buildRows =
+    buildIds.length + byTag.length === 0
+      ? []
+      : await db
+          .select({
+            id: builds.id,
+            componentKey: builds.componentKey,
+            tag: builds.tag,
+            commitSha: builds.commitSha,
+            receivedAt: builds.receivedAt,
+          })
+          .from(builds)
+          .where(
+            or(
+              ...(buildIds.length > 0 ? [inArray(builds.id, buildIds)] : []),
+              ...byTag
+            )
+          );
 
   return targets.map((t) => {
     const running = pickRunningCommit(

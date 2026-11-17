@@ -170,6 +170,7 @@ describe.skipIf(!enabled)(
       const bOld = await build("comp-a", "v1", "sha-old");
       const bNew = await build("comp-a", "v2", "sha-new");
       await build("comp-b", "v7", "sha-b");
+      const bOldB = await build("comp-b", "v6", "sha-b-old");
       await build("comp-a", "v3", "sha-failed");
 
       const deploy = (
@@ -194,6 +195,9 @@ describe.skipIf(!enabled)(
       await deploy(tA.id, "v3", "failed", null, "2026-11-03T10:00:00Z");
       await deploy(tD.id, "v9", "success", null, "2026-11-04T10:00:00Z");
       await deploy(tB.id, "v7", "success", null, "2026-11-02T11:00:00Z");
+      // Older successes, linked or by tag, are not what runs.
+      await deploy(tB.id, "v6", "success", bOldB.id, "2026-11-01T11:00:00Z");
+      await deploy(tD.id, "v8", "success", null, "2026-11-03T10:00:00Z");
 
       const sources = await resolveEnvironmentSources(env.id);
       const byKey = Object.fromEntries(sources.map((s) => [s.componentKey, s]));
@@ -225,6 +229,21 @@ describe.skipIf(!enabled)(
         deployedAt: "2026-11-04T10:00:00.000Z",
       });
       expect(sources).toHaveLength(4);
+
+      // The dashboard's view: the same commits, plus the deployed tag.
+      const { resolveRunningSources } = await import("@/lib/running-sources");
+      const running = Object.fromEntries(
+        (await resolveRunningSources(env.id)).map((s) => [
+          s.componentKey,
+          { tag: s.tag, commitSha: s.commitSha },
+        ])
+      );
+      expect(running).toEqual({
+        "comp-a": { tag: "v2", commitSha: "sha-new" },
+        "comp-b": { tag: "v7", commitSha: "sha-b" },
+        "comp-c": { tag: null, commitSha: null },
+        "comp-d": { tag: "v9", commitSha: null },
+      });
     });
   }
 );
