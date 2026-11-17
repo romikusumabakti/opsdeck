@@ -293,9 +293,7 @@ function AssistantForm({ settings }: { settings: AssistantSettings }) {
         ...(parsedPrices && { prices: parsedPrices }),
         dailyCapUsd: cap,
         orgContext,
-        ...(apiKey.trim()
-          ? { apiKey }
-          : clearKey && { apiKey: null }),
+        ...(apiKey.trim() ? { apiKey } : clearKey && { apiKey: null }),
       });
       if (result.success) {
         toast.success(t("saved"));
