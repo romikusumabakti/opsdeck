@@ -56,6 +56,7 @@ const {
   JIRA_SUMMARY_MAX,
   JIRA_CRITERIA_MAX,
   jiraDraftSchema,
+  brdDraftSchema,
 } = await import("@/lib/assistant/drafts");
 const { TurnError, classifyError } = await import("@/lib/assistant/run-turn");
 
@@ -415,9 +416,17 @@ describe("structured output not supported", () => {
       }),
     ],
   ])("%s is assistant.model_no_drafts", async (_name, error) => {
-    expect(classifyError(error)).toBe("assistant.model_no_drafts");
+    expect(classifyError(error, { phase: "draft" })).toBe(
+      "assistant.model_no_drafts"
+    );
     const thrown = await draftError({ error });
-    expect(classifyError(thrown)).toBe("assistant.model_no_drafts");
+    expect(classifyError(thrown, { phase: "draft" })).toBe(
+      "assistant.model_no_drafts"
+    );
+    // A turn sends no response format: the same error there is no draft
+    // problem.
+    expect(classifyError(error)).toBe("assistant.failed");
+    expect(classifyError(error, { phase: "turn" })).toBe("assistant.failed");
   });
 
   it("a tool-schema 400 stays assistant.failed", () => {
@@ -432,6 +441,26 @@ describe("structured output not supported", () => {
 });
 
 describe("draft prompts", () => {
+  it("ask for one JSON object with exactly the schema's keys", () => {
+    const jira = buildDraftSystemPrompt("jira", null);
+    const brd = buildDraftSystemPrompt("brd", null);
+    for (const prompt of [jira, brd]) {
+      expect(prompt).toContain("Answer with one JSON object");
+    }
+    for (const key of Object.keys(jiraDraftSchema.shape)) {
+      expect(jira).toContain(`"${key}"`);
+    }
+    for (const key of Object.keys(brdDraftSchema.shape)) {
+      expect(brd).toContain(`"${key}"`);
+    }
+    const section = brdDraftSchema.shape.sections.element.shape;
+    for (const key of Object.keys(section)) {
+      expect(brd).toContain(`"${key}"`);
+    }
+    expect(jira).toContain('"acceptanceCriteria": ["');
+    expect(brd).toContain('"sections": [{');
+  });
+
   it("are English instructions that ask for Indonesian content", () => {
     for (const kind of ["brd", "jira"] as const) {
       const prompt = buildDraftSystemPrompt(kind, null);

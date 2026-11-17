@@ -851,8 +851,9 @@ describe("drafts", () => {
     log.mockRestore();
   });
 
-  it("classifies a provider error with the turn loop's mapping", async () => {
+  it("classifies a provider error as a draft error and logs only its code", async () => {
     const id = await newConversation();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     drafting.generate.mockRejectedValueOnce(
       new APICallError({
         message: "Bad Request",
@@ -868,9 +869,13 @@ describe("drafts", () => {
       kind: "brd",
     });
     expect(res.status).toBe(503);
-    expect(await res.json()).toMatchObject({
-      code: "assistant.model_no_drafts",
-    });
+    const body = await res.json();
+    expect(body).toMatchObject({ code: "assistant.model_no_drafts" });
+    expect(JSON.stringify(body)).not.toContain("response_format");
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      "[assistant] draft not written: assistant.model_no_drafts (AI_APICallError)"
+    );
+    warn.mockRestore();
   });
 
   it("another user's draft and conversation are 404 on every draft route", async () => {

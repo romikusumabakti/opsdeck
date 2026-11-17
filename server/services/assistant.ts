@@ -363,9 +363,14 @@ export async function generateConversationDraft(
       { runtime }
     );
   } catch (error) {
-    const code = classifyError(error);
+    const code = classifyError(error, { phase: "draft" });
     if (code === "assistant.failed") {
       console.error("[assistant] draft generation failed:", error);
+    } else {
+      // The code only: provider text can echo request details.
+      console.warn(
+        `[assistant] draft not written: ${code} (${(error as Error)?.name ?? "unknown"})`
+      );
     }
     throw await refusal(DRAFT_FAILURE_STATUS[code] ?? 502, code);
   }

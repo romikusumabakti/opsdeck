@@ -72,8 +72,23 @@ function vendorMatches(): string[] {
     .sort();
 }
 
+/** False in an exported tree (a tarball, an image) without git metadata. */
+function inGitCheckout(): boolean {
+  try {
+    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], {
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 describe("vendor names", () => {
-  it("appear only in the provider module and the allowed lines", () => {
+  it("appear only in the provider module and the allowed lines", (ctx) => {
+    if (!inGitCheckout()) {
+      ctx.skip("not a git checkout: there are no tracked files to grep");
+    }
     expect(vendorMatches()).toEqual(ALLOWED);
   });
 });

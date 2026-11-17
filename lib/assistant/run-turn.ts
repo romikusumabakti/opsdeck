@@ -140,13 +140,30 @@ const NO_STRUCTURED_SUPPORT =
 const NO_TOOL_SUPPORT =
   /does not support (tools|tool use|tool calling|function calling)|(tools?|tool use|tool calling|function calling) (are|is) not supported/i;
 
-/** Maps an error thrown by the SDK (or the loop) to the message's error code. */
-export function classifyError(error: unknown): AssistantErrorCode {
+/**
+ * Where the error happened. Only a draft asks for structured output, so only
+ * there does a structured-output error mean the model cannot write drafts.
+ */
+export type ErrorPhase = "turn" | "draft";
+
+/**
+ * Maps an error thrown by the SDK (or the loop, or a draft) to the stable
+ * error code.
+ */
+export function classifyError(
+  error: unknown,
+  { phase = "turn" }: { phase?: ErrorPhase } = {}
+): AssistantErrorCode {
   if (error instanceof TurnError) return error.code;
-  if (RetryError.isInstance(error)) return classifyError(error.lastError);
+  if (RetryError.isInstance(error)) {
+    return classifyError(error.lastError, { phase });
+  }
   if (LoadAPIKeyError.isInstance(error)) return "assistant.not_configured";
   if (UnsupportedFunctionalityError.isInstance(error)) {
-    if (STRUCTURED_FUNCTIONALITY.test(error.functionality)) {
+    if (
+      phase === "draft" &&
+      STRUCTURED_FUNCTIONALITY.test(error.functionality)
+    ) {
       return "assistant.model_no_drafts";
     }
     return TOOLS_FUNCTIONALITY.test(error.functionality)
@@ -172,7 +189,7 @@ export function classifyError(error: unknown): AssistantErrorCode {
   if (status === 400 && NO_TOOL_SUPPORT.test(text)) {
     return "assistant.model_no_tools";
   }
-  if (status === 400 && NO_STRUCTURED_SUPPORT.test(text)) {
+  if (phase === "draft" && status === 400 && NO_STRUCTURED_SUPPORT.test(text)) {
     return "assistant.model_no_drafts";
   }
   if (status === undefined) {
