@@ -27,8 +27,8 @@ export const ALLOWED_EMAIL_DOMAIN =
 
 /**
  * This deployment's brand (BRAND). Server-only and read per call; the server
- * reads it and passes it down. An unknown value fails boot in lib/env.ts; this
- * fallback only covers local development and tests.
+ * reads it and passes it down. An unknown value falls back to the default
+ * brand; lib/env.ts warns about it once at boot.
  */
 export function brand(): BrandName {
   const value = process.env.BRAND;

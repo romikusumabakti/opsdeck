@@ -195,13 +195,16 @@ function collectFindings(): Finding[] {
 
   checkOptional("APP_TIMEZONE", timezoneSchema, findings);
 
-  checkOptional(
-    "BRAND",
-    z.enum(BRANDS, {
-      error: `must be one of: ${BRANDS.join(", ")}`,
-    }),
-    findings
-  );
+  // An unknown brand is a warning, not an error: an instance updated from an
+  // older release may still name a brand key this release no longer ships,
+  // and brand() in lib/branding.ts already falls back to the default one.
+  const brandValue = process.env.BRAND;
+  if (brandValue && !(BRANDS as readonly string[]).includes(brandValue)) {
+    findings.push({
+      level: "warn",
+      message: `BRAND "${brandValue}" is unknown (known: ${BRANDS.join(", ")}) — using the default brand`,
+    });
+  }
 
   checkGroup(
     "Microsoft sign-in",
