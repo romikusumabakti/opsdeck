@@ -39,7 +39,9 @@
     "capsLockOn": "Bloq Mayús está activado",
     "more": "Más",
     "create": "Crear",
-    "view": "Ver"
+    "view": "Ver",
+    "search": "Buscar…",
+    "noResults": "Sin resultados."
   },
   "dataTable": {
     "searchPlaceholder": "Buscar…",

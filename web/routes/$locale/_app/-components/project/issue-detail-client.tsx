@@ -23,15 +23,9 @@ import { LabelChips, LabelPicker } from "@/components/label-ui";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { MentionTextarea } from "@/components/mention-textarea";
 import { RelativeTime } from "@/components/relative-time";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { TooltipHint } from "@/components/ui/tooltip";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { UserName } from "@/components/user/user-name";
@@ -48,7 +42,6 @@ import { setIssueLabels } from "@/web/api/labels";
 import { recordTestRun, type TestRunRow } from "@/web/api/test-runs";
 
 type EnvOption = { id: string; name: string };
-const NONE = "none";
 
 export function IssueDetailClient({
   issue,
@@ -226,45 +219,29 @@ export function IssueDetailClient({
           />
         </Field>
         <Field label={tIssues("columnEnvironment")}>
-          <Select
-            value={issue.environment?.id ?? NONE}
-            onValueChange={(v) =>
-              patch({ environmentId: !v || v === NONE ? null : v })
-            }
-          >
-            <SelectTrigger className="h-8 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>{tIssues("none")}</SelectItem>
-              {environments.map((e) => (
-                <SelectItem key={e.id} value={e.id}>
-                  {e.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchSelect
+            aria-label={tIssues("columnEnvironment")}
+            value={issue.environment?.id ?? null}
+            onChange={(v) => patch({ environmentId: v })}
+            options={environments.map((e) => ({ value: e.id, label: e.name }))}
+            placeholder={tIssues("none")}
+            noneLabel={tIssues("none")}
+          />
         </Field>
         {parentCandidates.length > 0 || issue.parentId ? (
           <Field label={t("parent")}>
-            <Select
-              value={issue.parentId ?? NONE}
-              onValueChange={(v) =>
-                patch({ parentId: !v || v === NONE ? null : v })
-              }
-            >
-              <SelectTrigger className="h-8 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{t("noParent")}</SelectItem>
-                {parentCandidates.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {projectKey}-{s.number} · {s.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchSelect
+              aria-label={t("parent")}
+              value={issue.parentId ?? null}
+              onChange={(v) => patch({ parentId: v })}
+              options={parentCandidates.map((s) => ({
+                value: s.id,
+                label: `${projectKey}-${s.number} · ${s.title}`,
+                keywords: String(s.number),
+              }))}
+              placeholder={t("noParent")}
+              noneLabel={t("noParent")}
+            />
           </Field>
         ) : null}
       </div>

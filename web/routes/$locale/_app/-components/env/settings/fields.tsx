@@ -1,4 +1,5 @@
 import { useTranslations } from "use-intl";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -87,26 +88,19 @@ export function ServerSelect({
 }) {
   const t = useTranslations("environmentForm");
   return (
-    <Select
+    <SearchSelect
+      id={id}
       value={value || null}
-      onValueChange={(v) => onChange(v ?? "")}
+      onChange={(v) => onChange(v ?? "")}
+      options={servers.map((s) => ({
+        value: s.id,
+        label: s.name,
+        hint: s.host || undefined,
+      }))}
+      placeholder={t("pickServer")}
       disabled={disabled}
-    >
-      <SelectTrigger
-        id={id}
-        aria-invalid={invalid}
-        data-server-select=""
-        className="w-full"
-      >
-        <SelectValue placeholder={t("pickServer")} />
-      </SelectTrigger>
-      <SelectContent>
-        {servers.map((s) => (
-          <SelectItem key={s.id} value={s.id}>
-            {s.host ? `${s.name} (${s.host})` : s.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      invalid={invalid}
+      triggerProps={{ "data-server-select": "" }}
+    />
   );
 }

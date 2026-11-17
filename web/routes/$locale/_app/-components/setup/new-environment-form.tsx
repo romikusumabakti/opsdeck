@@ -8,6 +8,7 @@ import {
   specDraftOf,
   toSpec,
 } from "@/components/app-registration-fields";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,13 +32,6 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useRouter } from "@/i18n/navigation";
 import { repoRepresentative } from "@/lib/ci/registration";
 import {
@@ -185,6 +179,7 @@ export function NewEnvironmentForm({
   const t = useTranslations("newEnvironment");
   const tSetup = useTranslations("setup");
   const tWizard = useTranslations("setupWizard");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const message = useIssueMessage(project.key);
   const errorMessage = useApiErrorMessage(project.key);
@@ -806,6 +801,31 @@ export function NewEnvironmentForm({
   const addressIssue = firstOf("address");
   const serverIssue = byField.serverId ?? byField["server.serverId"];
 
+  // `?from=` may name an environment of another project: list it too
+  // (labelled "Loading…" until its name arrives).
+  const outsideSourceName =
+    startFrom && !copySources.some((e) => e.id === startFrom)
+      ? (sourceQuery.data?.environment.name ?? null)
+      : undefined;
+  const startFromOptions = [
+    { value: NEW, label: t("startFromNew") },
+    ...copySources.map((e) => ({
+      value: e.id,
+      label: t("startFromCopy", { name: e.name }),
+    })),
+    ...(startFrom && outsideSourceName !== undefined
+      ? [
+          {
+            value: startFrom,
+            label:
+              outsideSourceName === null
+                ? tCommon("loading")
+                : t("startFromCopy", { name: outsideSourceName }),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="flex w-full max-w-3xl flex-col gap-6">
       <Card>
@@ -813,9 +833,11 @@ export function NewEnvironmentForm({
           <Field>
             <FieldLabel htmlFor="env-start-from">{t("startFrom")}</FieldLabel>
             <FieldContent>
-              <Select
+              <SearchSelect
+                id="env-start-from"
+                aria-label={t("startFrom")}
                 value={startFrom ?? NEW}
-                onValueChange={(value) => {
+                onChange={(value) => {
                   const next = value && value !== NEW ? value : null;
                   touch("startFrom");
                   setStartFrom(next);
@@ -826,31 +848,9 @@ export function NewEnvironmentForm({
                     setAddress({ label: "" });
                   }
                 }}
-              >
-                <SelectTrigger id="env-start-from" aria-label={t("startFrom")}>
-                  <SelectValue>
-                    {(value: string) => {
-                      // `?from=` may name an environment of another project.
-                      const copyName =
-                        copySources.find((e) => e.id === value)?.name ??
-                        (value === startFrom
-                          ? sourceQuery.data?.environment.name
-                          : undefined);
-                      return copyName
-                        ? t("startFromCopy", { name: copyName })
-                        : t("startFromNew");
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NEW}>{t("startFromNew")}</SelectItem>
-                  {copySources.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {t("startFromCopy", { name: e.name })}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={startFromOptions}
+                placeholder={t("startFromNew")}
+              />
               <FieldDescription>{t("startFromHint")}</FieldDescription>
               {sourceQuery.isError && (
                 <FieldError>{t("copyFailed")}</FieldError>
@@ -1032,29 +1032,21 @@ export function NewEnvironmentForm({
             <Field data-invalid={serverIssue ? true : undefined}>
               <FieldLabel htmlFor="env-server">{t("server")}</FieldLabel>
               <FieldContent>
-                <Select
+                <SearchSelect
+                  id="env-server"
+                  aria-label={t("server")}
                   value={serverId}
-                  onValueChange={(value) => {
+                  onChange={(value) => {
                     touch("server");
-                    setServerId(value ?? null);
+                    setServerId(value);
                   }}
-                >
-                  <SelectTrigger id="env-server" aria-label={t("server")}>
-                    <SelectValue>
-                      {(value: string | null) =>
-                        options?.servers.find((s) => s.id === value)?.name ??
-                        t("serverPlaceholder")
-                      }
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(options?.servers ?? []).map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name} ({s.host})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={(options?.servers ?? []).map((s) => ({
+                    value: s.id,
+                    label: s.name,
+                    hint: s.host,
+                  }))}
+                  placeholder={t("serverPlaceholder")}
+                />
                 <FieldDescription>{t("serverHint")}</FieldDescription>
                 {serverIssue && <FieldError>{message(serverIssue)}</FieldError>}
               </FieldContent>

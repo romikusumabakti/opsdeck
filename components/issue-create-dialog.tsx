@@ -10,6 +10,7 @@ import {
   TypeSelect,
 } from "@/components/issues-board";
 import { MarkdownEditor } from "@/components/markdown-editor";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,13 +21,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { createIssue } from "@/web/api/issues";
 
 export type Option = { id: string; name: string };
@@ -169,22 +163,17 @@ export function IssueCreateDialog({
           </div>
           <div className="flex flex-col gap-2">
             <span className="text-sm font-medium">{t("environmentLabel")}</span>
-            <Select
-              value={envValue}
-              onValueChange={(v) => setEnvironmentId(v ?? NONE)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{t("none")}</SelectItem>
-                {environments.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchSelect
+              aria-label={t("environmentLabel")}
+              value={envValue === NONE ? null : envValue}
+              onChange={(v) => setEnvironmentId(v ?? NONE)}
+              options={environments.map((e) => ({
+                value: e.id,
+                label: e.name,
+              }))}
+              placeholder={t("none")}
+              noneLabel={t("none")}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <span className="text-sm font-medium">{t("assignee")}</span>

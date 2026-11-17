@@ -5,13 +5,7 @@ import {
   IssueCreateDialog,
   type IssueDefaults,
 } from "@/components/issue-create-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchSelect } from "@/components/search-select";
 import type { IssueProject } from "@/web/api/home";
 import { getIssueFormOptions, type IssueFormOptions } from "@/web/api/issues";
 
@@ -147,23 +141,15 @@ export function HomeIssueDialogProvider({
               <span className="text-sm font-medium">
                 {t("issueDialog.project")}
               </span>
-              <Select
+              <SearchSelect
+                aria-label={t("issueDialog.project")}
                 value={state.projectId}
-                onValueChange={(v) =>
+                onChange={(v) =>
                   v && setState((s) => (s ? { ...s, projectId: v } : s))
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                placeholder={t("issueDialog.project")}
+              />
             </div>
           }
           onCreated={() => {

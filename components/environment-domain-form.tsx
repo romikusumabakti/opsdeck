@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { AdvancedOptions } from "@/components/advanced-options";
+import { SearchSelect } from "@/components/search-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -245,34 +246,27 @@ export function EnvironmentDomainForm({
                   <FieldLabel htmlFor="environment-domain-access-policy-id">
                     {t("accessPolicy")}
                   </FieldLabel>
-                  <Select
-                    value={field.value || undefined}
-                    onValueChange={(value) => field.onChange(value ?? "")}
+                  <SearchSelect
+                    id="environment-domain-access-policy-id"
+                    invalid={fieldState.invalid}
+                    value={field.value || null}
+                    onChange={(value) => field.onChange(value ?? "")}
                     disabled={provisioned}
-                  >
-                    <SelectTrigger
-                      id="environment-domain-access-policy-id"
-                      aria-invalid={fieldState.invalid}
-                    >
-                      <SelectValue
-                        placeholder={
-                          policies.isError
-                            ? t("policiesFailed")
-                            : t("policyPlaceholder")
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {canGoPublic && (
-                        <SelectItem value={PUBLIC}>{t("public")}</SelectItem>
-                      )}
-                      {policies.data?.map((policy) => (
-                        <SelectItem key={policy.id} value={policy.id}>
-                          {policy.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={[
+                      ...(canGoPublic
+                        ? [{ value: PUBLIC, label: t("public") }]
+                        : []),
+                      ...(policies.data ?? []).map((policy) => ({
+                        value: policy.id,
+                        label: policy.name,
+                      })),
+                    ]}
+                    placeholder={
+                      policies.isError
+                        ? t("policiesFailed")
+                        : t("policyPlaceholder")
+                    }
+                  />
                   {policies.error instanceof ApiError && (
                     <p className="text-sm text-destructive">
                       {errorText(policies.error)}
@@ -296,31 +290,20 @@ export function EnvironmentDomainForm({
                     <FieldLabel htmlFor="environment-domain-zone-id">
                       {t("zone")}
                     </FieldLabel>
-                    <Select
-                      value={field.value || undefined}
-                      onValueChange={(value) => field.onChange(value ?? "")}
+                    <SearchSelect
+                      id="environment-domain-zone-id"
+                      invalid={fieldState.invalid}
+                      value={field.value || null}
+                      onChange={(value) => field.onChange(value ?? "")}
                       disabled={provisioned || zones.length === 0}
-                    >
-                      <SelectTrigger
-                        id="environment-domain-zone-id"
-                        aria-invalid={fieldState.invalid}
-                      >
-                        <SelectValue
-                          placeholder={
-                            zones.length === 0
-                              ? t("noZones")
-                              : t("zonePlaceholder")
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {zones.map((zone) => (
-                          <SelectItem key={zone.id} value={zone.id}>
-                            {zone.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={zones.map((zone) => ({
+                        value: zone.id,
+                        label: zone.name,
+                      }))}
+                      placeholder={
+                        zones.length === 0 ? t("noZones") : t("zonePlaceholder")
+                      }
+                    />
                     <FieldError errors={[fieldState.error]} />
                   </Field>
                 )}

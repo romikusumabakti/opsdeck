@@ -39,7 +39,9 @@
     "capsLockOn": "Caps Lock is on",
     "more": "More",
     "create": "Create",
-    "view": "View"
+    "view": "View",
+    "search": "Search…",
+    "noResults": "No results."
   },
   "dataTable": {
     "searchPlaceholder": "Search…",

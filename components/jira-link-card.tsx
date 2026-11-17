@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useFormatter, useTranslations } from "use-intl";
 import { z } from "zod";
 import { useDialog } from "@/components/dialog-provider";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -22,13 +23,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { SafeJiraConnection as SafeJiraConnectionRow } from "@/lib/db/schema";
 import { DATE_TIME } from "@/lib/format-date";
@@ -159,21 +153,17 @@ export function JiraLinkCard({
                 <FieldLabel htmlFor="jira-link-connection-id">
                   {t("connection")}
                 </FieldLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    id="jira-link-connection-id"
-                    aria-invalid={fieldState.invalid}
-                  >
-                    <SelectValue placeholder={t("connectionPlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {connections.map((connection) => (
-                      <SelectItem key={connection.id} value={connection.id}>
-                        {connection.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchSelect
+                  id="jira-link-connection-id"
+                  invalid={fieldState.invalid}
+                  value={field.value || null}
+                  onChange={(v) => field.onChange(v ?? "")}
+                  options={connections.map((connection) => ({
+                    value: connection.id,
+                    label: connection.name,
+                  }))}
+                  placeholder={t("connectionPlaceholder")}
+                />
                 <FieldError errors={[fieldState.error]} />
               </Field>
             )}

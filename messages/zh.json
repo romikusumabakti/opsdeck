@@ -39,7 +39,9 @@
     "capsLockOn": "大写锁定已开启",
     "more": "更多",
     "create": "创建",
-    "view": "查看"
+    "view": "查看",
+    "search": "搜索…",
+    "noResults": "无结果。"
   },
   "dataTable": {
     "searchPlaceholder": "搜索…",

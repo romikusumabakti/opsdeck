@@ -2,6 +2,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
+import { SearchSelect } from "@/components/search-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -171,26 +172,17 @@ export function TunnelRouteDialog({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="tunnel-route-origin">{t("fieldOrigin")}</Label>
-            <Select
-              value={originHost}
-              onValueChange={(value) => setOriginHost(value ?? "")}
-            >
-              <SelectTrigger id="tunnel-route-origin">
-                <SelectValue placeholder={t("fieldOriginPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {candidates.map((c) => (
-                  <SelectItem key={c.name} value={c.name}>
-                    <span className="font-mono">{c.name}</span>
-                    {c.state !== "running" && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {t("originStopped")}
-                      </span>
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchSelect
+              id="tunnel-route-origin"
+              value={originHost || null}
+              onChange={(value) => setOriginHost(value ?? "")}
+              options={candidates.map((c) => ({
+                value: c.name,
+                label: c.name,
+                hint: c.state !== "running" ? t("originStopped") : undefined,
+              }))}
+              placeholder={t("fieldOriginPlaceholder")}
+            />
             <p className="text-xs text-muted-foreground">
               {t("fieldOriginHint")}
             </p>

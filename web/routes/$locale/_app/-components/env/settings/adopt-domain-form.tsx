@@ -4,6 +4,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -13,13 +14,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DOMAIN_ERRORS, type DomainErrorCode } from "@/lib/domains/errors";
 import { ingressServiceSchema, isFqdn } from "@/lib/domains/validation";
 import { ApiError } from "@/web/api/client";
@@ -121,31 +115,23 @@ export function AdoptDomainForm({ environmentId }: { environmentId: string }) {
               <FieldLabel htmlFor="adopt-domain-tunnel">
                 {t("adopt.tunnel")}
               </FieldLabel>
-              <Select
-                value={field.value || undefined}
-                onValueChange={(value) => field.onChange(value ?? "")}
+              <SearchSelect
+                id="adopt-domain-tunnel"
+                invalid={fieldState.invalid}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
                 disabled={tunnels.length === 0}
-              >
-                <SelectTrigger
-                  id="adopt-domain-tunnel"
-                  aria-invalid={fieldState.invalid}
-                >
-                  <SelectValue
-                    placeholder={
-                      tunnels.length === 0
-                        ? t("adopt.noTunnels")
-                        : t("adopt.tunnelPlaceholder")
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {tunnels.map((tunnel) => (
-                    <SelectItem key={tunnel.id} value={tunnel.id}>
-                      {tunnel.name} · {tunnel.serverName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={tunnels.map((tunnel) => ({
+                  value: tunnel.id,
+                  label: tunnel.name,
+                  hint: tunnel.serverName,
+                }))}
+                placeholder={
+                  tunnels.length === 0
+                    ? t("adopt.noTunnels")
+                    : t("adopt.tunnelPlaceholder")
+                }
+              />
               <FieldError errors={[fieldState.error]} />
             </Field>
           )}

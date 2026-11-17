@@ -3,6 +3,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -12,13 +13,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
@@ -237,30 +231,20 @@ export function ProjectForm({
                   {t("defaultServer")}
                 </FieldLabel>
                 {canChangeDefaultServer ? (
-                  <Select
+                  <SearchSelect
+                    id="project-default-server-id"
+                    invalid={fieldState.invalid}
                     value={field.value}
-                    onValueChange={(value) =>
-                      field.onChange(value ?? NO_SERVER)
-                    }
-                  >
-                    <SelectTrigger
-                      id="project-default-server-id"
-                      aria-invalid={fieldState.invalid}
-                      className="w-full"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_SERVER}>
-                        {t("defaultServerNone")}
-                      </SelectItem>
-                      {defaultServer.servers.map((server) => (
-                        <SelectItem key={server.id} value={server.id}>
-                          {server.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(value) => field.onChange(value ?? NO_SERVER)}
+                    options={[
+                      { value: NO_SERVER, label: t("defaultServerNone") },
+                      ...defaultServer.servers.map((server) => ({
+                        value: server.id,
+                        label: server.name,
+                      })),
+                    ]}
+                    placeholder={t("defaultServerNone")}
+                  />
                 ) : (
                   // Without server:read the name is not listable; say who set it.
                   <p className="text-sm">

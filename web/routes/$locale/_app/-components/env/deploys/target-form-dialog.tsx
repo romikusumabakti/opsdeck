@@ -5,6 +5,7 @@ import { Controller, type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,13 +24,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   COMPONENT_OTHER_APP_MESSAGE,
@@ -502,16 +496,18 @@ export function TargetFormDialog({
                     <FieldLabel htmlFor="target-component">
                       {t("component")}
                     </FieldLabel>
-                    <Select
+                    <SearchSelect
+                      id="target-component"
+                      invalid={fieldState.invalid}
                       value={field.value || null}
                       disabled={loading}
-                      items={Object.fromEntries(
-                        (components ?? []).map((c) => [
-                          c.componentKey,
-                          `${c.componentKey} (${c.repoFullName})`,
-                        ])
-                      )}
-                      onValueChange={(value) => {
+                      options={(components ?? []).map((c) => ({
+                        value: c.componentKey,
+                        label: c.componentKey,
+                        hint: c.repoFullName,
+                        disabled: taken.has(c.componentKey),
+                      }))}
+                      onChange={(value) => {
                         field.onChange(value ?? "");
                         const picked = components?.find(
                           (c) => c.componentKey === value
@@ -520,29 +516,8 @@ export function TargetFormDialog({
                           form.setValue("kind", componentTargetKind(picked));
                         }
                       }}
-                    >
-                      <SelectTrigger
-                        id="target-component"
-                        aria-invalid={fieldState.invalid}
-                        className="w-full"
-                      >
-                        <SelectValue placeholder={t("componentPlaceholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(components ?? []).map((c) => (
-                          <SelectItem
-                            key={c.componentKey}
-                            value={c.componentKey}
-                            disabled={taken.has(c.componentKey)}
-                          >
-                            <span className="font-mono">{c.componentKey}</span>
-                            <span className="text-muted-foreground">
-                              {c.repoFullName}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder={t("componentPlaceholder")}
+                    />
                     <FieldDescription>{t("componentHint")}</FieldDescription>
                     <FieldError errors={[fieldState.error]} />
                   </Field>
@@ -588,25 +563,17 @@ export function TargetFormDialog({
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="target-server">{t("server")}</FieldLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={(value) => field.onChange(value ?? "")}
-                  >
-                    <SelectTrigger
-                      id="target-server"
-                      aria-invalid={fieldState.invalid}
-                      className="w-full"
-                    >
-                      <SelectValue placeholder={t("serverPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {servers.map((server) => (
-                        <SelectItem key={server.id} value={server.id}>
-                          {server.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchSelect
+                    id="target-server"
+                    invalid={fieldState.invalid}
+                    value={field.value || null}
+                    onChange={(value) => field.onChange(value ?? "")}
+                    options={servers.map((server) => ({
+                      value: server.id,
+                      label: server.name,
+                    }))}
+                    placeholder={t("serverPlaceholder")}
+                  />
                   <FieldDescription>{t("serverHint")}</FieldDescription>
                   <FieldError errors={[fieldState.error]} />
                 </Field>

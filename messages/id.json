@@ -39,7 +39,9 @@
     "capsLockOn": "Caps Lock aktif",
     "more": "Lainnya",
     "create": "Buat",
-    "view": "Lihat"
+    "view": "Lihat",
+    "search": "Cari…",
+    "noResults": "Tidak ada hasil."
   },
   "dataTable": {
     "searchPlaceholder": "Cari…",

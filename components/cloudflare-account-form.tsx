@@ -5,6 +5,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
+import { SearchSelect } from "@/components/search-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,13 +17,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { ApiError } from "@/web/api/client";
 import {
@@ -185,33 +179,24 @@ export function CloudflareAccountForm({
               <FieldLabel htmlFor="cloudflare-account-access-idp-id">
                 {t("accessIdp")}
               </FieldLabel>
-              <Select
-                value={field.value || undefined}
-                onValueChange={(value) => field.onChange(value ?? "")}
+              <SearchSelect
+                id="cloudflare-account-access-idp-id"
+                invalid={fieldState.invalid}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
                 disabled={!idps.data}
-              >
-                <SelectTrigger
-                  id="cloudflare-account-access-idp-id"
-                  aria-invalid={fieldState.invalid}
-                >
-                  <SelectValue
-                    placeholder={
-                      account?.hasToken
-                        ? idps.isError
-                          ? t("idpLoadFailed")
-                          : t("idpPlaceholder")
-                        : t("idpAfterSave")
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {idps.data?.map((idp) => (
-                    <SelectItem key={idp.id} value={idp.id}>
-                      {idp.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(idps.data ?? []).map((idp) => ({
+                  value: idp.id,
+                  label: idp.name,
+                }))}
+                placeholder={
+                  account?.hasToken
+                    ? idps.isError
+                      ? t("idpLoadFailed")
+                      : t("idpPlaceholder")
+                    : t("idpAfterSave")
+                }
+              />
               <FieldDescription>{t("accessIdpDescription")}</FieldDescription>
               <FieldError errors={[fieldState.error]} />
             </Field>

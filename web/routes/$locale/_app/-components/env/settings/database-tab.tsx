@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Controller, useWatch } from "react-hook-form";
 import { useTranslations } from "use-intl";
 import { AdvancedOptions } from "@/components/advanced-options";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -363,15 +364,16 @@ function SharedDatabaseFields({
             <FieldLabel htmlFor="env-database-host">
               {t("databaseHost")}
             </FieldLabel>
-            <EnumSelect
+            <SearchSelect
               id="env-database-host"
               invalid={fieldState.invalid}
-              field={field}
-              options={hosts.map((h) => h.id)}
-              getLabel={(id) => {
-                const host = hosts.find((h) => h.id === id);
-                return host ? `${host.label} (${host.containerName})` : id;
-              }}
+              value={field.value || null}
+              onChange={(v) => field.onChange(v ?? "")}
+              options={hosts.map((h) => ({
+                value: h.id,
+                label: h.label,
+                hint: h.containerName,
+              }))}
               placeholder={t("pickDatabaseHost")}
               disabled={readOnly}
             />
@@ -406,12 +408,12 @@ function SharedDatabaseFields({
             <FieldLabel htmlFor="env-db-password-variable">
               {t("dbPasswordVariable")}
             </FieldLabel>
-            <EnumSelect
+            <SearchSelect
               id="env-db-password-variable"
               invalid={fieldState.invalid}
-              field={field}
-              options={names}
-              getLabel={(v) => v}
+              value={field.value || null}
+              onChange={(v) => field.onChange(v ?? "")}
+              options={names.map((name) => ({ value: name, label: name }))}
               placeholder={t("pickPasswordVariable")}
               disabled={readOnly}
             />

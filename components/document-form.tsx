@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import type { LinkableDoc } from "@/components/knowledge-editor";
 import { MarkdownEditor } from "@/components/markdown-editor";
+import { SearchSelect } from "@/components/search-select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -283,21 +284,17 @@ export function DocumentForm({
             </div>
             <div className="flex shrink-0 flex-col gap-1.5">
               <Label htmlFor="doc-collection">{t("collection")}</Label>
-              <Select
-                value={collectionId}
-                onValueChange={(v) => setCollectionId(v ?? "")}
-              >
-                <SelectTrigger id="doc-collection">
-                  <SelectValue placeholder={t("collection")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {collections.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                id="doc-collection"
+                className="w-48"
+                value={collectionId || null}
+                onChange={(v) => setCollectionId(v ?? "")}
+                options={collections.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
+                placeholder={t("collection")}
+              />
             </div>
             <div className="flex shrink-0 flex-col gap-1.5">
               <Label htmlFor="doc-type">{t("docTypeLabel")}</Label>

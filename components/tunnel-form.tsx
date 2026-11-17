@@ -3,6 +3,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -12,13 +13,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { Tunnel } from "@/lib/db/schema";
@@ -150,21 +144,17 @@ export function TunnelForm({
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
               <FieldLabel htmlFor="tunnel-zone-id">{t("zone")}</FieldLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger
-                  id="tunnel-zone-id"
-                  aria-invalid={fieldState.invalid}
-                >
-                  <SelectValue placeholder={t("zonePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {zones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.id}>
-                      {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                id="tunnel-zone-id"
+                invalid={fieldState.invalid}
+                value={field.value || null}
+                onChange={(v) => field.onChange(v ?? "")}
+                options={zones.map((zone) => ({
+                  value: zone.id,
+                  label: zone.name,
+                }))}
+                placeholder={t("zonePlaceholder")}
+              />
               <FieldDescription>{t("zoneDescription")}</FieldDescription>
               <FieldError errors={[fieldState.error]} />
             </Field>
@@ -176,24 +166,18 @@ export function TunnelForm({
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
               <FieldLabel htmlFor="tunnel-server-id">{t("server")}</FieldLabel>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger
-                  id="tunnel-server-id"
-                  aria-invalid={fieldState.invalid}
-                >
-                  <SelectValue placeholder={t("serverPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {servers.map((server) => (
-                    <SelectItem key={server.id} value={server.id}>
-                      {server.name}
-                      <span className="ml-2 text-sm text-muted-foreground font-mono">
-                        {server.host}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchSelect
+                id="tunnel-server-id"
+                invalid={fieldState.invalid}
+                value={field.value || null}
+                onChange={(v) => field.onChange(v ?? "")}
+                options={servers.map((server) => ({
+                  value: server.id,
+                  label: server.name,
+                  hint: server.host,
+                }))}
+                placeholder={t("serverPlaceholder")}
+              />
               <FieldDescription>{t("serverDescription")}</FieldDescription>
               <FieldError errors={[fieldState.error]} />
             </Field>

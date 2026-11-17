@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,13 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { domainErrorCode } from "@/lib/domains/errors";
 import { originHostSchema } from "@/lib/domains/validation";
 import { ApiError } from "@/web/api/client";
@@ -99,21 +93,16 @@ export function RemoteTunnelRegisterDialog({
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label>{t("server")}</Label>
-            <Select
-              value={serverId || undefined}
-              onValueChange={(value) => setServerId(value ?? "")}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={t("serverPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {available.map((server) => (
-                  <SelectItem key={server.id} value={server.id}>
-                    {server.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchSelect
+              aria-label={t("server")}
+              value={serverId || null}
+              onChange={(value) => setServerId(value ?? "")}
+              options={available.map((server) => ({
+                value: server.id,
+                label: server.name,
+              }))}
+              placeholder={t("serverPlaceholder")}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="origin-host">{t("originHost")}</Label>

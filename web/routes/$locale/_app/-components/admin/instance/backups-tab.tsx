@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { RelativeTime } from "@/components/relative-time";
+import { SearchSelect } from "@/components/search-select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,13 +37,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -296,28 +290,20 @@ function SettingsCard({ data }: { data: InstanceBackupsData }) {
                   <FieldLabel htmlFor="instance-backup-destination">
                     {t("destination")}
                   </FieldLabel>
-                  <Select
+                  <SearchSelect
+                    id="instance-backup-destination"
+                    invalid={fieldState.invalid}
                     value={field.value}
-                    onValueChange={(value) => field.onChange(value ?? LOCAL)}
-                  >
-                    <SelectTrigger
-                      id="instance-backup-destination"
-                      aria-invalid={fieldState.invalid}
-                      className="w-full"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={LOCAL}>
-                        {t("destinationLocal")}
-                      </SelectItem>
-                      {destinations.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={(value) => field.onChange(value ?? LOCAL)}
+                    options={[
+                      { value: LOCAL, label: t("destinationLocal") },
+                      ...destinations.map((d) => ({
+                        value: d.id,
+                        label: d.name,
+                      })),
+                    ]}
+                    placeholder={t("destinationLocal")}
+                  />
                   <FieldDescription>
                     {t("destinationDescription")}
                   </FieldDescription>

@@ -1,6 +1,7 @@
 import { UsersRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslations } from "use-intl";
+import { SearchSelect } from "@/components/search-select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -90,19 +91,17 @@ export function PeopleClient({
             ))}
           </SelectContent>
         </Select>
-        <Select value={project} onValueChange={(v) => setProject(v ?? ALL)}>
-          <SelectTrigger className="w-48" aria-label={t("filterProject")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("allProjects")}</SelectItem>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchSelect
+          className="w-48"
+          aria-label={t("filterProject")}
+          value={project}
+          onChange={(v) => setProject(v ?? ALL)}
+          options={[
+            { value: ALL, label: t("allProjects") },
+            ...projects.map((p) => ({ value: p.id, label: p.name })),
+          ]}
+          placeholder={t("allProjects")}
+        />
         {hasDeactivated && (
           <Label className="ms-auto flex cursor-pointer items-center gap-2 text-sm font-normal">
             <Switch

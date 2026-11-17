@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
+import { SearchSelect } from "@/components/search-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -244,22 +245,18 @@ export function ServerSection(
         projectKey={draftCtx.projectKey}
         hint={servers.length === 0 ? t("server.none") : undefined}
       >
-        <Select
+        <SearchSelect
+          aria-label={t("server.label")}
           value={draft.serverId || null}
-          onValueChange={(value) => patchDraft({ serverId: value ?? "" })}
+          onChange={(value) => patchDraft({ serverId: value ?? "" })}
           disabled={servers.length === 0}
-        >
-          <SelectTrigger aria-label={t("server.label")}>
-            <SelectValue placeholder={t("server.placeholder")} />
-          </SelectTrigger>
-          <SelectContent>
-            {servers.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.name} ({s.host})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={servers.map((s) => ({
+            value: s.id,
+            label: s.name,
+            hint: s.host,
+          }))}
+          placeholder={t("server.placeholder")}
+        />
       </FieldRow>
 
       <div className="flex flex-col gap-3">
@@ -381,24 +378,20 @@ export function DatabaseSection(
                 : undefined
             }
           >
-            <Select
+            <SearchSelect
+              aria-label={t("database.host")}
               value={db.databaseHostId || null}
-              onValueChange={(value) =>
+              onChange={(value) =>
                 patchDatabase({ databaseHostId: value ?? "" })
               }
               disabled={hosts.length === 0}
-            >
-              <SelectTrigger aria-label={t("database.host")}>
-                <SelectValue placeholder={t("database.hostPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {hosts.map((h) => (
-                  <SelectItem key={h.id} value={h.id}>
-                    {h.label} ({h.containerName})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={hosts.map((h) => ({
+                value: h.id,
+                label: h.label,
+                hint: h.containerName,
+              }))}
+              placeholder={t("database.hostPlaceholder")}
+            />
           </FieldRow>
           <div className="grid gap-4 sm:grid-cols-2">
             <FieldRow
@@ -723,26 +716,16 @@ export function DomainSection(
             issues={issues}
             projectKey={key}
           >
-            <Select
+            <SearchSelect
+              aria-label={td("zone")}
               value={zoneId || null}
-              onValueChange={(value) => patchDomain({ zoneId: value ?? "" })}
+              onChange={(value) => patchDomain({ zoneId: value ?? "" })}
               disabled={zones.length === 0}
-            >
-              <SelectTrigger aria-label={td("zone")}>
-                <SelectValue
-                  placeholder={
-                    zones.length === 0 ? td("noZones") : td("zonePlaceholder")
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {zones.map((z) => (
-                  <SelectItem key={z.id} value={z.id}>
-                    {z.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={zones.map((z) => ({ value: z.id, label: z.name }))}
+              placeholder={
+                zones.length === 0 ? td("noZones") : td("zonePlaceholder")
+              }
+            />
           </FieldRow>
           <FieldRow
             label={td("label")}
@@ -794,26 +777,21 @@ export function DomainSection(
             projectKey={key}
             hint={td("accessPolicyDescription")}
           >
-            <Select
+            <SearchSelect
+              aria-label={td("accessPolicy")}
               value={d.accessPolicyId || null}
-              onValueChange={(value) =>
-                patchDomain({ accessPolicyId: value ?? "" })
-              }
-            >
-              <SelectTrigger aria-label={td("accessPolicy")}>
-                <SelectValue placeholder={td("policyPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {canPublish && (
-                  <SelectItem value={PUBLIC_POLICY}>{td("public")}</SelectItem>
-                )}
-                {(policies ?? []).map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(value) => patchDomain({ accessPolicyId: value ?? "" })}
+              options={[
+                ...(canPublish
+                  ? [{ value: PUBLIC_POLICY, label: td("public") }]
+                  : []),
+                ...(policies ?? []).map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                })),
+              ]}
+              placeholder={td("policyPlaceholder")}
+            />
             {policiesFailed && (
               <Alert variant="destructive">
                 <AlertDescription>{td("policiesFailed")}</AlertDescription>

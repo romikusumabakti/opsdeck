@@ -39,7 +39,9 @@
     "capsLockOn": "مفتاح Caps Lock مُفعَّل",
     "more": "المزيد",
     "create": "إنشاء",
-    "view": "عرض"
+    "view": "عرض",
+    "search": "بحث…",
+    "noResults": "لا توجد نتائج."
   },
   "dataTable": {
     "searchPlaceholder": "بحث…",

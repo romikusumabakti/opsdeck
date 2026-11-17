@@ -5,6 +5,7 @@ import { Controller, useWatch } from "react-hook-form";
 import { useTranslations } from "use-intl";
 import { AdvancedOptions } from "@/components/advanced-options";
 import { PersonPicker } from "@/components/person-picker";
+import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -238,28 +239,18 @@ export function GeneralTab({
                       <FieldLabel htmlFor="env-project">
                         {t("project")}
                       </FieldLabel>
-                      <Select
+                      <SearchSelect
+                        id="env-project"
+                        invalid={fieldState.invalid}
                         value={field.value || null}
-                        onValueChange={(v) => field.onChange(v ?? "")}
-                      >
-                        <SelectTrigger
-                          id="env-project"
-                          aria-invalid={fieldState.invalid}
-                          className="w-full"
-                        >
-                          <SelectValue placeholder={t("pickProject")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {projects.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                              <span className="ms-2 text-xs text-muted-foreground">
-                                {p.key}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onChange={(v) => field.onChange(v ?? "")}
+                        options={projects.map((p) => ({
+                          value: p.id,
+                          label: p.name,
+                          hint: p.key,
+                        }))}
+                        placeholder={t("pickProject")}
+                      />
                       <FieldError errors={[fieldState.error]} />
                     </Field>
                   )}
