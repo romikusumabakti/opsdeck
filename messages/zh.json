@@ -3747,8 +3747,10 @@
     "contextAuto": "自动",
     "contextPick": "上下文：{name}",
     "contextProjects": "项目",
-    "contextEnvironments": "{name}，{project} 的环境",
+    "contextEnvironmentLabel": "{name}，{project} 的环境",
     "contextDeleted": "（已删除）",
-    "shortcutHint": "在任意位置按 {key}+J 打开助手。"
+    "shortcutHint": "在任意位置按 {shortcut} 打开助手。",
+    "noProjectsTitle": "暂时没有可询问的内容",
+    "noProjectsDescription": "你还看不到任何项目。请让管理员将你加入某个项目后再使用助手。"
   }
 }

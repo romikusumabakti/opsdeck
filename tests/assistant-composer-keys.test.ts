@@ -24,21 +24,15 @@ describe("shouldSend", () => {
 
 describe("opensContextPicker", () => {
   it("opens on @ typed into an empty box", () => {
-    expect(opensContextPicker("", "@", 1)).toBe(true);
+    expect(opensContextPicker("", "@")).toBe(true);
   });
-  it("opens on @ typed after a space or a new line", () => {
-    expect(opensContextPicker("Where is ", "Where is @", 10)).toBe(true);
-    expect(opensContextPicker("Line\n", "Line\n@", 6)).toBe(true);
-    expect(opensContextPicker("a  b", "a @ b", 3)).toBe(true);
-  });
-  it("does not open inside a word (an e-mail address)", () => {
-    expect(opensContextPicker("user", "user@", 5)).toBe(false);
-  });
-  it("does not open on @ typed in front of existing text", () => {
-    expect(opensContextPicker("question", "@question", 1)).toBe(false);
+  it("leaves @ in text alone (@Transactional, @scope/pkg, e-mail)", () => {
+    expect(opensContextPicker("use ", "use @")).toBe(false);
+    expect(opensContextPicker("user", "user@")).toBe(false);
+    expect(opensContextPicker("question", "@question")).toBe(false);
   });
   it("does not open on a paste or another character", () => {
-    expect(opensContextPicker("", "@acme", 5)).toBe(false);
-    expect(opensContextPicker("", "a", 1)).toBe(false);
+    expect(opensContextPicker("", "@acme")).toBe(false);
+    expect(opensContextPicker("", "a")).toBe(false);
   });
 });

@@ -29,6 +29,7 @@ describe("canonicalProjectPath", () => {
     "/",
     "/projects",
     "/projects/new",
+    "/assistant",
     "/issues",
     "/servers/abc",
     "/storage/new",

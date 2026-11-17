@@ -4,6 +4,11 @@ import { usePathname, useRouter } from "@/i18n/navigation";
 /** The question box's id, so the shortcut can focus it in place. */
 export const ASSISTANT_COMPOSER_ID = "assistant-composer";
 
+/** The shortcut as the palette shows Ctrl K: `⌘J` on a Mac, else `Ctrl J`. */
+export function assistantShortcutLabel(modKey: string): string {
+  return modKey === "⌘" ? "⌘J" : `${modKey} J`;
+}
+
 /** Ctrl+J (Cmd+J on a Mac), no other modifier. */
 function isAssistantShortcut(e: KeyboardEvent): boolean {
   return (

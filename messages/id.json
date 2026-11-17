@@ -3747,8 +3747,10 @@
     "contextAuto": "Otomatis",
     "contextPick": "Konteks: {name}",
     "contextProjects": "Project",
-    "contextEnvironments": "{name}, environment dari {project}",
+    "contextEnvironmentLabel": "{name}, environment dari {project}",
     "contextDeleted": "(dihapus)",
-    "shortcutHint": "Tekan {key}+J di mana saja untuk membuka asisten."
+    "shortcutHint": "Tekan {shortcut} di mana saja untuk membuka asisten.",
+    "noProjectsTitle": "Belum ada yang bisa ditanyakan",
+    "noProjectsDescription": "Anda belum melihat project apa pun. Minta admin menambahkan Anda ke sebuah project untuk memakai asisten."
   }
 }

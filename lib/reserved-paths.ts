@@ -13,6 +13,7 @@ export const RESERVED_PROJECT_KEYS = new Set([
   "ACTIVITY",
   "API",
   "APPS",
+  "ASSISTANT",
   "ENVIRONMENTS",
   "ISSUES",
   "JIRA",

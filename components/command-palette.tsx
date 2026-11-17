@@ -70,7 +70,10 @@ import {
 } from "@/lib/permissions";
 import type { EnvironmentListItem } from "@/web/api/environments";
 import { resetSession } from "@/web/api/session";
-import { openAssistant } from "@/web/components/assistant/assistant-shortcut";
+import {
+  assistantShortcutLabel,
+  openAssistant,
+} from "@/web/components/assistant/assistant-shortcut";
 
 export function CommandPalette({
   environments,
@@ -216,8 +219,7 @@ export function CommandPalette({
                 <Bot />
                 {t("askAssistant")}
                 <CommandShortcut>
-                  {modKey}
-                  {modKey === "⌘" ? "" : "+"}J
+                  {assistantShortcutLabel(modKey)}
                 </CommandShortcut>
               </CommandItem>
             )}

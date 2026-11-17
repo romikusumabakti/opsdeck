@@ -179,6 +179,10 @@ describe("command palette Ask the assistant entry", () => {
 
   it("opens the assistant once it is enabled", async () => {
     await openPalette("qa", "qa", true);
+    // The same label format as the Ctrl K hint.
+    expect(askItem()?.textContent).toBe(
+      `${messages.commandPalette.askAssistant}Ctrl J`
+    );
     await act(async () => askItem()?.click());
     expect(push).toHaveBeenCalledWith("/assistant");
   });

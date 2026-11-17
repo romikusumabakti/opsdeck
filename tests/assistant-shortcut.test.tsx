@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { readFileSync } from "node:fs";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +14,7 @@ vi.mock("@/i18n/navigation", () => ({
 import {
   ASSISTANT_COMPOSER_ID,
   AssistantShortcut,
+  assistantShortcutLabel,
 } from "@/web/components/assistant/assistant-shortcut";
 
 (
@@ -108,5 +110,25 @@ describe("Ctrl/Cmd+J opens the assistant", () => {
     press(document.body);
     expect(push).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(box);
+  });
+});
+
+describe("the shortcut's label", () => {
+  it("reads like the palette's: ⌘J on a Mac, Ctrl J elsewhere", () => {
+    expect(assistantShortcutLabel("⌘")).toBe("⌘J");
+    expect(assistantShortcutLabel("Ctrl")).toBe("Ctrl J");
+  });
+});
+
+describe("the issues table's j/k keys", () => {
+  it("leave modified chords (Ctrl/Cmd+J) to other handlers", () => {
+    const source = readFileSync(
+      "web/routes/$locale/_app/-components/issues-client.tsx",
+      "utf8"
+    );
+    const handler = source.slice(source.indexOf("function onKey("));
+    expect(handler).toMatch(
+      /^function onKey\([^)]*\) \{[\s\S]*?if \(e\.ctrlKey \|\| e\.metaKey \|\| e\.altKey\) return;[\s\S]*?e\.key === "j"/
+    );
   });
 });

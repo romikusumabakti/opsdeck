@@ -33,6 +33,7 @@ import {
 } from "@/web/api/assistant";
 import { ApiError } from "@/web/api/client";
 import { AllowanceBadge, capReached } from "./allowance-badge";
+import { assistantShortcutLabel } from "./assistant-shortcut";
 import { ChatThread, pendingAnswer } from "./chat-thread";
 import { Composer } from "./composer";
 import { useContextOptions, visibleContext } from "./context-picker";
@@ -177,7 +178,8 @@ export function AssistantWorkspace({
   }
   // A project or environment the caller does not (or no longer) see is
   // Automatic.
-  const context = visibleContext(picked, useContextOptions());
+  const contextOptions = useContextOptions();
+  const context = visibleContext(picked, contextOptions);
 
   const isLarge = useIsLarge();
   const [draftsOpen, setDraftsOpen] = React.useState(false);
@@ -241,6 +243,19 @@ export function AssistantWorkspace({
           icon={Bot}
           title={t("notEnabledTitle")}
           description={tErrors("notConfigured")}
+        />
+      </div>
+    );
+  }
+  // The assistant takes questions only from users who see a project.
+  if (contextOptions.loaded && contextOptions.projects.length === 0) {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto">
+        {header}
+        <EmptyState
+          icon={Bot}
+          title={t("noProjectsTitle")}
+          description={t("noProjectsDescription")}
         />
       </div>
     );
@@ -327,7 +342,9 @@ export function AssistantWorkspace({
                 description={t("emptyThreadDescription")}
               />
               <p className="text-center text-xs text-muted-foreground">
-                {t("shortcutHint", { key: modKey })}
+                {t("shortcutHint", {
+                  shortcut: assistantShortcutLabel(modKey),
+                })}
               </p>
             </div>
           )}

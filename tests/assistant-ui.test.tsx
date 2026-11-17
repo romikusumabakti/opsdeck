@@ -1566,27 +1566,28 @@ describe("context picker", () => {
     expect(chip()?.textContent).toBe("Heron Membership");
   });
 
-  it("@ after a space opens the picker; inside a word it stays text", async () => {
+  it("@ inside a question stays text and leaves the picker closed", async () => {
     await renderWorkspace();
-    await type("Where is ");
-    const box = await type("Where is @");
+    await type("use ");
+    const box = await type("use @");
     await settle();
-    expect(box.value).toBe("Where is ");
-    expect(items()).toContain(t.contextAuto);
-    await act(async () => {
-      document.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
-      );
-    });
+    expect(box.value).toBe("use @");
+    expect(items()).toEqual([]);
+    await type("use @Transactional");
     await settle();
+    expect(box.value).toBe("use @Transactional");
+    expect(items()).toEqual([]);
+  });
+
+  it("with no visible project shows the not-available state, not the workspace", async () => {
+    await renderWorkspace();
     act(() => root.unmount());
     container.remove();
-    await renderWorkspace();
-    await type("user");
-    const mail = await type("user@");
-    await settle();
-    expect(mail.value).toBe("user@");
-    expect(items()).toEqual([]);
+    queryClient.setQueryData(["project-catalog", "listProjects", []], []);
+    queryClient.setQueryData(["environments", "listEnvironments", []], []);
+    await render(<AssistantWorkspace />);
+    expect(text()).toContain(t.noProjectsTitle);
+    expect(container.querySelector("textarea")).toBeNull();
   });
 
   it("an opened conversation starts at the context of its last question", async () => {

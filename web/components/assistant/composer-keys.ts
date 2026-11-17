@@ -15,18 +15,10 @@ export function shouldSend(e: {
 }
 
 /**
- * Whether an edit of the question box typed an `@` that opens the context
- * picker: one `@` inserted at the caret (`caret` is right after it), into an
- * empty box or after whitespace. Inside a word (an e-mail address), in front
- * of existing text, or pasted along with other text, it stays text.
+ * Whether an edit of the question box is an `@` typed into the empty box,
+ * which opens the context picker instead. Anywhere in a question an `@`
+ * stays text (`@Transactional`, `@scope/pkg`, an e-mail address).
  */
-export function opensContextPicker(
-  prev: string,
-  next: string,
-  caret: number
-): boolean {
-  if (next.length !== prev.length + 1 || next[caret - 1] !== "@") return false;
-  if (next.slice(0, caret - 1) + next.slice(caret) !== prev) return false;
-  if (caret === 1) return prev === "";
-  return /\s/.test(next[caret - 2] ?? "");
+export function opensContextPicker(prev: string, next: string): boolean {
+  return prev === "" && next === "@";
 }

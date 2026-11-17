@@ -294,6 +294,8 @@ export function IssuesClient({
   React.useEffect(() => {
     if (view !== "table") return;
     function onKey(e: KeyboardEvent) {
+      // Chords (Ctrl/Cmd+J opens the assistant) belong to other handlers.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
       if (
         el &&

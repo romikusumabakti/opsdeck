@@ -19,8 +19,8 @@ const MAX_ATTACHMENTS = 10;
 
 /**
  * The question box: text, the ticked Jira attachments, the context chip and
- * the send. Typing `@` into an empty box (or after a space) opens the chip's
- * picker instead of inserting it. A refused send (daily cap, busy, not
+ * the send. Typing `@` into the empty box opens the chip's picker instead of
+ * inserting it. A refused send (daily cap, busy, not
  * configured) is shown above the box, worded from its code; the text is kept
  * so it can be sent again.
  */
@@ -138,10 +138,7 @@ export function Composer({
         value={text}
         onChange={(e) => {
           const next = e.target.value;
-          if (
-            !disabled &&
-            opensContextPicker(text, next, e.target.selectionStart)
-          ) {
+          if (!disabled && opensContextPicker(text, next)) {
             setContextOpen(true);
             return;
           }

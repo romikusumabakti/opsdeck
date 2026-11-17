@@ -225,7 +225,7 @@ export function ContextPicker({
                     className={cn(entry.kind === "environment" && "ps-8")}
                     aria-label={
                       entry.kind === "environment"
-                        ? t("contextEnvironments", {
+                        ? t("contextEnvironmentLabel", {
                             name: entry.environment.name,
                             project: entry.project.name,
                           })

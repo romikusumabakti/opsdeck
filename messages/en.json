@@ -3747,8 +3747,10 @@
     "contextAuto": "Automatic",
     "contextPick": "Context: {name}",
     "contextProjects": "Projects",
-    "contextEnvironments": "{name}, environment of {project}",
+    "contextEnvironmentLabel": "{name}, environment of {project}",
     "contextDeleted": "(deleted)",
-    "shortcutHint": "Press {key}+J anywhere to open the assistant."
+    "shortcutHint": "Press {shortcut} anywhere to open the assistant.",
+    "noProjectsTitle": "Nothing to ask about yet",
+    "noProjectsDescription": "You do not see any project yet. Ask an admin to add you to a project to use the assistant."
   }
 }

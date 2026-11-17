@@ -3747,8 +3747,10 @@
     "contextAuto": "Automático",
     "contextPick": "Contexto: {name}",
     "contextProjects": "Proyectos",
-    "contextEnvironments": "{name}, entorno de {project}",
+    "contextEnvironmentLabel": "{name}, entorno de {project}",
     "contextDeleted": "(eliminado)",
-    "shortcutHint": "Pulsa {key}+J en cualquier lugar para abrir el asistente."
+    "shortcutHint": "Pulsa {shortcut} en cualquier lugar para abrir el asistente.",
+    "noProjectsTitle": "Aún no hay nada que preguntar",
+    "noProjectsDescription": "Todavía no ves ningún proyecto. Pide a un administrador que te añada a un proyecto para usar el asistente."
   }
 }

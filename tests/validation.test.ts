@@ -90,6 +90,10 @@ describe("projectKeySchema", () => {
     expect(projectKeySchema.safeParse("PEOPLE").success).toBe(false);
   });
 
+  it("reserves ASSISTANT (the /assistant page)", () => {
+    expect(projectKeySchema.safeParse("assistant").success).toBe(false);
+  });
+
   it.each(["A", "TOOLONGKEY1", "1ABC"])("rejects malformed %s", (key) => {
     expect(projectKeySchema.safeParse(key).success).toBe(false);
   });
