@@ -222,7 +222,7 @@ export function ContextPicker({
                   <ComboboxItem
                     key={entry.item}
                     value={entry}
-                    className={cn(entry.kind === "environment" && "ps-8")}
+                    className={cn(entry.kind === "environment" && "pl-8")}
                     aria-label={
                       entry.kind === "environment"
                         ? t("contextEnvironmentLabel", {

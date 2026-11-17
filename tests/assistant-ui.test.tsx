@@ -1504,6 +1504,23 @@ describe("context picker", () => {
     ]);
   });
 
+  it("indents environments under their project", async () => {
+    await renderWorkspace();
+    await act(async () => chip()?.click());
+    await settle();
+    const indent = (name: string) => {
+      const option = [
+        ...document.querySelectorAll<HTMLElement>('[role="option"]'),
+      ].find((o) => o.textContent === name);
+      if (!option) throw new Error(`no option ${name}`);
+      // The item's own start padding must lose to the indent (twMerge keeps
+      // the last of one property; pl-* and ps-* are different ones).
+      return option.className.split(" ").filter((c) => /^p[ls]-/.test(c));
+    };
+    expect(indent("Heron Membership")).toEqual(["pl-2"]);
+    expect(indent("Dev 1")).toEqual(["pl-8"]);
+  });
+
   it("searches projects and environments together", async () => {
     await renderWorkspace();
     await act(async () => chip()?.click());
