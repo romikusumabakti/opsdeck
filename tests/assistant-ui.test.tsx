@@ -285,7 +285,12 @@ describe("daily cap", () => {
       })
     );
     await render(
-      <Composer environmentId="e1" disabled={false} onSend={onSend} />
+      <Composer
+        environmentId="e1"
+        disabled={false}
+        onSend={onSend}
+        focusKey="new"
+      />
     );
     const box = container.querySelector("textarea");
     if (!box) throw new Error("no textarea");
@@ -657,7 +662,12 @@ describe("composer attachments", () => {
     );
     const onSend = vi.fn().mockResolvedValue(undefined);
     await render(
-      <Composer environmentId="e1" disabled={false} onSend={onSend} />
+      <Composer
+        environmentId="e1"
+        disabled={false}
+        onSend={onSend}
+        focusKey="new"
+      />
     );
     await act(async () => button(t.attachments)?.click());
     const input = document.querySelector<HTMLInputElement>(
@@ -693,6 +703,88 @@ describe("composer attachments", () => {
     expect(onSend).toHaveBeenCalledWith("Apa isi BRD ini?", [
       { issueKey: "KST-12", attachmentId: "10001" },
     ]);
+  });
+});
+
+describe("composer focus and keys", () => {
+  const composer = (focusKey: string | null) => (
+    <Composer
+      environmentId="e1"
+      disabled={false}
+      onSend={vi.fn().mockResolvedValue(undefined)}
+      focusKey={focusKey}
+    />
+  );
+  // Same tree shape as render(), so a re-render keeps the mounted textarea.
+  const rerender = (ui: React.ReactNode) =>
+    act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <IntlProvider
+            locale="en"
+            messages={messages}
+            timeZone="Asia/Jakarta"
+            now={new Date("2026-11-16T05:00:00Z")}
+          >
+            {ui}
+          </IntlProvider>
+        </QueryClientProvider>
+      )
+    );
+
+  it("focuses the textarea on render and again when focusKey changes", async () => {
+    await render(composer("new"));
+    const box = container.querySelector("textarea");
+    if (!box) throw new Error("no textarea");
+    expect(document.activeElement).toBe(box);
+    box.blur();
+    expect(document.activeElement).not.toBe(box);
+    await rerender(composer("c1"));
+    expect(document.activeElement).toBe(box);
+  });
+
+  it("Enter sends, Shift+Enter does not, and focus returns after a send", async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    await render(
+      <Composer
+        environmentId="e1"
+        disabled={false}
+        onSend={onSend}
+        focusKey="new"
+      />
+    );
+    const box = container.querySelector("textarea");
+    if (!box) throw new Error("no textarea");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set?.call(box, "Hello");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      box.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          shiftKey: true,
+          bubbles: true,
+        })
+      );
+    });
+    expect(onSend).not.toHaveBeenCalled();
+    box.blur();
+    await act(async () => {
+      box.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+    });
+    expect(onSend).toHaveBeenCalledWith("Hello", []);
+    expect(box.value).toBe("");
+    expect(document.activeElement).toBe(box);
   });
 });
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
+import { shouldSend } from "./composer-keys";
 import { useAssistantErrorText } from "./error-text";
 
 // Mirrors the API's limits (server/services/assistant.ts).
@@ -22,11 +23,14 @@ export function Composer({
   environmentId,
   disabled,
   onSend,
+  focusKey,
 }: {
   environmentId: string;
   /** An answer is still running, or the assistant cannot take questions. */
   disabled: boolean;
   onSend: (text: string, attachments: AttachmentRef[]) => Promise<void>;
+  /** The box takes focus on mount and whenever this changes. */
+  focusKey: string | null;
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
@@ -35,6 +39,13 @@ export function Composer({
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: focusKey is the trigger.
+  React.useEffect(() => {
+    textareaRef.current?.focus();
+  }, [focusKey]);
 
   const canSend = !disabled && !sending && text.trim().length > 0;
 
@@ -49,6 +60,7 @@ export function Composer({
       );
       setText("");
       setAttachments([]);
+      textareaRef.current?.focus();
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -103,10 +115,18 @@ export function Composer({
         </div>
       )}
       <Textarea
+        ref={textareaRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+          if (
+            shouldSend({
+              key: e.key,
+              shiftKey: e.shiftKey,
+              isComposing: e.nativeEvent.isComposing,
+              keyCode: e.keyCode,
+            })
+          ) {
             e.preventDefault();
             void send();
           }

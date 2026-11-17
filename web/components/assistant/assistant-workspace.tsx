@@ -103,6 +103,7 @@ export function AssistantWorkspace({
             environmentId={environmentId}
             disabled={busy || capped}
             onSend={send}
+            focusKey={selectedId ?? "new"}
           />
         </div>
         {selectedId && (

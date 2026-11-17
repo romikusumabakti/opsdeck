@@ -3630,7 +3630,7 @@
     "emptyThreadDescription": "询问此环境中的流程、业务规则或代码位置。回答基于此处正在运行的代码。",
     "placeholder": "输入问题…",
     "send": "发送",
-    "sendHint": "Ctrl+Enter 发送",
+    "sendHint": "按 Enter 发送，Shift+Enter 换行",
     "attachments": "Jira 附件",
     "removeAttachment": "移除附件 {name}",
     "attachedCount": "{count, plural, other {# 个附件}}",

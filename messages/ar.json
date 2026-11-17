@@ -3630,7 +3630,7 @@
     "emptyThreadDescription": "اسأل عن التدفقات أو قواعد العمل أو مكان الشيفرة في هذه البيئة. تعتمد الإجابات على الشيفرة التي تعمل هنا.",
     "placeholder": "اكتب سؤالًا…",
     "send": "إرسال",
-    "sendHint": "Ctrl+Enter للإرسال",
+    "sendHint": "Enter للإرسال، Shift+Enter لسطر جديد",
     "attachments": "مرفقات Jira",
     "removeAttachment": "إزالة المرفق {name}",
     "attachedCount": "{count, plural, zero {لا مرفقات} one {مرفق واحد} two {مرفقان} few {# مرفقات} many {# مرفقًا} other {# مرفق}}",

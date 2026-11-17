@@ -3630,7 +3630,7 @@
     "emptyThreadDescription": "Tanyakan alur, aturan bisnis, atau letak kode di environment ini. Jawaban memakai kode yang sedang berjalan di sini.",
     "placeholder": "Tulis pertanyaan…",
     "send": "Kirim",
-    "sendHint": "Ctrl+Enter untuk mengirim",
+    "sendHint": "Enter untuk mengirim, Shift+Enter untuk baris baru",
     "attachments": "Lampiran Jira",
     "removeAttachment": "Hapus lampiran {name}",
     "attachedCount": "{count, plural, other {# lampiran}}",

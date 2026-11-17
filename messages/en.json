@@ -3630,7 +3630,7 @@
     "emptyThreadDescription": "Ask about flows, business rules, or where code lives in this environment. Answers use the code running here.",
     "placeholder": "Write a question…",
     "send": "Send",
-    "sendHint": "Ctrl+Enter to send",
+    "sendHint": "Enter to send, Shift+Enter for a new line",
     "attachments": "Jira attachments",
     "removeAttachment": "Remove attachment {name}",
     "attachedCount": "{count, plural, one {# attachment} other {# attachments}}",

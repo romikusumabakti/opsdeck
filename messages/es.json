@@ -3630,7 +3630,7 @@
     "emptyThreadDescription": "Pregunta por flujos, reglas de negocio o dónde está el código en este entorno. Las respuestas usan el código que se ejecuta aquí.",
     "placeholder": "Escribe una pregunta…",
     "send": "Enviar",
-    "sendHint": "Ctrl+Enter para enviar",
+    "sendHint": "Enter para enviar, Mayús+Enter para nueva línea",
     "attachments": "Adjuntos de Jira",
     "removeAttachment": "Quitar el adjunto {name}",
     "attachedCount": "{count, plural, one {# adjunto} other {# adjuntos}}",
