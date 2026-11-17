@@ -6,7 +6,7 @@ import { CollectionCreateDialog } from "@/components/collection-create-dialog";
 import { KnowledgeSearch } from "@/components/knowledge-search";
 import { KnowledgeTree } from "@/components/knowledge-tree";
 import { Button } from "@/components/ui/button";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import { canOrg } from "@/lib/permissions";
 import { listCollectionsQuery, listTreeNodesQuery } from "@/web/api/knowledge";
 import { useMe } from "@/web/api/session";
@@ -34,6 +34,10 @@ function KnowledgeLayout() {
   const canManage = canOrg(me?.orgRole, { knowledge: ["manage"] });
   const collections = useSuspenseQuery(listCollectionsQuery()).data;
   const nodes = useSuspenseQuery(listTreeNodesQuery()).data;
+  const canWrite = canOrg(me?.orgRole, { knowledge: ["write"] });
+  // "New document" files under the collection of the document being read.
+  const openSlug = usePathname().match(/\/knowledge\/([a-z0-9-]+)/)?.[1];
+  const openCollectionId = nodes.find((n) => n.slug === openSlug)?.collectionId;
 
   return (
     <div className="-mx-4 -my-6 flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden sm:-mx-6 lg:-mx-8 lg:flex-row">
@@ -54,7 +58,15 @@ function KnowledgeLayout() {
               <KnowledgeSearch />
               <Button
                 nativeButton={false}
-                render={<Link href="/knowledge/new" />}
+                render={
+                  <Link
+                    href={
+                      openCollectionId
+                        ? `/knowledge/new?collection=${openCollectionId}`
+                        : "/knowledge/new"
+                    }
+                  />
+                }
                 size="sm"
                 variant="outline"
                 className="mx-2"
@@ -73,6 +85,7 @@ function KnowledgeLayout() {
             collections={collections}
             nodes={nodes}
             canManage={canManage}
+            canWrite={canWrite}
           />
         </div>
       </aside>

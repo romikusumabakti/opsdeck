@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
+import { z } from "zod";
 import { DocumentForm } from "@/components/document-form";
 import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
 import { redirect } from "@/i18n/navigation";
@@ -9,6 +10,9 @@ import { requireOrgRole } from "@/web/project-guard";
 import { KnowledgePending } from "./-components/knowledge/knowledge-pending";
 
 export const Route = createFileRoute("/$locale/_app/knowledge/new")({
+  validateSearch: z.object({
+    collection: z.uuid().optional().catch(undefined),
+  }),
   beforeLoad: ({ context: { queryClient } }) =>
     requireOrgRole(queryClient, { knowledge: ["write"] }),
   loader: async ({ params: { locale }, context: { queryClient } }) => {
@@ -26,13 +30,20 @@ export const Route = createFileRoute("/$locale/_app/knowledge/new")({
 
 function NewDocumentPage() {
   const t = useTranslations("knowledge");
+  const { collection } = Route.useSearch();
   const collections = useSuspenseQuery(listCollectionsQuery()).data;
   const nodes = useSuspenseQuery(listTreeNodesQuery()).data;
   const linkableDocs = nodes.map((n) => ({ title: n.title, slug: n.slug }));
 
   return (
     <DocumentForm
-      mode={{ type: "create" }}
+      mode={{
+        type: "create",
+        // Ignore an id that no longer names a collection.
+        defaultCollectionId: collections.some((c) => c.id === collection)
+          ? collection
+          : undefined,
+      }}
       collections={collections}
       linkableDocs={linkableDocs}
       toolbarStart={

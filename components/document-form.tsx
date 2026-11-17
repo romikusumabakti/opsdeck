@@ -282,20 +282,22 @@ export function DocumentForm({
                 className="text-base font-medium"
               />
             </div>
-            <div className="flex shrink-0 flex-col gap-1.5">
-              <Label htmlFor="doc-collection">{t("collection")}</Label>
-              <SearchSelect
-                id="doc-collection"
-                className="w-48"
-                value={collectionId || null}
-                onChange={(v) => setCollectionId(v ?? "")}
-                options={collections.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                }))}
-                placeholder={t("collection")}
-              />
-            </div>
+            {mode.type === "edit" && (
+              <div className="flex shrink-0 flex-col gap-1.5">
+                <Label htmlFor="doc-collection">{t("collection")}</Label>
+                <SearchSelect
+                  id="doc-collection"
+                  className="w-48"
+                  value={collectionId || null}
+                  onChange={(v) => setCollectionId(v ?? "")}
+                  options={collections.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                  }))}
+                  placeholder={t("collection")}
+                />
+              </div>
+            )}
             <div className="flex shrink-0 flex-col gap-1.5">
               <Label htmlFor="doc-type">{t("docTypeLabel")}</Label>
               <Select

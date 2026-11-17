@@ -1,13 +1,43 @@
 import { generateKeyBetween } from "fractional-indexing";
-import { ChevronRight, FileText, Folder } from "lucide-react";
+import {
+  ChevronRight,
+  FileText,
+  Folder,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
-import { Link, usePathname } from "@/i18n/navigation";
+import { CollectionRenameDialog } from "@/components/collection-rename-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import type { KnowledgeCollection, KnowledgeTreeNode } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import type { Serialized } from "@/web/api/client";
-import { moveCollection, moveDocument } from "@/web/api/knowledge";
+import {
+  deleteCollection,
+  moveCollection,
+  moveDocument,
+} from "@/web/api/knowledge";
 
 type TreeItem = Serialized<KnowledgeTreeNode> & { children: TreeItem[] };
 
@@ -207,15 +237,50 @@ export function KnowledgeTree({
   collections,
   nodes,
   canManage = false,
+  canWrite = false,
 }: {
   collections: Serialized<KnowledgeCollection>[];
   nodes: Serialized<KnowledgeTreeNode>[];
   canManage?: boolean;
+  // Whether the viewer may create documents (shows the per-collection "+").
+  canWrite?: boolean;
 }) {
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
   const pathname = usePathname();
+  const router = useRouter();
   const [, startTransition] = useTransition();
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(
+    null
+  );
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(
+    null
+  );
+  const [deletePending, startDelete] = useTransition();
+  const deletingDocCount = deleting
+    ? nodes.filter((n) => n.collectionId === deleting.id).length
+    : 0;
+
+  function confirmDelete() {
+    if (!deleting) return;
+    const target = deleting;
+    startDelete(async () => {
+      const res = await deleteCollection(target.id);
+      if (!res.success) {
+        toast.error(res.message ?? tCommon("errorGeneric"));
+        return;
+      }
+      toast.success(t("collectionDeleted"));
+      setDeleting(null);
+      // Leave the page if the open document went with the collection.
+      if (
+        activeSlug &&
+        nodes.some((n) => n.slug === activeSlug && n.collectionId === target.id)
+      ) {
+        router.push("/knowledge");
+      }
+    });
+  }
 
   const activeSlug = useMemo(() => {
     const m = pathname.match(/\/knowledge\/([a-z0-9-]+)/);
@@ -483,6 +548,71 @@ export function KnowledgeTree({
                   </span>
                 )}
               </button>
+              {(canWrite || canManage) && (
+                <div className="flex shrink-0 items-center opacity-0 transition-opacity group-hover/col:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                  {canWrite && (
+                    <Button
+                      nativeButton={false}
+                      render={
+                        <Link
+                          href={`/knowledge/new?collection=${collection.id}`}
+                        />
+                      }
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={t("newInCollection", {
+                        name: collection.name,
+                      })}
+                    >
+                      <Plus />
+                    </Button>
+                  )}
+                  {canManage && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            aria-label={t("collectionActions", {
+                              name: collection.name,
+                            })}
+                          />
+                        }
+                      >
+                        <MoreHorizontal />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="normal-case tracking-normal"
+                          onClick={() =>
+                            setRenaming({
+                              id: collection.id,
+                              name: collection.name,
+                            })
+                          }
+                        >
+                          <Pencil />
+                          {t("renameCollection")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          className="normal-case tracking-normal"
+                          onClick={() =>
+                            setDeleting({
+                              id: collection.id,
+                              name: collection.name,
+                            })
+                          }
+                        >
+                          <Trash2 />
+                          {t("deleteCollection")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              )}
             </div>
             {isOpen &&
               (items.length > 0 ? (
@@ -505,6 +635,44 @@ export function KnowledgeTree({
           </div>
         );
       })}
+      {renaming && (
+        <CollectionRenameDialog
+          key={renaming.id}
+          collection={renaming}
+          onClose={() => setRenaming(null)}
+        />
+      )}
+      <AlertDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("deleteCollection")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleting &&
+                (deletingDocCount > 0
+                  ? t("deleteCollectionNotEmpty", {
+                      name: deleting.name,
+                      count: deletingDocCount,
+                    })
+                  : t("deleteCollectionConfirm", { name: deleting.name }))}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletePending}>
+              {tCommon("cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deletePending}
+            >
+              {tCommon("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </nav>
   );
 }
