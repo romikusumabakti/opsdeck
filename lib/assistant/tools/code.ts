@@ -34,24 +34,61 @@ export type ToolResult<T> =
   | { ok: true; data: T; meta: ToolMeta }
   | { ok: false; error: string; meta: ToolMeta };
 
-export const MAX_LIST_PATHS = 500;
-export const MAX_SEARCH_MATCHES = 100;
+export const MAX_LIST_PATHS = 150;
+/** Withheld paths named in one list_files result (the rest are only counted). */
+export const MAX_WITHHELD_PATHS = 50;
+export const MAX_SEARCH_MATCHES = 40;
 export const CONTEXT_LINES = 2;
-export const MAX_READ_LINES = 400;
-export const MAX_READ_BYTES = 64 * 1024;
+export const MAX_READ_LINES = 250;
+export const MAX_READ_BYTES = 48 * 1024;
 /**
  * Lines longer than this are cut before matching and output. This only bounds
  * output size and per-line work; it is NOT a ReDoS defence (see `unsafeRegex`).
  */
 export const MAX_LINE_CHARS = 2000;
-/** Files larger than this are skipped by search/read and counted as withheld. */
 /** Total budget for one search result (paths + text + context). */
-export const MAX_SEARCH_BYTES = 64 * 1024;
+export const MAX_SEARCH_BYTES = 32 * 1024;
 export const MAX_REGEX_LENGTH = 200;
+/** Files larger than this are skipped by search/read and counted as withheld. */
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
+export const WITHHELD_FILE_ERROR =
+  "File withheld: it may contain credentials (not sent to the assistant).";
+
 /** Snapshot bookkeeping files at each snapshot root; never shown. */
-const RESERVED = new Set([".ready", ".used", ".withheld.json"]);
+const WITHHELD_LIST = ".withheld.json";
+const RESERVED = new Set([".ready", ".used", WITHHELD_LIST]);
+
+/**
+ * Paths (relative to the snapshot root) that `ensureSnapshot` did not write
+ * because they may hold secrets; listed in `<dir>/.withheld.json`. Read once
+ * per tool call. Names are shown to the model, content never exists on disk.
+ */
+async function loadWithheld(snap: SnapshotRef): Promise<string[]> {
+  try {
+    const parsed: unknown = JSON.parse(
+      await fsReadFile(join(snap.dir, WITHHELD_LIST), "utf8")
+    );
+    return Array.isArray(parsed)
+      ? parsed.filter((p): p is string => typeof p === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Component-prefixed withheld paths of the snapshots that match `matcher`. */
+async function matchingWithheld(
+  snaps: SnapshotRef[],
+  matcher: Bun.Glob | null
+): Promise<string[]> {
+  const lists = await Promise.all(snaps.map(loadWithheld));
+  return snaps.flatMap((snap, i) =>
+    (lists[i] ?? [])
+      .map((rel) => `${snap.componentKey}/${rel}`)
+      .filter((path) => !matcher || matcher.match(path))
+  );
+}
 
 function fail(error: string, meta: ToolMeta = {}): ToolResult<never> {
   return { ok: false, error, meta };
@@ -96,14 +133,24 @@ function compileGlob(glob: string | undefined): Bun.Glob | null {
 export async function listFiles(
   snaps: SnapshotRef[],
   glob: string
-): Promise<ToolResult<{ paths: string[]; truncated: boolean }>> {
+): Promise<
+  ToolResult<{
+    paths: string[];
+    truncated: boolean;
+    /** Matching files not sent (count), when there are any. */
+    withheld?: number;
+    /** Up to MAX_WITHHELD_PATHS of their names. */
+    withheldPaths?: string[];
+  }>
+> {
   let matcher: Bun.Glob | null;
   try {
     matcher = compileGlob(glob);
   } catch (e) {
     return fail(`Invalid glob: ${(e as Error).message}`);
   }
-  const counter = { withheld: 0 };
+  const withheldPaths = await matchingWithheld(snaps, matcher);
+  const counter = { withheld: withheldPaths.length };
   const paths: string[] = [];
   let truncated = false;
   outer: for (const snap of snaps) {
@@ -118,7 +165,17 @@ export async function listFiles(
   }
   return {
     ok: true,
-    data: { paths, truncated },
+    data:
+      counter.withheld > 0
+        ? {
+            paths,
+            truncated,
+            withheld: counter.withheld,
+            ...(withheldPaths.length > 0 && {
+              withheldPaths: withheldPaths.slice(0, MAX_WITHHELD_PATHS),
+            }),
+          }
+        : { paths, truncated },
     meta: { withheld: counter.withheld },
   };
 }
@@ -214,7 +271,14 @@ export async function searchCode(
     glob?: string;
     ignoreCase?: boolean;
   }
-): Promise<ToolResult<{ matches: SearchMatch[]; truncated: boolean }>> {
+): Promise<
+  ToolResult<{
+    matches: SearchMatch[];
+    truncated: boolean;
+    /** Files in scope that were not searched (count), when there are any. */
+    withheld?: number;
+  }>
+> {
   if (!opts.pattern) return fail("Pattern must not be empty.");
   if (opts.regex) {
     const reason = unsafeRegex(opts.pattern);
@@ -236,7 +300,9 @@ export async function searchCode(
     return fail(`Invalid glob: ${(e as Error).message}`);
   }
 
-  const counter = { withheld: 0 };
+  const counter = {
+    withheld: (await matchingWithheld(snaps, matcher)).length,
+  };
   const matches: SearchMatch[] = [];
   const hitPaths = new Set<string>();
   let truncated = false;
@@ -284,7 +350,10 @@ export async function searchCode(
   }
   return {
     ok: true,
-    data: { matches, truncated },
+    data:
+      counter.withheld > 0
+        ? { matches, truncated, withheld: counter.withheld }
+        : { matches, truncated },
     meta: { paths: [...hitPaths], withheld: counter.withheld },
   };
 }
@@ -294,7 +363,8 @@ async function resolvePath(
   snaps: SnapshotRef[],
   path: string
 ): Promise<
-  { snap: SnapshotRef; rel: string; abs: string } | { error: string }
+  | { snap: SnapshotRef; rel: string; abs: string }
+  | { error: string; withheld?: true }
 > {
   if (
     !path ||
@@ -314,6 +384,10 @@ async function resolvePath(
     return { error: "Invalid path." };
   }
   if (RESERVED.has(rel)) return { error: "File not found." };
+  // Withheld files were never written, so check the list before the disk.
+  if ((await loadWithheld(snap)).includes(rel)) {
+    return { error: WITHHELD_FILE_ERROR, withheld: true };
+  }
   const abs = join(snap.dir, rel);
   try {
     // Every component must be a real directory/file: no symlinks anywhere,
@@ -351,12 +425,14 @@ export async function readFile(
   }>
 > {
   const resolved = await resolvePath(snaps, opts.path);
-  if ("error" in resolved) return fail(resolved.error);
+  if ("error" in resolved) {
+    return fail(resolved.error, resolved.withheld ? { withheld: 1 } : {});
+  }
   if (isWithheldPath(resolved.rel)) {
-    return fail("File not found.", { withheld: 1 });
+    return fail(WITHHELD_FILE_ERROR, { withheld: 1 });
   }
   const text = await loadAllowed(resolved.rel, resolved.abs);
-  if (text === null) return fail("File not found.", { withheld: 1 });
+  if (text === null) return fail(WITHHELD_FILE_ERROR, { withheld: 1 });
 
   const lines = splitLines(text);
   const totalLines = lines.length;

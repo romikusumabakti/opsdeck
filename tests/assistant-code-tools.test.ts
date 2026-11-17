@@ -4,6 +4,12 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   listFiles,
+  MAX_LIST_PATHS,
+  MAX_READ_BYTES,
+  MAX_READ_LINES,
+  MAX_SEARCH_BYTES,
+  MAX_SEARCH_MATCHES,
+  MAX_WITHHELD_PATHS,
   readFile,
   type SnapshotRef,
   searchCode,
@@ -31,10 +37,11 @@ beforeEach(async () => {
 afterEach(() => rm(root, { recursive: true, force: true }));
 
 describe("listFiles", () => {
-  it("caps at 500 paths", async () => {
-    for (let i = 0; i < 501; i++) await put(`src/f${i}.ts`, "x");
+  it("caps at 150 paths", async () => {
+    expect(MAX_LIST_PATHS).toBe(150);
+    for (let i = 0; i < 151; i++) await put(`src/f${i}.ts`, "x");
     const r = await listFiles([snap], "api/src/**");
-    expect(r.ok && r.data.paths.length).toBe(500);
+    expect(r.ok && r.data.paths.length).toBe(150);
     expect(r.ok && r.data.truncated).toBe(true);
   });
 
@@ -92,11 +99,15 @@ describe("searchCode", () => {
     expect(read.ok).toBe(false);
   });
 
-  it("caps total search output at 64 KiB", async () => {
-    await put("big.ts", `${"x".repeat(1500)}\n`.repeat(90));
+  it("caps total search output at 32 KiB", async () => {
+    expect(MAX_SEARCH_BYTES).toBe(32 * 1024);
+    await put("big.ts", `${"x".repeat(1500)}\n`.repeat(30));
     const r = await searchCode([snap], { pattern: "xxx" });
     expect(r.ok && r.data.truncated).toBe(true);
-    expect(JSON.stringify(r.ok && r.data.matches).length).toBeLessThan(70_000);
+    expect(r.ok && r.data.matches.length).toBeLessThan(MAX_SEARCH_MATCHES);
+    expect(JSON.stringify(r.ok && r.data.matches).length).toBeLessThan(
+      MAX_SEARCH_BYTES
+    );
   });
 
   it("rejects dangerous regexes and accepts ordinary ones", async () => {
@@ -125,7 +136,7 @@ describe("searchCode", () => {
     expect((await searchCode([snap], { pattern: "(a+)+" })).ok).toBe(true);
   });
 
-  it("returns context and stops at 100 matches", async () => {
+  it("returns context and stops at 40 matches", async () => {
     await put("a.ts", "l1\nfoo\nl3\n");
     const one = await searchCode([snap], { pattern: "foo" });
     expect(one.ok && one.data.matches[0]).toMatchObject({
@@ -134,7 +145,8 @@ describe("searchCode", () => {
     });
     await put("b.ts", "foo\n".repeat(150));
     const many = await searchCode([snap], { pattern: "foo" });
-    expect(many.ok && many.data.matches.length).toBe(100);
+    expect(MAX_SEARCH_MATCHES).toBe(40);
+    expect(many.ok && many.data.matches.length).toBe(40);
     expect(many.ok && many.data.truncated).toBe(true);
   });
 
@@ -167,13 +179,21 @@ describe("readFile", () => {
     expect(r.meta.ranges).toEqual(["api/a.ts:2-3"]);
   });
 
-  it("caps at 400 lines", async () => {
+  it("caps at 250 lines and 48 KiB", async () => {
+    expect(MAX_READ_LINES).toBe(250);
+    expect(MAX_READ_BYTES).toBe(48 * 1024);
     await put(
       "a.ts",
       Array.from({ length: 1000 }, (_, i) => `l${i}`).join("\n")
     );
     const r = await readFile([snap], { path: "api/a.ts" });
-    expect(r.ok && r.data.endLine).toBe(400);
+    expect(r.ok && r.data.endLine).toBe(250);
+    await put("wide.ts", `${"y".repeat(1000)}\n`.repeat(100));
+    const wide = await readFile([snap], { path: "api/wide.ts" });
+    expect(wide.ok && wide.data.endLine).toBeLessThan(50);
+    expect(wide.ok && wide.data.text.length).toBeLessThanOrEqual(
+      MAX_READ_BYTES
+    );
   });
 
   it("rejects traversal, absolute, unknown component and symlink escape", async () => {
@@ -236,5 +256,100 @@ describe("readFile", () => {
     const d = await readFile([snap], { path: "api/src" });
     expect(d).toMatchObject({ ok: false, error: "Not a file." });
     expect(d.meta.withheld).toBeUndefined();
+  });
+});
+
+describe("withheld files listed in .withheld.json", () => {
+  // ensureSnapshot never writes these files; only their paths are recorded.
+  const WITHHELD = [
+    ".env.example",
+    "backend/src/main/resources/application.yml",
+    "backend/src/main/resources/application-test.yml",
+    "compose.yaml",
+    "docs/logo.png",
+  ];
+  beforeEach(async () => {
+    await put(".withheld.json", JSON.stringify(WITHHELD));
+    await put("backend/src/main/resources/application-prod.yml", "a: 1\n");
+    await put("backend/src/main/java/App.java", "class App { int iuran; }\n");
+  });
+
+  it("list_files counts and names the matching withheld paths", async () => {
+    const r = await listFiles([snap], "**/application*");
+    expect(r.ok && r.data.paths).toEqual([
+      "api/backend/src/main/resources/application-prod.yml",
+    ]);
+    expect(r.ok && r.data.withheld).toBe(2);
+    expect(r.ok && r.data.withheldPaths).toEqual([
+      "api/backend/src/main/resources/application.yml",
+      "api/backend/src/main/resources/application-test.yml",
+    ]);
+    expect(r.meta.withheld).toBe(2);
+
+    const all = await listFiles([snap], "**");
+    expect(all.meta.withheld).toBe(WITHHELD.length);
+    expect(all.ok && all.data.paths).not.toContain("api/.withheld.json");
+
+    const none = await listFiles([snap], "**/*.java");
+    expect(none.ok && none.data).toEqual({
+      paths: ["api/backend/src/main/java/App.java"],
+      truncated: false,
+    });
+    expect(none.meta.withheld).toBe(0);
+  });
+
+  it(`list_files names at most ${MAX_WITHHELD_PATHS} withheld paths`, async () => {
+    const many = Array.from({ length: 60 }, (_, i) => `secrets/s${i}.pem`);
+    await put(".withheld.json", JSON.stringify(many));
+    const r = await listFiles([snap], "**");
+    expect(r.meta.withheld).toBe(60);
+    expect(r.ok && r.data.withheld).toBe(60);
+    expect(r.ok && r.data.withheldPaths).toHaveLength(MAX_WITHHELD_PATHS);
+  });
+
+  it("search_code counts withheld paths in scope", async () => {
+    const all = await searchCode([snap], { pattern: "iuran" });
+    expect(all.ok && all.data.matches.map((m) => m.path)).toEqual([
+      "api/backend/src/main/java/App.java",
+    ]);
+    expect(all.meta.withheld).toBe(WITHHELD.length);
+    expect(all.ok && all.data.withheld).toBe(WITHHELD.length);
+
+    const yml = await searchCode([snap], { pattern: "a", glob: "**/*.yml" });
+    expect(yml.meta.withheld).toBe(2);
+    const java = await searchCode([snap], {
+      pattern: "iuran",
+      glob: "**/*.java",
+    });
+    expect(java.meta.withheld).toBe(0);
+    expect(java.ok && java.data.withheld).toBeUndefined();
+  });
+
+  it("read_file says a withheld path is withheld, not missing", async () => {
+    for (const path of [
+      "api/backend/src/main/resources/application.yml",
+      "api/.env.example",
+      "api/compose.yaml",
+    ]) {
+      const r = await readFile([snap], { path });
+      expect(r, path).toEqual({
+        ok: false,
+        error:
+          "File withheld: it may contain credentials (not sent to the assistant).",
+        meta: { withheld: 1 },
+      });
+    }
+    const missing = await readFile([snap], { path: "api/nope.yml" });
+    expect(missing).toEqual({
+      ok: false,
+      error: "File not found.",
+      meta: {},
+    });
+  });
+
+  it("ignores a missing or malformed .withheld.json", async () => {
+    await put(".withheld.json", "{not json");
+    const r = await listFiles([snap], "**");
+    expect(r.meta.withheld).toBe(0);
   });
 });

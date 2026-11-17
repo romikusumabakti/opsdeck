@@ -90,6 +90,7 @@ const {
   classifyError,
   MAX_ITERATIONS,
   STEP_LIMIT_NOTE,
+  DAILY_CAP_NOTE,
   toToolResult,
   echoContent,
 } = await import("@/lib/assistant/run-turn");
@@ -550,23 +551,84 @@ describe("runTurn", () => {
     expect(state.message.errorCode).toBe("assistant.daily_cap_reached");
   });
 
-  it("re-checks the cap before each request and stops the loop at it", async () => {
-    const { client, stream } = fakeClient([
+  it("re-checks the cap before each request and sends one final answer-only request once it is reached", async () => {
+    const { client, stream, requests } = fakeClient([
       {
         content: [toolUse("tu_1", "list_files", { glob: "**/*" })],
         stop_reason: "tool_use",
       },
-      { content: [text("never sent")], stop_reason: "end_turn" },
+      {
+        text: ["Jawaban dengan temuan yang ada"],
+        content: [text("Jawaban dengan temuan yang ada")],
+        stop_reason: "end_turn",
+      },
     ]);
     // Under the cap at the start; over it once the first response is metered.
     const spentToday = vi.fn(async () =>
       state.usage.reduce((sum, row) => sum + Number(row.costUsd), 1.49)
     );
     await runTurn(MESSAGE_ID, deps(client, { spentToday }));
-    expect(stream).toHaveBeenCalledTimes(1);
+    expect(stream).toHaveBeenCalledTimes(2);
     expect(spentToday).toHaveBeenCalledTimes(2);
     expect(spentToday).toHaveBeenCalledWith(USER_ID, expect.any(Date));
+    type Sent = {
+      tool_choice: unknown;
+      tools: unknown[];
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    const sent = requests as unknown as Sent[];
+    expect(sent[0]?.tool_choice).toEqual({ type: "auto" });
+    expect(sent[1]?.tool_choice).toEqual({ type: "none" });
+    expect(sent[1]?.tools).toEqual(sent[0]?.tools);
+    const blocks = sent[1]?.messages.at(-1)?.content as Array<{
+      type: string;
+      text?: string;
+    }>;
+    expect(blocks[0]?.type).toBe("tool_result");
+    expect(blocks.at(-1)).toEqual({ type: "text", text: DAILY_CAP_NOTE });
     expect(state.toolCalls).toHaveLength(1);
+    // Both requests are metered.
+    expect(state.usage).toHaveLength(2);
+    expect(state.message.status).toBe("done");
+    expect(state.message.content).toBe("Jawaban dengan temuan yang ada");
+  });
+
+  it("fails with daily_cap_reached when the final capped request still asks for tools", async () => {
+    const { client, stream } = fakeClient([
+      {
+        content: [toolUse("tu_1", "list_files", { glob: "**/*" })],
+        stop_reason: "tool_use",
+      },
+      {
+        content: [toolUse("tu_2", "list_files", { glob: "**/*" })],
+        stop_reason: "tool_use",
+      },
+      { content: [text("never sent")], stop_reason: "end_turn" },
+    ]);
+    const spentToday = vi.fn(async () =>
+      state.usage.reduce((sum, row) => sum + Number(row.costUsd), 1.49)
+    );
+    await runTurn(MESSAGE_ID, deps(client, { spentToday }));
+    expect(stream).toHaveBeenCalledTimes(2);
+    expect(state.toolCalls).toHaveLength(1);
+    expect(state.message.status).toBe("failed");
+    expect(state.message.errorCode).toBe("assistant.daily_cap_reached");
+  });
+
+  it("never sends more than one request past the cap (pause_turn on the final request)", async () => {
+    const { client, stream } = fakeClient([
+      {
+        content: [toolUse("tu_1", "list_files", { glob: "**/*" })],
+        stop_reason: "tool_use",
+      },
+      { content: [text("jeda")], stop_reason: "pause_turn" },
+      { content: [text("never sent")], stop_reason: "end_turn" },
+    ]);
+    const spentToday = vi.fn(async () =>
+      state.usage.reduce((sum, row) => sum + Number(row.costUsd), 1.49)
+    );
+    await runTurn(MESSAGE_ID, deps(client, { spentToday }));
+    expect(stream).toHaveBeenCalledTimes(2);
     expect(state.message.status).toBe("failed");
     expect(state.message.errorCode).toBe("assistant.daily_cap_reached");
   });
@@ -895,6 +957,16 @@ describe("buildSystemPrompt", () => {
     expect(text).toContain("Indonesian");
     expect(text).toContain("component/path:line");
     expect(text).not.toContain("No source code is available");
+  });
+
+  it("guides a cheap search strategy and explains withheld files", () => {
+    const text = prompt([SOURCE]);
+    expect(text).toContain("targeted search_code using a specific glob");
+    expect(text).toContain("**/*Iuran*.java");
+    expect(text).toContain("never list `**/*` across the whole repository");
+    expect(text).toContain("read only the line ranges you need");
+    expect(text).toContain("stop exploring once the answer is supported");
+    expect(text).toContain("A withheld file exists; it is not missing.");
   });
 
   it("is stable for the same inputs", () => {

@@ -6,7 +6,9 @@ import {
   MAX_LIST_PATHS,
   MAX_READ_BYTES,
   MAX_READ_LINES,
+  MAX_SEARCH_BYTES,
   MAX_SEARCH_MATCHES,
+  MAX_WITHHELD_PATHS,
   readFile,
   type SnapshotRef,
   searchCode,
@@ -47,15 +49,17 @@ const nullable = (type: string, description: string) => ({
 export const TOOL_DEFS: Anthropic.Tool[] = [
   {
     name: "list_files",
-    description: `List file paths in the source snapshot of the environment's running commit, matching a glob (e.g. "backend/src/**/*.java"). Paths are prefixed with the component key. At most ${MAX_LIST_PATHS} paths; files holding secrets are withheld and only counted.`,
+    description: `List file paths in the source snapshot of the environment's running commit, matching a glob (e.g. "backend/src/**/*.java"). Paths are prefixed with the component key. At most ${MAX_LIST_PATHS} paths, so use a specific glob. Files that may hold secrets are withheld: counted in "withheld" and named (up to ${MAX_WITHHELD_PATHS}) in "withheldPaths", never readable.`,
     strict: true,
     input_schema: object({
-      glob: str('Glob relative to the snapshot root; "**/*" lists everything.'),
+      glob: str(
+        'Glob over component-prefixed paths, as narrow as possible (e.g. "backend/src/**/*Iuran*.java"); avoid "**/*".'
+      ),
     }),
   },
   {
     name: "search_code",
-    description: `Search file contents of the source snapshot. Returns at most ${MAX_SEARCH_MATCHES} matches with path, line number and ±2 lines of context. Literal match unless regex is true. Files holding secrets are never searched.`,
+    description: `Search file contents of the source snapshot. Returns at most ${MAX_SEARCH_MATCHES} matches (${MAX_SEARCH_BYTES / 1024} KiB in total) with path, line number and ±2 lines of context; narrow it with a specific glob. Literal match unless regex is true. Files that may hold secrets are never searched; "withheld" counts them.`,
     strict: true,
     input_schema: object({
       pattern: str("Text (or regular expression when regex is true) to find."),
@@ -72,7 +76,7 @@ export const TOOL_DEFS: Anthropic.Tool[] = [
   },
   {
     name: "read_file",
-    description: `Read a file from the source snapshot by its component-prefixed path, optionally a 1-based line range. At most ${MAX_READ_LINES} lines or ${MAX_READ_BYTES / 1024} KiB per call; page with start_line for more. Files holding secrets are withheld.`,
+    description: `Read a file from the source snapshot by its component-prefixed path, optionally a 1-based line range. At most ${MAX_READ_LINES} lines or ${MAX_READ_BYTES / 1024} KiB per call; read only the range you need and page with start_line for more. Files that may hold secrets are withheld and return an error saying so.`,
     strict: true,
     input_schema: object({
       path: str(

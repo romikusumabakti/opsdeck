@@ -59,6 +59,12 @@ export const MAX_ITERATIONS = 25;
 /** Appended to the tool results that precede the last allowed request. */
 export const STEP_LIMIT_NOTE =
   "Batas langkah tercapai — jawab sekarang dengan temuan yang ada";
+/**
+ * Appended before the one final tool_choice none request sent when the daily
+ * cap is reached mid-turn, so the user still gets an answer for what was spent.
+ */
+export const DAILY_CAP_NOTE =
+  "Batas harian tercapai — jawab sekarang dengan temuan yang ada";
 /** Streamed text is written to Postgres at most this often. */
 export const FLUSH_INTERVAL_MS = 400;
 export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
@@ -434,13 +440,12 @@ async function runClaimedTurn(
   const runtime = await loadRuntimeOrFail(deps);
   const spentToday = deps.spentToday ?? spentTodayUsd;
   // The cap is checked at send time too, but turns already queued (or a long
-  // tool loop) can still cross it: re-checked before every request.
-  const requireAllowance = async () => {
-    if ((await spentToday(turn.userId, now())) >= runtime.dailyCapUsd) {
-      throw new TurnError("assistant.daily_cap_reached");
-    }
-  };
-  await requireAllowance();
+  // tool loop) can still cross it: re-checked before every request. Before the
+  // first request it fails the turn (nothing spent yet); later it allows one
+  // final answer-only request (see the loop).
+  const capReached = async () =>
+    (await spentToday(turn.userId, now())) >= runtime.dailyCapUsd;
+  if (await capReached()) throw new TurnError("assistant.daily_cap_reached");
   const viewer = await (deps.loadViewer ?? loadAssistantViewer)(turn.userId);
   const resolved = await resolveSnapshots(turn.environmentId, {
     resolveSources: deps.resolveSources ?? defaultResolveSources,
@@ -488,9 +493,16 @@ async function runClaimedTurn(
       now: now(),
     });
 
+  let capped = false;
   for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-    if (iteration > 1) await requireAllowance();
-    const last = iteration === MAX_ITERATIONS;
+    let last = iteration === MAX_ITERATIONS;
+    if (iteration > 1 && (await capReached())) {
+      // Never more than one extra request past the cap.
+      if (capped) throw new TurnError("assistant.daily_cap_reached");
+      capped = true;
+      last = true;
+      appendNote(messages, DAILY_CAP_NOTE);
+    }
     const message = await streamRequest(
       runtime,
       // The same tools on the last request keep the cached prefix; "none"
@@ -534,7 +546,10 @@ async function runClaimedTurn(
       .filter((b): b is BetaToolUseBlock => b.type === "tool_use");
     if (toolUses.length === 0) return;
     // Still asked for tools despite tool_choice none.
-    if (last) break;
+    if (last) {
+      if (capped) throw new TurnError("assistant.daily_cap_reached");
+      break;
+    }
 
     messages.push({ role: "assistant", content: echoContent(message.content) });
     const results = await Promise.all(
@@ -560,6 +575,16 @@ async function runClaimedTurn(
     });
   }
   throw new TurnError("assistant.too_many_steps");
+}
+
+/** Adds a text note to the trailing user message (or a new one). */
+function appendNote(messages: BetaMessageParam[], note: string): void {
+  const tail = messages.at(-1);
+  if (tail?.role === "user" && Array.isArray(tail.content)) {
+    tail.content = [...tail.content, { type: "text", text: note }];
+  } else {
+    messages.push({ role: "user", content: [{ type: "text", text: note }] });
+  }
 }
 
 export function effortOf(
