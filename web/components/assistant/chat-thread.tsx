@@ -46,16 +46,32 @@ export function ChatThread({ conversationId }: { conversationId: string }) {
   );
 
   // Follow new content only while the reader is at the end; scrolling up to
-  // an older answer stops it until they scroll back down.
+  // an older answer stops it until they scroll back down. The caller's own
+  // question always brings the end back into view.
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const stuck = React.useRef(true);
   const last = messages.at(-1);
+  const lastQuestionId = messages.findLast((m) => m.role === "user")?.id;
   const contentKey = `${messages.length}:${last?.status}:${last?.content.length ?? 0}`;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new question is the trigger
+  React.useLayoutEffect(() => {
+    stuck.current = true;
+  }, [lastQuestionId]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: contentKey is the trigger
   React.useLayoutEffect(() => {
     const el = scrollerRef.current;
     if (el && stuck.current) el.scrollTop = el.scrollHeight;
   }, [contentKey]);
+  // Markdown, code blocks and sources can grow after the text arrives.
+  const observeList = React.useCallback((list: HTMLDivElement) => {
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      const el = scrollerRef.current;
+      if (el && stuck.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div
@@ -72,7 +88,7 @@ export function ChatThread({ conversationId }: { conversationId: string }) {
           description={t("emptyThreadDescription")}
         />
       ) : (
-        <div className="flex flex-col gap-6">
+        <div ref={observeList} className="flex flex-col gap-6">
           {messages.map((message) => (
             <MessageView key={message.id} message={message} />
           ))}

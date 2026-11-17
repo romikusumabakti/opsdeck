@@ -642,6 +642,90 @@ describe("answer stream", () => {
     expect(document.documentElement.innerHTML).not.toContain("NIK123");
     expect(text()).toContain("Lihat x dan");
   });
+  // happy-dom does no layout: give the scroller a fixed geometry.
+  const scroller = () => {
+    const el = container.querySelector<HTMLElement>(".overflow-y-auto");
+    if (!el) throw new Error("no scroller");
+    Object.defineProperty(el, "scrollHeight", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(el, "clientHeight", {
+      configurable: true,
+      value: 400,
+    });
+    return el;
+  };
+  const scrollUp = (el: HTMLElement) =>
+    act(async () => {
+      el.scrollTop = 100;
+      el.dispatchEvent(new Event("scroll"));
+    });
+  const userMessage = (id: string) => ({
+    ...conversation("done").messages[0],
+    id,
+    content: "Lalu bagaimana pajaknya?",
+  });
+
+  it("scrolls to the bottom on the caller's own send even when scrolled up", async () => {
+    queryClient.setQueryData(key, conversation("done"));
+    await render(<ChatThread conversationId="c1" />);
+    const el = scroller();
+    await scrollUp(el);
+    await act(async () => {
+      const base = conversation("done");
+      queryClient.setQueryData(key, {
+        ...base,
+        messages: [...base.messages, userMessage("m3")],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(el.scrollTop).toBe(1000);
+  });
+
+  it("does not pull a reader who scrolled up back down on new answer text", async () => {
+    queryClient.setQueryData(key, conversation("streaming"));
+    await render(<ChatThread conversationId="c1" />);
+    const el = scroller();
+    await scrollUp(el);
+    const [source] = FakeEventSource.instances;
+    await act(async () =>
+      source?.emit("snapshot", {
+        content: "Lebih banyak teks",
+        status: "streaming",
+        errorCode: null,
+        toolCalls: [],
+      })
+    );
+    expect(el.scrollTop).toBe(100);
+  });
+
+  it("follows late content growth while at the bottom", async () => {
+    const observers: (() => void)[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    queryClient.setQueryData(key, conversation("done"));
+    await render(<ChatThread conversationId="c1" />);
+    const el = scroller();
+    el.scrollTop = 600;
+    await act(async () => el.dispatchEvent(new Event("scroll")));
+    Object.defineProperty(el, "scrollHeight", {
+      configurable: true,
+      value: 1500,
+    });
+    act(() => {
+      for (const notify of observers) notify();
+    });
+    expect(el.scrollTop).toBe(1500);
+  });
 });
 
 describe("composer attachments", () => {
@@ -921,6 +1005,33 @@ describe("drafts panel in the workspace", () => {
     });
     expect(panel()).not.toBeNull();
     expect(toggle(1)).toBeDefined();
+  });
+  it("does not open when switching to a conversation that already has drafts", async () => {
+    await renderWorkspace();
+    queryClient.setQueryData(
+      ["assistant", "listConversations", ["e1"]],
+      [
+        { id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" },
+        { id: "c2", title: "Pajak", updatedAt: "2026-11-16T01:00:00Z" },
+      ]
+    );
+    queryClient.setQueryData(["assistant", "getConversation", ["c2"]], {
+      ...conversation,
+      id: "c2",
+      title: "Pajak",
+      drafts: [draft("d1"), draft("d2")],
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const pick = (title: string) =>
+      [...document.querySelectorAll("nav button")].find((b) =>
+        b.textContent?.includes(title)
+      ) as HTMLButtonElement | undefined;
+    await act(async () => pick("Iuran")?.click());
+    await act(async () => pick("Pajak")?.click());
+    expect(toggle(2)).toBeDefined();
+    expect(panel()).toBeNull();
   });
 });
 
