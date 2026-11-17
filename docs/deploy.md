@@ -385,6 +385,20 @@ images and bundle.
 
 Updating production needs Romi's go-ahead.
 
+## Instance configuration
+
+Values an instance sets for itself, outside any app's `.env`:
+
+- `ACCESS_DEFAULT_POLICY_NAME` (instance `.env`): the Cloudflare Access policy
+  the New environment wizard preselects when the copy source has none, matched
+  by name, case-insensitively. Unset: no policy is preselected and the wizard
+  asks for one.
+- `BRAND` (instance `.env`): an unknown value no longer fails boot; the app
+  logs one warning and uses the `default` brand.
+- Assistant organisation context (Admin → Assistant): a paragraph about the
+  organisation and its business that the code assistant and its drafts get in
+  their system prompt. Empty: a generic description is used.
+
 ## Upgrading to strong sign-in
 
 - Sessions created before the upgrade have no recorded sign-in method and count

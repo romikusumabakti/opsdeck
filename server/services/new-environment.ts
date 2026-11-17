@@ -84,8 +84,14 @@ import { detectComponentRepo } from "@/server/services/setup-detect";
 
 /** Stands in for an app the create registers first (the preview's check). */
 const UNREGISTERED_APP_ID = "00000000-0000-0000-0000-000000000000";
-/** The Access policy a new address is behind unless the copy source has one. */
-const DEFAULT_ACCESS_POLICY_NAME = "Internal staff";
+/**
+ * The Access policy a new address is behind unless the copy source has one:
+ * the instance names it in ACCESS_DEFAULT_POLICY_NAME (matched
+ * case-insensitively); unset means no preselection.
+ */
+function defaultAccessPolicyName(): string | null {
+  return process.env.ACCESS_DEFAULT_POLICY_NAME?.trim().toLowerCase() || null;
+}
 const REPO_SEARCH_LIMIT = 50;
 
 // The unique-index races of a create (and the same checks seen just before
@@ -212,7 +218,7 @@ async function takenDatabaseNames(
 
 /**
  * The copy source's Access policy when the caller may use it, else the one
- * named DEFAULT_ACCESS_POLICY_NAME; null when neither is there or the
+ * named by defaultAccessPolicyName(); null when neither is there or the
  * Cloudflare account cannot be read (the resolver then asks for one).
  */
 async function defaultAccessPolicy(
@@ -221,11 +227,12 @@ async function defaultAccessPolicy(
 ): Promise<string | null> {
   try {
     const policies = await listProjectAccessPolicies(projectId);
+    const defaultName = defaultAccessPolicyName();
     return (
       policies.find((p) => p.id === sourcePolicyId)?.id ??
-      policies.find(
-        (p) => p.name.toLowerCase() === DEFAULT_ACCESS_POLICY_NAME.toLowerCase()
-      )?.id ??
+      (defaultName
+        ? policies.find((p) => p.name.toLowerCase() === defaultName)?.id
+        : undefined) ??
       null
     );
   } catch (error) {

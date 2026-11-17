@@ -15,6 +15,7 @@ const MANAGED: string[] = [
   "BETTER_AUTH_URL",
   "APP_TIMEZONE",
   "BRAND",
+  "ACCESS_DEFAULT_POLICY_NAME",
   "MICROSOFT_CLIENT_ID",
   "MICROSOFT_CLIENT_SECRET",
   "MICROSOFT_TENANT_ID",
@@ -163,6 +164,13 @@ describe("validateEnv", () => {
       expect(() => validateEnv()).not.toThrow();
       expect(warnings.filter((w) => w.includes("BRAND"))).toEqual([]);
     }
+  });
+
+  it("accepts a default Access policy name and rejects a blank one", () => {
+    setEnv({ ...validCore(), ACCESS_DEFAULT_POLICY_NAME: "Example Internal" });
+    expect(() => validateEnv()).not.toThrow();
+    setEnv({ ...validCore(), ACCESS_DEFAULT_POLICY_NAME: "   " });
+    expect(() => validateEnv()).toThrow(/ACCESS_DEFAULT_POLICY_NAME/);
   });
 
   it("requires BETTER_AUTH_SECRET only in production", () => {

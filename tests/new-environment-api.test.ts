@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The New environment API (server/services/new-environment) without a
 // database: the context it reads, the order of its writes, and how it maps
@@ -171,7 +171,7 @@ vi.mock("@/server/services/environment-domains", async (importOriginal) => ({
   >()),
   listProjectAccessPolicies: vi.fn(async () => [
     { id: "pol-other", name: "Contractors" },
-    { id: "pol-internal", name: "Internal staff" },
+    { id: "pol-internal", name: "Example Internal" },
   ]),
 }));
 
@@ -291,7 +291,13 @@ const emptyPreview = {
   slug: "dev",
 };
 
+afterEach(() => {
+  delete process.env.ACCESS_DEFAULT_POLICY_NAME;
+});
+
 beforeEach(() => {
+  // The instance names its default Access policy; matched case-insensitively.
+  process.env.ACCESS_DEFAULT_POLICY_NAME = "example internal";
   state.projectRole = "engineer";
   state.orgRole = "engineer";
   state.rows = {
@@ -792,6 +798,16 @@ describe("POST /api/setup/new-environment/preview", () => {
     expect(body.plan.summary.databaseName).toBe("cnry_dev2");
     expect(body.plan.setup.targets).toMatchObject([
       { componentKey: "hris", sourceBranch: "main" },
+    ]);
+  });
+
+  it("preselects no Access policy when the instance names none", async () => {
+    delete process.env.ACCESS_DEFAULT_POLICY_NAME;
+    const res = await post("/api/setup/new-environment/preview", freshInput);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.plan.issues).toEqual([
+      { field: "domain.accessPolicyId", code: "required" },
     ]);
   });
 

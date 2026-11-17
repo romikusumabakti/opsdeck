@@ -206,6 +206,14 @@ function collectFindings(): Finding[] {
     });
   }
 
+  // The Cloudflare Access policy the New environment wizard preselects, by
+  // name. Unset is a supported state: no policy is preselected.
+  checkOptional(
+    "ACCESS_DEFAULT_POLICY_NAME",
+    z.string().trim().min(1, "must not be blank").max(200),
+    findings
+  );
+
   checkGroup(
     "Microsoft sign-in",
     {
