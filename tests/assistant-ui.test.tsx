@@ -1238,6 +1238,20 @@ describe("composer files", () => {
     />
   );
 
+  it("a click on blank space in the file chips area focuses the textarea, not the file input", async () => {
+    api.uploadFile.mockReturnValue(new Promise(() => {}));
+    await render(composer());
+    await dropOn(container.firstElementChild as Element, [file("shot.png")]);
+    const addon = container.querySelector<HTMLElement>(
+      '[data-align="block-start"]'
+    );
+    if (!addon) throw new Error("no chips addon");
+    const box = container.querySelector("textarea");
+    box?.blur();
+    await act(async () => addon.click());
+    expect(document.activeElement).toBe(box);
+  });
+
   it("a drop shows a chip per file with its progress, and the send carries the uploads", async () => {
     let finish: (value: unknown) => void = () => {};
     api.uploadFile.mockImplementation(

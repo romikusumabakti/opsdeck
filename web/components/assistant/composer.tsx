@@ -89,6 +89,11 @@ export function Composer({
   const [error, setError] = React.useState<string | null>(null);
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  // An addon focuses its first `input` on a click, which here is the hidden
+  // file input; empty space in an addon focuses the text instead.
+  const focusTextOnBlank = (e: React.MouseEvent<HTMLElement>) => {
+    if (e.target === e.currentTarget) textareaRef.current?.focus();
+  };
   const fileInput = React.useRef<HTMLInputElement>(null);
   const uploads = useFileUploads();
   // Files can be added while an answer runs, for the next question; past
@@ -162,7 +167,11 @@ export function Composer({
       )}
       <InputGroup className="rounded-2xl">
         {hasAttached && (
-          <InputGroupAddon align="block-start" className="flex-col items-start">
+          <InputGroupAddon
+            align="block-start"
+            className="flex-col items-start"
+            onClick={focusTextOnBlank}
+          >
             {attachments.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 <ul className="flex flex-wrap gap-1.5">
@@ -228,11 +237,7 @@ export function Composer({
         />
         <InputGroupAddon
           align="block-end"
-          // The addon focuses its first `input` on a click, which here is the
-          // hidden file input; empty space in the toolbar focuses the text.
-          onClick={(e) => {
-            if (e.target === e.currentTarget) textareaRef.current?.focus();
-          }}
+          onClick={focusTextOnBlank}
         >
           <DropdownMenu>
             <TooltipHint label={t("attach")}>
