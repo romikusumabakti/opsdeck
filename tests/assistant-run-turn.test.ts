@@ -46,9 +46,12 @@ const state = vi.hoisted(() => ({
     resultMeta: Record<string, unknown>;
   }>,
   recordToolCallFails: false,
+  /** The message (its chat) was deleted: every write finds no row. */
+  gone: false,
   /** Writes of a non-empty source list that fail before one succeeds. */
   sourceWriteFailures: 0,
   usage: [] as Array<Record<string, unknown>>,
+  finishes: 0,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -69,10 +72,13 @@ vi.mock("@/lib/assistant/turn-store", () => ({
     return true;
   }),
   saveContent: vi.fn(async (_id: string, content: string) => {
+    if (state.gone) return false;
     state.contentWrites.push(content);
     state.message.content = content;
+    return true;
   }),
   saveSources: vi.fn(async (_id: string, sources: unknown) => {
+    if (state.gone) return false;
     if (
       Array.isArray(sources) &&
       sources.length > 0 &&
@@ -82,13 +88,16 @@ vi.mock("@/lib/assistant/turn-store", () => ({
       throw new Error("db blip");
     }
     state.message.sources = sources;
+    return true;
   }),
   finishMessage: vi.fn(
     async (
       _id: string,
       outcome: { status: string; content: string; errorCode?: string }
     ) => {
+      state.finishes += 1;
       // Like the real WHERE status = 'streaming': first terminal write wins.
+      if (state.gone) return;
       if (state.message.status !== "streaming") return;
       state.message.status = outcome.status;
       state.message.content = outcome.content;
@@ -103,7 +112,9 @@ vi.mock("@/lib/assistant/turn-store", () => ({
       resultMeta: Record<string, unknown>
     ) => {
       if (state.recordToolCallFails) throw new Error("db down");
+      if (state.gone) return false;
       state.toolCalls.push({ tool, input, resultMeta });
+      return true;
     }
   ),
 }));
@@ -445,8 +456,10 @@ beforeEach(() => {
   state.contentWrites = [];
   state.toolCalls = [];
   state.recordToolCallFails = false;
+  state.gone = false;
   state.sourceWriteFailures = 0;
   state.usage = [];
+  state.finishes = 0;
 });
 
 // One response's cost at PRICES.
@@ -926,6 +939,58 @@ describe("runTurn", () => {
         args.some((a) => a instanceof Error && a.message === "db down")
       )
     ).toBe(true);
+    error.mockRestore();
+  });
+
+  it("stops quietly, without a request, when the chat was deleted before the turn started writing", async () => {
+    state.gone = true;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model, calls } = mockModel([{ text: ["never"], finish: "stop" }]);
+    await runTurn(MESSAGE_ID, deps(model));
+    expect(calls).toHaveLength(0);
+    expect(state.finishes).toBe(0);
+    expect(state.usage).toHaveLength(0);
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("stops quietly when the chat is deleted while a tool runs: no more requests, writes or errors", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model, calls } = mockModel([
+      toolStep(1),
+      { text: ["never sent"], finish: "stop" },
+    ]);
+    const executeTool = vi.fn(async () => {
+      // The user deletes the chat while the tool runs.
+      state.gone = true;
+      return { ok: true as const, data: { files: [] }, meta: { paths: [] } };
+    });
+    await runTurn(MESSAGE_ID, deps(model, { executeTool }));
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
+    expect(state.toolCalls).toHaveLength(0);
+    expect(state.finishes).toBe(0);
+    // The request already made is still metered (cost history).
+    expect(state.usage).toHaveLength(1);
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("stops quietly when the chat is deleted while the answer streams", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model, calls } = mockModel([
+      { text: ["Iuran ", "dihitung ", "per bulan"], finish: "stop" },
+    ]);
+    const { saveContent } = await import("@/lib/assistant/turn-store");
+    vi.mocked(saveContent).mockImplementationOnce(async () => {
+      state.gone = true;
+      return false;
+    });
+    await runTurn(MESSAGE_ID, deps(model));
+    expect(calls).toHaveLength(1);
+    expect(state.finishes).toBe(0);
+    expect(state.contentWrites).toEqual([]);
+    expect(error).not.toHaveBeenCalled();
     error.mockRestore();
   });
 

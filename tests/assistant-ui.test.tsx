@@ -21,6 +21,8 @@ const api = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   createConversation: vi.fn(),
   generateDraft: vi.fn(),
+  renameConversation: vi.fn(),
+  deleteConversation: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 // A test's own get-conversation result (e.g. a 404); default: never settles.
@@ -1764,14 +1766,134 @@ describe("context picker", () => {
     ]);
   });
 
-  it("New conversation goes back to Automatic", async () => {
+  it("New chat goes back to Automatic", async () => {
     await renderWorkspace({
       conversationId: CONV_ID,
       initialContext: { kind: "project", projectId: "p1" },
     });
     expect(chip()?.textContent).toBe("Heron Membership");
-    await act(async () => button(t.newConversation)?.click());
+    await act(async () => button(t.newChat)?.click());
     expect(chip()?.textContent).toBe(t.contextAuto);
+  });
+
+  const openChatMenu = async (title: string) => {
+    const row = [...document.querySelectorAll("nav li")].find((li) =>
+      li.textContent?.includes(title)
+    );
+    const trigger = row?.querySelector<HTMLButtonElement>(
+      `button[aria-label="${t.chatActions}"]`
+    );
+    if (!trigger) throw new Error("no chat menu");
+    await act(async () => trigger.click());
+    await settle();
+  };
+  const menuItem = (label: string) =>
+    [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+      (el) => el.textContent?.trim() === label
+    );
+  const titleField = () =>
+    container.querySelector<HTMLInputElement>(
+      `input[aria-label="${t.chatTitle}"]`
+    );
+  const typeTitle = async (value: string, key: string) => {
+    const field = titleField();
+    if (!field) throw new Error("no title field");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(field, value);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    });
+    await settle();
+  };
+
+  it("renames a chat in place: Enter saves, Escape cancels", async () => {
+    api.renameConversation.mockResolvedValue({ id: CONV_ID });
+    await renderWorkspace();
+    await openChatMenu("Iuran");
+    await act(async () => menuItem(t.renameChat)?.click());
+    await settle();
+    expect(titleField()?.value).toBe("Iuran");
+    await typeTitle("Ditolak", "Escape");
+    expect(titleField()).toBeNull();
+    expect(api.renameConversation).not.toHaveBeenCalled();
+
+    await openChatMenu("Iuran");
+    await act(async () => menuItem(t.renameChat)?.click());
+    await settle();
+    await typeTitle("  Iuran   tambahan ", "Enter");
+    expect(titleField()).toBeNull();
+    expect(api.renameConversation).toHaveBeenCalledWith({
+      conversationId: CONV_ID,
+      title: "Iuran tambahan",
+    });
+  });
+
+  it("deletes the open chat after a confirmation and returns to a new chat", async () => {
+    api.deleteConversation.mockResolvedValue({ id: CONV_ID });
+    const onConversationChange = vi.fn();
+    await renderWorkspace({ conversationId: CONV_ID, onConversationChange }, [
+      userMessage("u1", contextOf("user", null, null)),
+      answer,
+    ]);
+    expect(button(t.newDraft)).toBeDefined();
+    await openChatMenu("Iuran");
+    await act(async () => menuItem(t.deleteChat)?.click());
+    await settle();
+    const dialog = document.querySelector('[role="alertdialog"]');
+    expect(dialog?.textContent).toContain(t.deleteChatConfirm);
+    expect(dialog?.textContent).toContain("“Iuran”");
+    expect(api.deleteConversation).not.toHaveBeenCalled();
+    const confirm = [...(dialog?.querySelectorAll("button") ?? [])].find(
+      (b) => b.textContent?.trim() === t.deleteChat
+    );
+    await act(async () => confirm?.click());
+    await settle();
+    expect(api.deleteConversation).toHaveBeenCalledWith(CONV_ID);
+    expect(onConversationChange).toHaveBeenLastCalledWith(null);
+    expect(button(t.newDraft)).toBeUndefined();
+    expect(text()).toContain(t.emptyThreadTitle);
+    expect(
+      queryClient.getQueryData(["assistant", "getConversation", [CONV_ID]])
+    ).toBeUndefined();
+  });
+
+  it("deleting another chat keeps the open one", async () => {
+    api.deleteConversation.mockResolvedValue({ id: "c2" });
+    const onConversationChange = vi.fn();
+    await renderWorkspace(
+      { conversationId: CONV_ID, onConversationChange },
+      [userMessage("u1", contextOf("user", null, null)), answer],
+      [
+        {
+          id: CONV_ID,
+          title: "Iuran",
+          updatedAt: "2026-11-16T01:00:00Z",
+          lastContextLabel: null,
+        },
+        {
+          id: "c2",
+          title: "Tagihan",
+          updatedAt: "2026-11-16T00:00:00Z",
+          lastContextLabel: null,
+        },
+      ]
+    );
+    await openChatMenu("Tagihan");
+    await act(async () => menuItem(t.deleteChat)?.click());
+    await settle();
+    const confirm = [
+      ...document.querySelectorAll<HTMLButtonElement>(
+        '[role="alertdialog"] button'
+      ),
+    ].find((b) => b.textContent?.trim() === t.deleteChat);
+    await act(async () => confirm?.click());
+    await settle();
+    expect(api.deleteConversation).toHaveBeenCalledWith("c2");
+    expect(onConversationChange).not.toHaveBeenCalled();
+    expect(button(t.newDraft)).toBeDefined();
   });
 
   it("the conversation list shows each conversation's last context", async () => {
@@ -2077,5 +2199,33 @@ describe("assistant messages", () => {
     }
     expect(used).toBeGreaterThan(20);
     expect(missing).toEqual([]);
+  });
+});
+
+describe("wording", () => {
+  it("calls them chats and the feature the Assistant, in every locale's assistant copy", () => {
+    const banned: Record<string, RegExp> = {
+      en: /conversation|code assistant/i,
+      id: /percakapan|asisten kode/i,
+      es: /conversaci|asistente de código/i,
+      ar: /محادث|مساعد الشيفرة/,
+      zh: /对话|代码助手/,
+    };
+    for (const locale of locales) {
+      const all = JSON.parse(
+        readFileSync(`messages/${locale}.json`, "utf8")
+      ) as Record<string, Record<string, unknown>>;
+      const copy = JSON.stringify([
+        all.assistant,
+        all.assistantSettings,
+        all.assistantErrors,
+        all.homePage?.askRecent,
+      ]);
+      expect(copy, locale).not.toMatch(banned[locale] as RegExp);
+    }
+    expect(t.newChat).toBe("New chat");
+    expect(t.chats).toBe("Chats");
+    expect(t.untitled).toBe("New chat");
+    expect(messages.assistantSettings.title).toBe("Assistant");
   });
 });

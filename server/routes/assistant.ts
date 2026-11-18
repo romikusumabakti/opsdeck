@@ -4,8 +4,10 @@ import { uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
   authorizeMessageStream,
+  conversationIdInputSchema,
   createConversation,
   createJiraIssue,
+  deleteConversation,
   draftIdInputSchema,
   generateConversationDraft,
   generateDraftInputSchema,
@@ -14,6 +16,8 @@ import {
   listConversations,
   listDraftProjects,
   listIssueAttachmentsForPicker,
+  renameConversation,
+  renameConversationInputSchema,
   saveDraft,
   saveDraftInputSchema,
   sendMessage,
@@ -28,7 +32,7 @@ import { json, query } from "@/server/validation";
 const STREAM_POLL_INTERVAL_MS = 500;
 const STREAM_MAX_DURATION_MS = 10 * 60 * 1000;
 
-/** The code assistant chat. Each service function authorizes the caller. */
+/** The assistant's chats. Each service function authorizes the caller. */
 export const assistantRouter = sessionRouter()
   .get("/allowance", async (c) => c.json(await getAllowance()))
   // The caller's own conversations, all projects; a new one has no project.
@@ -40,6 +44,21 @@ export const assistantRouter = sessionRouter()
     async (c) =>
       c.json(await getConversation(c.req.valid("query").conversationId))
   )
+  .post(
+    "/rename-conversation",
+    json(renameConversationInputSchema),
+    async (c) => {
+      const { conversationId, title } = c.req.valid("json");
+      await renameConversation(conversationId, title);
+      return c.json({ id: conversationId });
+    }
+  )
+  // With its messages, drafts and files; a running answer stops.
+  .post("/delete-conversation", json(conversationIdInputSchema), async (c) => {
+    const { conversationId } = c.req.valid("json");
+    await deleteConversation(conversationId);
+    return c.json({ id: conversationId });
+  })
   .post("/send-message", json(sendMessageInputSchema), async (c) =>
     c.json(await sendMessage(c.req.valid("json")))
   )

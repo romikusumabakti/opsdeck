@@ -94,8 +94,8 @@ function keyOf(context: QuestionContextInput | null): string {
 }
 
 /**
- * The Assistant: the caller's conversations, the open thread with its
- * question box, and, on demand, the drafts of that conversation. Each
+ * The Assistant: the caller's chats, the open thread with its question box,
+ * and, on demand, the drafts of that chat. Each
  * question asks about the context in the composer's chip: Automatic, a
  * project, or an environment. The chip starts at `initialContext` (else
  * Automatic), and an opened conversation moves it to the context of its last
@@ -305,6 +305,14 @@ export function AssistantWorkspace({
             onNew={() => {
               select(null);
               setPicked(AUTO);
+            }}
+            onDeleted={(id) => {
+              if (created.current === id) created.current = null;
+              // Deleting the open chat returns to a new one (and clears ?c=).
+              if (id !== selectedRef.current) return;
+              select(null);
+              setPicked(AUTO);
+              setDraftsOpen(false);
             }}
           />
         </div>

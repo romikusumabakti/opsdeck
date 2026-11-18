@@ -288,9 +288,19 @@ describe("lookups by client-supplied id check the caller first", () => {
     expect(source).toMatch(
       /async function requireOwnConversation\([\s\S]*?requireAssistantGate\(\)[\s\S]*?conversation\.userId !== session\.user\.id/
     );
-    for (const fn of ["getConversation", "sendMessage"]) {
+    for (const fn of [
+      "getConversation",
+      "sendMessage",
+      "renameConversation",
+      "deleteConversation",
+    ]) {
       expect(body(source, fn)).toMatch(/ownConversation\(/);
     }
+    // The rows go only after the owner check passed.
+    const deletion = body(source, "deleteConversation");
+    expect(deletion.indexOf("ownConversation(")).toBeLessThan(
+      deletion.indexOf("deleteConversationRows(")
+    );
     expect(body(source, "authorizeMessageStream")).toMatch(
       /requireOwnConversation\(/
     );

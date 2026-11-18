@@ -1,8 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import { api, type PostJson } from "@/web/api/client";
+import { api, NO_REFETCH, type PostJson } from "@/web/api/client";
 
-// The code assistant chat. Every call returns plain data, so a refusal
+// The assistant's chats. Every call returns plain data, so a refusal
 // rejects with an ApiError (rule 2 of web/api/client.ts's error contract):
 // a refused send carries `code` (`assistant.busy`, …) and, for the daily cap,
 // `params` `{ resetsAt }`, worded with the `assistantErrors` messages.
@@ -66,6 +66,25 @@ export const listIssueAttachmentsQuery = (
 /** A new conversation (no project); each question then picks its context. */
 export async function createConversation() {
   return parseResponse(routes["create-conversation"].$post());
+}
+
+/** Renames the caller's chat (1..80 characters, one line). */
+export async function renameConversation(input: Body<"rename-conversation">) {
+  return parseResponse(routes["rename-conversation"].$post({ json: input }));
+}
+
+/**
+ * Deletes the caller's chat with its messages, drafts and files. Without the
+ * refetch of every active query: the open chat's read would only come back
+ * 404. The caller drops that read and refreshes the chat lists itself.
+ */
+export async function deleteConversation(conversationId: string) {
+  return parseResponse(
+    routes["delete-conversation"].$post(
+      { json: { conversationId } },
+      NO_REFETCH
+    )
+  );
 }
 
 /**

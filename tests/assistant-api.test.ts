@@ -72,6 +72,8 @@ const store = vi.hoisted(() => ({
     content: Record<string, unknown>;
     issueId: string | null;
   }[],
+  // Uploaded files of a chat, by their storage key.
+  files: [] as { conversationId: string; storageKey: string }[],
   // draft id -> the Jira issue an earlier failed create left unlinked.
   unlinked: {} as Record<
     string,
@@ -211,7 +213,7 @@ vi.mock("@/lib/assistant/tools/context", async (importOriginal) => ({
 }));
 
 vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
-  const { titleFrom } =
+  const { titleFrom, TITLE_MAX_CHARS } =
     await importOriginal<typeof import("@/lib/assistant/conversation-store")>();
   const { contextListLabel, messageContextOf } = await import(
     "@/lib/assistant/context"
@@ -230,6 +232,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
     );
   return {
     titleFrom,
+    TITLE_MAX_CHARS,
     loadAssistantLimits: async () => state.limits,
     findProject: async (id: string) =>
       PROJECT_NAME[id] ? { id, name: PROJECT_NAME[id] } : null,
@@ -376,6 +379,27 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       }
       return { userMessageId: question.id, assistantMessageId: answer.id };
     },
+    updateConversationTitle: async (id: string, title: string) => {
+      const c = store.conversations.find((x) => x.id === id);
+      if (c) c.title = title;
+    },
+    // Like the cascade: messages, their tool calls, drafts and files go.
+    deleteConversationRows: async (id: string) => {
+      const messageIds = new Set(
+        store.messages.filter((m) => m.conversationId === id).map((m) => m.id)
+      );
+      const keys = store.files
+        .filter((f) => f.conversationId === id)
+        .map((f) => f.storageKey);
+      store.conversations = store.conversations.filter((c) => c.id !== id);
+      store.messages = store.messages.filter((m) => m.conversationId !== id);
+      store.toolCalls = store.toolCalls.filter(
+        (t) => !messageIds.has(t.messageId)
+      );
+      store.drafts = store.drafts.filter((d) => d.conversationId !== id);
+      store.files = store.files.filter((f) => f.conversationId !== id);
+      return keys;
+    },
     failQueuedMessage: async (id: string, errorCode: string) => {
       const m = store.messages.find((x) => x.id === id);
       if (m?.status === "queued")
@@ -394,6 +418,9 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
     },
   };
 });
+
+const storage = vi.hoisted(() => ({ deleteObject: vi.fn(async () => {}) }));
+vi.mock("@/lib/storage", () => storage);
 
 const drafting = vi.hoisted(() => ({
   generate: vi.fn(),
@@ -537,6 +564,7 @@ beforeEach(() => {
   store.messages = [];
   store.toolCalls = [];
   store.drafts = [];
+  store.files = [];
   store.unlinked = {};
   state.viewers = [];
   state.jiraPush = { [PROJECT_KMEM]: true };
@@ -1074,6 +1102,124 @@ describe("get-conversation", () => {
         { tool: "read_file", meta: { paths: ["backend/Iuran.java"] } },
       ],
     });
+  });
+});
+
+describe("rename and delete a chat", () => {
+  it("renames the owner's chat, trimmed, without reordering it", async () => {
+    const id = await newConversation();
+    const before = store.conversations[0]?.updatedAt;
+    const res = await post("/rename-conversation", {
+      conversationId: id,
+      title: "  Iuran   tambahan  ",
+    });
+    expect(res.status).toBe(200);
+    expect(store.conversations[0]).toMatchObject({
+      title: "Iuran tambahan",
+      updatedAt: before,
+    });
+  });
+
+  it("refuses an empty title or one longer than 80 characters", async () => {
+    const id = await newConversation();
+    for (const title of ["", "   ", "a".repeat(81), "é".repeat(81)]) {
+      const res = await post("/rename-conversation", {
+        conversationId: id,
+        title,
+      });
+      expect(res.status).toBe(400);
+    }
+    // 80 characters (code points) is the longest.
+    const longest = "😀".repeat(80);
+    expect(
+      (
+        await post("/rename-conversation", {
+          conversationId: id,
+          title: longest,
+        })
+      ).status
+    ).toBe(200);
+    expect(store.conversations[0]?.title).toBe(longest);
+  });
+
+  it("another user's or an unknown chat is 404 on rename and delete, and stays", async () => {
+    as(OTHER);
+    const theirs = await newConversation();
+    await send(theirs);
+    store.files.push({ conversationId: theirs, storageKey: "assistant/x" });
+    for (const user of [QA, ADMIN]) {
+      as(user, user === ADMIN ? "admin" : "qa");
+      for (const id of [theirs, UNKNOWN_ID]) {
+        expect(
+          (
+            await post("/rename-conversation", {
+              conversationId: id,
+              title: "X",
+            })
+          ).status
+        ).toBe(404);
+        expect(
+          (await post("/delete-conversation", { conversationId: id })).status
+        ).toBe(404);
+      }
+    }
+    expect(store.conversations).toHaveLength(1);
+    expect(store.conversations[0]?.title).not.toBe("X");
+    expect(store.messages).toHaveLength(2);
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it("deletes the owner's chat with its messages, drafts and stored files", async () => {
+    const id = await newConversation();
+    const kept = await newConversation();
+    await send(id);
+    store.messages[1]!.status = "done";
+    expect(
+      (await post("/generate-draft", { conversationId: id, kind: "jira" }))
+        .status
+    ).toBe(200);
+    store.files.push(
+      { conversationId: id, storageKey: "assistant/a" },
+      { conversationId: id, storageKey: "assistant/b" },
+      { conversationId: kept, storageKey: "assistant/c" }
+    );
+    const res = await post("/delete-conversation", { conversationId: id });
+    expect(res.status).toBe(200);
+    expect(store.conversations.map((c) => c.id)).toEqual([kept]);
+    expect(store.messages).toEqual([]);
+    expect(store.drafts).toEqual([]);
+    expect(store.files).toEqual([
+      { conversationId: kept, storageKey: "assistant/c" },
+    ]);
+    expect(storage.deleteObject.mock.calls).toEqual([
+      ["assistant/a"],
+      ["assistant/b"],
+    ]);
+    expect((await get(`/get-conversation?conversationId=${id}`)).status).toBe(
+      404
+    );
+  });
+
+  it("keeps the chat deleted when a stored file cannot be removed", async () => {
+    const id = await newConversation();
+    store.files.push({ conversationId: id, storageKey: "assistant/a" });
+    storage.deleteObject.mockRejectedValueOnce(new Error("storage down"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await post("/delete-conversation", { conversationId: id });
+    expect(res.status).toBe(200);
+    expect(store.conversations).toEqual([]);
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("deletes a chat whose answer is still running", async () => {
+    const id = await newConversation();
+    await send(id);
+    expect(store.messages[1]?.status).toBe("queued");
+    expect(
+      (await post("/delete-conversation", { conversationId: id })).status
+    ).toBe(200);
+    expect(store.messages).toEqual([]);
   });
 });
 

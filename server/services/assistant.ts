@@ -18,6 +18,7 @@ import {
   type ConversationOwner,
   type ConversationSummary,
   type CreatedTurn,
+  deleteConversationRows,
   failQueuedMessage,
   findAssistantMessageConversation,
   findConversation,
@@ -28,6 +29,8 @@ import {
   listConversationsOf,
   loadAssistantLimits,
   loadConversationDetail,
+  TITLE_MAX_CHARS,
+  updateConversationTitle,
 } from "@/lib/assistant/conversation-store";
 import {
   type DraftKind,
@@ -66,6 +69,7 @@ import {
 } from "@/lib/authz";
 import { createJiraIssueFromDraft, JiraCreateError } from "@/lib/jira/create";
 import { canProject } from "@/lib/permissions";
+import { deleteObject } from "@/lib/storage";
 import { uuidSchema } from "@/lib/validation";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
@@ -171,6 +175,57 @@ export async function createConversation(): Promise<{ id: string }> {
   const session = await requireAssistantGate();
   const id = await insertConversation({ userId: session.user.id });
   return { id };
+}
+
+export const renameConversationInputSchema = z.object({
+  conversationId: uuidSchema,
+  // One line, 1..TITLE_MAX_CHARS characters (code points), like a title
+  // taken from the first question.
+  title: z
+    .string()
+    .max(TITLE_MAX_CHARS * 4)
+    .transform((title) => title.trim().replace(/\s+/g, " "))
+    .refine((title) => {
+      const length = Array.from(title).length;
+      return length >= 1 && length <= TITLE_MAX_CHARS;
+    }),
+});
+
+export const conversationIdInputSchema = z.object({
+  conversationId: uuidSchema,
+});
+
+/** Renames the caller's own conversation (`title` validated by the route). */
+export async function renameConversation(
+  conversationId: string,
+  title: string
+): Promise<void> {
+  const { conversation } = await ownConversation(conversationId);
+  await updateConversationTitle(conversation.id, title);
+}
+
+/**
+ * Deletes the caller's own conversation with its messages, drafts and files;
+ * a Jira issue created from a draft stays. A turn still queued or streaming
+ * stops when it next writes (lib/assistant/run-turn.ts). The stored file
+ * objects are removed after the commit: one that cannot be removed is logged
+ * and left behind, never the rows.
+ */
+export async function deleteConversation(
+  conversationId: string
+): Promise<void> {
+  const { conversation } = await ownConversation(conversationId);
+  const keys = await deleteConversationRows(conversation.id);
+  await Promise.all(
+    keys.map((key) =>
+      deleteObject(key).catch((error) => {
+        console.error(
+          `[assistant] could not delete stored file ${key} of a deleted chat:`,
+          error
+        );
+      })
+    )
+  );
 }
 
 /** requireProjectPermission with an invisible-or-forbidden project as 404. */

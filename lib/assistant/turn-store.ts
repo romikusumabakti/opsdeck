@@ -6,6 +6,7 @@ import {
   assistantToolCalls,
   users,
 } from "@/lib/db/schema";
+import { pgErrorCode } from "@/lib/domains/errors";
 import { contextFromRow, type StoredQuestionContext } from "./context";
 import type { AssistantSource } from "./sources";
 
@@ -13,7 +14,8 @@ import type { AssistantSource } from "./sources";
  * The Postgres side of one assistant turn (lib/assistant/run-turn.ts): load
  * the message and its conversation, move it through its statuses, and record
  * tool calls. Kept apart from the loop so the loop is testable without a
- * database.
+ * database. The user may delete the chat mid-turn: the writes then report
+ * the message as gone (false) instead of throwing, and the loop stops.
  */
 
 export type TurnHistoryMessage = {
@@ -127,24 +129,30 @@ export async function claimMessage(messageId: string): Promise<boolean> {
   return claimed.length > 0;
 }
 
+/** False when the message is gone (its chat was deleted). */
 export async function saveContent(
   messageId: string,
   content: string
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const saved = await db
     .update(assistantMessages)
     .set({ content })
-    .where(eq(assistantMessages.id, messageId));
+    .where(eq(assistantMessages.id, messageId))
+    .returning({ id: assistantMessages.id });
+  return saved.length > 0;
 }
 
+/** False when the message is gone (its chat was deleted). */
 export async function saveSources(
   messageId: string,
   sources: AssistantSource[]
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const saved = await db
     .update(assistantMessages)
     .set({ sources })
-    .where(eq(assistantMessages.id, messageId));
+    .where(eq(assistantMessages.id, messageId))
+    .returning({ id: assistantMessages.id });
+  return saved.length > 0;
 }
 
 /** streaming → done | failed. A no-op once the message is terminal. */
@@ -173,15 +181,25 @@ export async function finishMessage(
     );
 }
 
+/**
+ * False (nothing written) when the message is gone: its chat was deleted,
+ * and the foreign key refuses an orphan row.
+ */
 export async function recordToolCall(
   messageId: string,
   tool: string,
   input: Record<string, unknown>,
   resultMeta: Record<string, unknown>
-): Promise<void> {
-  await db
-    .insert(assistantToolCalls)
-    .values({ messageId, tool, input, resultMeta });
+): Promise<boolean> {
+  try {
+    await db
+      .insert(assistantToolCalls)
+      .values({ messageId, tool, input, resultMeta });
+    return true;
+  } catch (error) {
+    if (pgErrorCode(error) === "23503") return false;
+    throw error;
+  }
 }
 
 /** A turn cannot legitimately stay queued or streaming this long. */

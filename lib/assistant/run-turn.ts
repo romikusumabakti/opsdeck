@@ -163,6 +163,25 @@ const NO_TOOL_SUPPORT =
   /does not support (tools|tool use|tool calling|function calling)|(tools?|tool use|tool calling|function calling) (are|is) not supported/i;
 
 /**
+ * Set once a write finds the answer gone: the user deleted its chat mid-turn.
+ * Aborts the model request; the turn then ends without another write, error
+ * or log (usage already spent is still recorded, without the message).
+ */
+class TurnStop {
+  readonly controller = new AbortController();
+  gone = false;
+
+  /** Passes `found` through; false marks the turn gone. */
+  check(found: boolean): boolean {
+    if (!found && !this.gone) {
+      this.gone = true;
+      this.controller.abort();
+    }
+    return found;
+  }
+}
+
+/**
  * Where the error happened. Only a draft asks for structured output, so only
  * there does a structured-output error mean the model cannot write drafts.
  */
@@ -466,7 +485,8 @@ async function mapLimit<T, R>(
 function projectAccess(
   messageId: string,
   projects: ProjectEntry[],
-  deps: SourceDeps
+  deps: SourceDeps,
+  stop: TurnStop
 ): Pick<
   Extract<ToolContext, { mode: "auto" }>,
   "snapshotsFor" | "listProjects"
@@ -500,7 +520,7 @@ function projectAccess(
       .catch(() => {})
       .then(async () => {
         const next = [...opened, ...tagged];
-        await saveSources(messageId, next);
+        stop.check(await saveSources(messageId, next));
         opened = next;
       });
     saving = write;
@@ -540,7 +560,8 @@ class ContentWriter {
 
   constructor(
     private readonly messageId: string,
-    private readonly now: () => Date
+    private readonly now: () => Date,
+    private readonly stop: TurnStop
   ) {}
 
   get text(): string {
@@ -550,9 +571,14 @@ class ContentWriter {
   private save(snapshot: string): void {
     // Writes are chained so an older snapshot never lands after a newer one.
     this.pending = this.pending.then(() =>
-      saveContent(this.messageId, snapshot).catch((error) => {
-        console.error("[assistant] failed to save streamed content", error);
-      })
+      saveContent(this.messageId, snapshot).then(
+        (found) => {
+          this.stop.check(found);
+        },
+        (error) => {
+          console.error("[assistant] failed to save streamed content", error);
+        }
+      )
     );
   }
 
@@ -614,21 +640,26 @@ export async function runTurn(
   }
   if (turn.status !== "queued" || !(await claimMessage(messageId))) return;
 
-  const writer = new ContentWriter(messageId, now);
+  const stop = new TurnStop();
+  const writer = new ContentWriter(messageId, now, stop);
   try {
-    await runClaimedTurn(turn, writer, deps, now);
+    await runClaimedTurn(turn, writer, deps, now, stop);
     await writer.settle();
+    // Deleted mid-turn: nothing left to finish.
+    if (stop.gone) return;
     await finishMessage(
       messageId,
       { status: "done", content: writer.text },
       now()
     );
   } catch (error) {
+    await writer.settle();
+    // An error after the chat was deleted comes from the abort.
+    if (stop.gone) return;
     const code = classifyError(error);
     if (code === "assistant.failed") {
       console.error(`[assistant] turn ${messageId} failed`, error);
     }
-    await writer.settle();
     await finishMessage(
       messageId,
       { status: "failed", content: writer.text, errorCode: code },
@@ -734,7 +765,8 @@ async function runClaimedTurn(
   turn: TurnContext,
   writer: ContentWriter,
   deps: RunTurnDeps,
-  now: () => Date
+  now: () => Date,
+  stop: TurnStop
 ): Promise<void> {
   const runtime = await loadRuntimeOrFail(deps);
   const spentToday = deps.spentToday ?? spentTodayUsd;
@@ -757,7 +789,13 @@ async function runClaimedTurn(
   const resolved = await resolveSnapshots(turn, viewer, sourceDeps);
   // Stored without the turn-only unavailableReason. An automatic question
   // starts empty; the projects it opens are added as it reads them.
-  await saveSources(turn.messageId, resolved.prompt.map(storedSource));
+  if (
+    !stop.check(
+      await saveSources(turn.messageId, resolved.prompt.map(storedSource))
+    )
+  ) {
+    return;
+  }
 
   // Prompt-cache breakpoints, for the providers that need them: the stable
   // system message, the last tool definition, and the growing conversation
@@ -784,7 +822,7 @@ async function runClaimedTurn(
           mode: "auto",
           viewer,
           attachments,
-          ...projectAccess(turn.messageId, resolved.projects, sourceDeps),
+          ...projectAccess(turn.messageId, resolved.projects, sourceDeps, stop),
         }
       : { mode: "pinned", snaps: resolved.snaps, viewer, attachments };
   // Set by prepareStep for the step about to run.
@@ -793,7 +831,7 @@ async function runClaimedTurn(
   let stepMetered = false;
   // A tool call that could not be audited ends the turn.
   let auditError: unknown;
-  const abort = new AbortController();
+  const abort = stop.controller;
   const audit = (
     tool: string,
     input: unknown,
@@ -811,8 +849,9 @@ async function runClaimedTurn(
   const tools = buildTools(
     toolContext,
     async (call) => {
+      let recorded: boolean;
       try {
-        await audit(call.tool, call.input, call.resultMeta);
+        recorded = await audit(call.tool, call.input, call.resultMeta);
       } catch (error) {
         console.error("[assistant] failed to audit a tool call", error);
         auditError ??= error;
@@ -821,6 +860,8 @@ async function runClaimedTurn(
         // internal text in it.
         throw new Error("audit failed");
       }
+      // The chat was deleted: the turn stops (stop.gone).
+      if (!stop.check(recorded)) throw new Error("turn stopped");
     },
     { execute: deps.executeTool, lastToolProviderOptions: cache }
   );
@@ -897,7 +938,7 @@ async function runClaimedTurn(
       // never reach execute; audited here, with no result.
       for (const call of step.toolCalls) {
         if (call.invalid)
-          await audit(call.toolName, call.input, { invalid: true });
+          stop.check(await audit(call.toolName, call.input, { invalid: true }));
       }
     },
     // Errors are read from the stream below; the default logs them.
@@ -919,6 +960,7 @@ async function runClaimedTurn(
         break;
     }
   }
+  if (stop.gone) return;
   if (auditError) throw auditError;
   if (ToolChoiceViolationError.isInstance(streamError)) {
     // Asked for tools on the final (tool choice none) step; the SDK runs none.

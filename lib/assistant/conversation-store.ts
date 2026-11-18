@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   assistantConversations,
   assistantDrafts,
+  assistantFiles,
   assistantMessages,
   assistantToolCalls,
   environments,
@@ -179,6 +180,56 @@ export async function findConversation(
     .where(eq(assistantConversations.id, conversationId))
     .limit(1);
   return row ?? null;
+}
+
+/** Sets the title the user chose; updated_at stays, so the list keeps its order. */
+export async function updateConversationTitle(
+  conversationId: string,
+  title: string
+): Promise<void> {
+  await db
+    .update(assistantConversations)
+    .set({ title })
+    .where(eq(assistantConversations.id, conversationId));
+}
+
+/**
+ * Deletes a conversation in one transaction: its messages, tool calls,
+ * drafts and files go with it (ON DELETE CASCADE); usage rows stay, their
+ * message nulled. Returns the storage keys of the deleted files, for the
+ * caller to remove after the commit. The row is locked first, so a question
+ * or a file attached meanwhile waits and then finds the chat gone.
+ */
+export async function deleteConversationRows(
+  conversationId: string
+): Promise<string[]> {
+  return db.transaction(async (tx) => {
+    const [conversation] = await tx
+      .select({ id: assistantConversations.id })
+      .from(assistantConversations)
+      .where(eq(assistantConversations.id, conversationId))
+      .for("update");
+    if (!conversation) return [];
+    const files = await tx
+      .delete(assistantFiles)
+      .where(
+        or(
+          eq(assistantFiles.conversationId, conversationId),
+          inArray(
+            assistantFiles.messageId,
+            tx
+              .select({ id: assistantMessages.id })
+              .from(assistantMessages)
+              .where(eq(assistantMessages.conversationId, conversationId))
+          )
+        )
+      )
+      .returning({ storageKey: assistantFiles.storageKey });
+    await tx
+      .delete(assistantConversations)
+      .where(eq(assistantConversations.id, conversationId));
+    return files.map((f) => f.storageKey);
+  });
 }
 
 /** The conversation an assistant message belongs to. */

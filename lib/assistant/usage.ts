@@ -1,6 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { assistantUsage } from "@/lib/db/schema";
+import { pgErrorCode } from "@/lib/domains/errors";
 import { APP_TIMEZONE } from "@/lib/timezone";
 import { costUsd, type TokenUsage } from "./pricing";
 import type { Prices } from "./providers";
@@ -55,7 +56,8 @@ export function quotaDayResetsAt(now: Date = new Date()): Date {
 /**
  * Records one model response's usage, priced at the configured `prices`, and
  * returns its cost in USD. `estimated` marks tokens estimated because the
- * provider reported none.
+ * provider reported none. A message deleted meanwhile (its chat was) is
+ * recorded as none, so the spend stays in the day's total and cost history.
  */
 export async function recordUsage(params: {
   messageId: string | null;
@@ -68,7 +70,7 @@ export async function recordUsage(params: {
   now?: Date;
 }): Promise<number> {
   const cost = costUsd(params.prices, params.usage);
-  await db.insert(assistantUsage).values({
+  const row = {
     messageId: params.messageId,
     userId: params.userId,
     model: params.modelId,
@@ -79,7 +81,14 @@ export async function recordUsage(params: {
     costUsd: cost.toFixed(6),
     estimated: params.estimated,
     day: quotaDay(params.now),
-  });
+  };
+  try {
+    await db.insert(assistantUsage).values(row);
+  } catch (error) {
+    // The message's chat was deleted mid-turn: the spend still counts.
+    if (!(row.messageId && pgErrorCode(error) === "23503")) throw error;
+    await db.insert(assistantUsage).values({ ...row, messageId: null });
+  }
   return cost;
 }
 

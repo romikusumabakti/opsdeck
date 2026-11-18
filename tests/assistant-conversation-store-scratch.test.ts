@@ -445,5 +445,165 @@ describe.skipIf(!enabled)(
       });
       expect(await store.readStreamSnapshot(conversationId)).toBeNull();
     });
+
+    it("renames a chat and deletes it with its rows, keeping usage and other chats", async () => {
+      const d = drizzle({ client });
+      const store = await import("@/lib/assistant/conversation-store");
+      const turns = await import("@/lib/assistant/turn-store");
+      const { recordUsage } = await import("@/lib/assistant/usage");
+      const user = one(
+        await d
+          .insert(schema.users)
+          .values({
+            id: "00000000-0000-7000-8000-00000000c009",
+            name: "Rina",
+            email: "rina@example.com",
+            role: "qa",
+          })
+          .returning()
+      );
+      const doomed = await store.insertConversation({ userId: user.id });
+      const kept = await store.insertConversation({ userId: user.id });
+      const turn = await store.insertTurn({
+        conversationId: doomed,
+        text: "Bagaimana iuran dihitung?",
+        attachmentIds: [],
+        context: { kind: "auto" },
+      });
+      if (typeof turn === "string") throw new Error(turn);
+      const keptTurn = await store.insertTurn({
+        conversationId: kept,
+        text: "Lain",
+        attachmentIds: [],
+        context: { kind: "auto" },
+      });
+      if (typeof keptTurn === "string") throw new Error(keptTurn);
+
+      const [before] =
+        await client`select updated_at from assistant_conversations where id = ${doomed}`;
+      await store.updateConversationTitle(doomed, "Iuran tambahan");
+      const [renamed] =
+        await client`select title, updated_at from assistant_conversations where id = ${doomed}`;
+      expect(renamed?.title).toBe("Iuran tambahan");
+      expect(renamed?.updated_at).toEqual(before?.updated_at);
+
+      await turns.recordToolCall(turn.assistantMessageId, "list_files", {}, {});
+      const prices = { input: 1, output: 1, cacheRead: 1, cacheWrite: 1 };
+      const usage = { input: 10, output: 10, cacheRead: 0, cacheWrite: 0 };
+      await recordUsage({
+        messageId: turn.assistantMessageId,
+        userId: user.id,
+        modelId: "acme-max",
+        prices,
+        usage,
+        estimated: false,
+      });
+      await d.insert(schema.assistantDrafts).values({
+        conversationId: doomed,
+        kind: "brd",
+        content: { title: "T", sections: [] },
+      });
+      await d.insert(schema.assistantFiles).values([
+        // Sent with the question.
+        {
+          userId: user.id,
+          conversationId: doomed,
+          messageId: turn.userMessageId,
+          storageKey: "assistant/u/a",
+          filename: "a.png",
+          mediaType: "image/png",
+          size: 1,
+        },
+        // Tied to a message of the chat only.
+        {
+          userId: user.id,
+          messageId: turn.userMessageId,
+          storageKey: "assistant/u/b",
+          filename: "b.pdf",
+          mediaType: "application/pdf",
+          size: 1,
+        },
+        // Another chat's, and one not sent yet.
+        {
+          userId: user.id,
+          conversationId: kept,
+          storageKey: "assistant/u/c",
+          filename: "c.txt",
+          mediaType: "text/plain",
+          size: 1,
+        },
+        {
+          userId: user.id,
+          storageKey: "assistant/u/d",
+          filename: "d.txt",
+          mediaType: "text/plain",
+          size: 1,
+        },
+      ]);
+
+      const keys = await store.deleteConversationRows(doomed);
+      expect(keys.sort()).toEqual(["assistant/u/a", "assistant/u/b"]);
+      expect(await store.findConversation(doomed)).toBeNull();
+      const count = async (table: string, where = "true") =>
+        Number(
+          one(
+            await client.unsafe(
+              `select count(*)::int as n from ${table} where ${where}`
+            )
+          ).n
+        );
+      expect(
+        await count("assistant_messages", `conversation_id = '${doomed}'`)
+      ).toBe(0);
+      expect(
+        await count(
+          "assistant_tool_calls",
+          `message_id = '${turn.assistantMessageId}'`
+        )
+      ).toBe(0);
+      expect(
+        await count("assistant_drafts", `conversation_id = '${doomed}'`)
+      ).toBe(0);
+      expect(
+        (
+          await client`select storage_key from assistant_files where user_id = ${user.id} order by storage_key`
+        ).map((r) => r.storage_key)
+      ).toEqual(["assistant/u/c", "assistant/u/d"]);
+      // The spend stays, without its message.
+      const spend =
+        await client`select message_id from assistant_usage where user_id = ${user.id}`;
+      expect(spend).toEqual([{ message_id: null }]);
+      expect(await store.findConversation(kept)).not.toBeNull();
+      // Deleting it again is a no-op.
+      expect(await store.deleteConversationRows(doomed)).toEqual([]);
+
+      // A turn writing after the deletion finds its message gone: no rows,
+      // no error; its usage is still recorded, without the message.
+      const answer = turn.assistantMessageId;
+      expect(await turns.saveContent(answer, "late")).toBe(false);
+      expect(await turns.saveSources(answer, [])).toBe(false);
+      expect(await turns.recordToolCall(answer, "list_files", {}, {})).toBe(
+        false
+      );
+      await turns.finishMessage(answer, { status: "done", content: "late" });
+      await recordUsage({
+        messageId: answer,
+        userId: user.id,
+        modelId: "acme-max",
+        prices,
+        usage,
+        estimated: false,
+      });
+      expect(
+        await client`select message_id from assistant_usage where user_id = ${user.id}`
+      ).toEqual([{ message_id: null }, { message_id: null }]);
+      expect(
+        await count("assistant_tool_calls", `message_id = '${answer}'`)
+      ).toBe(0);
+      // The live chat's writes still land.
+      expect(await turns.saveContent(keptTurn.assistantMessageId, "ok")).toBe(
+        true
+      );
+    });
   }
 );
