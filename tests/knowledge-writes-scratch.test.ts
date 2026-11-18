@@ -509,4 +509,260 @@ describe.skipIf(!enabled)("knowledge write cores on Postgres", () => {
       mime: "image/png",
     });
   });
+
+  // The reproduced leak: infra builds a page with a subpage in its own
+  // collection, moves the page to an open collection with the edit form, and a
+  // qa writer then drags the page elsewhere. A page's subpages live in its
+  // collection, so the edit carries the subpage along (infra sees it) and qa's
+  // move never writes a row outside the page's collection.
+  it("keeps a page's subpages in its collection across an edit and a move by another role", async () => {
+    const {
+      createCollectionFor,
+      createDocumentFor,
+      moveDocumentFor,
+      updateDocumentFor,
+    } = await import("@/server/services/knowledge");
+    const runbooks = await createCollectionFor(admin, { name: "Runbooks" });
+    if (!runbooks.success) throw new Error(runbooks.message);
+    const published = new Date().toISOString();
+    const page = await createDocumentFor(infra, {
+      collectionId: ids.infraCol,
+      title: "Edge page",
+      publishedAt: published,
+    });
+    if (!page.success) throw new Error(page.message);
+    const sub = await createDocumentFor(infra, {
+      collectionId: ids.infraCol,
+      parentId: page.data.id,
+      title: "Edge secrets",
+      content: "restricted body",
+      publishedAt: published,
+    });
+    if (!sub.success) throw new Error(sub.message);
+
+    const edited = await updateDocumentFor(infra, page.data.id, {
+      collectionId: ids.guides,
+    });
+    if (!edited.success) throw new Error(edited.message);
+    expect(await docRow(sub.data.id)).toMatchObject({
+      collectionId: ids.guides,
+      parentId: page.data.id,
+    });
+
+    const moved = await moveDocumentFor(qa, {
+      documentId: page.data.id,
+      collectionId: runbooks.data.id,
+      parentId: null,
+      rank: "a0",
+    });
+    expect(moved.success).toBe(true);
+    expect(await docRow(sub.data.id)).toMatchObject({
+      collectionId: runbooks.data.id,
+      parentId: page.data.id,
+    });
+  });
+
+  // Rows written before the invariant may already have a subpage in another
+  // collection than its parent. A move stops at that boundary: the foreign
+  // subpage, and everything below it, is not written, for any actor.
+  it("never re-homes a descendant that sits in another collection than the moved page", async () => {
+    const { createCollectionFor, moveDocumentFor } = await import(
+      "@/server/services/knowledge"
+    );
+    const archive = await createCollectionFor(admin, { name: "Archive" });
+    if (!archive.success) throw new Error(archive.message);
+    const insert = async (
+      slug: string,
+      collectionId: string,
+      parentId: string | null
+    ) =>
+      one(
+        await d
+          .insert(schema.knowledgeDocuments)
+          .values({
+            collectionId,
+            parentId,
+            title: `Title ${slug}`,
+            slug,
+            content: `body of ${slug}`,
+            contentText: `body of ${slug}`,
+            rank: "a0",
+            publishedAt: new Date(),
+            createdById: ADMIN,
+          })
+          .returning()
+      ).id;
+    const parent = await insert("legacy-parent", ids.guides, null);
+    const openChild = await insert("legacy-open-child", ids.guides, parent);
+    const foreign = await insert("legacy-foreign-child", ids.infraCol, parent);
+    const foreignBelow = await insert(
+      "legacy-foreign-below",
+      ids.infraCol,
+      foreign
+    );
+    // An open grandchild below the foreign one is beyond the boundary too.
+    const openBelowForeign = await insert(
+      "legacy-open-below",
+      ids.guides,
+      foreign
+    );
+    const before = {
+      foreign: await docRow(foreign),
+      foreignBelow: await docRow(foreignBelow),
+      openBelowForeign: await docRow(openBelowForeign),
+    };
+
+    for (const actor of [qa, infra]) {
+      const moved = await moveDocumentFor(actor, {
+        documentId: parent,
+        collectionId: actor === qa ? archive.data.id : ids.guides,
+        parentId: null,
+        rank: "a1",
+      });
+      expect(moved.success).toBe(true);
+      expect(await docRow(foreign)).toEqual(before.foreign);
+      expect(await docRow(foreignBelow)).toEqual(before.foreignBelow);
+      expect(await docRow(openBelowForeign)).toEqual(before.openBelowForeign);
+    }
+    // The same-collection child went to Archive with qa's move and back with
+    // infra's.
+    expect((await docRow(openChild)).collectionId).toBe(ids.guides);
+    // A move that keeps a hidden parent from another collection answers like
+    // a hidden parent, not with the refusal that names the collection.
+    const hiddenParent = await insert(
+      "legacy-hidden-parent",
+      ids.infraCol,
+      null
+    );
+    const strayChild = await insert(
+      "legacy-stray-child",
+      ids.guides,
+      hiddenParent
+    );
+    expect(
+      await refusal(
+        moveDocumentFor(qa, {
+          documentId: strayChild,
+          collectionId: archive.data.id,
+          parentId: hiddenParent,
+          rank: "a2",
+        })
+      )
+    ).toEqual(NOT_FOUND);
+    expect((await docRow(strayChild)).collectionId).toBe(ids.guides);
+  });
+
+  it("refuses a parent in another collection than the document's, revealing nothing hidden", async () => {
+    const { createDocumentFor, moveDocumentFor, updateDocumentFor } =
+      await import("@/server/services/knowledge");
+    const other = one(
+      await d
+        .insert(schema.knowledgeCollections)
+        .values({ name: "Elsewhere", rank: "z9", visibleToRoles: [] })
+        .returning()
+    ).id;
+    const elsewhere = await createDocumentFor(qa, {
+      collectionId: other,
+      title: "Elsewhere page",
+      publishedAt: new Date().toISOString(),
+    });
+    if (!elsewhere.success) throw new Error(elsewhere.message);
+    const mismatch = {
+      success: false,
+      message: "The parent document is in another collection",
+    };
+
+    // Create: a visible parent elsewhere is refused; a hidden one stays 404.
+    expect(
+      await createDocumentFor(qa, {
+        collectionId: ids.guides,
+        parentId: elsewhere.data.id,
+        title: "Cross child",
+      })
+    ).toEqual(mismatch);
+    expect(
+      await refusal(
+        createDocumentFor(qa, {
+          collectionId: ids.guides,
+          parentId: ids.hostMap,
+          title: "Cross child",
+        })
+      )
+    ).toEqual(NOT_FOUND);
+    expect(
+      await d
+        .select()
+        .from(schema.knowledgeDocuments)
+        .where(eq(schema.knowledgeDocuments.title, "Cross child"))
+    ).toEqual([]);
+
+    // Update and move: the same refusal, nothing written.
+    const before = await docRow(ids.guide);
+    expect(
+      await updateDocumentFor(qa, ids.guide, { parentId: elsewhere.data.id })
+    ).toEqual(mismatch);
+    expect(
+      await moveDocumentFor(qa, {
+        documentId: ids.guide,
+        collectionId: ids.guides,
+        parentId: elsewhere.data.id,
+        rank: "a0",
+      })
+    ).toEqual(mismatch);
+    expect(await docRow(ids.guide)).toEqual(before);
+
+    // A collection change that leaves the parent behind detaches the document
+    // to the new collection's root instead.
+    const child = await createDocumentFor(qa, {
+      collectionId: other,
+      parentId: elsewhere.data.id,
+      title: "Leaving child",
+    });
+    if (!child.success) throw new Error(child.message);
+    const left = await updateDocumentFor(qa, child.data.id, {
+      collectionId: ids.guides,
+    });
+    if (!left.success) throw new Error(left.message);
+    expect(left.data).toMatchObject({
+      collectionId: ids.guides,
+      parentId: null,
+    });
+  });
+
+  it("validates a requested slug inside the write cores", async () => {
+    const { createDocumentFor, updateDocumentFor } = await import(
+      "@/server/services/knowledge"
+    );
+    const invalid = { success: false, message: "Invalid document slug" };
+    expect(
+      await createDocumentFor(
+        admin,
+        { collectionId: ids.guides, title: "Slug probe" },
+        { slug: "Not A Slug" }
+      )
+    ).toEqual(invalid);
+    expect(
+      await d
+        .select()
+        .from(schema.knowledgeDocuments)
+        .where(eq(schema.knowledgeDocuments.title, "Slug probe"))
+    ).toEqual([]);
+    const before = await docRow(ids.guide);
+    expect(
+      await updateDocumentFor(
+        admin,
+        ids.guide,
+        { content: "x" },
+        { slug: "../x" }
+      )
+    ).toEqual(invalid);
+    expect(await docRow(ids.guide)).toEqual(before);
+    const ok = await createDocumentFor(
+      admin,
+      { collectionId: ids.guides, title: "Slug probe" },
+      { slug: "slug-probe-custom" }
+    );
+    if (!ok.success) throw new Error(ok.message);
+    expect(ok.data.slug).toBe("slug-probe-custom");
+  });
 });

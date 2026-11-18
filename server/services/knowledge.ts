@@ -39,6 +39,7 @@ import {
   documentUpdateSchema,
   knowledgeIdSchema,
   knowledgeSearchSchema,
+  knowledgeSlugSchema,
 } from "@/lib/validation";
 import { badRequest, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
@@ -98,6 +99,23 @@ async function findVisibleDoc(
     .where(and(eq(knowledgeDocuments.id, id), visibleDocs(viewer)))
     .limit(1);
   return row;
+}
+
+// A document's subpages live in its collection: create, update and move refuse
+// a parent from another collection, and a collection change carries the
+// subtree that shares the document's collection. Rows from before this rule
+// may still hold a child in another collection than its parent; writes stop
+// at that boundary and never touch it.
+const PARENT_IN_OTHER_COLLECTION =
+  "The parent document is in another collection";
+
+const INVALID_SLUG = "Invalid document slug";
+
+/** The requested slug when valid, `undefined` when none, `null` when invalid. */
+function requestedSlug(slug: string | undefined): string | undefined | null {
+  if (slug === undefined) return undefined;
+  const parsed = knowledgeSlugSchema.safeParse(slug);
+  return parsed.success ? parsed.data : null;
 }
 
 /**
@@ -331,6 +349,8 @@ export async function createDocumentFor(
   if (!parsed.success) {
     return { success: false, message: "Invalid document data" };
   }
+  const wantedSlug = requestedSlug(options.slug);
+  if (wantedSlug === null) return { success: false, message: INVALID_SLUG };
   const {
     collectionId,
     parentId,
@@ -343,12 +363,19 @@ export async function createDocumentFor(
   const viewer = viewerOf(actor);
   let created: KnowledgeDocument | null = null;
   try {
-    // A collection or parent the actor may not see reads as missing.
+    // A collection or parent the actor may not see reads as missing; a
+    // visible parent must sit in the same collection.
+    const parent = parentId
+      ? await findVisibleDoc(db, viewer, parentId)
+      : undefined;
     const visible =
       (await collectionVisible(db, viewer, collectionId)) &&
-      (!parentId || (await findVisibleDoc(db, viewer, parentId)) !== undefined);
+      (!parentId || parent !== undefined);
+    if (visible && parent && parent.collectionId !== collectionId) {
+      return { success: false, message: PARENT_IN_OTHER_COLLECTION };
+    }
     if (visible) {
-      const slug = await ensureUniqueSlug(options.slug ?? slugify(title));
+      const slug = await ensureUniqueSlug(wantedSlug ?? slugify(title));
       const rank = await appendDocumentRank(collectionId, parentId ?? null);
       created = await db.transaction(async (tx) => {
         const doc = one(
@@ -405,11 +432,14 @@ export async function updateDocumentFor(
   if (!parsed.success) {
     return { success: false, message: "Invalid document data" };
   }
+  const wantedSlug = requestedSlug(options.slug);
+  if (wantedSlug === null) return { success: false, message: INVALID_SLUG };
   const input = parsed.data;
   const viewer = viewerOf(actor);
   let result:
     | { kind: "notfound" }
     | { kind: "stale" }
+    | { kind: "foreignParent" }
     | { kind: "ok"; doc: KnowledgeDocument };
   try {
     result = await db.transaction(async (tx) => {
@@ -426,23 +456,42 @@ export async function updateDocumentFor(
       ) {
         return { kind: "notfound" } as const;
       }
+      const nextCollectionId = input.collectionId ?? existing.collectionId;
+      const collectionChanged = nextCollectionId !== existing.collectionId;
+      // A new parent must be visible and in the document's (next) collection.
+      // The current parent is kept while the collection stays; when the
+      // document leaves it for another collection, the document moves to that
+      // collection's root.
+      let nextParentId = existing.parentId;
       if (
-        input.parentId &&
-        input.parentId !== existing.parentId &&
-        !(await findVisibleDoc(tx, viewer, input.parentId))
+        input.parentId !== undefined &&
+        input.parentId !== existing.parentId
       ) {
-        return { kind: "notfound" } as const;
+        if (input.parentId) {
+          const parent = await findVisibleDoc(tx, viewer, input.parentId);
+          if (!parent) return { kind: "notfound" } as const;
+          if (parent.collectionId !== nextCollectionId) {
+            return { kind: "foreignParent" } as const;
+          }
+        }
+        nextParentId = input.parentId ?? null;
+      } else if (existing.parentId && collectionChanged) {
+        const [parent] = await tx
+          .select({ collectionId: knowledgeDocuments.collectionId })
+          .from(knowledgeDocuments)
+          .where(eq(knowledgeDocuments.id, existing.parentId))
+          .limit(1);
+        if (parent?.collectionId !== nextCollectionId) nextParentId = null;
       }
 
       const nextTitle = input.title ?? existing.title;
       const nextContent = input.content ?? existing.content;
-      const nextCollectionId = input.collectionId ?? existing.collectionId;
 
       // Re-slug only when the title changed; keep stable URLs otherwise. An
       // explicit slug (options) wins over the title's.
       const slug =
-        options.slug !== undefined
-          ? await ensureUniqueSlug(options.slug, id)
+        wantedSlug !== undefined
+          ? await ensureUniqueSlug(wantedSlug, id)
           : input.title && input.title !== existing.title
             ? await ensureUniqueSlug(slugify(nextTitle), id)
             : existing.slug;
@@ -453,11 +502,11 @@ export async function updateDocumentFor(
         content: nextContent,
         contentText: markdownToPlainText(nextContent),
         collectionId: nextCollectionId,
+        parentId: nextParentId,
         version: existing.version + 1,
         updatedById: actor.userId,
         updatedAt: new Date(),
       };
-      if (input.parentId !== undefined) set.parentId = input.parentId ?? null;
       if (input.docType !== undefined) set.docType = input.docType;
       if (input.projectId !== undefined)
         set.projectId = input.projectId ?? null;
@@ -484,6 +533,10 @@ export async function updateDocumentFor(
       );
       if (!doc) return { kind: "stale" } as const;
 
+      if (collectionChanged) {
+        await carrySubtree(tx, id, existing.collectionId, nextCollectionId);
+      }
+
       // Snapshot the PRIOR state now that the write succeeded so history is
       // complete and a restore is possible.
       await tx.insert(knowledgeRevisions).values({
@@ -504,6 +557,9 @@ export async function updateDocumentFor(
   }
 
   if (result.kind === "notfound") notFound();
+  if (result.kind === "foreignParent") {
+    return { success: false, message: PARENT_IN_OTHER_COLLECTION };
+  }
   if (result.kind === "stale") {
     return {
       success: false,
@@ -530,21 +586,33 @@ export async function moveDocumentFor(
   }
   const { documentId, collectionId, parentId, rank } = parsed.data;
   const viewer = viewerOf(actor);
-  let found: boolean;
+  let outcome: "ok" | "notfound" | "foreignParent";
   try {
-    found = await db.transaction(async (tx) => {
+    outcome = await db.transaction(async (tx) => {
       // The moved document, its destination collection and a new parent are
       // all resolved as the actor sees them: a hidden one reads as missing.
+      // The current parent is read as stored (a reorder under it stays
+      // possible); either must sit in the destination collection.
       const existing = await findVisibleDoc(tx, viewer, documentId);
       if (!existing || !(await collectionVisible(tx, viewer, collectionId))) {
-        return false;
+        return "notfound";
       }
-      if (
-        parentId &&
-        parentId !== existing.parentId &&
-        !(await findVisibleDoc(tx, viewer, parentId))
-      ) {
-        return false;
+      if (parentId) {
+        const [parent] =
+          parentId === existing.parentId
+            ? await tx
+                .select({ collectionId: knowledgeDocuments.collectionId })
+                .from(knowledgeDocuments)
+                .where(eq(knowledgeDocuments.id, parentId))
+                .limit(1)
+            : [await findVisibleDoc(tx, viewer, parentId)];
+        if (!parent) return "notfound";
+        if (parent.collectionId !== collectionId) {
+          // Only a parent the actor sees is named in the refusal.
+          return (await findVisibleDoc(tx, viewer, parentId))
+            ? "foreignParent"
+            : "notfound";
+        }
       }
       // Guard against cycles INSIDE the tx so the ancestor walk and the write
       // see one consistent snapshot — a concurrent move can't slip a cycle
@@ -565,16 +633,10 @@ export async function moveDocumentFor(
         })
         .where(eq(knowledgeDocuments.id, documentId));
 
-      // The moved node may carry a subtree. Re-home every descendant into the
-      // same destination collection so root grouping stays consistent.
-      const descendants = await collectDescendants(tx, documentId);
-      if (descendants.length > 0) {
-        await tx
-          .update(knowledgeDocuments)
-          .set({ collectionId })
-          .where(inArray(knowledgeDocuments.id, descendants));
+      if (collectionId !== existing.collectionId) {
+        await carrySubtree(tx, documentId, existing.collectionId, collectionId);
       }
-      return true;
+      return "ok";
     });
   } catch (error) {
     if (error instanceof MoveCycleError) {
@@ -583,7 +645,10 @@ export async function moveDocumentFor(
     console.error(`Failed to move document ${documentId}:`, error);
     return { success: false, message: "Failed to move document" };
   }
-  if (!found) notFound();
+  if (outcome === "notfound") notFound();
+  if (outcome === "foreignParent") {
+    return { success: false, message: PARENT_IN_OTHER_COLLECTION };
+  }
   return { success: true };
 }
 
@@ -592,16 +657,48 @@ export async function moveDocumentFor(
 // rolling the transaction back.
 class MoveCycleError extends Error {}
 
-// Breadth-first collect of every descendant id under `rootId` (exclusive).
-// Bounded by a node cap so a corrupt cycle can't loop forever.
-async function collectDescendants(tx: Tx, rootId: string): Promise<string[]> {
+/**
+ * Moves the subtree under `rootId` (exclusive) from collection `from` to `to`
+ * along with its root. Only descendants in `from` are carried, and the walk
+ * stops at a child in any other collection: a child left there by rows from
+ * before the same-collection rule (possibly one the actor cannot see) is
+ * neither moved nor descended into.
+ */
+async function carrySubtree(
+  tx: Tx,
+  rootId: string,
+  from: string,
+  to: string
+): Promise<void> {
+  const descendants = await collectDescendants(tx, rootId, from);
+  if (descendants.length > 0) {
+    await tx
+      .update(knowledgeDocuments)
+      .set({ collectionId: to })
+      .where(inArray(knowledgeDocuments.id, descendants));
+  }
+}
+
+// Breadth-first collect of every descendant id under `rootId` (exclusive)
+// that sits in `collectionId`, through such descendants only. Bounded by a
+// node cap so a corrupt cycle can't loop forever.
+async function collectDescendants(
+  tx: Tx,
+  rootId: string,
+  collectionId: string
+): Promise<string[]> {
   const seen = new Set<string>();
   let frontier = [rootId];
   for (let i = 0; i < 10_000 && frontier.length > 0; ) {
     const children = await tx
       .select({ id: knowledgeDocuments.id })
       .from(knowledgeDocuments)
-      .where(inArray(knowledgeDocuments.parentId, frontier));
+      .where(
+        and(
+          inArray(knowledgeDocuments.parentId, frontier),
+          eq(knowledgeDocuments.collectionId, collectionId)
+        )
+      );
     frontier = children.map((c) => c.id).filter((id) => !seen.has(id));
     for (const id of frontier) seen.add(id);
     i += frontier.length;
