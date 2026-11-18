@@ -218,7 +218,8 @@ async function render(ui: React.ReactNode) {
 const text = () => document.body.textContent ?? "";
 const button = (label: string) =>
   [...document.querySelectorAll("button")].find(
-    (b) => b.textContent?.trim() === label
+    (b) =>
+      b.textContent?.trim() === label || b.getAttribute("aria-label") === label
   );
 
 const menuItem = (label: string) =>
@@ -329,6 +330,8 @@ describe("daily cap", () => {
   it("the composer explains the limit with the reset time at the cap", async () => {
     await render(
       <Composer
+        running={false}
+        onStop={() => {}}
         context={AUTO}
         onContextChange={() => {}}
         disabled
@@ -351,6 +354,8 @@ describe("daily cap", () => {
     );
     await render(
       <Composer
+        running={false}
+        onStop={() => {}}
         context={AUTO}
         onContextChange={() => {}}
         disabled={false}
@@ -1116,6 +1121,8 @@ describe("composer attachments", () => {
     const onSend = vi.fn().mockResolvedValue(undefined);
     await render(
       <Composer
+        running={false}
+        onStop={() => {}}
         context={AUTO}
         onContextChange={() => {}}
         disabled={false}
@@ -1215,6 +1222,8 @@ describe("composer files", () => {
     readsImages = true
   ) => (
     <Composer
+      running={false}
+      onStop={() => {}}
       context={AUTO}
       onContextChange={() => {}}
       disabled={false}
@@ -1368,6 +1377,8 @@ describe("composer files", () => {
 describe("composer focus and keys", () => {
   const composer = (focusKey: string | null) => (
     <Composer
+      running={false}
+      onStop={() => {}}
       context={AUTO}
       onContextChange={() => {}}
       disabled={false}
@@ -1409,6 +1420,8 @@ describe("composer focus and keys", () => {
     const onSend = vi.fn().mockResolvedValue(undefined);
     await render(
       <Composer
+        running={false}
+        onStop={() => {}}
         context={AUTO}
         onContextChange={() => {}}
         disabled={false}
@@ -2873,5 +2886,46 @@ describe("wording", () => {
     expect(t.chats).toBe("Chats");
     expect(t.untitled).toBe("New chat");
     expect(messages.assistantSettings.title).toBe("Assistant");
+  });
+});
+
+describe("composer container", () => {
+  const props = {
+    context: AUTO,
+    onContextChange: () => {},
+    onSend: vi.fn().mockResolvedValue(undefined),
+    focusKey: "new",
+  };
+
+  it("is one group with attach, context and send inside it", async () => {
+    await render(
+      <Composer {...props} disabled={false} running={false} onStop={() => {}} />
+    );
+    const group = container.querySelector("[data-slot=input-group]");
+    if (!group) throw new Error("no input group");
+    expect(group.contains(container.querySelector("textarea"))).toBe(true);
+    expect(group.contains(button(t.attach) ?? null)).toBe(true);
+    expect(group.contains(button(t.send) ?? null)).toBe(true);
+    expect(group.textContent).toContain("Automatic");
+  });
+
+  it("while running the send button is Stop and calls onStop", async () => {
+    const onStop = vi.fn();
+    await render(<Composer {...props} disabled running onStop={onStop} />);
+    expect(button(t.send)).toBeUndefined();
+    const stop = button(t.stop);
+    expect(stop?.disabled).toBe(false);
+    await act(async () => stop?.click());
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no send hint and shows the disclaimer once under the group", async () => {
+    await render(
+      <Composer {...props} disabled={false} running={false} onStop={() => {}} />
+    );
+    expect(text()).not.toContain("Shift+Enter for a new line");
+    expect(text().split(t.disclaimer).length - 1).toBe(1);
+    const group = container.querySelector("[data-slot=input-group]");
+    expect(group?.textContent).not.toContain(t.disclaimer);
   });
 });

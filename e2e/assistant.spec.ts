@@ -37,18 +37,15 @@ test("an admin enables the assistant and gets a streamed answer", async ({
   });
   expect(((await saved.json()) as { success: boolean }).success).toBe(true);
 
-  await page.goto("/en/projects");
-  await page
-    .getByRole("link", { name: `E2E Assistant ${key}` })
-    .first()
-    .click();
-  await page.getByRole("link", { name: "Assistant" }).first().click();
+  await page.goto("/en/assistant");
 
-  await page.getByPlaceholder("Write a question…").fill("Where is login?");
+  await page
+    .getByPlaceholder("Ask anything — type @ to pick a project")
+    .fill("Where is login?");
   await page.getByRole("button", { name: "Send" }).click();
 
   // Shown under an answer once it has finished streaming.
-  await expect(
-    page.getByText("The model can be wrong — check its sources.")
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible({
+    timeout: 30_000,
+  });
 });

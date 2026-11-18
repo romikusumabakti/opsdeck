@@ -1,4 +1,8 @@
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import {
   Bot,
   ChevronDown,
@@ -8,6 +12,7 @@ import {
   Ticket,
 } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -30,6 +35,7 @@ import {
   getConversationQuery,
   type MessageContext,
   sendMessage,
+  stopAnswer,
 } from "@/web/api/assistant";
 import { ApiError } from "@/web/api/client";
 import { AllowanceBadge, capReached } from "./allowance-badge";
@@ -44,6 +50,7 @@ import {
   DraftPanel,
   useDraftGeneration,
 } from "./draft-panel";
+import { useAssistantErrorText } from "./error-text";
 
 const LARGE = "(min-width: 64rem)"; // Tailwind `lg`
 
@@ -204,6 +211,19 @@ export function AssistantWorkspace({
   }
 
   const busy = pendingAnswer(conversation) !== null;
+  const queryClient = useQueryClient();
+  const { errorText } = useAssistantErrorText();
+  const stop = async () => {
+    if (!selectedId) return;
+    try {
+      await stopAnswer(selectedId);
+      await queryClient.invalidateQueries({
+        queryKey: getConversationQuery(selectedId).queryKey,
+      });
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  };
   const capped = capReached(allowance);
 
   // The conversation made for a first question whose send then failed: the
@@ -384,6 +404,8 @@ export function AssistantWorkspace({
           <div className="shrink-0">
             <Composer
               disabled={busy || capped}
+              running={busy}
+              onStop={() => void stop()}
               capResetsAt={capped ? allowance.resetsAt : null}
               readsImages={allowance.readsImages}
               onSend={send}
