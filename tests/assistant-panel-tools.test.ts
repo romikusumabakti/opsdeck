@@ -413,6 +413,20 @@ describe("get_environment_status", () => {
     });
   });
 
+  it("keeps an empty services list when the environment has no services to check", async () => {
+    const cores = fakeCores([env(1)]);
+    cores.getServiceStatuses.mockResolvedValue([]);
+    const result = await executeTool(
+      "get_environment_status",
+      { environment: "ACME/env-1" },
+      contextFor(engineer, cores)
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      data: { checked: true, services: [] },
+    });
+  });
+
   it("reports every service unknown when a probe times out or fails", async () => {
     const cores = fakeCores([env(1), env(2)]);
     cores.getServiceStatuses.mockImplementation(

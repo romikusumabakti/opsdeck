@@ -234,7 +234,7 @@ const ALWAYS = {
     }),
   },
   get_environment_status: {
-    description: `Live state of one environment, as its dashboard shows it: each service running/stopped/not-found/unknown (live check), the version each component runs, an active deploy lock, and the last backup, restore and mock-time runs. At most ${STATUS_PROBES_PER_TURN} environments are checked live per answer; beyond that "checked" is false (reason "limit"). "unknown" means the check failed.`,
+    description: `Live state of one environment, as its dashboard shows it: each service running/stopped/not-found/unknown (live check), the version each component runs, an active deploy lock, and the last backup, restore and mock-time runs. At most ${STATUS_PROBES_PER_TURN} environments are checked live per answer; beyond that "checked" is false (reason "limit"). "unknown" means the check failed; an empty services list means no services are registered for the environment in the Panel, so nothing could be checked live.`,
     inputSchema: z.strictObject({ environment: environmentArg }),
   },
   list_deploys: {
@@ -671,7 +671,13 @@ async function environmentStatusTool(ctx: PanelContext, given: string) {
       lastRestore: lastRun(kpis.lastRestore),
       lastMockTime: lastRun(kpis.lastMock),
     };
-    return ok(compact(data), { ...meta, checked: data.checked });
+    // An empty list is an answer (no services registered), not missing data:
+    // kept, unlike compact's other empty fields.
+    const shown = {
+      ...compact(data),
+      ...(services ? { services } : {}),
+    };
+    return ok(shown, { ...meta, checked: data.checked });
   } catch (error) {
     if (isRefusal(error)) return fail(unknownEnvironment(given.trim()));
     throw error;
