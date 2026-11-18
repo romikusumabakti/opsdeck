@@ -32,6 +32,10 @@ export type ToolMeta = {
   project?: string;
   /** Automatic context: the project keys list_projects returned (audit). */
   projectKeys?: string[];
+  /** Panel tools: the environment read, as "PROJECTKEY/slug" (audit). */
+  environment?: string;
+  /** get_environment_status: whether the live probe ran (audit). */
+  checked?: boolean;
 };
 
 export type ToolResult<T> =

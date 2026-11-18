@@ -27,7 +27,12 @@ vi.mock("@/lib/assistant/tools/context", () => ({
 const { buildTools, executeTool, toolModelOutput, TOOL_NAMES } = await import(
   "@/lib/assistant/tool-defs"
 );
+const { createPanelTurn, PANEL_TOOL_NAMES } = await import(
+  "@/lib/assistant/tools/panel"
+);
 const { asSchema } = await import("ai");
+const panelFor = (v: AssistantViewer) =>
+  createPanelTurn(v, { projects: async () => [], cores: {} });
 
 const viewer: AssistantViewer = {
   userId: "u",
@@ -42,7 +47,19 @@ const viewer: AssistantViewer = {
   },
 };
 const ticked = [{ issueKey: "KST-1", attachmentId: "900" }];
-const ctx = { mode: "pinned" as const, snaps: [], viewer, attachments: ticked };
+const ctx = {
+  mode: "pinned" as const,
+  snaps: [],
+  viewer,
+  attachments: ticked,
+  panel: panelFor(viewer),
+};
+const viewerAs = (orgRole: AssistantViewer["orgRole"]): AssistantViewer => ({
+  ...viewer,
+  orgRole,
+  scope: { ...viewer.scope, orgRole },
+});
+const admin = viewerAs("admin");
 
 const KST_SNAPS = [
   { componentKey: "backend", dir: "/cache/kst", commitSha: "abc123" },
@@ -62,9 +79,34 @@ const autoCtx = {
   mode: "auto" as const,
   viewer,
   attachments: ticked,
+  panel: panelFor(viewer),
   snapshotsFor,
   listProjects,
 };
+const adminCtx = { ...ctx, viewer: admin, panel: panelFor(admin) };
+const adminAutoCtx = { ...autoCtx, viewer: admin, panel: panelFor(admin) };
+const STAGE2_TOOLS = [
+  "list_files",
+  "search_code",
+  "read_file",
+  "get_issue",
+  "read_attachment",
+  "search_knowledge",
+  "read_knowledge",
+];
+const ALWAYS_PANEL_TOOLS = [
+  "list_environments",
+  "get_environment_status",
+  "list_deploys",
+  "get_deploy",
+  "list_builds",
+  "search_panel_issues",
+  "get_panel_issue",
+  "list_people",
+];
+/** Only the named tools of a wire map. */
+const pick = (wire: Record<string, unknown>, names: string[]) =>
+  Object.fromEntries(names.map((name) => [name, wire[name]]));
 const CODE_TOOLS = ["list_files", "search_code", "read_file"] as const;
 
 type JsonSchema = {
@@ -110,7 +152,60 @@ const wireOf = async (tools: ReturnType<typeof buildTools>) =>
 
 describe("buildTools", () => {
   it("sends the Stage 2 tool set and schemas in a pinned context", async () => {
-    expect(await wireOf(buildTools(ctx, noRecord))).toMatchSnapshot();
+    // The Stage 2 tools come first and unchanged; the Panel tools follow.
+    const wire = await wireOf(buildTools(ctx, noRecord));
+    expect(Object.keys(wire).slice(0, STAGE2_TOOLS.length)).toEqual(
+      STAGE2_TOOLS
+    );
+    expect(pick(wire, STAGE2_TOOLS)).toMatchSnapshot();
+  });
+
+  it("offers the Panel tools in both modes, gated ones by the page's org permission", () => {
+    const panelNames = (c: Parameters<typeof buildTools>[0]) =>
+      Object.keys(buildTools(c, noRecord)).filter((n) =>
+        (PANEL_TOOL_NAMES as string[]).includes(n)
+      );
+    for (const mode of [ctx, autoCtx]) {
+      // qa and pm: no Servers page, no Activity page.
+      for (const role of ["qa", "pm"] as const) {
+        const v = viewerAs(role);
+        expect(
+          panelNames({ ...mode, viewer: v, panel: panelFor(v) }),
+          role
+        ).toEqual(ALWAYS_PANEL_TOOLS);
+      }
+      // engineer: the Servers page (engineer grant), no Activity page.
+      const engineer = viewerAs("engineer");
+      expect(
+        panelNames({ ...mode, viewer: engineer, panel: panelFor(engineer) })
+      ).toEqual([...ALWAYS_PANEL_TOOLS, "list_servers", "get_server"]);
+      for (const role of ["admin", "infra", "observer"] as const) {
+        const v = viewerAs(role);
+        expect(
+          panelNames({ ...mode, viewer: v, panel: panelFor(v) }),
+          role
+        ).toEqual([
+          ...ALWAYS_PANEL_TOOLS,
+          "list_servers",
+          "get_server",
+          "recent_activity",
+        ]);
+      }
+    }
+  });
+
+  it("refuses a gated Panel tool the viewer is not offered, without running it", async () => {
+    for (const [name, input] of [
+      ["list_servers", {}],
+      ["get_server", { server: "web-1" }],
+      ["recent_activity", { limit: null }],
+    ] as const) {
+      expect(await executeTool(name, input, ctx), name).toEqual({
+        ok: false,
+        error: `unknown tool: ${name}`,
+        meta: {},
+      });
+    }
   });
 
   it("adds list_projects and a required project key to the code tools in automatic context", async () => {
@@ -119,6 +214,10 @@ describe("buildTools", () => {
     expect(Object.keys(auto)).toEqual([
       "list_projects",
       ...Object.keys(pinned),
+    ]);
+    expect(Object.keys(pinned)).toEqual([
+      ...STAGE2_TOOLS,
+      ...ALWAYS_PANEL_TOOLS,
     ]);
     // Explicit: strict tools need the empty required list.
     expect(auto.list_projects?.schema).toEqual({
@@ -151,18 +250,12 @@ describe("buildTools", () => {
     }
   });
 
-  it("defines the seven tools in order", () => {
-    const names = [
-      "list_files",
-      "search_code",
-      "read_file",
-      "get_issue",
-      "read_attachment",
-      "search_knowledge",
-      "read_knowledge",
-    ];
-    expect(Object.keys(buildTools(ctx, noRecord))).toEqual(names);
-    expect(TOOL_NAMES).toEqual(names);
+  it("defines the seven Stage 2 tools in order, then the Panel tools", () => {
+    expect(Object.keys(buildTools(ctx, noRecord))).toEqual([
+      ...STAGE2_TOOLS,
+      ...ALWAYS_PANEL_TOOLS,
+    ]);
+    expect(TOOL_NAMES).toEqual(STAGE2_TOOLS);
   });
 
   it("states the 15 MiB PDF cap of read_attachment", () => {
@@ -199,7 +292,7 @@ describe("buildTools", () => {
         walk(value, `${path}.${key}`);
       }
     };
-    for (const context of [ctx, autoCtx]) {
+    for (const context of [adminCtx, adminAutoCtx]) {
       for (const [name, tool] of Object.entries(
         buildTools(context, noRecord)
       )) {
@@ -214,8 +307,8 @@ describe("buildTools", () => {
 
   it("is strict: closed objects with every property required and described", async () => {
     const all = [
-      ...Object.entries(buildTools(ctx, noRecord)),
-      ...Object.entries(buildTools(autoCtx, noRecord)),
+      ...Object.entries(buildTools(adminCtx, noRecord)),
+      ...Object.entries(buildTools(adminAutoCtx, noRecord)),
     ];
     for (const [name, tool] of all) {
       expect((tool as { strict?: boolean }).strict, name).toBe(true);
@@ -235,7 +328,7 @@ describe("buildTools", () => {
 
   it("marks only the last tool with the given provider options", () => {
     const cache = { acme: { cacheControl: { type: "ephemeral" } } };
-    for (const context of [ctx, autoCtx]) {
+    for (const context of [ctx, autoCtx, adminCtx]) {
       const tools = Object.values(
         buildTools(context, noRecord, { lastToolProviderOptions: cache })
       );

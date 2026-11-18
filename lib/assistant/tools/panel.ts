@@ -1,0 +1,1044 @@
+import { type FlexibleSchema, jsonSchema } from "ai";
+import { HTTPException } from "hono/http-exception";
+import { z } from "zod";
+import { type OrgScope, requireOrgPermissionIn } from "@/lib/access-scope";
+import { db } from "@/lib/db";
+import type { EnvironmentListItem } from "@/lib/db/schema";
+import { listPeopleFor } from "@/lib/people/queries";
+import type { OrgPermissions } from "@/lib/permissions";
+import { callName } from "@/lib/user-display";
+import { listActivityFor } from "@/server/services/activity";
+import { listProjectBuildsFor } from "@/server/services/deploy-builds";
+import { getDeployLockStateFor } from "@/server/services/deploy-locks";
+import {
+  getDeploymentFor,
+  listDeployTargetsFor,
+} from "@/server/services/deploys";
+import {
+  getEnvironmentRunningFor,
+  listEnvironmentsFor,
+} from "@/server/services/environments";
+import { getIssueDetailFor, listAllIssuesFor } from "@/server/services/issues";
+import { getRunSnapshotFor } from "@/server/services/runs";
+import { getServerFor, getServersFor } from "@/server/services/servers";
+import { getAllServiceStatusesFor } from "@/server/services/services";
+import { REDACTED_LINE, redactSecretLines } from "../secret-filter";
+import type { AssistantViewer, ProjectEntry } from "../viewer";
+import type { ToolMeta, ToolResult } from "./code";
+import { capBytes } from "./context";
+
+/**
+ * Panel tools: read-only views of Panel data (environments, live status,
+ * deploys, builds, Panel issues, people, servers, activity). Each one calls
+ * the page's own service core (the xxxFor functions) with the viewer's
+ * AccessScope, so the assistant sees exactly what the pages show that user.
+ * Results are compact: nulls dropped, lists capped, free text redacted with
+ * the secret filter.
+ */
+
+/** Live status probes (SSH) per turn; more environments are "not checked". */
+export const STATUS_PROBES_PER_TURN = 10;
+/** A probe that has not answered by then reports every service unknown. */
+export const STATUS_PROBE_TIMEOUT_MS = 30_000;
+/** Most deploys, builds and issue hits one call returns. */
+export const PANEL_LIST_LIMIT = 20;
+export const DEFAULT_LIST_LIMIT = 10;
+export const MAX_ENVIRONMENTS = 100;
+export const MAX_PEOPLE = 200;
+export const MAX_SERVERS = 100;
+export const ACTIVITY_LIMIT = 50;
+export const DEFAULT_ACTIVITY_LIMIT = 20;
+export const DEPLOY_LOG_LINES = 200;
+export const MAX_DEPLOY_LOG_BYTES = 32 * 1024;
+export const MAX_ISSUE_DESCRIPTION_BYTES = 16 * 1024;
+export const MAX_ISSUE_COMMENTS = 50;
+export const MAX_ISSUE_COMMENT_BYTES = 4 * 1024;
+const MAX_SHORT_TEXT = 200;
+
+/** The service cores the tools read through (tests replace them). */
+export type PanelCores = {
+  listEnvironments: typeof listEnvironmentsFor;
+  getEnvironmentRunning: typeof getEnvironmentRunningFor;
+  getServiceStatuses: typeof getAllServiceStatusesFor;
+  getDeployLockState: typeof getDeployLockStateFor;
+  listDeployTargets: typeof listDeployTargetsFor;
+  getDeployment: typeof getDeploymentFor;
+  getRunSnapshot: typeof getRunSnapshotFor;
+  listProjectBuilds: typeof listProjectBuildsFor;
+  listIssues: typeof listAllIssuesFor;
+  getIssueDetail: typeof getIssueDetailFor;
+  listPeople: typeof listPeopleFor;
+  getServers: typeof getServersFor;
+  getServer: typeof getServerFor;
+  listActivity: typeof listActivityFor;
+  /** Display names of environment owners, by user id. */
+  ownerNames: (ids: string[]) => Promise<Map<string, string>>;
+};
+
+async function ownerNames(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db.query.users.findMany({
+    where: { id: { in: ids } },
+    columns: { id: true, name: true, preferredName: true },
+  });
+  return new Map(rows.map((u) => [u.id, callName(u)]));
+}
+
+export const PANEL_CORES: PanelCores = {
+  listEnvironments: listEnvironmentsFor,
+  getEnvironmentRunning: getEnvironmentRunningFor,
+  getServiceStatuses: getAllServiceStatusesFor,
+  getDeployLockState: getDeployLockStateFor,
+  listDeployTargets: listDeployTargetsFor,
+  getDeployment: getDeploymentFor,
+  getRunSnapshot: getRunSnapshotFor,
+  listProjectBuilds: listProjectBuildsFor,
+  listIssues: listAllIssuesFor,
+  getIssueDetail: getIssueDetailFor,
+  listPeople: listPeopleFor,
+  getServers: getServersFor,
+  getServer: getServerFor,
+  listActivity: listActivityFor,
+  ownerNames,
+};
+
+type ServiceStatus = { role: string; state: string; error?: string };
+
+export type EnvironmentStatus = {
+  environment: string;
+  name: string;
+  /** False when the live probe was not run (STATUS_PROBES_PER_TURN). */
+  checked: boolean;
+  reason?: "limit";
+  services?: ServiceStatus[];
+  running?: Record<string, unknown>[];
+  lock?: Record<string, unknown>;
+  heldDeploys?: number;
+};
+
+/**
+ * The Panel state of one turn: the viewer's projects and environments
+ * (loaded once) and the live status probes (memoised per environment, at
+ * most STATUS_PROBES_PER_TURN distinct environments).
+ */
+export type PanelTurn = {
+  cores: PanelCores;
+  projects: () => Promise<ProjectEntry[]>;
+  environments: () => Promise<EnvironmentListItem[]>;
+  probe: (environment: EnvironmentListItem) => Promise<ServiceStatus[] | null>;
+};
+
+export type PanelTurnOptions = {
+  /** The viewer's visible projects. */
+  projects: () => Promise<ProjectEntry[]>;
+  cores?: Partial<PanelCores>;
+  probeTimeoutMs?: number;
+};
+
+function once<T>(load: () => Promise<T>): () => Promise<T> {
+  let value: Promise<T> | undefined;
+  return () => {
+    value ??= load().catch((error) => {
+      value = undefined;
+      throw error;
+    });
+    return value;
+  };
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`status probe timed out after ${ms}ms`)),
+        ms
+      );
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+export function createPanelTurn(
+  viewer: AssistantViewer,
+  options: PanelTurnOptions
+): PanelTurn {
+  const cores = { ...PANEL_CORES, ...options.cores };
+  const timeoutMs = options.probeTimeoutMs ?? STATUS_PROBE_TIMEOUT_MS;
+  const probes = new Map<string, Promise<ServiceStatus[]>>();
+  const unknown = (env: EnvironmentListItem): ServiceStatus[] =>
+    env.serviceRoles.map((role) => ({ role, state: "unknown" }));
+
+  return {
+    cores,
+    projects: once(options.projects),
+    environments: once(() => cores.listEnvironments(viewer.scope)),
+    probe: (env) => {
+      const known = probes.get(env.id);
+      if (known) return known;
+      if (probes.size >= STATUS_PROBES_PER_TURN) return Promise.resolve(null);
+      const run = withTimeout(
+        cores.getServiceStatuses(viewer.scope, env.id),
+        timeoutMs
+      ).then(
+        (results) =>
+          results.map((r) => ({
+            role: r.role,
+            state: r.state,
+            ...(r.error ? { error: r.error } : {}),
+          })),
+        (error) => {
+          // A refusal is not a probe failure: the caller reports it.
+          if (error instanceof HTTPException) throw error;
+          console.error("[assistant] status probe failed", error);
+          return unknown(env);
+        }
+      );
+      probes.set(env.id, run);
+      return run;
+    },
+  };
+}
+
+// --- definitions ------------------------------------------------------------
+
+const str = (description: string) => z.string().describe(description);
+const nullable = <T extends z.ZodType>(type: T, description: string) =>
+  type.nullable().describe(description);
+const empty = z.strictObject({});
+
+const environmentArg = str(
+  'Environment as "PROJECTKEY/slug" (from list_environments, e.g. "ACME/uat") or its id.'
+);
+
+/** Tools every viewer gets, in order. */
+const ALWAYS = {
+  list_environments: {
+    description: `List the Panel environments the user can see (at most ${MAX_ENVIRONMENTS}): reference ("PROJECTKEY/slug"), name, kind, URL, owner. Database data only; use get_environment_status for live service state and running versions.`,
+    inputSchema: z.strictObject({
+      project: nullable(
+        z.string(),
+        'Only this project key (e.g. "ACME"); null for every project.'
+      ),
+    }),
+  },
+  get_environment_status: {
+    description: `Live state of one environment, as its dashboard shows it: each service running/stopped/not-found/unknown (live check), the version each component runs, and an active deploy lock. At most ${STATUS_PROBES_PER_TURN} environments are checked live per answer; beyond that "checked" is false (reason "limit"). "unknown" means the check failed.`,
+    inputSchema: z.strictObject({ environment: environmentArg }),
+  },
+  list_deploys: {
+    description: `Deploy history of one environment, newest first (at most ${PANEL_LIST_LIMIT}): component, tag, status, trigger, who, when, duration, branch and commit; plus each component's current and previous tag.`,
+    inputSchema: z.strictObject({
+      environment: environmentArg,
+      limit: nullable(
+        z.number(),
+        `How many deploys (whole number, at most ${PANEL_LIST_LIMIT}). Default ${DEFAULT_LIST_LIMIT}.`
+      ),
+    }),
+  },
+  get_deploy: {
+    description: `One deploy by id (from list_deploys) with the tail of its log (last ${DEPLOY_LOG_LINES} lines; lines holding credentials are redacted). Use it to explain a failed deploy.`,
+    inputSchema: z.strictObject({ id: str("Deploy id from list_deploys.") }),
+  },
+  list_builds: {
+    description: `Recent CI builds of a project's deployed components and branches, newest first (at most ${PANEL_LIST_LIMIT}): component, branch, tag, commit, who pushed, commit message.`,
+    inputSchema: z.strictObject({
+      project: str('Project key, e.g. "ACME".'),
+      limit: nullable(
+        z.number(),
+        `How many builds (whole number, at most ${PANEL_LIST_LIMIT}). Default ${DEFAULT_LIST_LIMIT}.`
+      ),
+    }),
+  },
+  search_panel_issues: {
+    description: `Search the Panel's own issues (any status) by text over title, description and key (e.g. "ACME-12"). At most ${PANEL_LIST_LIMIT} hits, most recently updated first.`,
+    inputSchema: z.strictObject({
+      query: str("Search text."),
+      project: nullable(z.string(), "Only this project key; null for all."),
+    }),
+  },
+  get_panel_issue: {
+    description: `One Panel issue by key ("ACME-12"): status, type, priority, assignee, labels, parent and children, description and the latest ${MAX_ISSUE_COMMENTS} comments. For Jira issues use get_issue.`,
+    inputSchema: z.strictObject({
+      key: str('Panel issue key, e.g. "ACME-12".'),
+    }),
+  },
+  list_people: {
+    description: `People in the Panel as the People page shows them (at most ${MAX_PEOPLE}): name, what they like to be called, email, title, job role and the projects they can see.`,
+    inputSchema: z.strictObject({
+      project: nullable(
+        z.string(),
+        "Only people who can see this project key; null for everyone."
+      ),
+    }),
+  },
+} as const;
+
+/** Tools behind an org permission, as the matching page. */
+const GATED = {
+  list_servers: {
+    description: `List the servers the Panel manages (at most ${MAX_SERVERS}): name, host, placement. No credentials.`,
+    // Written out: zod emits no `required` for an empty object, and strict
+    // tools expect the (empty) list.
+    inputSchema: jsonSchema<Record<string, never>>({
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    }),
+    perms: { server: ["read"] },
+  },
+  get_server: {
+    description:
+      "One server by name or id: host, user, sign-in kind, placement, and its last preflight scan (runtimes, disk). No credentials.",
+    inputSchema: z.strictObject({ server: str("Server name or id.") }),
+    perms: { server: ["read"] },
+  },
+  recent_activity: {
+    description: `The Panel's activity log, newest first (at most ${ACTIVITY_LIMIT}): action, who, when and its details.`,
+    inputSchema: z.strictObject({
+      limit: nullable(
+        z.number(),
+        `How many entries (whole number, at most ${ACTIVITY_LIMIT}). Default ${DEFAULT_ACTIVITY_LIMIT}.`
+      ),
+    }),
+    perms: { audit: ["read"] },
+  },
+} as const satisfies Record<
+  string,
+  {
+    description: string;
+    inputSchema: FlexibleSchema<unknown>;
+    perms: OrgPermissions;
+  }
+>;
+
+type PanelDefinition = {
+  description: string;
+  inputSchema: FlexibleSchema<unknown>;
+};
+
+export type PanelToolName = keyof typeof ALWAYS | keyof typeof GATED;
+
+export const PANEL_TOOL_NAMES = [
+  ...Object.keys(ALWAYS),
+  ...Object.keys(GATED),
+] as PanelToolName[];
+
+export function isPanelTool(name: string): name is PanelToolName {
+  return Object.hasOwn(ALWAYS, name) || Object.hasOwn(GATED, name);
+}
+
+/** The org decision the page makes (requireOrgPermissionIn), as a boolean. */
+function orgAllows(scope: OrgScope, perms: OrgPermissions): boolean {
+  try {
+    requireOrgPermissionIn(scope, perms);
+    return true;
+  } catch (error) {
+    if (error instanceof HTTPException) return false;
+    throw error;
+  }
+}
+
+/** The Panel tools offered to this viewer, with what the model sees. */
+export function panelDefinitions(
+  viewer: AssistantViewer
+): Array<[PanelToolName, PanelDefinition]> {
+  const gated = Object.entries(GATED)
+    .filter(([, d]) => orgAllows(viewer.scope, d.perms))
+    .map(([name, d]): [PanelToolName, PanelDefinition] => [
+      name as PanelToolName,
+      { description: d.description, inputSchema: d.inputSchema },
+    ]);
+  return [
+    ...(Object.entries(ALWAYS) as Array<[PanelToolName, PanelDefinition]>),
+    ...gated,
+  ];
+}
+
+export function panelToolOffered(
+  viewer: AssistantViewer,
+  name: PanelToolName
+): boolean {
+  if (Object.hasOwn(ALWAYS, name)) return true;
+  const gated = GATED[name as keyof typeof GATED];
+  return gated !== undefined && orgAllows(viewer.scope, gated.perms);
+}
+
+const limit = z.number().nullish();
+
+/** Validation, independent of the schemas the model sees. */
+export const PANEL_INPUTS = {
+  list_environments: z.strictObject({ project: z.string().nullish() }),
+  get_environment_status: z.strictObject({ environment: z.string() }),
+  list_deploys: z.strictObject({ environment: z.string(), limit }),
+  get_deploy: z.strictObject({ id: z.string() }),
+  list_builds: z.strictObject({ project: z.string(), limit }),
+  search_panel_issues: z.strictObject({
+    query: z.string(),
+    project: z.string().nullish(),
+  }),
+  get_panel_issue: z.strictObject({ key: z.string() }),
+  list_people: z.strictObject({ project: z.string().nullish() }),
+  list_servers: empty,
+  get_server: z.strictObject({ server: z.string() }),
+  recent_activity: z.strictObject({ limit }),
+} as const satisfies Record<PanelToolName, z.ZodType>;
+
+// --- helpers ----------------------------------------------------------------
+
+function fail(error: string, meta: ToolMeta = {}): ToolResult<never> {
+  return { ok: false, error, meta };
+}
+
+function ok<T>(data: T, meta: ToolMeta = {}): ToolResult<T> {
+  return { ok: true, data, meta };
+}
+
+/** Drops null, undefined and empty-array fields. */
+function compact<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([, v]) =>
+        v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
+    )
+  ) as Partial<T>;
+}
+
+function iso(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  const date = typeof value === "string" ? new Date(value) : value;
+  return Number.isNaN(date.getTime())
+    ? null
+    : date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function clamp(
+  value: number | null | undefined,
+  fallback: number,
+  max: number
+) {
+  const n =
+    typeof value === "number" && Number.isFinite(value)
+      ? Math.trunc(value)
+      : fallback;
+  return Math.min(Math.max(1, n), max);
+}
+
+const short = (sha: string | null | undefined) => sha?.slice(0, 10) ?? null;
+
+/** Free text through the secret filter, cut to `maxBytes`. */
+function safeText(
+  text: string | null | undefined,
+  maxBytes = MAX_SHORT_TEXT
+): { text: string | null; redacted: number } {
+  if (!text) return { text: null, redacted: 0 };
+  const redacted = redactSecretLines(text);
+  const cut = capBytes(redacted.text, maxBytes);
+  return {
+    text: cut.truncated ? `${cut.text}…` : cut.text,
+    redacted: redacted.redacted,
+  };
+}
+
+const isRefusal = (error: unknown) =>
+  error instanceof HTTPException &&
+  (error.status === 404 || error.status === 403);
+
+function withWithheld(meta: ToolMeta, withheld: number): ToolMeta {
+  return withheld > 0 ? { ...meta, withheld } : meta;
+}
+
+type PanelContext = {
+  viewer: AssistantViewer;
+  panel: PanelTurn;
+  mode: "auto" | "pinned";
+};
+
+/** The same refusal as the code tools: an invisible project is unknown. */
+export function unknownProjectError(
+  key: string,
+  mode: "auto" | "pinned"
+): string {
+  return mode === "auto"
+    ? `Unknown project ${key}. Call list_projects.`
+    : `Unknown project ${key}. Call list_environments.`;
+}
+
+const unknownEnvironment = (ref: string) =>
+  `Unknown environment ${ref}. Call list_environments.`;
+
+async function projectByKey(
+  ctx: PanelContext,
+  given: string
+): Promise<ProjectEntry | string> {
+  // Keys are stored uppercase; the model may echo one loosely.
+  const key = given.trim().toUpperCase();
+  const project = (await ctx.panel.projects()).find((p) => p.key === key);
+  return project ?? key;
+}
+
+const envRef = (env: EnvironmentListItem) => `${env.key}/${env.slug}`;
+
+async function environmentByRef(
+  ctx: PanelContext,
+  given: string
+): Promise<EnvironmentListItem | null> {
+  const needle = given.trim();
+  const envs = await ctx.panel.environments();
+  const byId = envs.find((e) => e.id === needle);
+  if (byId) return byId;
+  const slash = needle.indexOf("/");
+  if (slash < 0) return null;
+  const key = needle.slice(0, slash).trim().toUpperCase();
+  const slug = needle
+    .slice(slash + 1)
+    .trim()
+    .toLowerCase();
+  return envs.find((e) => e.key === key && e.slug === slug) ?? null;
+}
+
+const envMeta = (env: EnvironmentListItem): ToolMeta => ({
+  project: env.key,
+  environment: envRef(env),
+});
+
+// --- tools ------------------------------------------------------------------
+
+async function listEnvironmentsTool(
+  ctx: PanelContext,
+  project: string | null | undefined
+) {
+  let envs = await ctx.panel.environments();
+  let meta: ToolMeta = {};
+  if (project) {
+    const found = await projectByKey(ctx, project);
+    if (typeof found === "string") {
+      return fail(unknownProjectError(found, ctx.mode), { project: found });
+    }
+    envs = envs.filter((e) => e.projectId === found.id);
+    meta = { project: found.key };
+  }
+  const sorted = [...envs].sort(
+    (a, b) => a.key.localeCompare(b.key) || a.name.localeCompare(b.name)
+  );
+  const shown = sorted.slice(0, MAX_ENVIRONMENTS);
+  const owners = await ctx.panel.cores.ownerNames([
+    ...new Set(shown.flatMap((e) => (e.ownerId ? [e.ownerId] : []))),
+  ]);
+  const projects = (await ctx.panel.projects())
+    .filter((p) => shown.some((e) => e.projectId === p.id))
+    .map((p) => ({ key: p.key, name: p.name }));
+  return ok(
+    compact({
+      projects,
+      environments: shown.map((e) =>
+        compact({
+          ref: envRef(e),
+          name: e.name,
+          kind: e.kind,
+          url: e.url,
+          owner: e.ownerId ? (owners.get(e.ownerId) ?? null) : null,
+        })
+      ),
+      more: sorted.length > shown.length ? sorted.length - shown.length : null,
+    }),
+    meta
+  );
+}
+
+async function environmentStatusTool(ctx: PanelContext, given: string) {
+  const env = await environmentByRef(ctx, given);
+  if (!env) return fail(unknownEnvironment(given.trim()));
+  const meta = envMeta(env);
+  const { scope } = ctx.viewer;
+  try {
+    const [services, running, lock] = await Promise.all([
+      ctx.panel.probe(env),
+      ctx.panel.cores.getEnvironmentRunning(scope, env.id),
+      ctx.panel.cores.getDeployLockState(scope, env.id),
+    ]);
+    const data: EnvironmentStatus = {
+      environment: envRef(env),
+      name: env.name,
+      checked: services !== null,
+      ...(services === null ? { reason: "limit" as const } : { services }),
+      running: running.items.map((item) =>
+        compact({
+          component: item.componentKey,
+          tag: item.tag,
+          commit: short(item.commitSha),
+          deployed: item.deployed,
+          deployedAt: iso(item.deployedAt),
+        })
+      ),
+      ...(lock.lock
+        ? {
+            lock: compact({
+              by: lock.lock.lockedBy?.name ?? null,
+              reason: safeText(lock.lock.reason).text,
+              expiresAt: iso(lock.lock.expiresAt),
+            }),
+          }
+        : {}),
+      ...(lock.heldCount > 0 ? { heldDeploys: lock.heldCount } : {}),
+    };
+    return ok(compact(data), { ...meta, checked: data.checked });
+  } catch (error) {
+    if (isRefusal(error)) return fail(unknownEnvironment(given.trim()));
+    throw error;
+  }
+}
+
+async function listDeploysTool(
+  ctx: PanelContext,
+  given: string,
+  rawLimit: number | null | undefined
+) {
+  const env = await environmentByRef(ctx, given);
+  if (!env) return fail(unknownEnvironment(given.trim()));
+  const meta = envMeta(env);
+  const count = clamp(rawLimit, DEFAULT_LIST_LIMIT, PANEL_LIST_LIMIT);
+  let targets: Awaited<ReturnType<PanelCores["listDeployTargets"]>>;
+  try {
+    targets = await ctx.panel.cores.listDeployTargets(ctx.viewer.scope, env.id);
+  } catch (error) {
+    if (isRefusal(error)) return fail(unknownEnvironment(given.trim()));
+    throw error;
+  }
+  const deploys = targets
+    .flatMap((t) =>
+      t.recentDeployments.map((d) => ({ component: t.componentKey, d }))
+    )
+    .sort(
+      (a, b) =>
+        b.d.createdAt.getTime() - a.d.createdAt.getTime() ||
+        b.d.id.localeCompare(a.d.id)
+    )
+    .slice(0, count);
+  return ok(
+    {
+      environment: envRef(env),
+      components: targets.map((t) =>
+        compact({
+          component: t.componentKey,
+          branch: t.sourceBranch,
+          currentTag: t.currentTag,
+          currentStatus: t.currentStatus,
+          previousTag: t.previousTag,
+          autoDeploy: t.autoDeploy || null,
+        })
+      ),
+      deploys: deploys.map(({ component, d }) => deploySummary(component, d)),
+    },
+    meta
+  );
+}
+
+type DeployEntry = Awaited<
+  ReturnType<PanelCores["listDeployTargets"]>
+>[number]["recentDeployments"][number];
+
+function deploySummary(component: string, d: DeployEntry) {
+  const seconds =
+    d.startedAt && d.finishedAt
+      ? Math.round((d.finishedAt.getTime() - d.startedAt.getTime()) / 1000)
+      : null;
+  return compact({
+    id: d.id,
+    component,
+    tag: d.tag,
+    status: d.status,
+    trigger: d.trigger,
+    by: d.userName ?? d.autoUser?.name ?? d.triggeredBy ?? null,
+    at: iso(d.createdAt),
+    durationSeconds: seconds,
+    branch: d.build?.branch ?? null,
+    commit: short(d.build?.commitSha),
+  });
+}
+
+/** The last DEPLOY_LOG_LINES lines, each through the secret filter. */
+export function deployLogTail(output: string): {
+  log: string;
+  truncated: boolean;
+  redacted: number;
+} {
+  // The whole log is filtered before it is cut: a tail starting inside a
+  // pasted key would otherwise lose the BEGIN line that marks the block.
+  const lines = redactSecretLines(output.replace(/\n$/, "")).text.split("\n");
+  const tail = lines.slice(-DEPLOY_LOG_LINES);
+  const joined = tail.join("\n");
+  // Cut from the start: the end of a log explains how it ended.
+  const bytes = Buffer.from(joined, "utf8");
+  const tooLong = bytes.byteLength > MAX_DEPLOY_LOG_BYTES;
+  const log = tooLong
+    ? new TextDecoder()
+        .decode(bytes.subarray(bytes.byteLength - MAX_DEPLOY_LOG_BYTES))
+        .replace(/^\uFFFD+/, "")
+    : joined;
+  return {
+    log,
+    truncated: lines.length > tail.length || tooLong,
+    redacted: tail.filter((line) => line === REDACTED_LINE).length,
+  };
+}
+
+async function getDeployTool(ctx: PanelContext, rawId: string) {
+  const id = rawId.trim();
+  const { scope } = ctx.viewer;
+  let deploy: Awaited<ReturnType<PanelCores["getDeployment"]>>;
+  try {
+    deploy = await ctx.panel.cores.getDeployment(scope, id);
+  } catch (error) {
+    if (isRefusal(error)) return fail(`Unknown deploy ${id}.`);
+    throw error;
+  }
+  const env = (await ctx.panel.environments()).find(
+    (e) => e.id === deploy.environmentId
+  );
+  const meta: ToolMeta = env ? envMeta(env) : {};
+  const run = deploy.runId
+    ? await ctx.panel.cores.getRunSnapshot(scope, deploy.runId)
+    : null;
+  const tail = run ? deployLogTail(run.output) : null;
+  const error = safeText(run?.errorMessage, 2048);
+  return ok(
+    compact({
+      ...deploySummary(deploy.componentKey, deploy),
+      environment: env ? envRef(env) : null,
+      error: error.text,
+      log: tail?.log ?? null,
+      logTruncated: tail?.truncated || null,
+      // A run exists but its log is not readable for this user.
+      logWithheld: deploy.runId !== null && run === null ? true : null,
+    }),
+    withWithheld(meta, (tail?.redacted ?? 0) + error.redacted)
+  );
+}
+
+async function listBuildsTool(
+  ctx: PanelContext,
+  given: string,
+  rawLimit: number | null | undefined
+) {
+  const found = await projectByKey(ctx, given);
+  if (typeof found === "string") {
+    return fail(unknownProjectError(found, ctx.mode), { project: found });
+  }
+  const meta: ToolMeta = { project: found.key };
+  let builds: Awaited<ReturnType<PanelCores["listProjectBuilds"]>>;
+  try {
+    builds = await ctx.panel.cores.listProjectBuilds(
+      ctx.viewer.scope,
+      found.id,
+      clamp(rawLimit, DEFAULT_LIST_LIMIT, PANEL_LIST_LIMIT)
+    );
+  } catch (error) {
+    if (isRefusal(error)) {
+      return fail(unknownProjectError(found.key, ctx.mode), meta);
+    }
+    throw error;
+  }
+  let withheld = 0;
+  const data = builds.slice(0, PANEL_LIST_LIMIT).map((b) => {
+    const message = safeText(b.commitMessage, 160);
+    withheld += message.redacted;
+    return compact({
+      component: b.componentKey,
+      branch: b.branch,
+      tag: b.tag,
+      commit: short(b.commitSha),
+      at: iso(b.receivedAt),
+      by: b.pushedBy ?? b.commitAuthorEmail,
+      message: message.text,
+    });
+  });
+  return ok({ project: found.key, builds: data }, withWithheld(meta, withheld));
+}
+
+async function searchIssuesTool(
+  ctx: PanelContext,
+  query: string,
+  project: string | null | undefined
+) {
+  if (!query.trim()) return fail("query must not be empty");
+  let projectId: string | undefined;
+  let meta: ToolMeta = {};
+  if (project) {
+    const found = await projectByKey(ctx, project);
+    if (typeof found === "string") {
+      return fail(unknownProjectError(found, ctx.mode), { project: found });
+    }
+    projectId = found.id;
+    meta = { project: found.key };
+  }
+  const page = await ctx.panel.cores.listIssues(ctx.viewer.scope, {
+    q: query.trim(),
+    status: "all",
+    ...(projectId ? { projectId } : {}),
+    sort: "updatedAt",
+    desc: true,
+    limit: PANEL_LIST_LIMIT,
+  });
+  let withheld = 0;
+  const issues = page.rows.slice(0, PANEL_LIST_LIMIT).map((i) => {
+    const title = safeText(i.title);
+    withheld += title.redacted;
+    return compact({
+      key: `${i.project.key}-${i.number}`,
+      title: title.text,
+      status: i.status,
+      type: i.type,
+      priority: i.priority,
+      assignee: i.assignee?.name ?? null,
+      environment: i.environment?.name ?? null,
+      updatedAt: iso(i.updatedAt),
+    });
+  });
+  return ok(
+    { total: page.total, issues },
+    withWithheld(
+      { ...meta, issueKeys: issues.map((i) => String(i.key)) },
+      withheld
+    )
+  );
+}
+
+const PANEL_ISSUE_KEY = /^([A-Z][A-Z0-9_]*)-([1-9][0-9]{0,8})$/;
+
+async function getPanelIssueTool(ctx: PanelContext, rawKey: string) {
+  const key = rawKey.trim().toUpperCase();
+  const match = PANEL_ISSUE_KEY.exec(key);
+  const notFound = fail(`Panel issue ${rawKey.trim()} not found.`);
+  if (!match?.[1] || !match[2]) return notFound;
+  const issue = await ctx.panel.cores.getIssueDetail(
+    ctx.viewer.scope,
+    match[1],
+    Number(match[2])
+  );
+  if (!issue) return notFound;
+  const projectKey = issue.project.key;
+  let withheld = 0;
+  const text = (value: string | null | undefined, maxBytes?: number) => {
+    const safe = safeText(value, maxBytes);
+    withheld += safe.redacted;
+    return safe.text;
+  };
+  const ref = (r: { number: number; title: string; status: string }) =>
+    compact({
+      key: `${projectKey}-${r.number}`,
+      title: text(r.title),
+      status: r.status,
+    });
+  const comments = issue.comments.slice(-MAX_ISSUE_COMMENTS).map((c) =>
+    compact({
+      author: c.author?.name ?? null,
+      at: iso(c.createdAt),
+      body: text(c.body, MAX_ISSUE_COMMENT_BYTES),
+    })
+  );
+  const data = compact({
+    key: `${projectKey}-${issue.number}`,
+    project: projectKey,
+    title: text(issue.title),
+    status: issue.status,
+    type: issue.type,
+    priority: issue.priority,
+    estimate: issue.estimate,
+    environment: issue.environment?.name ?? null,
+    assignee: issue.assignee?.name ?? null,
+    createdBy: issue.createdBy?.name ?? null,
+    createdAt: iso(issue.createdAt),
+    updatedAt: iso(issue.updatedAt),
+    labels: issue.labels.map((l) => l.name),
+    parent: issue.parent ? ref(issue.parent) : null,
+    children: issue.children.map(ref),
+    description: text(issue.description, MAX_ISSUE_DESCRIPTION_BYTES),
+    comments,
+    olderComments:
+      issue.comments.length > comments.length
+        ? issue.comments.length - comments.length
+        : null,
+  });
+  return ok(
+    data,
+    withWithheld(
+      { project: projectKey, issueKeys: [String(data.key)] },
+      withheld
+    )
+  );
+}
+
+async function listPeopleTool(
+  ctx: PanelContext,
+  project: string | null | undefined
+) {
+  let projectId: string | undefined;
+  let meta: ToolMeta = {};
+  if (project) {
+    const found = await projectByKey(ctx, project);
+    if (typeof found === "string") {
+      return fail(unknownProjectError(found, ctx.mode), { project: found });
+    }
+    projectId = found.id;
+    meta = { project: found.key };
+  }
+  let people: Awaited<ReturnType<PanelCores["listPeople"]>>;
+  try {
+    people = await ctx.panel.cores.listPeople(ctx.viewer.scope, projectId);
+  } catch (error) {
+    if (isRefusal(error) && meta.project) {
+      return fail(unknownProjectError(meta.project, ctx.mode), meta);
+    }
+    throw error;
+  }
+  const keyOf = new Map(
+    (await ctx.panel.projects()).map((p) => [p.id, p.key] as const)
+  );
+  const shown = people.slice(0, MAX_PEOPLE);
+  return ok(
+    compact({
+      people: shown.map((p) =>
+        compact({
+          name: p.name,
+          callName: callName(p) === p.name ? null : callName(p),
+          email: p.email,
+          title: p.title,
+          role: p.role,
+          projects: p.projectIds.flatMap((id) => {
+            const key = keyOf.get(id);
+            return key ? [key] : [];
+          }),
+          deactivated: p.deactivated || null,
+        })
+      ),
+      more: people.length > shown.length ? people.length - shown.length : null,
+    }),
+    meta
+  );
+}
+
+async function listServersTool(ctx: PanelContext) {
+  const servers = await ctx.panel.cores.getServers(ctx.viewer.scope);
+  const shown = servers.slice(0, MAX_SERVERS);
+  return ok(
+    compact({
+      servers: shown.map((s) =>
+        compact({
+          name: s.name,
+          host: s.host,
+          placement: s.placement,
+          infraOnly: s.infraOnly || null,
+        })
+      ),
+      more:
+        servers.length > shown.length ? servers.length - shown.length : null,
+    })
+  );
+}
+
+async function getServerTool(ctx: PanelContext, given: string) {
+  const server = await ctx.panel.cores.getServer(ctx.viewer.scope, given);
+  if (!server)
+    return fail(`Unknown server ${given.trim()}. Call list_servers.`);
+  const gib = (bytes: number) => Math.round((bytes / 1024 ** 3) * 10) / 10;
+  const preflight = server.preflight;
+  return ok(
+    compact({
+      name: server.name,
+      host: server.host,
+      username: server.username,
+      auth: server.auth,
+      placement: server.placement,
+      infraOnly: server.infraOnly || null,
+      scannedAt: iso(server.preflightAt),
+      runtime: preflight ? compact(preflight.runtime) : null,
+      disk: preflight?.disk.map((d) => ({
+        mount: d.mount,
+        freeGiB: gib(d.freeBytes),
+        totalGiB: gib(d.totalBytes),
+      })),
+    })
+  );
+}
+
+async function recentActivityTool(
+  ctx: PanelContext,
+  rawLimit: number | null | undefined
+) {
+  const rows = await ctx.panel.cores.listActivity(
+    ctx.viewer.scope,
+    clamp(rawLimit, DEFAULT_ACTIVITY_LIMIT, ACTIVITY_LIMIT)
+  );
+  let withheld = 0;
+  const entries = rows.slice(0, ACTIVITY_LIMIT).map((r) => {
+    const details = Object.fromEntries(
+      Object.entries(r.data ?? {}).map(([k, v]) => {
+        if (typeof v !== "string") return [k, v];
+        const safe = safeText(v);
+        withheld += safe.redacted;
+        return [k, safe.text];
+      })
+    );
+    return compact({
+      action: r.action,
+      by: r.actorName,
+      at: iso(r.createdAt),
+      details: Object.keys(details).length > 0 ? details : null,
+    });
+  });
+  return ok({ entries }, withWithheld({}, withheld));
+}
+
+/** Runs a validated Panel tool call for one viewer. */
+export async function runPanelTool(
+  name: PanelToolName,
+  data: unknown,
+  ctx: PanelContext
+): Promise<ToolResult<unknown>> {
+  switch (name) {
+    case "list_environments": {
+      const i = data as z.infer<typeof PANEL_INPUTS.list_environments>;
+      return listEnvironmentsTool(ctx, i.project);
+    }
+    case "get_environment_status": {
+      const i = data as z.infer<typeof PANEL_INPUTS.get_environment_status>;
+      return environmentStatusTool(ctx, i.environment);
+    }
+    case "list_deploys": {
+      const i = data as z.infer<typeof PANEL_INPUTS.list_deploys>;
+      return listDeploysTool(ctx, i.environment, i.limit);
+    }
+    case "get_deploy": {
+      const i = data as z.infer<typeof PANEL_INPUTS.get_deploy>;
+      return getDeployTool(ctx, i.id);
+    }
+    case "list_builds": {
+      const i = data as z.infer<typeof PANEL_INPUTS.list_builds>;
+      return listBuildsTool(ctx, i.project, i.limit);
+    }
+    case "search_panel_issues": {
+      const i = data as z.infer<typeof PANEL_INPUTS.search_panel_issues>;
+      return searchIssuesTool(ctx, i.query, i.project);
+    }
+    case "get_panel_issue": {
+      const i = data as z.infer<typeof PANEL_INPUTS.get_panel_issue>;
+      return getPanelIssueTool(ctx, i.key);
+    }
+    case "list_people": {
+      const i = data as z.infer<typeof PANEL_INPUTS.list_people>;
+      return listPeopleTool(ctx, i.project);
+    }
+    case "list_servers":
+      return listServersTool(ctx);
+    case "get_server": {
+      const i = data as z.infer<typeof PANEL_INPUTS.get_server>;
+      return getServerTool(ctx, i.server);
+    }
+    case "recent_activity": {
+      const i = data as z.infer<typeof PANEL_INPUTS.recent_activity>;
+      return recentActivityTool(ctx, i.limit);
+    }
+  }
+}

@@ -23,6 +23,16 @@ import {
   readKnowledgeTool,
   searchKnowledgeTool,
 } from "./tools/context";
+import {
+  isPanelTool,
+  PANEL_INPUTS,
+  type PanelToolName,
+  type PanelTurn,
+  panelDefinitions,
+  panelToolOffered,
+  runPanelTool,
+  unknownProjectError,
+} from "./tools/panel";
 import type { AssistantViewer } from "./viewer";
 
 /**
@@ -230,9 +240,13 @@ export function buildTools(
   } = {}
 ): ToolSet {
   const execute = options.execute ?? executeTool;
-  const entries = Object.entries(
-    ctx.mode === "auto" ? AUTO_DEFINITIONS : DEFINITIONS
-  ) as Array<
+  // The Panel tools follow the context's own tools, so a pinned context's
+  // Stage 2 tools come first and unchanged; which Panel tools appear depends
+  // only on the user's org role (stable across their turns, prompt cache).
+  const entries = [
+    ...Object.entries(ctx.mode === "auto" ? AUTO_DEFINITIONS : DEFINITIONS),
+    ...panelDefinitions(ctx.viewer),
+  ] as Array<
     [ToolName, { description: string; inputSchema: FlexibleSchema<unknown> }]
   >;
   return Object.fromEntries(
@@ -304,7 +318,7 @@ const AUTO_INPUTS = {
   read_knowledge: INPUTS.read_knowledge,
 } as const;
 
-export type ToolName = keyof typeof AUTO_INPUTS;
+export type ToolName = keyof typeof AUTO_INPUTS | PanelToolName;
 
 /** A project as list_projects returns it. */
 export type ListedProject = {
@@ -316,6 +330,8 @@ export type ListedProject = {
 
 type BaseToolContext = {
   viewer: AssistantViewer;
+  /** The turn's Panel state (tools/panel#createPanelTurn). */
+  panel: PanelTurn;
   /** Jira attachments the user ticked on the message being answered. */
   attachments: AttachmentRef[];
 };
@@ -344,7 +360,7 @@ const inputsOf = (ctx: ToolContext) =>
 function isToolName(
   name: string,
   inputs: Partial<Record<ToolName, z.ZodType>>
-): name is ToolName {
+): name is Exclude<ToolName, PanelToolName> {
   return Object.hasOwn(inputs, name);
 }
 
@@ -356,6 +372,7 @@ export async function executeTool(
   input: unknown,
   ctx: ToolContext
 ): Promise<ToolResult<unknown>> {
+  if (isPanelTool(name)) return executePanelTool(name, input, ctx);
   const inputs = inputsOf(ctx);
   if (!isToolName(name, inputs)) {
     return { ok: false, error: `unknown tool: ${name}`, meta: {} };
@@ -373,6 +390,35 @@ export async function executeTool(
   } catch (error) {
     // Unexpected failures (DB down, corrupt snapshot): the message stays generic
     // so an internal error text never reaches the model.
+    console.error(`[assistant] tool ${name} failed`, error);
+    return { ok: false, error: `${name} failed unexpectedly`, meta: {} };
+  }
+}
+
+/** A Panel tool: only those offered to the viewer (tools/panel) run. */
+async function executePanelTool(
+  name: PanelToolName,
+  input: unknown,
+  ctx: ToolContext
+): Promise<ToolResult<unknown>> {
+  if (!panelToolOffered(ctx.viewer, name)) {
+    return { ok: false, error: `unknown tool: ${name}`, meta: {} };
+  }
+  const parsed = (PANEL_INPUTS[name] as z.ZodType).safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: `invalid input for ${name}: ${z.prettifyError(parsed.error)}`,
+      meta: {},
+    };
+  }
+  try {
+    return await runPanelTool(name, parsed.data, {
+      viewer: ctx.viewer,
+      panel: ctx.panel,
+      mode: ctx.mode,
+    });
+  } catch (error) {
     console.error(`[assistant] tool ${name} failed`, error);
     return { ok: false, error: `${name} failed unexpectedly`, meta: {} };
   }
@@ -427,7 +473,7 @@ async function runProjectCode(
   if ("error" in snaps) {
     return {
       ok: false,
-      error: `Unknown project ${project}. Call list_projects.`,
+      error: unknownProjectError(project, "auto"),
       meta: { project },
     };
   }
@@ -443,7 +489,7 @@ async function runProjectCode(
 }
 
 async function run(
-  name: ToolName,
+  name: Exclude<ToolName, PanelToolName>,
   data: unknown,
   ctx: ToolContext
 ): Promise<ToolResult<unknown>> {

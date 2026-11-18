@@ -48,6 +48,7 @@ import {
   type ToolExecutor,
 } from "./tool-defs";
 import type { SnapshotRef } from "./tools/code";
+import { createPanelTurn, type PanelCores } from "./tools/panel";
 import {
   claimMessage,
   finishMessage,
@@ -115,6 +116,10 @@ export type RunTurnDeps = {
   /** The user's spend on the current quota day (USD). */
   spentToday?: (userId: string, now: Date) => Promise<number>;
   executeTool?: ToolExecutor;
+  /** Replaces the Panel tools' service cores (tests). */
+  panelCores?: Partial<PanelCores>;
+  /** The Panel status probe's wall-clock bound (tests). */
+  probeTimeoutMs?: number;
 };
 
 /** A turn- or request-level failure carrying its stable code. */
@@ -816,15 +821,26 @@ async function runClaimedTurn(
     { role: "system", content: buildVolatileSystemNote(now()) },
   ];
   const attachments: AttachmentRef[] = parseAttachmentRefs(turn.attachmentIds);
+  // The Panel tools read the viewer's projects: an automatic question has
+  // them already; a pinned one loads them only if a Panel tool asks.
+  const panel = createPanelTurn(viewer, {
+    projects:
+      resolved.question.kind === "auto"
+        ? async () => resolved.projects
+        : async () => visibleProjects(viewer, await sourceDeps.loadProjects()),
+    cores: deps.panelCores,
+    probeTimeoutMs: deps.probeTimeoutMs,
+  });
   const toolContext: ToolContext =
     resolved.question.kind === "auto"
       ? {
           mode: "auto",
           viewer,
           attachments,
+          panel,
           ...projectAccess(turn.messageId, resolved.projects, sourceDeps, stop),
         }
-      : { mode: "pinned", snaps: resolved.snaps, viewer, attachments };
+      : { mode: "pinned", snaps: resolved.snaps, viewer, attachments, panel };
   // Set by prepareStep for the step about to run.
   let capped = false;
   let promptChars = 0;

@@ -1,4 +1,9 @@
 import { HTTPException } from "hono/http-exception";
+import {
+  type AccessScope,
+  accessScopeFromSession,
+  requireProjectPermissionIn,
+} from "@/lib/access-scope";
 import { recordActivity } from "@/lib/activity";
 import { requireOrgPermission, requireProjectPermission } from "@/lib/authz";
 import {
@@ -107,7 +112,19 @@ async function readState(
 export async function getDeployLockState(
   environmentId: string
 ): Promise<DeployLockState> {
-  await requireProjectPermission({ environmentId }, { deploy: ["view"] });
+  return getDeployLockStateFor(await accessScopeFromSession(), environmentId);
+}
+
+/** getDeployLockState for an explicit scope (the assistant worker has no session). */
+export async function getDeployLockStateFor(
+  scope: AccessScope,
+  environmentId: string
+): Promise<DeployLockState> {
+  await requireProjectPermissionIn(
+    scope,
+    { environmentId },
+    { deploy: ["view"] }
+  );
   return readState(environmentId, new Date());
 }
 

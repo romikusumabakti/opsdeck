@@ -108,6 +108,13 @@ const SCOPE_CORES: Record<
         /requireProjectPermissionIn\(\s*scope,\s*\{ environmentId: deployment\.environmentId \},\s*\{ deploy: \["view"\] \}/,
     },
   },
+  "server/services/deploy-locks.ts": {
+    getDeployLockStateFor: {
+      check:
+        /requireProjectPermissionIn\(\s*scope,\s*\{ environmentId \},\s*\{ deploy: \["view"\] \}/,
+      wrapper: "getDeployLockState",
+    },
+  },
   "server/services/deploy-builds.ts": {
     listProjectBuildsFor: {
       check:

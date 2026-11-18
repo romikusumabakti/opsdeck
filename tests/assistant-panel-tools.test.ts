@@ -1,0 +1,950 @@
+import { HTTPException } from "hono/http-exception";
+import { describe, expect, it, vi } from "vitest";
+import { REDACTED_LINE } from "@/lib/assistant/secret-filter";
+import { executeTool, type ToolContext } from "@/lib/assistant/tool-defs";
+import {
+  createPanelTurn,
+  DEPLOY_LOG_LINES,
+  type PanelCores,
+  STATUS_PROBES_PER_TURN,
+} from "@/lib/assistant/tools/panel";
+import type { AssistantViewer, ProjectEntry } from "@/lib/assistant/viewer";
+import type { EnvironmentListItem } from "@/lib/db/schema";
+
+const ACME_ID = "01900000-0000-7000-8000-000000000001";
+const BETA_ID = "01900000-0000-7000-8000-000000000002";
+
+const viewerAs = (orgRole: AssistantViewer["orgRole"]): AssistantViewer => ({
+  userId: "u1",
+  orgRole,
+  projectIds: [ACME_ID, BETA_ID],
+  canManageKnowledge: false,
+  scope: {
+    userId: "u1",
+    orgRole,
+    projectRoles: { [ACME_ID]: "engineer", [BETA_ID]: "qa" },
+    seesAllProjects: false,
+  },
+});
+const engineer = viewerAs("engineer");
+const admin = viewerAs("admin");
+
+// The viewer's visible projects (an invisible one is simply absent).
+const PROJECTS: ProjectEntry[] = [
+  {
+    id: ACME_ID,
+    key: "ACME",
+    name: "Acme Membership",
+    client: null,
+    description: null,
+  },
+  { id: BETA_ID, key: "BETA", name: "Beta", client: null, description: null },
+];
+
+const envId = (n: number) =>
+  `01900000-0000-7000-8000-${String(1000 + n).padStart(12, "0")}`;
+
+function env(
+  n: number,
+  over: Partial<EnvironmentListItem> = {}
+): EnvironmentListItem {
+  return {
+    id: envId(n),
+    projectId: ACME_ID,
+    name: `Env ${n}`,
+    slug: `env-${n}`,
+    kind: "qa",
+    ownerId: null,
+    url: null,
+    appId: null,
+    envFileManaged: false,
+    entryPort: null,
+    dbType: null,
+    dbName: null,
+    key: "ACME",
+    hasMailpit: false,
+    serviceRoles: ["backend", "db"],
+    projectReleasable: false,
+    lastAccessedAt: null,
+    ...over,
+  } as EnvironmentListItem;
+}
+
+type Fakes = { [K in keyof PanelCores]: ReturnType<typeof vi.fn> };
+
+function fakeCores(envs: EnvironmentListItem[]): Fakes {
+  return {
+    listEnvironments: vi.fn(async () => envs),
+    getEnvironmentRunning: vi.fn(async () => ({ items: [] })),
+    getServiceStatuses: vi.fn(async () => [
+      { role: "backend", state: "running", raw: "Up 3 days" },
+    ]),
+    getDeployLockState: vi.fn(async () => ({ lock: null, heldCount: 0 })),
+    listDeployTargets: vi.fn(async () => []),
+    getDeployment: vi.fn(),
+    getRunSnapshot: vi.fn(async () => null),
+    listProjectBuilds: vi.fn(async () => []),
+    listIssues: vi.fn(async () => ({ rows: [], total: 0 })),
+    getIssueDetail: vi.fn(async () => null),
+    listPeople: vi.fn(async () => []),
+    getServers: vi.fn(async () => []),
+    getServer: vi.fn(async () => undefined),
+    listActivity: vi.fn(async () => []),
+    ownerNames: vi.fn(async () => new Map()),
+  };
+}
+
+function contextFor(
+  viewer: AssistantViewer,
+  cores: Fakes,
+  mode: "auto" | "pinned" = "auto",
+  probeTimeoutMs?: number
+): ToolContext {
+  const panel = createPanelTurn(viewer, {
+    projects: async () => PROJECTS,
+    cores: cores as unknown as PanelCores,
+    probeTimeoutMs,
+  });
+  const base = { viewer, attachments: [], panel };
+  return mode === "auto"
+    ? {
+        ...base,
+        mode,
+        snapshotsFor: async () => ({ error: "unknown_project" }) as const,
+        listProjects: async () => [],
+      }
+    : { ...base, mode, snaps: [] };
+}
+
+describe("list_environments", () => {
+  it("lists what the environments core returns for the viewer's scope, compactly", async () => {
+    const cores = fakeCores([
+      env(2, {
+        name: "UAT",
+        slug: "uat",
+        kind: "release",
+        url: "https://uat.example.invalid",
+        ownerId: "owner-1",
+      }),
+      env(1, { name: "Dev", slug: "dev", kind: null }),
+      env(3, { projectId: BETA_ID, key: "BETA", name: "QA", slug: "qa" }),
+    ]);
+    cores.ownerNames.mockResolvedValue(new Map([["owner-1", "Budi"]]));
+    const result = await executeTool(
+      "list_environments",
+      { project: null },
+      contextFor(engineer, cores)
+    );
+    expect(cores.listEnvironments).toHaveBeenCalledWith(engineer.scope);
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        projects: [
+          { key: "ACME", name: "Acme Membership" },
+          { key: "BETA", name: "Beta" },
+        ],
+        environments: [
+          { ref: "ACME/dev", name: "Dev" },
+          {
+            ref: "ACME/uat",
+            name: "UAT",
+            kind: "release",
+            url: "https://uat.example.invalid",
+            owner: "Budi",
+          },
+          { ref: "BETA/qa", name: "QA", kind: "qa" },
+        ],
+      },
+      meta: {},
+    });
+  });
+
+  it("filters by a loosely written project key", async () => {
+    const cores = fakeCores([
+      env(1),
+      env(2, { projectId: BETA_ID, key: "BETA" }),
+    ]);
+    const result = await executeTool(
+      "list_environments",
+      { project: " beta " },
+      contextFor(engineer, cores)
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      data: { environments: [{ ref: "BETA/env-2" }] },
+      meta: { project: "BETA" },
+    });
+  });
+
+  it("refuses an invisible project with the code tools' unknown message", async () => {
+    const cores = fakeCores([env(1)]);
+    const auto = await executeTool(
+      "list_environments",
+      { project: "secret" },
+      contextFor(engineer, cores)
+    );
+    expect(auto).toEqual({
+      ok: false,
+      error: "Unknown project SECRET. Call list_projects.",
+      meta: { project: "SECRET" },
+    });
+    // The same text the automatic code tools give an invisible project.
+    const code = await executeTool(
+      "list_files",
+      { project: "secret", glob: "**" },
+      contextFor(engineer, cores)
+    );
+    expect(code.ok === false && code.error).toBe(
+      auto.ok === false && auto.error
+    );
+    // A pinned context has no list_projects to point at.
+    const pinned = await executeTool(
+      "list_environments",
+      { project: "SECRET" },
+      contextFor(engineer, cores, "pinned")
+    );
+    expect(pinned).toMatchObject({
+      ok: false,
+      error: "Unknown project SECRET. Call list_environments.",
+    });
+  });
+
+  it("keeps 30 environments under 8 KB", async () => {
+    const envs = Array.from({ length: 30 }, (_, i) =>
+      env(i, {
+        name: `Customer acceptance ${i}`,
+        slug: `customer-acceptance-${i}`,
+        kind: "release",
+        url: `https://customer-acceptance-${i}.example.invalid`,
+        ownerId: `owner-${i}`,
+      })
+    );
+    const cores = fakeCores(envs);
+    cores.ownerNames.mockResolvedValue(
+      new Map(envs.map((_, i) => [`owner-${i}`, `Owner Number ${i}`]))
+    );
+    const result = await executeTool(
+      "list_environments",
+      { project: null },
+      contextFor(engineer, cores)
+    );
+    expect(result.ok).toBe(true);
+    const size = JSON.stringify(result.ok && result.data).length;
+    expect(size).toBeLessThan(8 * 1024);
+  });
+});
+
+describe("get_environment_status", () => {
+  it("probes at most 10 distinct environments per turn and memoises them", async () => {
+    const envs = Array.from({ length: 15 }, (_, i) => env(i));
+    const cores = fakeCores(envs);
+    const ctx = contextFor(engineer, cores);
+    const results = [];
+    for (const e of envs) {
+      results.push(
+        await executeTool(
+          "get_environment_status",
+          { environment: `ACME/${e.slug}` },
+          ctx
+        )
+      );
+    }
+    // Asking again for a checked one costs no new probe.
+    const again = await executeTool(
+      "get_environment_status",
+      { environment: "acme/ENV-0" },
+      ctx
+    );
+    expect(cores.getServiceStatuses).toHaveBeenCalledTimes(
+      STATUS_PROBES_PER_TURN
+    );
+    expect(cores.getServiceStatuses).toHaveBeenCalledWith(
+      engineer.scope,
+      envId(0)
+    );
+    const checked = results.filter(
+      (r) => r.ok && (r.data as { checked: boolean }).checked
+    );
+    const notChecked = results.filter(
+      (r) => r.ok && !(r.data as { checked: boolean }).checked
+    );
+    expect(checked).toHaveLength(10);
+    expect(notChecked).toHaveLength(5);
+    expect(notChecked[0]).toMatchObject({
+      ok: true,
+      data: { environment: "ACME/env-10", checked: false, reason: "limit" },
+      meta: { project: "ACME", environment: "ACME/env-10", checked: false },
+    });
+    expect(again).toMatchObject({
+      ok: true,
+      data: {
+        checked: true,
+        services: [{ role: "backend", state: "running" }],
+      },
+    });
+  });
+
+  it("reports every service unknown when a probe times out or fails", async () => {
+    const cores = fakeCores([env(1), env(2)]);
+    cores.getServiceStatuses.mockImplementation(
+      async (_scope: unknown, id: string) =>
+        id === envId(1)
+          ? new Promise(() => {}) // never answers
+          : Promise.reject(new Error("SSH command timed out after 10000ms"))
+    );
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const ctx = contextFor(engineer, cores, "auto", 20);
+    for (const environment of ["ACME/env-1", envId(2)]) {
+      expect(
+        await executeTool("get_environment_status", { environment }, ctx),
+        environment
+      ).toMatchObject({
+        ok: true,
+        data: {
+          checked: true,
+          services: [
+            { role: "backend", state: "unknown" },
+            { role: "db", state: "unknown" },
+          ],
+        },
+      });
+    }
+    spy.mockRestore();
+  });
+
+  it("adds running versions and an active lock from their cores", async () => {
+    const cores = fakeCores([env(1)]);
+    cores.getEnvironmentRunning.mockResolvedValue({
+      items: [
+        {
+          componentKey: "acme-backend",
+          repoFullName: "acme/backend",
+          commitSha: "0123456789abcdef",
+          tag: "v1.2.3",
+          ref: "0123456789abcdef",
+          deployed: true,
+          deployedAt: "2026-11-17T10:00:00.000Z",
+        },
+      ],
+    });
+    cores.getDeployLockState.mockResolvedValue({
+      lock: {
+        lockedBy: { id: "u2", name: "Sari" },
+        reason: "UAT in progress",
+        expiresAt: new Date("2026-11-18T10:00:00Z"),
+      },
+      heldCount: 2,
+    });
+    const result = await executeTool(
+      "get_environment_status",
+      { environment: "ACME/env-1" },
+      contextFor(engineer, cores)
+    );
+    expect(cores.getEnvironmentRunning).toHaveBeenCalledWith(
+      engineer.scope,
+      envId(1)
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        running: [
+          {
+            component: "acme-backend",
+            tag: "v1.2.3",
+            commit: "0123456789",
+            deployed: true,
+            deployedAt: "2026-11-17T10:00:00Z",
+          },
+        ],
+        lock: {
+          by: "Sari",
+          reason: "UAT in progress",
+          expiresAt: "2026-11-18T10:00:00Z",
+        },
+        heldDeploys: 2,
+      },
+    });
+  });
+
+  it("answers an unknown or invisible environment the same way, without probing", async () => {
+    const cores = fakeCores([env(1)]);
+    const ctx = contextFor(engineer, cores);
+    for (const environment of ["ACME/nope", "SECRET/env-1", envId(99), "x"]) {
+      expect(
+        await executeTool("get_environment_status", { environment }, ctx)
+      ).toEqual({
+        ok: false,
+        error: `Unknown environment ${environment}. Call list_environments.`,
+        meta: {},
+      });
+    }
+    // A refusal from the core reads the same.
+    cores.getEnvironmentRunning.mockRejectedValue(new HTTPException(404));
+    expect(
+      await executeTool(
+        "get_environment_status",
+        { environment: "ACME/env-1" },
+        ctx
+      )
+    ).toMatchObject({
+      ok: false,
+      error: "Unknown environment ACME/env-1. Call list_environments.",
+    });
+    expect(cores.getServiceStatuses).toHaveBeenCalledTimes(1);
+  });
+});
+
+const deployEntry = (id: string, createdAt: string, over = {}) => ({
+  id,
+  targetId: "t1",
+  environmentId: envId(1),
+  runId: "01900000-0000-7000-8000-00000000aaaa",
+  tag: "v1",
+  trigger: "manual",
+  status: "success",
+  buildId: null,
+  createdAt: new Date(createdAt),
+  startedAt: new Date(createdAt),
+  heartbeatAt: null,
+  scriptStartedAt: null,
+  finishedAt: new Date(new Date(createdAt).getTime() + 90_000),
+  userName: "Budi",
+  triggeredBy: null,
+  autoUser: null,
+  build: { branch: "main", commitSha: "abcdef0123456789" },
+  ...over,
+});
+
+describe("list_deploys and get_deploy", () => {
+  it("flattens the Deploys page's history newest first, at most 20", async () => {
+    const cores = fakeCores([env(1)]);
+    cores.listDeployTargets.mockResolvedValue([
+      {
+        componentKey: "backend",
+        sourceBranch: "main",
+        autoDeploy: true,
+        currentTag: "v2",
+        currentStatus: "success",
+        previousTag: "v1",
+        recentDeployments: Array.from({ length: 15 }, (_, i) =>
+          deployEntry(
+            `b${i}`,
+            `2026-11-${String(i + 1).padStart(2, "0")}T00:00:00Z`
+          )
+        ),
+      },
+      {
+        componentKey: "frontend",
+        sourceBranch: "main",
+        autoDeploy: false,
+        currentTag: null,
+        currentStatus: null,
+        previousTag: null,
+        recentDeployments: Array.from({ length: 15 }, (_, i) =>
+          deployEntry(
+            `f${i}`,
+            `2026-10-${String(i + 1).padStart(2, "0")}T00:00:00Z`
+          )
+        ),
+      },
+    ]);
+    const result = await executeTool(
+      "list_deploys",
+      { environment: "ACME/env-1", limit: 500 },
+      contextFor(engineer, cores)
+    );
+    expect(cores.listDeployTargets).toHaveBeenCalledWith(
+      engineer.scope,
+      envId(1)
+    );
+    if (!result.ok) throw new Error(result.error);
+    const data = result.data as {
+      components: unknown[];
+      deploys: Array<Record<string, unknown>>;
+    };
+    expect(data.deploys).toHaveLength(20);
+    expect(data.deploys[0]).toEqual({
+      id: "b14",
+      component: "backend",
+      tag: "v1",
+      status: "success",
+      trigger: "manual",
+      by: "Budi",
+      at: "2026-11-15T00:00:00Z",
+      durationSeconds: 90,
+      branch: "main",
+      commit: "abcdef0123",
+    });
+    expect(data.deploys.at(-1)?.id).toBe("f10");
+    expect(data.components).toEqual([
+      {
+        component: "backend",
+        branch: "main",
+        currentTag: "v2",
+        currentStatus: "success",
+        previousTag: "v1",
+        autoDeploy: true,
+      },
+      { component: "frontend", branch: "main" },
+    ]);
+    expect(result.meta).toEqual({
+      project: "ACME",
+      environment: "ACME/env-1",
+    });
+  });
+
+  it("reads any deploy the core lets the viewer see, with a redacted log tail", async () => {
+    const cores = fakeCores([env(1)]);
+    cores.getDeployment.mockResolvedValue({
+      ...deployEntry(
+        "01900000-0000-7000-8000-00000000d001",
+        "2026-01-01T00:00:00Z",
+        {
+          status: "failed",
+        }
+      ),
+      componentKey: "backend",
+    });
+    const lines = Array.from({ length: 300 }, (_, i) => `step ${i}`);
+    lines[290] = "DB_PASSWORD=hunter2-very-secret";
+    lines[50] = "early line that falls off the tail";
+    cores.getRunSnapshot.mockResolvedValue({
+      id: "r",
+      environmentId: envId(1),
+      description: "deploy",
+      status: "failed",
+      output: `${lines.join("\n")}\n`,
+      errorMessage: "health check failed",
+      runAt: new Date(),
+      completedAt: new Date(),
+    });
+    const result = await executeTool(
+      "get_deploy",
+      { id: " 01900000-0000-7000-8000-00000000d001 " },
+      contextFor(engineer, cores)
+    );
+    expect(cores.getDeployment).toHaveBeenCalledWith(
+      engineer.scope,
+      "01900000-0000-7000-8000-00000000d001"
+    );
+    if (!result.ok) throw new Error(result.error);
+    const data = result.data as Record<string, unknown>;
+    const log = String(data.log).split("\n");
+    expect(log).toHaveLength(DEPLOY_LOG_LINES);
+    expect(log[0]).toBe("step 100");
+    expect(log).toContain(REDACTED_LINE);
+    expect(String(data.log)).not.toContain("hunter2");
+    expect(data).toMatchObject({
+      status: "failed",
+      component: "backend",
+      environment: "ACME/env-1",
+      error: "health check failed",
+      logTruncated: true,
+    });
+    expect(data).not.toHaveProperty("logWithheld");
+    expect(result.meta).toEqual({
+      project: "ACME",
+      environment: "ACME/env-1",
+      withheld: 1,
+    });
+  });
+
+  it("withholds the log when the run is not readable, and hides unknown deploys", async () => {
+    const cores = fakeCores([env(1)]);
+    cores.getDeployment.mockResolvedValue({
+      ...deployEntry(
+        "01900000-0000-7000-8000-00000000d002",
+        "2026-01-01T00:00:00Z"
+      ),
+      componentKey: "backend",
+    });
+    const ctx = contextFor(engineer, cores);
+    const result = await executeTool(
+      "get_deploy",
+      { id: "01900000-0000-7000-8000-00000000d002" },
+      ctx
+    );
+    expect(result).toMatchObject({ ok: true, data: { logWithheld: true } });
+    expect(result.ok && result.data).not.toHaveProperty("log");
+
+    cores.getDeployment.mockRejectedValue(new HTTPException(404));
+    expect(await executeTool("get_deploy", { id: "nope" }, ctx)).toEqual({
+      ok: false,
+      error: "Unknown deploy nope.",
+      meta: {},
+    });
+  });
+});
+
+describe("builds, issues and people", () => {
+  it("lists a visible project's builds with a clamped limit", async () => {
+    const cores = fakeCores([]);
+    cores.listProjectBuilds.mockResolvedValue([
+      {
+        id: "b1",
+        componentKey: "backend",
+        branch: "main",
+        tag: "v9",
+        commitSha: "fedcba9876543210",
+        pipelineUrl: "https://ci.example.invalid/1",
+        pushedBy: "budi",
+        commitAuthorEmail: null,
+        commitMessage: "fix: iuran rounding",
+        receivedAt: new Date("2026-11-17T01:02:03Z"),
+      },
+    ]);
+    const ctx = contextFor(engineer, cores);
+    const result = await executeTool(
+      "list_builds",
+      { project: "acme", limit: 99 },
+      ctx
+    );
+    expect(cores.listProjectBuilds).toHaveBeenCalledWith(
+      engineer.scope,
+      ACME_ID,
+      20
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        project: "ACME",
+        builds: [
+          {
+            component: "backend",
+            branch: "main",
+            tag: "v9",
+            commit: "fedcba9876",
+            at: "2026-11-17T01:02:03Z",
+            by: "budi",
+            message: "fix: iuran rounding",
+          },
+        ],
+      },
+      meta: { project: "ACME" },
+    });
+    await executeTool("list_builds", { project: "ACME", limit: null }, ctx);
+    expect(cores.listProjectBuilds).toHaveBeenLastCalledWith(
+      engineer.scope,
+      ACME_ID,
+      10
+    );
+    expect(
+      await executeTool("list_builds", { project: "SECRET", limit: null }, ctx)
+    ).toMatchObject({
+      ok: false,
+      error: "Unknown project SECRET. Call list_projects.",
+    });
+    expect(cores.listProjectBuilds).toHaveBeenCalledTimes(2);
+  });
+
+  it("searches Panel issues through the Issues page core, every status", async () => {
+    const cores = fakeCores([]);
+    cores.listIssues.mockResolvedValue({
+      total: 1,
+      rows: [
+        {
+          number: 12,
+          title: "Iuran report empty",
+          status: "resolved",
+          type: "bug",
+          priority: "high",
+          assignee: { id: "u2", name: "Sari", image: null },
+          environment: null,
+          updatedAt: new Date("2026-11-10T00:00:00Z"),
+          project: { id: ACME_ID, name: "Acme", key: "ACME" },
+        },
+      ],
+    });
+    const result = await executeTool(
+      "search_panel_issues",
+      { query: " iuran ", project: "acme" },
+      contextFor(engineer, cores)
+    );
+    expect(cores.listIssues).toHaveBeenCalledWith(engineer.scope, {
+      q: "iuran",
+      status: "all",
+      projectId: ACME_ID,
+      sort: "updatedAt",
+      desc: true,
+      limit: 20,
+    });
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        total: 1,
+        issues: [
+          {
+            key: "ACME-12",
+            title: "Iuran report empty",
+            status: "resolved",
+            type: "bug",
+            priority: "high",
+            assignee: "Sari",
+            updatedAt: "2026-11-10T00:00:00Z",
+          },
+        ],
+      },
+      meta: { project: "ACME", issueKeys: ["ACME-12"] },
+    });
+  });
+
+  it("reads one Panel issue by key, with redacted text", async () => {
+    const cores = fakeCores([]);
+    cores.getIssueDetail.mockImplementation(
+      async (_scope: unknown, key: string, number: number) =>
+        key === "ACME" && number === 7
+          ? {
+              number: 7,
+              title: "Login fails",
+              status: "open",
+              type: "bug",
+              priority: "medium",
+              estimate: null,
+              description: "Steps:\npassword=hunter2\nthen it fails",
+              createdAt: new Date("2026-11-01T00:00:00Z"),
+              updatedAt: new Date("2026-11-02T00:00:00Z"),
+              project: { id: ACME_ID, name: "Acme", key: "ACME" },
+              environment: { id: envId(1), name: "UAT" },
+              assignee: null,
+              createdBy: { id: "u3", name: "Wati", image: null },
+              labels: [{ id: "l1", name: "auth", color: "red" }],
+              parent: null,
+              children: [
+                {
+                  id: "c",
+                  number: 8,
+                  title: "Sub",
+                  status: "open",
+                  type: "task",
+                },
+              ],
+              comments: [],
+            }
+          : null
+    );
+    const ctx = contextFor(engineer, cores);
+    const result = await executeTool(
+      "get_panel_issue",
+      { key: " acme-7 " },
+      ctx
+    );
+    expect(cores.getIssueDetail).toHaveBeenCalledWith(
+      engineer.scope,
+      "ACME",
+      7
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        key: "ACME-7",
+        project: "ACME",
+        title: "Login fails",
+        status: "open",
+        type: "bug",
+        priority: "medium",
+        environment: "UAT",
+        createdBy: "Wati",
+        createdAt: "2026-11-01T00:00:00Z",
+        updatedAt: "2026-11-02T00:00:00Z",
+        labels: ["auth"],
+        children: [{ key: "ACME-8", title: "Sub", status: "open" }],
+        description: `Steps:\n${REDACTED_LINE}\nthen it fails`,
+      },
+      meta: { project: "ACME", issueKeys: ["ACME-7"], withheld: 1 },
+    });
+    for (const key of ["SECRET-1", "not a key"]) {
+      expect(await executeTool("get_panel_issue", { key }, ctx)).toEqual({
+        ok: false,
+        error: `Panel issue ${key} not found.`,
+        meta: {},
+      });
+    }
+  });
+
+  it("lists people as the People page shows them, with what they like to be called", async () => {
+    const cores = fakeCores([]);
+    cores.listPeople.mockResolvedValue([
+      {
+        id: "p1",
+        name: "Budi Santoso",
+        preferredName: "Budi",
+        email: "budi@example.invalid",
+        image: null,
+        title: "QA",
+        role: "qa",
+        timeZone: "Asia/Jakarta",
+        workingHours: null,
+        status: null,
+        lastActiveAt: null,
+        projectIds: [ACME_ID, "invisible-project"],
+        deactivated: false,
+      },
+      {
+        id: "p2",
+        name: "Sari",
+        preferredName: null,
+        email: "sari@example.invalid",
+        image: null,
+        title: null,
+        role: "engineer",
+        timeZone: "Asia/Jakarta",
+        workingHours: null,
+        status: null,
+        lastActiveAt: null,
+        projectIds: [],
+        deactivated: true,
+      },
+    ]);
+    const ctx = contextFor(engineer, cores);
+    const result = await executeTool("list_people", { project: "acme" }, ctx);
+    expect(cores.listPeople).toHaveBeenCalledWith(engineer.scope, ACME_ID);
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        people: [
+          {
+            name: "Budi Santoso",
+            callName: "Budi",
+            email: "budi@example.invalid",
+            title: "QA",
+            role: "qa",
+            projects: ["ACME"],
+          },
+          {
+            name: "Sari",
+            email: "sari@example.invalid",
+            role: "engineer",
+            deactivated: true,
+          },
+        ],
+      },
+      meta: { project: "ACME" },
+    });
+    await executeTool("list_people", { project: null }, ctx);
+    expect(cores.listPeople).toHaveBeenLastCalledWith(
+      engineer.scope,
+      undefined
+    );
+  });
+});
+
+describe("servers and activity", () => {
+  it("lists and reads servers through the Servers cores, without credentials", async () => {
+    const cores = fakeCores([]);
+    const server = {
+      id: "s1",
+      name: "web-1",
+      host: "192.0.2.10",
+      username: "deploy",
+      auth: "key",
+      sftpRoot: "/",
+      placement: "restricted",
+      infraOnly: false,
+      preflight: {
+        runtime: { docker: "27.1", compose: "2.29", podman: null },
+        registry: null,
+        disk: [
+          { mount: "/", freeBytes: 10 * 1024 ** 3, totalBytes: 40 * 1024 ** 3 },
+        ],
+        cloudflared: { systemd: false, containers: [] },
+        listeningPorts: [22, 443],
+        publishedPorts: [],
+        postgresCandidates: [],
+      },
+      preflightAt: new Date("2026-11-01T00:00:00Z"),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    cores.getServers.mockResolvedValue([server]);
+    cores.getServer.mockResolvedValue(server);
+    const ctx = contextFor(admin, cores);
+    expect(await executeTool("list_servers", {}, ctx)).toEqual({
+      ok: true,
+      data: {
+        servers: [
+          { name: "web-1", host: "192.0.2.10", placement: "restricted" },
+        ],
+      },
+      meta: {},
+    });
+    expect(cores.getServers).toHaveBeenCalledWith(admin.scope);
+    expect(await executeTool("get_server", { server: "WEB-1" }, ctx)).toEqual({
+      ok: true,
+      data: {
+        name: "web-1",
+        host: "192.0.2.10",
+        username: "deploy",
+        auth: "key",
+        placement: "restricted",
+        scannedAt: "2026-11-01T00:00:00Z",
+        runtime: { docker: "27.1", compose: "2.29" },
+        disk: [{ mount: "/", freeGiB: 10, totalGiB: 40 }],
+      },
+      meta: {},
+    });
+    expect(cores.getServer).toHaveBeenCalledWith(admin.scope, "WEB-1");
+    cores.getServer.mockResolvedValue(undefined);
+    expect(await executeTool("get_server", { server: "db-9" }, ctx)).toEqual({
+      ok: false,
+      error: "Unknown server db-9. Call list_servers.",
+      meta: {},
+    });
+  });
+
+  it("reads the activity log with the limit capped at 50", async () => {
+    const cores = fakeCores([]);
+    cores.listActivity.mockResolvedValue([
+      {
+        id: "a1",
+        action: "deploy.requested",
+        data: { tag: "v1", note: "token=abcdefghijklmnopqrstuvwxyz0123456789" },
+        actorId: "u1",
+        actorName: "Budi",
+        actorImage: null,
+        createdAt: new Date("2026-11-18T01:00:00Z"),
+      },
+    ]);
+    const ctx = contextFor(admin, cores);
+    const result = await executeTool("recent_activity", { limit: 1000 }, ctx);
+    expect(cores.listActivity).toHaveBeenCalledWith(admin.scope, 50);
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        entries: [
+          {
+            action: "deploy.requested",
+            by: "Budi",
+            at: "2026-11-18T01:00:00Z",
+            details: { tag: "v1" },
+          },
+        ],
+      },
+    });
+    const details = (
+      result as {
+        data: { entries: Array<{ details: Record<string, unknown> }> };
+      }
+    ).data.entries[0]?.details;
+    expect(String(details?.note)).not.toContain("abcdefghijklmnop");
+    await executeTool("recent_activity", { limit: null }, ctx);
+    expect(cores.listActivity).toHaveBeenLastCalledWith(admin.scope, 20);
+  });
+
+  it("does not run gated tools for a viewer without the page", async () => {
+    const cores = fakeCores([]);
+    const ctx = contextFor(viewerAs("qa"), cores);
+    expect(await executeTool("list_servers", {}, ctx)).toMatchObject({
+      ok: false,
+      error: "unknown tool: list_servers",
+    });
+    expect(
+      await executeTool(
+        "recent_activity",
+        { limit: null },
+        contextFor(engineer, cores)
+      )
+    ).toMatchObject({ ok: false, error: "unknown tool: recent_activity" });
+    expect(cores.getServers).not.toHaveBeenCalled();
+    expect(cores.listActivity).not.toHaveBeenCalled();
+  });
+});

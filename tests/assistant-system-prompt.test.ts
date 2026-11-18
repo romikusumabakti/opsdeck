@@ -30,6 +30,33 @@ describe("buildSystemPrompt", () => {
     expect(text).toContain("list_projects");
   });
 
+  it("has a short Panel data section: read-only, and honest about unknown or unchecked status", () => {
+    const text = buildSystemPrompt({
+      userName: "Widya",
+      preferredName: null,
+      orgContext: null,
+    });
+    const section = text.slice(text.indexOf("# Panel data"));
+    expect(text).toContain("# Panel data");
+    for (const tool of [
+      "list_environments",
+      "get_environment_status",
+      "list_deploys",
+      "get_deploy",
+      "list_builds",
+      "search_panel_issues",
+      "get_panel_issue",
+      "list_people",
+      "list_servers",
+      "recent_activity",
+    ]) {
+      expect(section, tool).toContain(tool);
+    }
+    expect(section).toContain("read-only");
+    expect(section).toContain('"unknown"');
+    expect(section).toContain('"checked": false');
+  });
+
   it("addresses the user by the preferred name, and still knows the full one", () => {
     const text = buildSystemPrompt({
       userName: "Romi Kusuma Bakti",

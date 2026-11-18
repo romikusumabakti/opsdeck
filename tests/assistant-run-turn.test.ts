@@ -742,7 +742,8 @@ describe("runTurn", () => {
     // message, so switching it keeps the cached history prefix.
     expect(String(volatile?.content)).not.toContain("Environment:");
     const tools = toolsOf(call);
-    expect(tools).toHaveLength(7);
+    // The seven Stage 2 tools, then the eight Panel tools every role gets.
+    expect(tools).toHaveLength(15);
     expect(tools.at(-1)?.providerOptions).toEqual(CACHE);
     expect(tools.slice(0, -1).some((t) => t.providerOptions)).toBe(false);
     expect(conversationOf(call)).toEqual([
@@ -1275,9 +1276,83 @@ describe("runTurn", () => {
       inputSchema: { properties: Record<string, unknown> };
     }>;
     expect(tools.map((t) => t.name)).not.toContain("list_projects");
-    for (const t of tools)
+    // The Stage 2 tools; the Panel tools that follow may name a project.
+    for (const t of tools.slice(0, 7))
       expect(t.inputSchema.properties).not.toHaveProperty("project");
+    expect(tools.slice(7).map((t) => t.name)).toContain("list_environments");
     expect(loadProjects).not.toHaveBeenCalled();
+  });
+
+  it("probes at most 10 environments live in a turn; a hung probe reads unknown and the turn goes on", async () => {
+    state.turn = autoTurn();
+    const envs = Array.from({ length: 15 }, (_, i) => ({
+      id: `env-${i}`,
+      projectId: "project-1",
+      key: "KST",
+      name: `Env ${i}`,
+      slug: `env-${i}`,
+      kind: null,
+      url: null,
+      ownerId: null,
+      serviceRoles: ["backend"],
+    }));
+    const getServiceStatuses = vi.fn(async (_scope: unknown, id: string) =>
+      id === "env-0"
+        ? new Promise<never>(() => {})
+        : [{ role: "backend", state: "running", raw: "" }]
+    );
+    const calls15 = envs.map((e, i) => ({
+      id: `tu_${i}`,
+      name: "get_environment_status",
+      input: { environment: `kst/${e.slug}` },
+    }));
+    const { model, calls } = mockModel([
+      { toolCalls: calls15, finish: "tool-calls" },
+      { text: ["Semua berjalan"], finish: "stop" },
+    ]);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        executeTool: undefined,
+        probeTimeoutMs: 20,
+        panelCores: {
+          listEnvironments: async () => envs,
+          getServiceStatuses,
+          getEnvironmentRunning: async () => ({ items: [] }),
+          getDeployLockState: async () => ({ lock: null, heldCount: 0 }),
+        },
+      })
+    );
+    error.mockRestore();
+    expect(getServiceStatuses).toHaveBeenCalledTimes(10);
+    expect(state.message.status).toBe("done");
+    expect(state.message.content).toBe("Semua berjalan");
+    expect(state.toolCalls).toHaveLength(15);
+    const checked = state.toolCalls.map((c) => c.resultMeta.checked);
+    expect(checked.filter((c) => c === true)).toHaveLength(10);
+    expect(checked.filter((c) => c === false)).toHaveLength(5);
+    expect(
+      state.toolCalls.find((c) => c.input.environment === "kst/env-0")
+        ?.resultMeta
+    ).toEqual({ project: "KST", environment: "KST/env-0", checked: true });
+    // What the model read back: the hung probe is unknown.
+    const results = conversationOf(calls[1])
+      .filter((m) => m.role === "tool")
+      .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+      .map((part) =>
+        "output" in part && part.output.type === "text"
+          ? JSON.parse(part.output.value)
+          : null
+      );
+    expect(results[0]).toMatchObject({
+      environment: "KST/env-0",
+      checked: true,
+      services: [{ role: "backend", state: "unknown" }],
+    });
+    expect(
+      results.filter((r) => r?.checked === false && r.reason === "limit")
+    ).toHaveLength(5);
   });
 
   it("lists only the visible projects in an automatic question's note and in list_projects", async () => {

@@ -28,6 +28,8 @@ import { activeStatus, type WorkingHours } from "@/lib/user-display";
 export type PersonSummary = {
   id: string;
   name: string;
+  /** What the person asked to be called (Account page), or null. */
+  preferredName: string | null;
   email: string;
   image: string | null;
   title: string | null;
@@ -75,6 +77,7 @@ export async function listPeopleFor(
       .select({
         id: users.id,
         name: users.name,
+        preferredName: users.preferredName,
         email: users.email,
         image: users.image,
         title: users.title,
@@ -118,6 +121,7 @@ export async function listPeopleFor(
     return {
       id: u.id,
       name: u.name,
+      preferredName: u.preferredName ?? null,
       email: u.email,
       image: u.image,
       title: u.title,

@@ -59,6 +59,36 @@ vi.mock("@/lib/auth-session", () => ({
   })),
 }));
 
+// The lock read takes the caller's access scope (lib/access-scope); the
+// same role decides as in the @/lib/authz stub below.
+vi.mock("@/lib/access-scope", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/access-scope")>();
+  const { canProject } = await import("@/lib/permissions");
+  const { HTTPException } = await import("hono/http-exception");
+  return {
+    ...real,
+    accessScopeFromSession: vi.fn(async () => ({
+      userId: state.userId,
+      orgRole: state.orgRole,
+      projectRoles: state.role ? { p1: state.role } : {},
+      seesAllProjects: false,
+    })),
+    requireProjectPermissionIn: vi.fn(
+      async (
+        _scope: unknown,
+        _target: unknown,
+        perms: Parameters<typeof canProject>[1]
+      ) => {
+        if (!state.role) throw new HTTPException(404, { message: "Not Found" });
+        if (!canProject(state.role as "viewer", perms)) {
+          throw new HTTPException(403, { message: "Forbidden" });
+        }
+        return { role: state.role, projectId: "p1" };
+      }
+    ),
+  };
+});
+
 vi.mock("@/lib/authz", async () => {
   const { canOrg, canProject } = await import("@/lib/permissions");
   const { HTTPException } = await import("hono/http-exception");
