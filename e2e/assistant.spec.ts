@@ -11,8 +11,29 @@ let stub: AssistantStub;
 const KEY = "EASST";
 const PROJECT_NAME = `E2E Assistant ${KEY}`;
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ browser, baseURL }) => {
   stub = await startAssistantStub();
+  // The project is made here, not by a test, so no test depends on another
+  // (or breaks on a CI retry). An existing one is fine.
+  const context = await browser.newContext({
+    baseURL,
+    storageState: AUTH_FILE,
+  });
+  try {
+    const projects = await context.request.get(
+      "/api/project-catalog/list-projects"
+    );
+    const known = projects.ok() && (await projects.text()).includes(KEY);
+    if (!known) {
+      const created = await context.request.post(
+        "/api/project-catalog/add-project",
+        { data: { data: { name: PROJECT_NAME, key: KEY } } }
+      );
+      expect(created.ok()).toBe(true);
+    }
+  } finally {
+    await context.close();
+  }
 });
 
 test.afterAll(async () => {
@@ -20,7 +41,7 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  // Settings are instance-wide; the project is created once.
+  // Settings are instance-wide.
   const saved = await page.request.put("/api/assistant-settings", {
     data: {
       enabled: true,
@@ -41,11 +62,6 @@ const ASK = "Ask anything — type @ to pick a project";
 test("an admin enables the assistant and gets a streamed answer", async ({
   page,
 }) => {
-  const project = await page.request.post("/api/project-catalog/add-project", {
-    data: { data: { name: PROJECT_NAME, key: KEY } },
-  });
-  expect(project.ok()).toBe(true);
-
   await page.goto("/en/assistant");
   await page.getByPlaceholder(ASK).fill("Where is login?");
   await page.getByRole("button", { name: "Send" }).click();
@@ -102,4 +118,74 @@ test("Stop ends a slow answer with a Stopped note, and Retry answers again", asy
   });
   await expect(page.getByText("Stopped", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible();
+});
+
+// A mention in the middle of the text pins its project as the question's
+// context: the sent request carries it, wherever the @word sat.
+for (const how of ["click", "Enter"] as const) {
+  test(`picking a mention mid-sentence by ${how} sends that project as the context`, async ({
+    page,
+  }) => {
+    await page.goto("/en/assistant");
+    const box = page.getByPlaceholder(ASK);
+    await box.fill("ringkas @E2E");
+    const option = page.getByRole("option", { name: PROJECT_NAME });
+    await expect(option).toBeVisible();
+    if (how === "click") await option.click();
+    else await box.press("Enter");
+    await box.pressSequentially(" singkat");
+    // The pick adds its own trailing space, so the typed one makes two.
+    await expect(box).toHaveValue(`ringkas @${PROJECT_NAME}  singkat`);
+
+    const sent = page.waitForRequest(
+      (r) =>
+        r.method() === "POST" && r.url().endsWith("/api/assistant/send-message")
+    );
+    await page.getByRole("button", { name: "Send" }).click();
+    const body = (await sent).postDataJSON() as {
+      context: { kind: string; projectId?: string };
+    };
+    expect(body.context.kind).toBe("project");
+    const list = await page.request.get("/api/project-catalog/list-projects");
+    const projects = (await list.json()) as { id: string; key: string }[];
+    expect(body.context.projectId).toBe(
+      projects.find((p) => p.key === KEY)?.id
+    );
+    await expect(page.getByText("lives in the auth module.")).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+}
+
+test("switching chats keeps each chat's unsent text and context", async ({
+  page,
+}) => {
+  await page.goto("/en/assistant");
+  // A chat of its own, so the test doesn't lean on the others.
+  await page.getByPlaceholder(ASK).fill("Seed the switch chat");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("lives in the auth module.")).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible();
+
+  const box = page.getByPlaceholder(ASK);
+  await box.fill("draft @E2E");
+  await page.getByRole("option", { name: PROJECT_NAME }).click();
+  await box.pressSequentially("kept");
+  const text = await box.inputValue();
+  const chip = page.getByRole("combobox", { name: /^Context: / });
+  const chipName = await chip.getAttribute("aria-label");
+  expect(chipName).toContain(PROJECT_NAME);
+
+  await page.getByRole("button", { name: "New chat" }).click();
+  await expect(box).toHaveValue("");
+  await expect(chip).toHaveAttribute("aria-label", "Context: Automatic");
+
+  await page
+    .getByRole("navigation", { name: "Chats" })
+    .getByText("Seed the switch chat")
+    .click();
+  await expect(box).toHaveValue(text);
+  await expect(chip).toHaveAttribute("aria-label", chipName as string);
 });

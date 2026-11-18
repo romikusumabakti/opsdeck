@@ -13,6 +13,15 @@ const project = (n: number, client: string | null = null) => ({
 });
 
 describe("buildSystemPrompt", () => {
+  it("tells the model not to quote tool fields or raw JSON", () => {
+    const text = buildSystemPrompt({
+      userName: "Widya",
+      preferredName: null,
+      orgContext: null,
+    });
+    expect(text).toContain("Never quote tool field names");
+  });
+
   it("names no project: the cached part depends only on the user and the organisation", () => {
     const text = buildSystemPrompt({
       userName: "Widya",
