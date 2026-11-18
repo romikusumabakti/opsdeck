@@ -340,5 +340,20 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     expect(after?.sources).toBeNull();
     const live = await message("assistant", "streaming");
     expect(await store.saveContent(live.id, "x")).toBe(true);
+    // A tool call is audited only while the answer streams.
+    expect(await store.recordToolCall(stopped.id, "search_code", {}, {})).toBe(
+      false
+    );
+    expect(
+      await client`select 1 from assistant_tool_calls where message_id = ${stopped.id}`
+    ).toHaveLength(0);
+    expect(
+      await store.recordToolCall(live.id, "search_code", { a: 1 }, { b: 2 })
+    ).toBe(true);
+    expect(
+      await client`select tool, input, result_meta from assistant_tool_calls where message_id = ${live.id}`
+    ).toEqual([
+      { tool: "search_code", input: { a: 1 }, result_meta: { b: 2 } },
+    ]);
   });
 });

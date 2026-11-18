@@ -636,7 +636,7 @@ describe.skipIf(!enabled)(
       };
       const row = async (id: string) =>
         one(
-          await client`select status, content, error_code, finished_at from assistant_messages where id = ${id}`
+          await client`select status, content, error_code, finished_at::text as finished_at from assistant_messages where id = ${id}`
         );
       const at = new Date("2026-11-18T03:00:00Z");
 
@@ -650,7 +650,7 @@ describe.skipIf(!enabled)(
         status: "failed",
         content: "half an answer",
         error_code: "assistant.stopped",
-        finished_at: expect.any(String),
+        finished_at: "2026-11-18 03:00:00",
       });
       // The turn's own later writes no-op.
       expect(await turns.saveContent(streaming, "late")).toBe(false);

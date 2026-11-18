@@ -1022,6 +1022,7 @@ describe("runTurn", () => {
     expect(calls).toHaveLength(1);
     expect(state.toolCalls).toHaveLength(0);
     expect(state.finishes).toBe(0);
+    expect(state.usage).toHaveLength(1);
     expect(state.message).toMatchObject({
       status: "failed",
       errorCode: "assistant.stopped",

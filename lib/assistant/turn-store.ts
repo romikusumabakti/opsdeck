@@ -224,8 +224,9 @@ export async function finishMessage(
 }
 
 /**
- * False (nothing written) when the message is gone: its chat was deleted,
- * and the foreign key refuses an orphan row.
+ * False (nothing written) when the message is gone or no longer streaming: its
+ * chat was deleted or the answer was stopped. The status check and the insert
+ * are one statement, so a stop never lets another call be audited.
  */
 export async function recordToolCall(
   messageId: string,
@@ -234,10 +235,30 @@ export async function recordToolCall(
   resultMeta: Record<string, unknown>
 ): Promise<boolean> {
   try {
-    await db
+    const inserted = await db
       .insert(assistantToolCalls)
-      .values({ messageId, tool, input, resultMeta });
-    return true;
+      .select(
+        db
+          .select({
+            messageId: assistantMessages.id,
+            tool: sql<string>`${tool}`.as("tool"),
+            input: sql<
+              Record<string, unknown>
+            >`${JSON.stringify(input)}::text::jsonb`.as("input"),
+            resultMeta: sql<
+              Record<string, unknown>
+            >`${JSON.stringify(resultMeta)}::text::jsonb`.as("result_meta"),
+          })
+          .from(assistantMessages)
+          .where(
+            and(
+              eq(assistantMessages.id, messageId),
+              eq(assistantMessages.status, "streaming")
+            )
+          )
+      )
+      .returning({ id: assistantToolCalls.id });
+    return inserted.length > 0;
   } catch (error) {
     if (pgErrorCode(error) === "23503") return false;
     throw error;

@@ -1016,9 +1016,13 @@ async function runClaimedTurn(
   // The request cut off by the abort never reached its call end: meter it
   // from the text streamed so far (once; stepMetered guards a double count).
   if (stop.gone && !stepMetered && promptChars > 0) {
-    await meter(runtime.modelId, EMPTY_USAGE, [
-      { type: "text", text: writer.text },
-    ]);
+    try {
+      await meter(runtime.modelId, EMPTY_USAGE, [
+        { type: "text", text: writer.text },
+      ]);
+    } catch (error) {
+      console.error("[assistant] could not meter a stopped request:", error);
+    }
   }
   if (stop.gone) return;
   if (auditError) throw auditError;
