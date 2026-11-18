@@ -6,6 +6,8 @@ import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyBranding } from "@/i18n/branding";
+import { composerDrafts } from "@/web/components/assistant/composer-drafts";
+import { ME_QUERY_KEY } from "@/web/query-client";
 import enMessages from "../messages/en.json";
 
 const messages = applyBranding(enMessages, {
@@ -76,6 +78,12 @@ beforeEach(() => {
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
+  queryClient.setQueryData(ME_QUERY_KEY, {
+    user: { id: "user-1" },
+    orgRole: "member",
+    timeZone: "UTC",
+  });
+  composerDrafts.resetForTests();
   api.createConversation.mockReset();
   api.sendMessage.mockReset();
   api.uploadFile.mockReset();
@@ -487,6 +495,42 @@ describe("home box files", () => {
       context: { kind: "auto" },
       fileIds: ["u1", "u2"],
     });
+  });
+
+  it("files do not come back after a send or a remount", async () => {
+    api.uploadFile.mockResolvedValue({
+      id: "u1",
+      filename: "a.png",
+      mediaType: "image/png",
+      size: 1,
+    });
+    api.createConversation.mockResolvedValue({ id: "c9" });
+    api.sendMessage.mockResolvedValue({});
+    await renderCard({});
+    const picker = container.querySelector(
+      "input[type=file]"
+    ) as HTMLInputElement;
+    Object.defineProperty(picker, "files", { value: [png("a.png")] });
+    await act(async () => {
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(chips()).toHaveLength(1);
+    await type("Look");
+    await pressEnter();
+    expect(chips()).toHaveLength(0);
+    await act(async () => root.unmount());
+    await act(async () => {
+      root = createRoot(container);
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <IntlProvider locale="en" messages={messages} timeZone="UTC">
+            <AskAssistantCard />
+          </IntlProvider>
+        </QueryClientProvider>
+      );
+    });
+    expect(chips()).toHaveLength(0);
+    expect(api.deleteUpload).not.toHaveBeenCalled();
   });
 
   it("the 📎 button opens the file picker", async () => {

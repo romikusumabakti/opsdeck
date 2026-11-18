@@ -69,12 +69,15 @@ describe("composerDrafts", () => {
     expect(api.deleteUpload).not.toHaveBeenCalled();
     expect(composerDrafts.get("c1")).toBe(EMPTY_DRAFT);
 
+    let signal!: AbortSignal;
     api.uploadFile
       .mockResolvedValueOnce({ id: "up2" })
-      .mockReturnValueOnce(pending.promise);
+      .mockImplementationOnce((_file: File, opts: { signal: AbortSignal }) => {
+        signal = opts.signal;
+        return pending.promise;
+      });
     composerDrafts.addFiles("c1", [pdf("b.pdf"), pdf("c.pdf")], messages);
     await flush();
-    const signal = api.uploadFile.mock.calls[2]?.[1]?.signal as AbortSignal;
     composerDrafts.drop("c1");
     expect(api.deleteUpload).toHaveBeenCalledWith("up2");
     expect(signal.aborted).toBe(true);
@@ -83,12 +86,18 @@ describe("composerDrafts", () => {
 
   it("drafts are per user", () => {
     const d = deferred();
-    api.uploadFile.mockReturnValue(d.promise);
+    let signal!: AbortSignal;
+    api.uploadFile.mockImplementation(
+      (_file: File, opts: { signal: AbortSignal }) => {
+        signal = opts.signal;
+        return d.promise;
+      }
+    );
     composerDrafts.update("new", (x) => ({ ...x, text: "secret" }));
     composerDrafts.addFiles("new", [pdf()], messages);
-    const signal = api.uploadFile.mock.calls[0]?.[1]?.signal as AbortSignal;
     composerDrafts.forUser("u1");
     expect(composerDrafts.get("new").text).toBe("secret");
+    expect(composerDrafts.read("u2", "new")).toBe(EMPTY_DRAFT);
     composerDrafts.forUser("u2");
     expect(composerDrafts.get("new")).toBe(EMPTY_DRAFT);
     expect(signal.aborted).toBe(true);

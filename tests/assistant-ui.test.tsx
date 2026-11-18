@@ -8,6 +8,7 @@ import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyBranding } from "@/i18n/branding";
 import { locales } from "@/i18n/locales";
+import { ME_QUERY_KEY } from "@/web/query-client";
 import enMessages from "../messages/en.json";
 
 const messages = applyBranding(enMessages, {
@@ -185,10 +186,15 @@ let root: ReturnType<typeof createRoot>;
 let queryClient: QueryClient;
 
 beforeEach(() => {
-  composerDrafts.resetForTests();
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
+  queryClient.setQueryData(ME_QUERY_KEY, {
+    user: { id: "user-1" },
+    orgRole: "member",
+    timeZone: "UTC",
+  });
+  composerDrafts.resetForTests();
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
   for (const fn of Object.values(api)) fn.mockReset();

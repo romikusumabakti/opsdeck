@@ -22,7 +22,7 @@ import { useAssistantErrorText } from "./error-text";
 
 export type { PendingFile };
 
-export function useFileUploads(userId: string, key: DraftKey) {
+export function useFileUploads(userId: string | null, key: DraftKey) {
   const tErrors = useTranslations("assistantErrors");
   const { errorText } = useAssistantErrorText();
   const [draft] = useComposerDraft(userId, key);
@@ -30,25 +30,30 @@ export function useFileUploads(userId: string, key: DraftKey) {
 
   const add = React.useCallback(
     (list: readonly File[]) =>
+      userId &&
       composerDrafts.addFiles(key, list, {
         tooMany: tErrors("tooManyFiles", { max: MAX_UPLOADS_PER_QUESTION }),
         unsupported: tErrors("fileTypeUnsupported"),
         tooLarge: (limitMb) => tErrors("fileTooLarge", { limitMb }),
         failed: errorText,
       }),
-    [key, tErrors, errorText]
+    [userId, key, tErrors, errorText]
   );
 
   const remove = React.useCallback(
-    (fileKey: string) => composerDrafts.removeFile(key, fileKey),
-    [key]
+    (fileKey: string) => userId && composerDrafts.removeFile(key, fileKey),
+    [userId, key]
   );
 
-  /** After a send: the files now belong to the question. */
+  /**
+   * After a send: the files now belong to the question. Empties only the
+   * files and notice (`composerDrafts.clear` resets the whole draft).
+   */
   const clear = React.useCallback(
     () =>
+      userId &&
       composerDrafts.update(key, (d) => ({ ...d, notice: null, files: [] })),
-    [key]
+    [userId, key]
   );
 
   const ready = files.flatMap((f) =>

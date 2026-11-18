@@ -15,6 +15,10 @@ import {
   sendMessage,
 } from "@/web/api/assistant";
 import { listProjectsQuery } from "@/web/api/project-catalog";
+import {
+  composerDrafts,
+  useDraftUser,
+} from "@/web/components/assistant/composer-drafts";
 import { shouldSend } from "@/web/components/assistant/composer-keys";
 import {
   ContextPicker,
@@ -58,7 +62,12 @@ export function AskAssistantCard() {
   const [text, setText] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInput = React.useRef<HTMLInputElement>(null);
-  const uploads = useFileUploads("current-user", "home");
+  const userId = useDraftUser();
+  // The card keeps no draft across mounts: its own key, dropped (unsent
+  // uploads deleted) on unmount and reset after a send.
+  const draftKey = React.useId();
+  React.useEffect(() => () => composerDrafts.drop(draftKey), [draftKey]);
+  const uploads = useFileUploads(userId, draftKey);
   const drop = useFileDrop(uploads.add, false);
 
   // The conversation made for a send that then failed: a retry reuses it
@@ -85,8 +94,10 @@ export function AskAssistantCard() {
       created.current = null;
       return id;
     },
-    onSuccess: (conversationId) =>
-      router.push(`/assistant?c=${conversationId}`),
+    onSuccess: (conversationId) => {
+      composerDrafts.clear(draftKey);
+      router.push(`/assistant?c=${conversationId}`);
+    },
   });
 
   const mentions = useMentions({

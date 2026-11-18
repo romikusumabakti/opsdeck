@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import type { QuestionContextInput } from "@/lib/assistant/context";
 import {
@@ -7,6 +8,7 @@ import {
   uploadLimit,
 } from "@/lib/assistant/upload-types";
 import { deleteUpload, uploadFile } from "@/web/api/assistant";
+import { meQuery } from "@/web/api/session";
 import type { PickedAttachment } from "./attachment-picker";
 
 /**
@@ -117,13 +119,14 @@ function createDrafts() {
       signal: controller.signal,
       onProgress: (progress) => patchFile(key, fileKey, { progress }),
     })
-      .then((uploaded) =>
+      .then((uploaded) => {
+        if (controller.signal.aborted) return;
         patchFile(key, fileKey, {
           status: "ready",
           progress: 1,
           id: uploaded.id,
-        })
-      )
+        });
+      })
       .catch((error: unknown) => {
         if ((error as Error)?.name === "AbortError") return;
         patchFile(key, fileKey, {
@@ -139,18 +142,28 @@ function createDrafts() {
   };
 
   return {
-    /** Drops every draft (aborting uploads) when another user signs in. */
+    /**
+     * Drops every draft (aborting uploads) when another user signs in. Called
+     * from an effect (`useDraftOwner`), never during render.
+     */
     forUser(id: string) {
       if (userId === id) return;
-      const had = drafts.size > 0;
       for (const draft of drafts.values()) abortFiles(draft.files);
       userId = id;
       drafts = new Map();
-      if (had) emit();
+      emit();
+    },
+    /** The draft as `id` may see it: empty unless `id` is the store's user. */
+    read(id: string, key: DraftKey): ComposerDraft {
+      return userId === id ? get(key) : EMPTY_DRAFT;
     },
     get,
     update,
-    /** After a send: the uploads now belong to the question. */
+    /**
+     * After a send: resets the WHOLE draft (text, chip, files) without
+     * deleting uploads, which now belong to the question. Not the same as
+     * `useFileUploads().clear`, which empties only the files and notice.
+     */
     clear(key: DraftKey) {
       if (!drafts.has(key)) return;
       update(key, () => EMPTY_DRAFT);
@@ -246,20 +259,34 @@ function createDrafts() {
 
 export const composerDrafts = createDrafts();
 
+/**
+ * The signed-in user's id (null until the session is cached) and the one
+ * effect that makes them the store's owner, dropping the previous user's
+ * drafts. Reads for any other id stay empty until it has run, so render
+ * stays pure. Read from the cache only: inside the app shell it is filled.
+ */
+export function useDraftUser(): string | null {
+  const id = useQuery({ ...meQuery(), enabled: false }).data?.user.id ?? null;
+  React.useEffect(() => {
+    if (id) composerDrafts.forUser(id);
+  }, [id]);
+  return id;
+}
+
 export function useComposerDraft(
-  userId: string,
+  userId: string | null,
   key: DraftKey
 ): [ComposerDraft, (change: (draft: ComposerDraft) => ComposerDraft) => void] {
-  composerDrafts.forUser(userId);
   const draft = React.useSyncExternalStore(
     composerDrafts.subscribe,
-    () => composerDrafts.get(key),
+    () => (userId ? composerDrafts.read(userId, key) : EMPTY_DRAFT),
     () => EMPTY_DRAFT
   );
   const change = React.useCallback(
-    (fn: (draft: ComposerDraft) => ComposerDraft) =>
-      composerDrafts.update(key, fn),
-    [key]
+    (fn: (draft: ComposerDraft) => ComposerDraft) => {
+      if (userId) composerDrafts.update(key, fn);
+    },
+    [userId, key]
   );
   return [draft, change];
 }
