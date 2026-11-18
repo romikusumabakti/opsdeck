@@ -18,10 +18,12 @@ export interface DemoAccount {
     | "demo-infra"
     | "demo-observer"
     | "demo-engineer"
-    | "demo-qa";
+    | "demo-qa"
+    | "demo-ba"
+    | "demo-staff";
   orgRole: OrgRole;
   // A member of both original demo projects: what makes them visible to an
-  // engineer or QA.
+  // engineer, QA or BA.
   member: boolean;
 }
 
@@ -31,6 +33,9 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
   { name: "demo-observer", orgRole: "observer", member: false },
   { name: "demo-engineer", orgRole: "engineer", member: true },
   { name: "demo-qa", orgRole: "qa", member: true },
+  { name: "demo-ba", orgRole: "ba", member: true },
+  // Staff sees no project, so no membership.
+  { name: "demo-staff", orgRole: "staff", member: false },
 ];
 
 // The projects the sign-in accounts belong to (as in the first seed).

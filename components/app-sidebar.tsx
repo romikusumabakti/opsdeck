@@ -63,6 +63,7 @@ import {
   canOrg,
   canOrgAccess,
   canProject,
+  normalizeOrgRole,
   type OrgPermissions,
   type OrgRole,
   type ProjectPermissions,
@@ -242,6 +243,8 @@ export function AppSidebar({
   const canSeeServers = canOrgAccess(orgRole, { server: ["read"] });
   const canSeeStorage = canOrgAccess(orgRole, { storage: ["read"] });
   const canSeeAdmin = canOrg(orgRole, { audit: ["read"] });
+  // staff sees no project, so nothing that lists or works on projects.
+  const seesProjects = normalizeOrgRole(orgRole) !== "staff";
   const inAdmin =
     canSeeAdmin && (pathname === "/admin" || pathname.startsWith("/admin/"));
 
@@ -327,35 +330,39 @@ export function AppSidebar({
                   <span>{tNav("home")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/projects" />}
-                  isActive={pathname === "/projects"}
-                  tooltip={tNav("projects")}
-                >
-                  <FolderKanban />
-                  <span>{tNav("projects")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/issues" />}
-                  isActive={pathname.startsWith("/issues")}
-                  tooltip={rowTooltip(
-                    tNav("allIssues"),
-                    issueCounts.total,
-                    assignedLabel
-                  )}
-                >
-                  <CircleDot />
-                  <span>{tNav("allIssues")}</span>
-                </SidebarMenuButton>
-                <SidebarCountBadge
-                  count={issueCounts.total}
-                  label={assignedLabel}
-                />
-              </SidebarMenuItem>
-              {assistantEnabled && projects.length > 0 && (
+              {seesProjects && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/projects" />}
+                    isActive={pathname === "/projects"}
+                    tooltip={tNav("projects")}
+                  >
+                    <FolderKanban />
+                    <span>{tNav("projects")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {seesProjects && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/issues" />}
+                    isActive={pathname.startsWith("/issues")}
+                    tooltip={rowTooltip(
+                      tNav("allIssues"),
+                      issueCounts.total,
+                      assignedLabel
+                    )}
+                  >
+                    <CircleDot />
+                    <span>{tNav("allIssues")}</span>
+                  </SidebarMenuButton>
+                  <SidebarCountBadge
+                    count={issueCounts.total}
+                    label={assignedLabel}
+                  />
+                </SidebarMenuItem>
+              )}
+              {seesProjects && assistantEnabled && projects.length > 0 && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     render={<Link href="/assistant" />}
@@ -377,16 +384,18 @@ export function AppSidebar({
                   <span>{tNav("knowledge")}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  render={<Link href="/people" />}
-                  isActive={pathname.startsWith("/people")}
-                  tooltip={tNav("people")}
-                >
-                  <UsersRound />
-                  <span>{tNav("people")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {seesProjects && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/people" />}
+                    isActive={pathname.startsWith("/people")}
+                    tooltip={tNav("people")}
+                  >
+                    <UsersRound />
+                    <span>{tNav("people")}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {canSeeServers && (
                 <SidebarMenuItem>
                   <SidebarMenuButton

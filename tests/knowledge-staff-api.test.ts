@@ -88,10 +88,16 @@ describe("staff on the knowledge API", () => {
 
   it("a qa passes the same write guard (control)", async () => {
     state.role = "qa";
-    // Past the guard the handler reaches the database, which throws here.
+    // Past the guard the handler reaches the database, which throws here and the
+    // handler answers its generic failure.
     const res = await post("create-document", {
       data: { collectionId: ID, title: "Notes" },
     });
-    expect(res.status).not.toBe(403);
+    // The action reports the failure in its body, with a 200.
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      success: false,
+      message: "Failed to create document",
+    });
   });
 });

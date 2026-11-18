@@ -283,7 +283,7 @@ describe.skipIf(!enabled)(
       const listsUsers = new Set([admin.id, observer.id]);
 
       for (const person of everyone) {
-        session.user = { id: person.id, role: person.role ?? "qa" };
+        session.user = { id: person.id, role: person.role ?? "staff" };
         const scope = await accessScopeForUser(person.id);
         expect(scope).toEqual(await accessScopeFromSession());
 

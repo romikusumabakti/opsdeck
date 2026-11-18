@@ -211,6 +211,21 @@ describe("app sidebar", () => {
   });
 });
 
+describe("staff sidebar", () => {
+  it("shows Home and Knowledge only", async () => {
+    await renderSidebar("staff", "/", { assistantEnabled: true });
+    // "/" twice: the logo and Home.
+    expect(hrefs()).toEqual(["/", "/", "/knowledge"]);
+  });
+
+  it("still shows the other roles Projects, Issues and People", async () => {
+    await renderSidebar("ba", "/", { projectRoles: { p1: "qa" } });
+    expect(hrefs()).toEqual(
+      expect.arrayContaining(["/projects", "/issues", "/people", "/knowledge"])
+    );
+  });
+});
+
 describe("project group", () => {
   // Releases exist only for legacy jar/static components (spec 2026-11-11
   // decision 7): a container-only project gets no Releases entry.

@@ -36,6 +36,7 @@ function DocumentPage() {
   const me = useMe();
   const doc = useSuspenseQuery(getDocumentQuery(slug)).data;
   const backlinks = useSuspenseQuery(getBacklinksQuery(doc.id)).data;
+  const canWrite = canOrg(me?.orgRole, { knowledge: ["write"] });
   const canDelete = canOrg(me?.orgRole, { knowledge: ["manage"] });
 
   return (
@@ -52,6 +53,7 @@ function DocumentPage() {
           <DocumentActions
             documentId={doc.id}
             slug={doc.slug}
+            canWrite={canWrite}
             canDelete={canDelete}
           />
         </div>

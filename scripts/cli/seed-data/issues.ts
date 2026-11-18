@@ -12,7 +12,9 @@ export type PersonRef =
   | "demo-infra"
   | "demo-observer"
   | "demo-engineer"
-  | "demo-qa";
+  | "demo-qa"
+  | "demo-ba"
+  | "demo-staff";
 
 export interface DemoComment {
   author: PersonRef;

@@ -212,11 +212,11 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
       // DEMO keeps its own Dev; NPMB gets none; the other 3 × 3.
       environments: 10,
       servers: 3,
-      // 5 sign-in accounts, 9 staff (Joko's name was taken), 1 pre-existing.
-      users: 15,
-      accounts: 5,
-      // demo-engineer and demo-qa in DEMOPORTAL, staff in NPCP/BSAC (11).
-      members: 13,
+      // 7 sign-in accounts, 9 staff (Joko's name was taken), 1 pre-existing.
+      users: 17,
+      accounts: 7,
+      // demo-engineer, demo-qa and demo-ba in DEMOPORTAL, staff in NPCP/BSAC (11).
+      members: 14,
       apps: 3,
       components: 5,
       ci: 1,
@@ -251,7 +251,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
       ])
     );
     expect(lines.filter((l) => l.startsWith("skipped"))).toHaveLength(3);
-    expect(accountLines()).toHaveLength(5);
+    expect(accountLines()).toHaveLength(7);
     expect(
       accountLines().every(
         (l) => l.startsWith("created") && l.includes("password: ")
@@ -265,7 +265,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     const inserted = await seedDemo(db, options({ printPasswords: true }));
     expect(await counts()).toEqual(first);
     expect(Object.values(inserted).every((n) => n === 0)).toBe(true);
-    expect(accountLines()).toHaveLength(5);
+    expect(accountLines()).toHaveLength(7);
     expect(
       accountLines().every(
         (l) => l.startsWith("exists") && !l.includes("password")
@@ -479,18 +479,20 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
       "demo-observer@example.invalid": "observer",
       "demo-engineer@example.invalid": "engineer",
       "demo-qa@example.invalid": "qa",
+      "demo-ba@example.invalid": "ba",
+      "demo-staff@example.invalid": "staff",
     });
     const members = await sql`
       select u.email, p.key from project_members m
       join users u on u.id = m.user_id join projects p on p.id = m.project_id
       where u.email like 'demo-%'`;
     // DEMO here is a real project, so only DEMOPORTAL.
-    expect(members).toHaveLength(2);
-    for (const name of ["demo-engineer", "demo-qa"]) {
+    expect(members).toHaveLength(3);
+    for (const name of ["demo-engineer", "demo-qa", "demo-ba"]) {
       const mine = members.filter((m) => m.email === `${name}@example.invalid`);
       expect(mine.map((m) => m.key)).toEqual(["DEMOPORTAL"]);
     }
-    expect(DEMO_ACCOUNTS).toHaveLength(5);
+    expect(DEMO_ACCOUNTS).toHaveLength(7);
     const credential = await sql`select provider_id from accounts`;
     expect(credential.every((a) => a.provider_id === "credential")).toBe(true);
   });
@@ -536,7 +538,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
         select u.email, count(m.project_id)::int as memberships
         from users u left join project_members m on m.user_id = u.id
         where u.email like 'demo-%' group by u.email`;
-      expect(accounts).toHaveLength(5);
+      expect(accounts).toHaveLength(7);
       expect(accounts.every((a) => a.memberships === 0)).toBe(true);
       const [row] = await other`
         select

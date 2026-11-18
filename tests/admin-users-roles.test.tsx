@@ -115,7 +115,7 @@ describe("Change role submenu", () => {
 
   it("offers the eight roles, each with a one-line description", async () => {
     await openRoleSubmenu(user("qa"));
-    for (const label of [
+    const labels = [
       "Admin",
       "Infra",
       "Engineer",
@@ -124,9 +124,15 @@ describe("Change role submenu", () => {
       "PM",
       "Staff",
       "Observer",
-    ]) {
-      expect(bodyText()).toContain(label);
-    }
+    ];
+    const items = [
+      ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ].map((el) => el.textContent ?? "");
+    const order = labels.map((label) =>
+      items.findIndex((text) => text.startsWith(label))
+    );
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(bodyText()).not.toContain("QA / BA");
     expect(bodyText()).toContain(en.roleDescription.engineer);
     expect(bodyText()).toContain(en.roleDescription.ba);

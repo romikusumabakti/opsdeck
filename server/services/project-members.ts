@@ -63,26 +63,31 @@ export async function listProjectMembersFor(
   }));
 }
 
-// Everyone who could be added to the project: every non-banned user, by name.
-// The picker drops current members itself. Membership is how an engineer or
-// QA gains a project, so this list deliberately reaches beyond the project's
-// current members (unlike listAssignableUsers).
+// Everyone who could be added to the project: every non-banned user except
+// staff (a membership gives them nothing), by name. The picker drops current
+// members itself. Membership is how an engineer or QA gains a project, so
+// this list deliberately reaches beyond the project's current members (unlike
+// listAssignableUsers).
 export async function listMemberCandidates(
   projectId: string
 ): Promise<
   { id: string; name: string; email: string; image: string | null }[]
 > {
   await requireProjectPermission({ projectId }, { member: ["manage"] });
-  return db
+  const rows = await db
     .select({
       id: userTable.id,
       name: userTable.name,
       email: userTable.email,
       image: userTable.image,
+      role: userTable.role,
     })
     .from(userTable)
     .where(eq(userTable.banned, false))
     .orderBy(userTable.name);
+  return rows
+    .filter((r) => normalizeOrgRole(r.role) !== "staff")
+    .map(({ role: _role, ...candidate }) => candidate);
 }
 
 // Snapshot the user + project display names for the activity feed so it reads

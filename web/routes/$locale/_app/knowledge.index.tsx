@@ -5,7 +5,9 @@ import { useTranslations } from "use-intl";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
+import { canOrg } from "@/lib/permissions";
 import { listCollectionsQuery } from "@/web/api/knowledge";
+import { useMe } from "@/web/api/session";
 import { loaderQuery } from "@/web/query-client";
 
 export const Route = createFileRoute("/$locale/_app/knowledge/")({
@@ -17,6 +19,8 @@ export const Route = createFileRoute("/$locale/_app/knowledge/")({
 
 function KnowledgeHome() {
   const t = useTranslations("knowledge");
+  const me = useMe();
+  const canWrite = canOrg(me?.orgRole, { knowledge: ["write"] });
   const collections = useSuspenseQuery(listCollectionsQuery()).data;
 
   if (collections.length === 0) {
@@ -37,10 +41,12 @@ function KnowledgeHome() {
       title={t("landingTitle")}
       description={t("landingHint")}
       action={
-        <Button nativeButton={false} render={<Link href="/knowledge/new" />}>
-          <Plus className="size-4" />
-          {t("newDocument")}
-        </Button>
+        canWrite ? (
+          <Button nativeButton={false} render={<Link href="/knowledge/new" />}>
+            <Plus className="size-4" />
+            {t("newDocument")}
+          </Button>
+        ) : undefined
       }
     />
   );

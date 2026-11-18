@@ -27,10 +27,12 @@ import { deleteDocument } from "@/web/api/knowledge";
 export function DocumentActions({
   documentId,
   slug,
+  canWrite,
   canDelete,
 }: {
   documentId: string;
   slug: string;
+  canWrite: boolean;
   canDelete: boolean;
 }) {
   const t = useTranslations("knowledge");
@@ -62,23 +64,27 @@ export function DocumentActions({
 
   return (
     <div className="flex items-center gap-2">
-      <Button
-        nativeButton={false}
-        render={<Link href={`/knowledge/${slug}/history`} />}
-        variant="outline"
-        size="sm"
-      >
-        <History className="size-4" />
-        {t("history")}
-      </Button>
-      <Button
-        nativeButton={false}
-        render={<Link href={`/knowledge/${slug}/edit`} />}
-        size="sm"
-      >
-        <Pencil className="size-4" />
-        {tCommon("edit")}
-      </Button>
+      {canWrite && (
+        <>
+          <Button
+            nativeButton={false}
+            render={<Link href={`/knowledge/${slug}/history`} />}
+            variant="outline"
+            size="sm"
+          >
+            <History className="size-4" />
+            {t("history")}
+          </Button>
+          <Button
+            nativeButton={false}
+            render={<Link href={`/knowledge/${slug}/edit`} />}
+            size="sm"
+          >
+            <Pencil className="size-4" />
+            {tCommon("edit")}
+          </Button>
+        </>
+      )}
 
       <DropdownMenu>
         <TooltipHint label={tCommon("more")}>

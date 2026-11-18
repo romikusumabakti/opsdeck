@@ -35,8 +35,9 @@ Creates (or keeps, when present) fictional demo data:
 - ten staff members @example.invalid who cannot sign in, project
   memberships, issues with comments, labels and milestones, notifications,
   activity entries, and a small knowledge base;
-- one account per role (demo-admin, demo-infra, demo-observer,
-  demo-engineer, demo-qa @example.invalid) with email+password sign-in.
+- sign-in accounts for most roles (demo-admin, demo-infra, demo-observer,
+  demo-engineer, demo-qa, demo-ba, demo-staff @example.invalid) with
+  email+password sign-in.
 Existing rows and accounts are never changed or reset. A project with a demo
 key, or a collection with a demo name, that is not demo data is skipped with
 nothing added under it; so is an account whose name someone else holds.

@@ -56,24 +56,26 @@ function KnowledgeLayout() {
           {collections.length > 0 && (
             <>
               <KnowledgeSearch />
-              <Button
-                nativeButton={false}
-                render={
-                  <Link
-                    href={
-                      openCollectionId
-                        ? `/knowledge/new?collection=${openCollectionId}`
-                        : "/knowledge/new"
-                    }
-                  />
-                }
-                size="sm"
-                variant="outline"
-                className="mx-2"
-              >
-                <Plus className="size-4" />
-                {t("newDocument")}
-              </Button>
+              {canWrite && (
+                <Button
+                  nativeButton={false}
+                  render={
+                    <Link
+                      href={
+                        openCollectionId
+                          ? `/knowledge/new?collection=${openCollectionId}`
+                          : "/knowledge/new"
+                      }
+                    />
+                  }
+                  size="sm"
+                  variant="outline"
+                  className="mx-2"
+                >
+                  <Plus className="size-4" />
+                  {t("newDocument")}
+                </Button>
+              )}
             </>
           )}
         </div>
