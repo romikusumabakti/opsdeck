@@ -187,3 +187,14 @@ describe("RoleBadge", () => {
     expect(container?.textContent).toBe(en.role.observer);
   });
 });
+
+describe("role labels in every locale", () => {
+  it.each(["ar", "en", "es", "id", "zh"])(
+    "%s keeps QA and BA as the same abbreviations",
+    async (locale) => {
+      const { default: m } = await import(`../messages/${locale}.json`);
+      expect(m.users.role.qa).toBe("QA");
+      expect(m.users.role.ba).toBe("BA");
+    }
+  );
+});
