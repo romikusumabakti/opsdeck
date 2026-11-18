@@ -53,6 +53,12 @@ export type ProjectAccess = {
   roles: Record<string, ProjectRole>;
 };
 
+/**
+ * What an org-level decision reads: the job role alone. An AccessScope is
+ * one; a page wrapper builds one from its session without project lookups.
+ */
+export type OrgScope = Pick<AccessScope, "orgRole">;
+
 /** What a project-scoped check names: the project, or a row that belongs to one. */
 export type ProjectTarget =
   | { projectId: string }
@@ -342,7 +348,7 @@ export function decideOrgAccess(
 // a strong sign-in (terminal, files, management) is always refused. The org
 // reads (server:read, audit:read, user:list) are weak-allowed and pass.
 export function requireOrgPermissionIn(
-  scope: AccessScope,
+  scope: OrgScope,
   perms: OrgPermissions
 ): void {
   decideOrgAccess(scope.orgRole, perms, false);

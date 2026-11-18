@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import * as schema from "@/lib/db/schema";
+import type { ServerView } from "@/lib/server-view";
 
 // The issue, people, server and activity read cores (xxxFor(scope, …))
 // against their session wrappers on a real Postgres, as
@@ -136,7 +137,19 @@ describe.skipIf(!enabled)(
       const members = await import("@/server/services/project-members");
       const serversService = await import("@/server/services/servers");
       const activity = await import("@/server/services/activity");
-      const { toSafeServer } = await import("@/lib/server-view");
+      // A Servers page row as SafeServer: drop what only the page shows.
+      const pageToSafe = ({
+        hostKeyFingerprint: _fingerprint,
+        hostKeyPinnedAt: _pinnedAt,
+        sshKeyId: _keyId,
+        sshFrom: _from,
+        keyError: _keyError,
+        hasPassword: _hasPassword,
+        hostKeyMismatch: _mismatch,
+        offeredFingerprint: _offered,
+        keyMarker: _marker,
+        ...safe
+      }: ServerView) => safe;
 
       const user = async (id: string, role: string, banned = false) =>
         one(
@@ -352,6 +365,10 @@ describe.skipIf(!enabled)(
             manages ? 200 : sees ? 403 : 404
           );
         }
+        // A non-uuid project id for the people filter is a 404, as invisible.
+        await expect(
+          people.listPeopleFor(scope, "not-a-uuid")
+        ).rejects.toMatchObject({ status: 404 });
         // Unknown and non-uuid issue keys read as nothing.
         expect(
           await issuesService.getIssueDetailFor(scope, "NOPE", 1)
@@ -375,13 +392,26 @@ describe.skipIf(!enabled)(
         const list = await outcome(() => serversService.getServersFor(scope));
         const page = await outcome(() => serversService.getServers());
         if (readsServers.has(person.id)) {
-          expect(list).toEqual({ value: page.value?.map(toSafeServer) });
+          // The same servers as the page, in its order (name ties aside),
+          // minus every page field about how the Panel signs in.
+          const byKey = (a: { id: string }, b: { id: string }) =>
+            a.id.localeCompare(b.id);
+          expect(list.value?.toSorted(byKey)).toEqual(
+            page.value?.map(pageToSafe).toSorted(byKey)
+          );
+          expect(list.value?.map((r) => r.name)).toEqual(
+            page.value?.map((r) => r.name)
+          );
           for (const row of list.value ?? []) {
             for (const secret of [
               "password",
               "hostKey",
               "hostKeyType",
               "hostKeyFingerprint",
+              "hostKeyPinnedAt",
+              "hostKeyOfferedType",
+              "hostKeyOffered",
+              "hostKeyOfferedFingerprint",
               "sshKeyId",
               "sshFrom",
               "keyError",
@@ -391,7 +421,7 @@ describe.skipIf(!enabled)(
           }
           const byId = await serversService.getServerFor(scope, s1.id);
           const shown = await serversService.getServerById(s1.id);
-          expect(byId).toEqual(shown && toSafeServer(shown));
+          expect(byId).toEqual(shown && pageToSafe(shown));
           expect(await serversService.getServerFor(scope, "APP-1")).toEqual(
             byId
           );

@@ -143,44 +143,49 @@ const SCOPE_CORES: Record<
       wrapper: "listProjectMembers",
     },
   },
-  // Org reads: the scope's job role decides (requireOrgPermissionIn). Their
-  // page wrappers keep requireOrgPermission (ORG_READ_WRAPPERS below).
+};
+
+// Org reads with an explicit scope: only the job role decides
+// (requireOrgPermissionIn), so the cores take an OrgScope and org routes
+// make no project lookups. The page wrapper resolves the session's role and
+// delegates without naming the permission itself.
+const ORG_SCOPE_CORES: Record<
+  string,
+  Record<string, { check: RegExp; wrapper?: string; wrapperCall?: string }>
+> = {
   "server/services/servers.ts": {
-    getServersFor: {
+    // The raw rows, behind the gate: the page shapes them with serverView,
+    // the public cores with toSafeServer.
+    serverRowsIn: {
       check: /requireOrgPermissionIn\(scope, \{ server: \["read"\] \}\)/,
     },
+    getServersFor: {
+      check: /serverRowsIn\(scope[\s\S]*toSafeServer/,
+      wrapper: "getServers",
+      wrapperCall: "serverRowsIn",
+    },
     getServerFor: {
-      check: /requireOrgPermissionIn\(scope, \{ server: \["read"\] \}\)/,
+      check: /serverRowsIn\(\s*scope[\s\S]*toSafeServer/,
+      wrapper: "getServerById",
+      wrapperCall: "serverRowsIn",
     },
   },
   "server/services/activity.ts": {
     listActivityFor: {
       check: /requireOrgPermissionIn\(scope, \{ audit: \["read"\] \}\)/,
+      wrapper: "listActivity",
     },
-  },
-};
-
-// The page side of the org reads above: the session guard with the same
-// permission, then the query the core shares.
-const ORG_READ_WRAPPERS: Record<string, Record<string, RegExp>> = {
-  "server/services/servers.ts": {
-    getServers:
-      /requireOrgPermission\(\{ server: \["read"\] \}\)[\s\S]*selectServers\(/,
-    getServerById:
-      /requireOrgPermission\(\{ server: \["read"\] \}\)[\s\S]*selectServers\(/,
-  },
-  "server/services/activity.ts": {
-    listActivity:
-      /requireOrgPermission\(\{ audit: \["read"\] \}\)[\s\S]*selectActivity\(/,
   },
 };
 
 function body(source: string, name: string): string {
   const start = source.search(
-    new RegExp(`export (async )?function ${name}\\b`)
+    new RegExp(`(export )?(async )?function ${name}\\b`)
   );
   if (start < 0) throw new Error(`${name} not found`);
-  const next = source.slice(start + 1).search(/\nexport /);
+  const next = source
+    .slice(start + 1)
+    .search(/\n(export |async function |function |\/\/|\/\*\*)/);
   return next < 0 ? source.slice(start) : source.slice(start, start + 1 + next);
 }
 
@@ -211,12 +216,36 @@ describe("scope cores take a scope and check it", () => {
       }
     }
   }
-  for (const [file, wrappers] of Object.entries(ORG_READ_WRAPPERS)) {
+  for (const [file, cores] of Object.entries(ORG_SCOPE_CORES)) {
     const source = readFileSync(file, "utf8");
-    for (const [wrapper, pattern] of Object.entries(wrappers)) {
-      it(`${file} ${wrapper} guards the session and shares the query`, () => {
-        expect(body(source, wrapper)).toMatch(pattern);
+    for (const [core, { check, wrapper, wrapperCall }] of Object.entries(
+      cores
+    )) {
+      it(`${file} ${core}`, () => {
+        const fn = body(source, core);
+        expect(fn).toMatch(
+          new RegExp(`function ${core}\\(\\s*scope: OrgScope[,)\\s]`)
+        );
+        expect(fn).toMatch(check);
+        expect(fn).not.toMatch(
+          /requireSession|getServerSession|accessScopeFromSession|getProjectAccess/
+        );
       });
+      if (wrapper) {
+        it(`${file} ${wrapper} delegates with the session's role`, () => {
+          const fn = body(source, wrapper);
+          expect(fn).toMatch(
+            /await requireSession\(\)[\s\S]*orgRole: normalizeOrgRole\(session\.user\.role\)/
+          );
+          expect(fn).toMatch(
+            new RegExp(`(return|await)\\s+${wrapperCall ?? core}\\(`)
+          );
+          // The core owns the permission; the wrapper names none.
+          expect(fn).not.toMatch(
+            /requireOrgPermission|accessScopeFromSession|\{ (server|audit): \[/
+          );
+        });
+      }
     }
   }
   it("server cores hand out no credentials or keys", () => {
@@ -1012,17 +1041,16 @@ describe("API routers reach a guard", () => {
   // Server rows carry the encrypted SSH password and host key blobs; the API
   // returns serverView's projection (tests/servers-ssh-api checks its fields).
   it("server reads strip the password", () => {
-    const source = readFileSync("server/routes/servers.ts", "utf8");
-    for (const route of [
-      "/get-servers",
-      "/get-server-by-id",
-      "/create-server",
-    ]) {
-      const handler = source
-        .slice(source.indexOf(`"${route}"`))
-        .split(/\n {2}\./)[0];
-      expect(handler).toMatch(/\bserverView\b/);
+    // The page reads shape their rows in the service; create in the route.
+    const service = readFileSync("server/services/servers.ts", "utf8");
+    for (const fn of ["getServers", "getServerById"]) {
+      expect(body(service, fn)).toMatch(/\bserverView\b/);
     }
+    const source = readFileSync("server/routes/servers.ts", "utf8");
+    const handler = source
+      .slice(source.indexOf('"/create-server"'))
+      .split(/\n {2}\./)[0];
+    expect(handler).toMatch(/\bserverView\b/);
   });
 });
 

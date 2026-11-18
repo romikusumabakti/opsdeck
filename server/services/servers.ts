@@ -1,5 +1,7 @@
 import { and, eq, type SQL, sql } from "drizzle-orm";
-import { type AccessScope, requireOrgPermissionIn } from "@/lib/access-scope";
+import type { PgColumn } from "drizzle-orm/pg-core";
+import { type OrgScope, requireOrgPermissionIn } from "@/lib/access-scope";
+import { requireSession } from "@/lib/auth-session";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -13,8 +15,9 @@ import {
   type Server,
   servers,
 } from "@/lib/db/schema";
+import { normalizeOrgRole } from "@/lib/permissions";
 import { decryptNullable, encryptSecret } from "@/lib/secrets";
-import { toSafeServer } from "@/lib/server-view";
+import { type ServerView, serverView, toSafeServer } from "@/lib/server-view";
 import { testSshConnection } from "@/lib/ssh";
 import { HOST_KEY_CLEARED, type SshTarget } from "@/lib/ssh-connect";
 import {
@@ -91,36 +94,51 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
   return Array.from(usageByEnvironment.values());
 }
 
-// Whole rows, encrypted password and host key blobs included: the routes
-// shape them for the servers pages (lib/server-view#serverView), and the
-// scope cores below hand out only toSafeServer.
-function selectServers(where?: SQL): Promise<Server[]> {
+// The gated raw rows, encrypted password and host key blobs included. Only
+// this module sees them: the page wrappers hand out serverView, the scope
+// cores toSafeServer. `orderBy` defaults to the Servers page's order.
+async function serverRowsIn(
+  scope: OrgScope,
+  where?: SQL,
+  orderBy: PgColumn[] = [servers.name]
+): Promise<Server[]> {
+  requireOrgPermissionIn(scope, { server: ["read"] });
   return db
     .select()
     .from(servers)
     .where(where)
-    .orderBy(servers.name, servers.id);
+    .orderBy(...orderBy);
 }
 
-export async function getServers(): Promise<Server[]> {
-  await requireOrgPermission({ server: ["read"] });
-  return selectServers();
+/** The Servers page (server:read): no password or host key blobs. */
+export async function getServers(): Promise<ServerView[]> {
+  const session = await requireSession();
+  return (
+    await serverRowsIn({ orgRole: normalizeOrgRole(session.user.role) })
+  ).map(serverView);
 }
 
-export async function getServerById(id: string): Promise<Server | undefined> {
-  await requireOrgPermission({ server: ["read"] });
-  const [row] = await selectServers(eq(servers.id, id));
-  return row;
+export async function getServerById(
+  id: string
+): Promise<ServerView | undefined> {
+  const session = await requireSession();
+  const [row] = await serverRowsIn(
+    { orgRole: normalizeOrgRole(session.user.role) },
+    eq(servers.id, id)
+  );
+  return row && serverView(row);
 }
 
 /**
  * The servers list for an explicit scope (the assistant worker has no
  * session): the rows the Servers page lists, as SafeServer (where each server
  * is, never how the Panel signs in: no password, key, host key or from=).
+ * Name ties are broken by id, so the order is stable.
  */
-export async function getServersFor(scope: AccessScope): Promise<SafeServer[]> {
-  requireOrgPermissionIn(scope, { server: ["read"] });
-  return (await selectServers()).map(toSafeServer);
+export async function getServersFor(scope: OrgScope): Promise<SafeServer[]> {
+  return (await serverRowsIn(scope, undefined, [servers.name, servers.id])).map(
+    toSafeServer
+  );
 }
 
 /**
@@ -129,13 +147,12 @@ export async function getServersFor(scope: AccessScope): Promise<SafeServer[]> {
  * unknown one. SafeServer only, as getServersFor.
  */
 export async function getServerFor(
-  scope: AccessScope,
+  scope: OrgScope,
   idOrName: string
 ): Promise<SafeServer | undefined> {
-  requireOrgPermissionIn(scope, { server: ["read"] });
   const needle = idOrName.trim();
-  if (!needle) return undefined;
-  const rows = await selectServers(
+  const rows = await serverRowsIn(
+    scope,
     uuidSchema.safeParse(needle).success
       ? eq(servers.id, needle)
       : sql`lower(${servers.name}) = lower(${needle})`

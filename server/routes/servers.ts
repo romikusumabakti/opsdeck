@@ -32,8 +32,8 @@ import { json, param, query } from "@/server/validation";
 
 const fromSchema = z.string().trim().min(1).max(64);
 
-// The services return whole rows, encrypted SSH password and host key blobs
-// included; serverView keeps the password and the blobs on the server (edit
+// The reads return serverView already; create returns the whole row, so
+// serverView keeps the password and the host key blobs on the server (edit
 // forms send a new password or none).
 
 // Bulk delete acts on what the servers table shows; the cap keeps a crafted
@@ -43,13 +43,10 @@ const idParam = param(z.object({ id: uuidSchema }));
 const serverIds = z.array(uuidSchema).max(500);
 
 export const serversRouter = sessionRouter()
-  .get("/get-servers", async (c) =>
-    c.json((await getServers()).map(serverView))
+  .get("/get-servers", async (c) => c.json(await getServers()))
+  .get("/get-server-by-id", query(z.object({ id: uuidSchema })), async (c) =>
+    c.json((await getServerById(c.req.valid("query").id)) ?? null)
   )
-  .get("/get-server-by-id", query(z.object({ id: uuidSchema })), async (c) => {
-    const server = await getServerById(c.req.valid("query").id);
-    return c.json(server ? serverView(server) : null);
-  })
   .get(
     "/get-server-usage",
     query(z.object({ serverId: uuidSchema })),

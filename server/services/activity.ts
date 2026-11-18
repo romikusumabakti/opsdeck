@@ -1,8 +1,9 @@
 import { desc, eq } from "drizzle-orm";
-import { type AccessScope, requireOrgPermissionIn } from "@/lib/access-scope";
-import { requireOrgPermission } from "@/lib/authz";
+import { type OrgScope, requireOrgPermissionIn } from "@/lib/access-scope";
+import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import { activityLog, users } from "@/lib/db/schema";
+import { normalizeOrgRole } from "@/lib/permissions";
 
 export type ActivityRow = {
   id: string;
@@ -16,20 +17,24 @@ export type ActivityRow = {
 
 /** The org-wide activity feed, newest first (the Activity page). */
 export async function listActivity(limit = 100): Promise<ActivityRow[]> {
-  await requireOrgPermission({ audit: ["read"] });
-  return selectActivity(limit);
+  const session = await requireSession();
+  return listActivityFor(
+    { orgRole: normalizeOrgRole(session.user.role) },
+    limit
+  );
 }
 
 // The most one read returns: the route's cap on the page's `limit`.
 export const ACTIVITY_MAX_LIMIT = 500;
 
 /**
- * listActivity for an explicit scope (the assistant worker has no session).
+ * The activity feed for an explicit scope (the page's session role, or the
+ * assistant worker's scope): only the job role decides.
  * `limit` is clamped to 1..ACTIVITY_MAX_LIMIT; a non-number takes the page's
  * 100.
  */
 export async function listActivityFor(
-  scope: AccessScope,
+  scope: OrgScope,
   limit: number
 ): Promise<ActivityRow[]> {
   requireOrgPermissionIn(scope, { audit: ["read"] });
