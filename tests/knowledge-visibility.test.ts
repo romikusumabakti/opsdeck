@@ -19,6 +19,7 @@ const {
   canViewCollection,
   canViewDoc,
   currentViewer,
+  parseVisibleToRoles,
   visibleCollections,
   visibleDocs,
 } = await import("@/lib/knowledge");
@@ -127,5 +128,28 @@ describe("currentViewer", () => {
       role: null,
       canManage: false,
     });
+  });
+});
+
+describe("parseVisibleToRoles", () => {
+  it("keeps an empty list: everyone", () => {
+    expect(parseVisibleToRoles([])).toEqual([]);
+  });
+
+  it("deduplicates and orders the roles like ORG_ROLES", () => {
+    expect(parseVisibleToRoles(["staff", "infra", "qa", "infra"])).toEqual([
+      "infra",
+      "qa",
+      "staff",
+    ]);
+  });
+
+  it("refuses admin, which always sees everything", () => {
+    expect(parseVisibleToRoles(["infra", "admin"])).toBeNull();
+  });
+
+  it("refuses unknown roles, matched exactly", () => {
+    expect(parseVisibleToRoles(["nonsense"])).toBeNull();
+    expect(parseVisibleToRoles(["Infra"])).toBeNull();
   });
 });

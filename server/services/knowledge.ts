@@ -1,4 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { requireOrgPermissionIn } from "@/lib/access-scope";
+import { requireSession } from "@/lib/auth-session";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -16,12 +18,17 @@ import {
   type Backlink,
   ensureUniqueSlug,
   extractLinkedSlugs,
+  type KnowledgeViewer,
   loadBacklinks,
   markdownToPlainText,
+  parseVisibleToRoles,
   type SearchHit,
   searchDocuments,
   slugify,
+  visibleCollections,
+  visibleDocs,
 } from "@/lib/knowledge";
+import { canOrg, normalizeOrgRole, type OrgRole } from "@/lib/permissions";
 import type { ActionResponse } from "@/lib/types";
 import {
   collectionInputSchema,
@@ -33,29 +40,105 @@ import {
   knowledgeIdSchema,
   knowledgeSearchSchema,
 } from "@/lib/validation";
+import { badRequest, notFound } from "@/server/errors";
+import { getServerTranslator } from "@/server/i18n";
 
 // The transaction handle passed to db.transaction's callback — same query API
 // as `db`, so helpers below take it instead of the top-level connection.
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+// --- Actor ------------------------------------------------------------------
+
+/**
+ * Who writes. The write services are session wrappers around `*For(actor, …)`
+ * cores, so callers with no request session (the knowledge import CLI) go
+ * through the same rules: the core checks the actor's org permission, then
+ * resolves every target collection, document, parent and revision through
+ * the reader's visibility rule (lib/knowledge#visibleDocs). A target the actor
+ * may not see answers 404 exactly like a missing one.
+ */
+export type KnowledgeActor = { userId: string; role: OrgRole };
+
+async function sessionActor(): Promise<KnowledgeActor> {
+  const session = await requireSession();
+  return { userId: session.user.id, role: normalizeOrgRole(session.user.role) };
+}
+
+function viewerOf(actor: KnowledgeActor): KnowledgeViewer {
+  return {
+    userId: actor.userId,
+    role: actor.role,
+    canManage: canOrg(actor.role, { knowledge: ["manage"] }),
+  };
+}
+
+/** Whether collection `id` exists and `viewer` may see it. */
+async function collectionVisible(
+  q: Tx | typeof db,
+  viewer: KnowledgeViewer,
+  id: string
+): Promise<boolean> {
+  const [row] = await q
+    .select({ id: knowledgeCollections.id })
+    .from(knowledgeCollections)
+    .where(and(eq(knowledgeCollections.id, id), visibleCollections(viewer)))
+    .limit(1);
+  return row !== undefined;
+}
+
+/** Document `id` when it exists and `viewer` may see it. */
+async function findVisibleDoc(
+  q: Tx | typeof db,
+  viewer: KnowledgeViewer,
+  id: string
+): Promise<KnowledgeDocument | undefined> {
+  const [row] = await q
+    .select()
+    .from(knowledgeDocuments)
+    .where(and(eq(knowledgeDocuments.id, id), visibleDocs(viewer)))
+    .limit(1);
+  return row;
+}
+
+/**
+ * A requested visibility list as stored (parseVisibleToRoles), or a 400 with
+ * a stable code. Thrown outside the cores' try blocks so it reaches the API.
+ */
+async function checkedVisibleToRoles(roles: string[]): Promise<OrgRole[]> {
+  const parsed = parseVisibleToRoles(roles);
+  if (parsed) return parsed;
+  const t = await getServerTranslator("actionErrors");
+  badRequest(t("knowledgeVisibilityInvalid"), "knowledgeVisibilityInvalid");
+}
 
 // --- Collections (admin-managed) --------------------------------------------
 
 export async function createCollection(
   data: unknown
 ): Promise<ActionResponse<KnowledgeCollection>> {
-  const session = await requireOrgPermission({ knowledge: ["manage"] });
+  return createCollectionFor(await sessionActor(), data);
+}
+
+export async function createCollectionFor(
+  actor: KnowledgeActor,
+  data: unknown
+): Promise<ActionResponse<KnowledgeCollection>> {
+  requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["manage"] });
   const parsed = collectionInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid collection data" };
   }
+  const { visibleToRoles, ...fields } = parsed.data;
+  const roles = await checkedVisibleToRoles(visibleToRoles ?? []);
   try {
     const created = one(
       await db
         .insert(knowledgeCollections)
         .values({
-          ...parsed.data,
+          ...fields,
+          visibleToRoles: roles,
           rank: await appendCollectionRank(),
-          createdById: session.user.id,
+          createdById: actor.userId,
         })
         .returning(),
       "knowledge collection"
@@ -71,7 +154,17 @@ export async function updateCollection(
   id: string,
   data: unknown
 ): Promise<ActionResponse<KnowledgeCollection>> {
-  await requireOrgPermission({ knowledge: ["manage"] });
+  return updateCollectionFor(await sessionActor(), id, data);
+}
+
+// A manager sees every collection, so the lookup needs no visibility rule.
+// A changed list applies at once to every document in the collection.
+export async function updateCollectionFor(
+  actor: KnowledgeActor,
+  id: string,
+  data: unknown
+): Promise<ActionResponse<KnowledgeCollection>> {
+  requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["manage"] });
   if (!knowledgeIdSchema.safeParse(id).success) {
     return { success: false, message: "Invalid collection id" };
   }
@@ -79,10 +172,18 @@ export async function updateCollection(
   if (!parsed.success) {
     return { success: false, message: "Invalid collection data" };
   }
+  const { visibleToRoles, ...fields } = parsed.data;
+  const set: Partial<typeof knowledgeCollections.$inferInsert> = {
+    ...fields,
+    updatedAt: new Date(),
+  };
+  if (visibleToRoles !== undefined) {
+    set.visibleToRoles = await checkedVisibleToRoles(visibleToRoles);
+  }
   try {
     const [updated] = await db
       .update(knowledgeCollections)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set(set)
       .where(eq(knowledgeCollections.id, id))
       .returning();
     if (!updated) return { success: false, message: "Collection not found" };
@@ -175,7 +276,17 @@ async function rebuildLinks(
 export async function createDocument(
   data: unknown
 ): Promise<ActionResponse<KnowledgeDocument>> {
-  const session = await requireOrgPermission({ knowledge: ["write"] });
+  return createDocumentFor(await sessionActor(), data);
+}
+
+// The slug is unique across every document, hidden ones included, so a title
+// that collides with a document the actor cannot see is suffixed like any
+// other collision — never refused with a conflict that would name it.
+export async function createDocumentFor(
+  actor: KnowledgeActor,
+  data: unknown
+): Promise<ActionResponse<KnowledgeDocument>> {
+  requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["write"] });
   const parsed = documentInputSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid document data" };
@@ -189,45 +300,62 @@ export async function createDocument(
     projectId,
     publishedAt,
   } = parsed.data;
+  const viewer = viewerOf(actor);
+  let created: KnowledgeDocument | null = null;
   try {
-    const slug = await ensureUniqueSlug(slugify(title));
-    const rank = await appendDocumentRank(collectionId, parentId ?? null);
-    const created = await db.transaction(async (tx) => {
-      const doc = one(
-        await tx
-          .insert(knowledgeDocuments)
-          .values({
-            collectionId,
-            parentId: parentId ?? null,
-            title,
-            docType,
-            slug,
-            content,
-            contentText: markdownToPlainText(content),
-            rank,
-            projectId: projectId ?? null,
-            publishedAt: publishedAt ? new Date(publishedAt) : null,
-            createdById: session.user.id,
-            updatedById: session.user.id,
-          })
-          .returning(),
-        "knowledge document"
-      );
-      await rebuildLinks(tx, doc.id, content);
-      return doc;
-    });
-    return { success: true, data: created };
+    // A collection or parent the actor may not see reads as missing.
+    const visible =
+      (await collectionVisible(db, viewer, collectionId)) &&
+      (!parentId || (await findVisibleDoc(db, viewer, parentId)) !== undefined);
+    if (visible) {
+      const slug = await ensureUniqueSlug(slugify(title));
+      const rank = await appendDocumentRank(collectionId, parentId ?? null);
+      created = await db.transaction(async (tx) => {
+        const doc = one(
+          await tx
+            .insert(knowledgeDocuments)
+            .values({
+              collectionId,
+              parentId: parentId ?? null,
+              title,
+              docType,
+              slug,
+              content,
+              contentText: markdownToPlainText(content),
+              rank,
+              projectId: projectId ?? null,
+              publishedAt: publishedAt ? new Date(publishedAt) : null,
+              createdById: actor.userId,
+              updatedById: actor.userId,
+            })
+            .returning(),
+          "knowledge document"
+        );
+        await rebuildLinks(tx, doc.id, content);
+        return doc;
+      });
+    }
   } catch (error) {
     console.error("Failed to create document:", error);
     return { success: false, message: "Failed to create document" };
   }
+  if (!created) notFound();
+  return { success: true, data: created };
 }
 
 export async function updateDocument(
   id: string,
   data: unknown
 ): Promise<ActionResponse<KnowledgeDocument>> {
-  const session = await requireOrgPermission({ knowledge: ["write"] });
+  return updateDocumentFor(await sessionActor(), id, data);
+}
+
+export async function updateDocumentFor(
+  actor: KnowledgeActor,
+  id: string,
+  data: unknown
+): Promise<ActionResponse<KnowledgeDocument>> {
+  requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["write"] });
   if (!knowledgeIdSchema.safeParse(id).success) {
     return { success: false, message: "Invalid document id" };
   }
@@ -236,12 +364,33 @@ export async function updateDocument(
     return { success: false, message: "Invalid document data" };
   }
   const input = parsed.data;
+  const viewer = viewerOf(actor);
+  let result:
+    | { kind: "notfound" }
+    | { kind: "stale" }
+    | { kind: "ok"; doc: KnowledgeDocument };
   try {
-    const result = await db.transaction(async (tx) => {
-      const existing = await tx.query.knowledgeDocuments.findFirst({
-        where: { id },
-      });
+    result = await db.transaction(async (tx) => {
+      // Hidden (another role's collection, someone else's draft) reads as
+      // missing, and so does a destination collection or parent the actor
+      // cannot see. Checked only when they change: an unchanged one is the
+      // document's own, already resolved above.
+      const existing = await findVisibleDoc(tx, viewer, id);
       if (!existing) return { kind: "notfound" } as const;
+      if (
+        input.collectionId !== undefined &&
+        input.collectionId !== existing.collectionId &&
+        !(await collectionVisible(tx, viewer, input.collectionId))
+      ) {
+        return { kind: "notfound" } as const;
+      }
+      if (
+        input.parentId &&
+        input.parentId !== existing.parentId &&
+        !(await findVisibleDoc(tx, viewer, input.parentId))
+      ) {
+        return { kind: "notfound" } as const;
+      }
 
       const nextTitle = input.title ?? existing.title;
       const nextContent = input.content ?? existing.content;
@@ -260,7 +409,7 @@ export async function updateDocument(
         contentText: markdownToPlainText(nextContent),
         collectionId: nextCollectionId,
         version: existing.version + 1,
-        updatedById: session.user.id,
+        updatedById: actor.userId,
         updatedAt: new Date(),
       };
       if (input.parentId !== undefined) set.parentId = input.parentId ?? null;
@@ -296,7 +445,7 @@ export async function updateDocument(
         documentId: id,
         title: existing.title,
         content: existing.content,
-        editedById: session.user.id,
+        editedById: actor.userId,
       });
 
       if (input.content !== undefined) {
@@ -304,34 +453,54 @@ export async function updateDocument(
       }
       return { kind: "ok", doc } as const;
     });
-
-    if (result.kind === "notfound") {
-      return { success: false, message: "Document not found" };
-    }
-    if (result.kind === "stale") {
-      return {
-        success: false,
-        message: "Document changed since you opened it — reload and retry",
-      };
-    }
-    return { success: true, data: result.doc };
   } catch (error) {
     console.error(`Failed to update document ${id}:`, error);
     return { success: false, message: "Failed to update document" };
   }
+
+  if (result.kind === "notfound") notFound();
+  if (result.kind === "stale") {
+    return {
+      success: false,
+      message: "Document changed since you opened it — reload and retry",
+    };
+  }
+  return { success: true, data: result.doc };
 }
 
 export async function moveDocument(
   data: unknown
 ): Promise<ActionResponse<never>> {
-  await requireOrgPermission({ knowledge: ["write"] });
+  return moveDocumentFor(await sessionActor(), data);
+}
+
+export async function moveDocumentFor(
+  actor: KnowledgeActor,
+  data: unknown
+): Promise<ActionResponse<never>> {
+  requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["write"] });
   const parsed = documentMoveSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, message: "Invalid move data" };
   }
   const { documentId, collectionId, parentId, rank } = parsed.data;
+  const viewer = viewerOf(actor);
+  let found: boolean;
   try {
-    await db.transaction(async (tx) => {
+    found = await db.transaction(async (tx) => {
+      // The moved document, its destination collection and a new parent are
+      // all resolved as the actor sees them: a hidden one reads as missing.
+      const existing = await findVisibleDoc(tx, viewer, documentId);
+      if (!existing || !(await collectionVisible(tx, viewer, collectionId))) {
+        return false;
+      }
+      if (
+        parentId &&
+        parentId !== existing.parentId &&
+        !(await findVisibleDoc(tx, viewer, parentId))
+      ) {
+        return false;
+      }
       // Guard against cycles INSIDE the tx so the ancestor walk and the write
       // see one consistent snapshot — a concurrent move can't slip a cycle
       // through the gap between check and update.
@@ -360,8 +529,8 @@ export async function moveDocument(
           .set({ collectionId })
           .where(inArray(knowledgeDocuments.id, descendants));
       }
+      return true;
     });
-    return { success: true };
   } catch (error) {
     if (error instanceof MoveCycleError) {
       return { success: false, message: "Cannot nest a document under itself" };
@@ -369,6 +538,8 @@ export async function moveDocument(
     console.error(`Failed to move document ${documentId}:`, error);
     return { success: false, message: "Failed to move document" };
   }
+  if (!found) notFound();
+  return { success: true };
 }
 
 // Thrown inside moveDocument's transaction when the requested parent sits below
@@ -418,10 +589,18 @@ async function isDescendant(
 export async function deleteDocument(
   id: string
 ): Promise<ActionResponse<never>> {
-  // Deleting is admin-only; members reach a deleted-doc URL → handled by the
-  // route's notFound(). Children re-parent to the collection root via the FK's
-  // set-null, so a delete never silently removes a subtree.
-  await requireOrgPermission({ knowledge: ["manage"] });
+  return deleteDocumentFor(await sessionActor(), id);
+}
+
+// Deleting is admin-only (a manager sees every document); members reach a
+// deleted-doc URL → handled by the route's notFound(). Children re-parent to
+// the collection root via the FK's set-null, so a delete never silently
+// removes a subtree.
+export async function deleteDocumentFor(
+  actor: KnowledgeActor,
+  id: string
+): Promise<ActionResponse<never>> {
+  requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["manage"] });
   if (!knowledgeIdSchema.safeParse(id).success) {
     return { success: false, message: "Invalid document id" };
   }
@@ -439,29 +618,40 @@ export async function restoreRevision(
   documentId: string,
   revisionId: string
 ): Promise<ActionResponse<KnowledgeDocument>> {
-  const session = await requireOrgPermission({ knowledge: ["write"] });
+  return restoreRevisionFor(await sessionActor(), documentId, revisionId);
+}
+
+// A missing revision, a missing document and one the actor may not see all
+// answer the same 404.
+export async function restoreRevisionFor(
+  actor: KnowledgeActor,
+  documentId: string,
+  revisionId: string
+): Promise<ActionResponse<KnowledgeDocument>> {
+  requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["write"] });
   if (
     !knowledgeIdSchema.safeParse(documentId).success ||
     !knowledgeIdSchema.safeParse(revisionId).success
   ) {
     return { success: false, message: "Invalid id" };
   }
+  const viewer = viewerOf(actor);
+  let restored: KnowledgeDocument | null;
   try {
-    const restored = await db.transaction(async (tx) => {
+    restored = await db.transaction(async (tx) => {
+      const existing = await findVisibleDoc(tx, viewer, documentId);
+      if (!existing) return null;
       const rev = await tx.query.knowledgeRevisions.findFirst({
         where: { id: revisionId, documentId },
       });
-      const existing = await tx.query.knowledgeDocuments.findFirst({
-        where: { id: documentId },
-      });
-      if (!rev || !existing) return null;
+      if (!rev) return null;
 
       // Snapshot current before restoring so the restore is itself reversible.
       await tx.insert(knowledgeRevisions).values({
         documentId,
         title: existing.title,
         content: existing.content,
-        editedById: session.user.id,
+        editedById: actor.userId,
       });
 
       const doc = one(
@@ -472,7 +662,7 @@ export async function restoreRevision(
             content: rev.content,
             contentText: markdownToPlainText(rev.content),
             version: existing.version + 1,
-            updatedById: session.user.id,
+            updatedById: actor.userId,
             updatedAt: new Date(),
           })
           .where(eq(knowledgeDocuments.id, documentId))
@@ -482,12 +672,12 @@ export async function restoreRevision(
       await rebuildLinks(tx, documentId, rev.content);
       return doc;
     });
-    if (!restored) return { success: false, message: "Revision not found" };
-    return { success: true, data: restored };
   } catch (error) {
     console.error(`Failed to restore revision ${revisionId}:`, error);
     return { success: false, message: "Failed to restore revision" };
   }
+  if (!restored) notFound();
+  return { success: true, data: restored };
 }
 
 // --- Read actions (client-callable) -----------------------------------------

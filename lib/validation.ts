@@ -529,6 +529,11 @@ export const collectionInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   icon: z.string().trim().max(60).nullish(),
   description: z.string().trim().max(500).nullish(),
+  // Org roles that see the collection; empty or absent = everyone with
+  // knowledge:read. Only the shape here: the write core checks the roles
+  // (lib/knowledge#parseVisibleToRoles) and refuses with a stable code, which
+  // a schema failure at the route could not carry.
+  visibleToRoles: z.array(z.string().max(40)).max(32).optional(),
 });
 export const collectionUpdateSchema = collectionInputSchema.partial();
 

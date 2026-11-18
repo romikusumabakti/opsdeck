@@ -1438,6 +1438,7 @@
     "noServerAvailable": "此项目没有可用的服务器。请让管理员设置默认服务器或开放一台服务器。"
   },
   "actionErrors": {
+    "knowledgeVisibilityInvalid": "只能选择列表中的角色。管理员始终可以查看所有集合。",
     "environmentKindProductionAdminOnly": "只有管理员可以将环境标记为生产环境，或更改生产环境的类型。",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "姓名和邮箱为必填项",

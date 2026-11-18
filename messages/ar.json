@@ -1438,6 +1438,7 @@
     "noServerAvailable": "لا يتوفر خادم لهذا المشروع. اطلب من المسؤول تعيين خادم افتراضي أو فتح خادم."
   },
   "actionErrors": {
+    "knowledgeVisibilityInvalid": "اختر الأدوار من القائمة فقط. يرى المسؤولون جميع المجموعات دائمًا.",
     "environmentKindProductionAdminOnly": "يمكن للمسؤول فقط تمييز بيئة على أنها بيئة إنتاج أو تغيير نوع بيئة إنتاج.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "الاسم والبريد الإلكتروني مطلوبان",

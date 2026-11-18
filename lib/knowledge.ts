@@ -3,7 +3,6 @@ import {
   asc,
   desc,
   eq,
-  inArray,
   isNotNull,
   isNull,
   or,
@@ -22,7 +21,13 @@ import {
   knowledgeDocuments,
   knowledgeLinks,
 } from "@/lib/db/schema";
-import { canOrg, normalizeOrgRole, type OrgRole } from "@/lib/permissions";
+import {
+  canOrg,
+  isOrgRole,
+  normalizeOrgRole,
+  ORG_ROLES,
+  type OrgRole,
+} from "@/lib/permissions";
 
 // --- Visibility -------------------------------------------------------------
 
@@ -72,6 +77,23 @@ export function visibleCollections(viewer: KnowledgeViewer): SQL | undefined {
   if (viewer.canManage) return undefined;
   if (!readsKnowledge(viewer)) return sql`false`;
   return sql`(cardinality(${knowledgeCollections.visibleToRoles}) = 0 OR ${viewer.role}::text = ANY(${knowledgeCollections.visibleToRoles}))`;
+}
+
+/**
+ * A requested `visibleToRoles` list as stored: deduplicated, in ORG_ROLES
+ * order. Empty means everyone. Null when it names `admin` (admins always see
+ * every collection, so it is never a choice) or anything that is not an org
+ * role: a request or import is refused rather than storing a value that
+ * would silently grant nothing.
+ */
+export function parseVisibleToRoles(
+  roles: readonly string[]
+): OrgRole[] | null {
+  const wanted = new Set(roles);
+  for (const role of wanted) {
+    if (role === "admin" || !isOrgRole(role)) return null;
+  }
+  return ORG_ROLES.filter((role) => wanted.has(role));
 }
 
 /** Same rule applied to an already-loaded collection. */
@@ -370,28 +392,6 @@ export async function ensureUniqueSlug(
   }
 }
 
-/**
- * Resolve `/knowledge/<slug>` links to ids in one query, as `viewer` sees
- * them: a slug of a document they may not see is absent, like a missing one.
- * (The backlink graph itself is stored for every target and filtered on read;
- * see rebuildLinks in server/services/knowledge.)
- */
-export async function resolveSlugIds(
-  slugs: string[],
-  viewerOverride?: KnowledgeViewer
-): Promise<Map<string, string>> {
-  if (slugs.length === 0) return new Map();
-  const viewer = viewerOverride ?? (await currentViewer());
-  const rows = await db
-    .select({
-      id: knowledgeDocuments.id,
-      slug: knowledgeDocuments.slug,
-    })
-    .from(knowledgeDocuments)
-    .where(and(inArray(knowledgeDocuments.slug, slugs), visibleDocs(viewer)));
-  return new Map(rows.map((r) => [r.slug, r.id]));
-}
-
 /** An attachment's object location, as the asset route serves it. */
 export type VisibleAttachment = { storageKey: string; mime: string };
 
@@ -422,7 +422,9 @@ export async function loadVisibleAttachment(
     .from(knowledgeDocuments)
     .where(
       and(
-        sql`strpos(${knowledgeDocuments.content}, ${`/api/knowledge/asset/${id}`}) > 0`,
+        // Bodies carry the id as the upload answered it: lowercase. The
+        // lookup above matched any case, so the needle must be canonical.
+        sql`strpos(${knowledgeDocuments.content}, ${`/api/knowledge/asset/${id.toLowerCase()}`}) > 0`,
         visibleDocs(viewer)
       )
     )

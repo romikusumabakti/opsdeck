@@ -1438,6 +1438,7 @@
     "noServerAvailable": "No hay ningún servidor disponible para este proyecto. Pida a un administrador que defina un servidor predeterminado o abra uno."
   },
   "actionErrors": {
+    "knowledgeVisibilityInvalid": "Elige solo roles de la lista. Los administradores siempre ven todas las colecciones.",
     "environmentKindProductionAdminOnly": "Solo un administrador puede marcar un entorno como producción o cambiar el tipo de un entorno de producción.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "El nombre y el correo son obligatorios",

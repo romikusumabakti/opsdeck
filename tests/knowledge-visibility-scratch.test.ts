@@ -338,7 +338,9 @@ describe.skipIf(!enabled)("knowledge collection visibility on Postgres", () => {
   });
 
   it("hides the link between a visible and a hidden document both ways", async () => {
-    const { loadBacklinks, resolveSlugIds } = await import("@/lib/knowledge");
+    const { loadBacklinks, loadDocumentBySlug } = await import(
+      "@/lib/knowledge"
+    );
     // The hidden doc links to the visible one: not in its backlinks.
     expect(await loadBacklinks(ids.guide, qa)).toEqual([]);
     expect((await loadBacklinks(ids.guide, infra)).map((b) => b.slug)).toEqual([
@@ -349,19 +351,11 @@ describe.skipIf(!enabled)("knowledge collection visibility on Postgres", () => {
     expect(
       (await loadBacklinks(ids.hostMap, infra)).map((b) => b.slug)
     ).toEqual(["deploy-guide"]);
-    // A /knowledge/<slug> link to the hidden doc resolves like a missing slug.
-    const slugs = ["deploy-guide", "host-map", "no-such-doc"];
-    expect([...(await resolveSlugIds(slugs, qa)).keys()]).toEqual([
-      "deploy-guide",
-    ]);
-    expect([...(await resolveSlugIds(slugs, infra)).keys()].sort()).toEqual([
-      "deploy-guide",
-      "host-map",
-    ]);
-    expect([...(await resolveSlugIds(slugs, admin)).keys()].sort()).toEqual([
-      "deploy-guide",
-      "host-map",
-    ]);
+    // A /knowledge/<slug> link to the hidden doc resolves like a missing
+    // slug: the reader opens it through loadDocumentBySlug.
+    expect(await loadDocumentBySlug("host-map", qa)).toEqual(
+      await loadDocumentBySlug("no-such-doc", qa)
+    );
   });
 
   it("stores a link to a hidden document for readers who can see it", async () => {

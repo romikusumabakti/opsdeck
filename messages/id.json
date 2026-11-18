@@ -1438,6 +1438,7 @@
     "noServerAvailable": "Tidak ada server yang tersedia untuk proyek ini. Minta admin menetapkan server default atau membuka satu server."
   },
   "actionErrors": {
+    "knowledgeVisibilityInvalid": "Pilih hanya role dari daftar. Admin selalu bisa melihat semua koleksi.",
     "environmentKindProductionAdminOnly": "Hanya admin yang bisa menandai environment sebagai produksi atau mengubah jenis environment produksi.",
     "backupTargetsBlockDatabaseRemoval": "Matikan cadangan sebelum deploy pada target deploy lingkungan ini terlebih dahulu.",
     "nameAndEmailRequired": "Nama dan email wajib diisi",

@@ -1438,6 +1438,7 @@
     "noServerAvailable": "No server is available for this project. Ask an admin to set a default server or open one."
   },
   "actionErrors": {
+    "knowledgeVisibilityInvalid": "Choose only roles from the list. Admins always see every collection.",
     "environmentKindProductionAdminOnly": "Only an admin can mark an environment as production or change a production environment's kind.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "Name and email are required",

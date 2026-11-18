@@ -200,6 +200,54 @@ function body(source: string, name: string): string {
   return next < 0 ? source.slice(start) : source.slice(start, start + 1 + next);
 }
 
+// Knowledge writes with an explicit actor (the CLI import has no session).
+// Each core takes the actor first and states its permission through the
+// actor's role; its session wrapper only resolves the actor and delegates.
+// The collection/document visibility rule runs inside the cores (the
+// scratch tests in knowledge-writes-scratch.test.ts cover it).
+const KNOWLEDGE_CORES: Record<string, "write" | "manage"> = {
+  createCollectionFor: "manage",
+  updateCollectionFor: "manage",
+  createDocumentFor: "write",
+  updateDocumentFor: "write",
+  moveDocumentFor: "write",
+  deleteDocumentFor: "manage",
+  restoreRevisionFor: "write",
+};
+
+describe("knowledge write cores take an actor and check it", () => {
+  const source = readFileSync("server/services/knowledge.ts", "utf8");
+  for (const [core, action] of Object.entries(KNOWLEDGE_CORES)) {
+    it(core, () => {
+      const fn = body(source, core);
+      expect(fn).toMatch(
+        new RegExp(`function ${core}\\(\\s*actor: KnowledgeActor[,)\\s]`)
+      );
+      expect(fn).toMatch(
+        new RegExp(
+          `requireOrgPermissionIn\\(\\{ orgRole: actor\\.role \\}, \\{\\s*knowledge: \\["${action}"\\],?\\s*\\}\\)`
+        )
+      );
+      expect(fn).not.toMatch(
+        /requireSession|getServerSession|requireOrgPermission\(|currentViewer/
+      );
+    });
+    const wrapper = core.replace(/For$/, "");
+    it(`${wrapper} delegates with the session's actor`, () => {
+      const fn = body(source, wrapper);
+      expect(fn).toMatch(
+        new RegExp(`return ${core}\\(await sessionActor\\(\\)`)
+      );
+      expect(fn).not.toMatch(/requireOrgPermission/);
+    });
+  }
+  it("sessionActor resolves the session's id and role", () => {
+    expect(body(source, "sessionActor")).toMatch(
+      /await requireSession\(\)[\s\S]*role: normalizeOrgRole\(session\.user\.role\)/
+    );
+  });
+});
+
 describe("scope cores take a scope and check it", () => {
   for (const [file, cores] of Object.entries(SCOPE_CORES)) {
     const source = readFileSync(file, "utf8");
