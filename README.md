@@ -138,6 +138,14 @@ whole first, so a problem in any file (an unknown role, say) stops the run
 before anything is written; `--dry-run` shows the plan. `menara knowledge
 --help` has the details.
 
+The folder is read by the CLI, so in production it must be inside the app
+container first:
+
+```
+docker cp ./guides menara-app:/tmp/kb
+docker exec menara-app menara knowledge import /tmp/kb --as you@example.com --dry-run
+```
+
 In production: `docker exec <app container> menara <command>`. Locally:
 `bun scripts/cli.ts <command>`.
 

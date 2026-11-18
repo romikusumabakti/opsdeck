@@ -5,6 +5,10 @@
 export const KNOWLEDGE_USAGE = `Usage: menara knowledge import <folder> --as <email> [--dry-run] [--update-visibility]
   (in the image: bun dist/cli.js knowledge import …)
 
+<folder> is read where the CLI runs: in production, copy it into the app
+container first (docker cp ./guides menara-app:/tmp/kb), then
+docker exec menara-app menara knowledge import /tmp/kb --as <email>.
+
 Imports every *.md file directly in <folder> (not subfolders) as a published
 knowledge document, written as the --as user, who must hold knowledge:manage.
 Each file starts with YAML front matter:
