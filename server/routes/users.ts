@@ -141,10 +141,7 @@ export const usersRouter = sessionRouter()
   // --- Page data (people pages), straight from lib/people. Both pages needed
   // only a session; the queries scope anything carrying a project to the
   // viewer's projects.
-  .get("/people", async (c) => {
-    const session = await requireSession();
-    return c.json(await listPeople(session.user.role));
-  })
+  .get("/people", async (c) => c.json(await listPeople()))
   .get("/:id/person", async (c) => {
     const session = await requireSession();
     const id = c.req.param("id");

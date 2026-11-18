@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, type SQL, sql } from "drizzle-orm";
+import { type AccessScope, requireOrgPermissionIn } from "@/lib/access-scope";
 import { requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
@@ -8,10 +9,12 @@ import {
   environments,
   type NewServer,
   projects,
+  type SafeServer,
   type Server,
   servers,
 } from "@/lib/db/schema";
 import { decryptNullable, encryptSecret } from "@/lib/secrets";
+import { toSafeServer } from "@/lib/server-view";
 import { testSshConnection } from "@/lib/ssh";
 import { HOST_KEY_CLEARED, type SshTarget } from "@/lib/ssh-connect";
 import {
@@ -24,6 +27,7 @@ import {
   type ServerInput,
   serverInputSchema,
   serverUpdateSchema,
+  uuidSchema,
 } from "@/lib/validation";
 import { getServerTranslator } from "@/server/i18n";
 
@@ -87,19 +91,56 @@ export async function getServerUsage(serverId: string): Promise<ServerUsage[]> {
   return Array.from(usageByEnvironment.values());
 }
 
+// Whole rows, encrypted password and host key blobs included: the routes
+// shape them for the servers pages (lib/server-view#serverView), and the
+// scope cores below hand out only toSafeServer.
+function selectServers(where?: SQL): Promise<Server[]> {
+  return db
+    .select()
+    .from(servers)
+    .where(where)
+    .orderBy(servers.name, servers.id);
+}
+
 export async function getServers(): Promise<Server[]> {
   await requireOrgPermission({ server: ["read"] });
-  return db.select().from(servers).orderBy(servers.name);
+  return selectServers();
 }
 
 export async function getServerById(id: string): Promise<Server | undefined> {
   await requireOrgPermission({ server: ["read"] });
-  const [row] = await db
-    .select()
-    .from(servers)
-    .where(eq(servers.id, id))
-    .limit(1);
+  const [row] = await selectServers(eq(servers.id, id));
   return row;
+}
+
+/**
+ * The servers list for an explicit scope (the assistant worker has no
+ * session): the rows the Servers page lists, as SafeServer (where each server
+ * is, never how the Panel signs in: no password, key, host key or from=).
+ */
+export async function getServersFor(scope: AccessScope): Promise<SafeServer[]> {
+  requireOrgPermissionIn(scope, { server: ["read"] });
+  return (await selectServers()).map(toSafeServer);
+}
+
+/**
+ * One server for an explicit scope, by id or by name (case-insensitive). A
+ * name more than one server shares is ambiguous and finds none, like an
+ * unknown one. SafeServer only, as getServersFor.
+ */
+export async function getServerFor(
+  scope: AccessScope,
+  idOrName: string
+): Promise<SafeServer | undefined> {
+  requireOrgPermissionIn(scope, { server: ["read"] });
+  const needle = idOrName.trim();
+  if (!needle) return undefined;
+  const rows = await selectServers(
+    uuidSchema.safeParse(needle).success
+      ? eq(servers.id, needle)
+      : sql`lower(${servers.name}) = lower(${needle})`
+  );
+  return rows.length === 1 && rows[0] ? toSafeServer(rows[0]) : undefined;
 }
 
 export async function createServer(

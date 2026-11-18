@@ -22,6 +22,18 @@ vi.mock("@/lib/authz", () => ({
     session: { user: { id: "actor" } },
   }),
 }));
+// The list takes the caller's access scope (lib/access-scope); like the
+// lib/authz stub above, it allows.
+vi.mock("@/lib/access-scope", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/access-scope")>()),
+  accessScopeFromSession: async () => ({
+    userId: "actor",
+    orgRole: "admin",
+    projectRoles: {},
+    seesAllProjects: true,
+  }),
+  requireProjectPermissionIn: async () => undefined,
+}));
 vi.mock("@/lib/activity", () => activity);
 vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,

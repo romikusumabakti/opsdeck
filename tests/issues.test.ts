@@ -16,6 +16,18 @@ vi.mock("@/lib/authz", () => ({
   requireProjectPage: async () => undefined,
   projectScope: async () => undefined,
 }));
+// The list takes the caller's access scope (lib/access-scope); like the
+// lib/authz stub above, it allows.
+vi.mock("@/lib/access-scope", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/access-scope")>()),
+  accessScopeFromSession: async () => ({
+    userId: "user-1",
+    orgRole: "admin",
+    projectRoles: {},
+    seesAllProjects: true,
+  }),
+  requireProjectPermissionIn: async () => undefined,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     // Applies the relational `where` to in-memory rows, so the assertion is on

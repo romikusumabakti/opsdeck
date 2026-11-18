@@ -3,6 +3,7 @@ import type { EmptyFilter } from "drizzle-orm/relations";
 import {
   accessScopeFromSession,
   canAll,
+  decideOrgAccess,
   ForbiddenError,
   getProjectAccess,
   type ProjectAccess,
@@ -152,8 +153,11 @@ export async function requireOrgPermission(
   perms: OrgPermissions
 ): Promise<Session> {
   const session = await requireSession();
-  if (!(await callerCanOrg(session, perms))) throw new ForbiddenError();
-  if (requiresStrongSignIn(perms)) assertStrongSession(session);
+  decideOrgAccess(
+    session.user.role,
+    perms,
+    isStrongSignIn(session.session.signInMethod)
+  );
   return session;
 }
 

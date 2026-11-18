@@ -77,6 +77,7 @@ const {
   accessScopeFromSession,
   can,
   projectRoleIn,
+  requireOrgPermissionIn,
   requireProjectPermissionIn,
   scopedProjectFilter,
   scopedProjectIds,
@@ -236,5 +237,41 @@ describe("decisions on a scope", () => {
         environmentId: ENV1,
       })
     ).toBeNull();
+  });
+});
+
+describe("org decisions on a scope", () => {
+  it("follows the job role, the engineer grant included", async () => {
+    const allowed = async (id: string, perms: object) => {
+      try {
+        requireOrgPermissionIn(await accessScopeForUser(id), perms);
+        return true;
+      } catch (error) {
+        expect(error).toMatchObject({ status: 403 });
+        return false;
+      }
+    };
+    // server:read: admin, observer, and engineer through its grant; not qa.
+    expect(await allowed("admin", { server: ["read"] })).toBe(true);
+    expect(await allowed("observer", { server: ["read"] })).toBe(true);
+    expect(await allowed("engineer", { server: ["read"] })).toBe(true);
+    expect(await allowed("qa", { server: ["read"] })).toBe(false);
+    // audit:read: admin and observer only.
+    expect(await allowed("observer", { audit: ["read"] })).toBe(true);
+    expect(await allowed("engineer", { audit: ["read"] })).toBe(false);
+  });
+
+  it("refuses a strong-only action: a scope records no sign-in method", async () => {
+    const admin = await accessScopeForUser("admin");
+    expect(() =>
+      requireOrgPermissionIn(admin, { server: ["terminal"] })
+    ).toThrow(
+      expect.objectContaining({ status: 403, code: "strong_sign_in_required" })
+    );
+    // The role check comes first: a role without the right gets the plain 403.
+    const qa = await accessScopeForUser("qa");
+    expect(() => requireOrgPermissionIn(qa, { server: ["terminal"] })).toThrow(
+      expect.objectContaining({ status: 403, code: undefined })
+    );
   });
 });

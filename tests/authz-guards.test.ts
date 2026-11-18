@@ -19,13 +19,9 @@ const SCOPED_READS: Record<string, string[]> = {
   // listEnvironments and getEnvironmentById are session wrappers of scope
   // cores (SCOPE_CORES below).
   "server/services/environments.ts": ["getEnvironmentsLastOpened"],
-  "server/services/issues.ts": [
-    "getOpenIssueCounts",
-    "getAssignedIssueCounts",
-    "getIssueDetail",
-    "listAllIssues",
-    "listIssues",
-  ],
+  // getIssueDetail, listAllIssues and listIssues are session wrappers of
+  // scope cores (SCOPE_CORES below).
+  "server/services/issues.ts": ["getOpenIssueCounts", "getAssignedIssueCounts"],
   "server/services/runs.ts": [
     "getEnvironmentsLastActivity",
     "getActiveRuns",
@@ -35,8 +31,8 @@ const SCOPED_READS: Record<string, string[]> = {
   // notifications are deliberately absent: they're per-user rows with no
   // project column, written only to their recipient; a link into a project the
   // user has since lost resolves to the 404 page.
+  // listPeople is the session wrapper of listPeopleFor (SCOPE_CORES).
   "lib/people/queries.ts": [
-    "listPeople",
     "getPersonProjects",
     "listPersonOpenIssues",
     "listPersonRecentRuns",
@@ -118,6 +114,65 @@ const SCOPE_CORES: Record<
         /requireProjectPermissionIn\(scope, \{ projectId \}, \{ deploy: \["view"\] \}\)/,
     },
   },
+  "server/services/issues.ts": {
+    listAllIssuesFor: {
+      check: /scopedProjectFilter\(scope, issues\.projectId\)/,
+      wrapper: "listAllIssues",
+    },
+    listIssuesFor: {
+      check:
+        /requireProjectPermissionIn\(\s*scope,\s*\{ projectId \},\s*\{ project: \["read"\] \}/,
+      wrapper: "listIssues",
+    },
+    getIssueDetailFor: {
+      check: /roleOn\(scope, project\.id\)/,
+      wrapper: "getIssueDetail",
+    },
+  },
+  "lib/people/queries.ts": {
+    listPeopleFor: {
+      check:
+        /Object\.keys\(scope\.projectRoles\)[\s\S]*requireProjectPermissionIn\(\s*scope,\s*\{ projectId \},\s*\{ project: \["read"\] \}/,
+      wrapper: "listPeople",
+    },
+  },
+  "server/services/project-members.ts": {
+    listProjectMembersFor: {
+      check:
+        /requireProjectPermissionIn\(\s*scope,\s*\{ projectId \},\s*\{ member: \["manage"\] \}/,
+      wrapper: "listProjectMembers",
+    },
+  },
+  // Org reads: the scope's job role decides (requireOrgPermissionIn). Their
+  // page wrappers keep requireOrgPermission (ORG_READ_WRAPPERS below).
+  "server/services/servers.ts": {
+    getServersFor: {
+      check: /requireOrgPermissionIn\(scope, \{ server: \["read"\] \}\)/,
+    },
+    getServerFor: {
+      check: /requireOrgPermissionIn\(scope, \{ server: \["read"\] \}\)/,
+    },
+  },
+  "server/services/activity.ts": {
+    listActivityFor: {
+      check: /requireOrgPermissionIn\(scope, \{ audit: \["read"\] \}\)/,
+    },
+  },
+};
+
+// The page side of the org reads above: the session guard with the same
+// permission, then the query the core shares.
+const ORG_READ_WRAPPERS: Record<string, Record<string, RegExp>> = {
+  "server/services/servers.ts": {
+    getServers:
+      /requireOrgPermission\(\{ server: \["read"\] \}\)[\s\S]*selectServers\(/,
+    getServerById:
+      /requireOrgPermission\(\{ server: \["read"\] \}\)[\s\S]*selectServers\(/,
+  },
+  "server/services/activity.ts": {
+    listActivity:
+      /requireOrgPermission\(\{ audit: \["read"\] \}\)[\s\S]*selectActivity\(/,
+  },
 };
 
 function body(source: string, name: string): string {
@@ -156,6 +211,20 @@ describe("scope cores take a scope and check it", () => {
       }
     }
   }
+  for (const [file, wrappers] of Object.entries(ORG_READ_WRAPPERS)) {
+    const source = readFileSync(file, "utf8");
+    for (const [wrapper, pattern] of Object.entries(wrappers)) {
+      it(`${file} ${wrapper} guards the session and shares the query`, () => {
+        expect(body(source, wrapper)).toMatch(pattern);
+      });
+    }
+  }
+  it("server cores hand out no credentials or keys", () => {
+    const source = readFileSync("server/services/servers.ts", "utf8");
+    for (const core of ["getServersFor", "getServerFor"]) {
+      expect(body(source, core)).toMatch(/toSafeServer/);
+    }
+  });
   it("accessScopeFromSession resolves the session", () => {
     const fn = body(
       readFileSync("lib/access-scope.ts", "utf8"),
@@ -255,7 +324,6 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     getTeardown: /project: \["read"\]/,
   },
   "server/services/project-members.ts": {
-    listProjectMembers: /member: \["manage"\]/,
     listMemberCandidates: /member: \["manage"\]/,
     addProjectMember: /member: \["manage"\]/,
     removeProjectMember: /member: \["manage"\]/,

@@ -1,4 +1,9 @@
 import { and, eq } from "drizzle-orm";
+import {
+  type AccessScope,
+  accessScopeFromSession,
+  requireProjectPermissionIn,
+} from "@/lib/access-scope";
 import { recordActivity } from "@/lib/activity";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -23,7 +28,23 @@ export type ProjectMemberRow = {
 export async function listProjectMembers(
   projectId: string
 ): Promise<ProjectMemberRow[]> {
-  await requireProjectPermission({ projectId }, { member: ["manage"] });
+  return listProjectMembersFor(await accessScopeFromSession(), projectId);
+}
+
+/**
+ * listProjectMembers for an explicit scope (the assistant worker has no
+ * session): the Members page, so member:manage (404 when the project is
+ * invisible, 403 without the right).
+ */
+export async function listProjectMembersFor(
+  scope: AccessScope,
+  projectId: string
+): Promise<ProjectMemberRow[]> {
+  await requireProjectPermissionIn(
+    scope,
+    { projectId },
+    { member: ["manage"] }
+  );
   const rows = await db
     .select({
       userId: projectMembers.userId,

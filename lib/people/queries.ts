@@ -1,4 +1,9 @@
 import { and, count, desc, eq, inArray, max, sql } from "drizzle-orm";
+import {
+  type AccessScope,
+  accessScopeFromSession,
+  requireProjectPermissionIn,
+} from "@/lib/access-scope";
 import { getProjectAccess, projectIdsWhere, projectScope } from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
@@ -40,12 +45,30 @@ export type PersonSummary = {
   deactivated: boolean;
 };
 
-export async function listPeople(
-  viewerRole: string | null | undefined
+/** The People page's list, for the signed-in caller. */
+export async function listPeople(): Promise<PersonSummary[]> {
+  return listPeopleFor(await accessScopeFromSession());
+}
+
+/**
+ * listPeople for an explicit scope (the assistant worker has no session).
+ * Emails show for every viewer, as on the page; deactivated users only for a
+ * role holding user:list. With `projectId`, the page's project filter: the
+ * people who can see that project (404 when the scope can't see it).
+ */
+export async function listPeopleFor(
+  scope: AccessScope,
+  projectId?: string
 ): Promise<PersonSummary[]> {
-  const access = await getProjectAccess();
-  const visible = Object.keys(access.roles);
-  const includeBanned = canOrg(viewerRole, { user: ["list"] });
+  const visible = Object.keys(scope.projectRoles);
+  if (projectId !== undefined) {
+    await requireProjectPermissionIn(
+      scope,
+      { projectId },
+      { project: ["read"] }
+    );
+  }
+  const includeBanned = canOrg(scope.orgRole, { user: ["list"] });
 
   const [rows, memberships] = await Promise.all([
     db
@@ -86,7 +109,7 @@ export async function listPeople(
     byUser.get(m.userId)?.add(m.projectId);
   }
 
-  return rows.map((u) => {
+  const people = rows.map((u) => {
     const mine = byUser.get(u.id);
     const projectIds = visible.filter(
       (pid) => effectiveProjectRole(u.role, mine?.has(pid) ?? false) !== null
@@ -112,6 +135,9 @@ export async function listPeople(
       deactivated: u.banned,
     };
   });
+  return projectId === undefined
+    ? people
+    : people.filter((p) => p.projectIds.includes(projectId));
 }
 
 export async function getPersonProjects(

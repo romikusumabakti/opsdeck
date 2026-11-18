@@ -11,14 +11,21 @@ import {
 } from "@/lib/db/schema";
 import {
   canAnyProject,
+  canOrgAccess,
   canProject,
   effectiveProjectRole,
   normalizeOrgRole,
+  type OrgPermissions,
   type OrgRole,
   type ProjectPermissions,
   type ProjectRole,
+  requiresStrongSignIn,
   seesAllProjects,
 } from "@/lib/permissions";
+import {
+  STRONG_SIGN_IN_CODE,
+  STRONG_SIGN_IN_MESSAGE,
+} from "@/lib/sign-in-method";
 import { uuidSchema } from "@/lib/validation";
 import { requestCache } from "@/server/context";
 import { notFound } from "@/server/errors";
@@ -311,4 +318,32 @@ export async function requireAnyProjectPermissionIn(
   return decideProjectAccess(projectId, roleOn(scope, projectId), (role) =>
     canAnyProject(role, alternatives)
   );
+}
+
+/**
+ * The one org decision: the plain 403 when the job role (plus the engineer
+ * grant, lib/permissions#canOrgAccess) lacks `perms`, the coded one when only
+ * the sign-in is too weak for a strong-only action (permission first,
+ * strength second). lib/authz#requireOrgPermission applies it to the session.
+ */
+export function decideOrgAccess(
+  orgRole: string | null | undefined,
+  perms: OrgPermissions,
+  strongSignIn: boolean
+): void {
+  if (!canOrgAccess(orgRole, perms)) throw new ForbiddenError();
+  if (requiresStrongSignIn(perms) && !strongSignIn) {
+    throw new ForbiddenError(STRONG_SIGN_IN_MESSAGE, STRONG_SIGN_IN_CODE);
+  }
+}
+
+// The org guard for a scope. A scope records no sign-in method (the worker
+// acts with no session), so it never counts as strong: an action that needs
+// a strong sign-in (terminal, files, management) is always refused. The org
+// reads (server:read, audit:read, user:list) are weak-allowed and pass.
+export function requireOrgPermissionIn(
+  scope: AccessScope,
+  perms: OrgPermissions
+): void {
+  decideOrgAccess(scope.orgRole, perms, false);
 }

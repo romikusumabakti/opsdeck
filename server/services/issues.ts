@@ -12,7 +12,15 @@ import {
   sql,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import {
+  type AccessScope,
+  accessScopeFromSession,
+  requireProjectPermissionIn,
+  roleOn,
+  scopedProjectFilter,
+} from "@/lib/access-scope";
 import { recordActivity } from "@/lib/activity";
 import {
   assignableUsersWhere,
@@ -20,9 +28,7 @@ import {
 } from "@/lib/assignees";
 import { requireSession } from "@/lib/auth-session";
 import {
-  getProjectRole,
   projectScope,
-  requireProjectPage,
   requireProjectPermission,
   requireProjectPermissionForAll,
 } from "@/lib/authz";
@@ -251,14 +257,35 @@ export async function getIssueDetail(
   projectKey: string,
   number: number
 ): Promise<IssueDetail | null> {
-  await requireSession();
+  let scope: AccessScope;
+  try {
+    scope = await accessScopeFromSession();
+  } catch (error) {
+    // A refusal (no session) propagates; a failed lookup reads as no issue,
+    // like a failed query below.
+    if (error instanceof HTTPException) throw error;
+    console.error("Failed to load issue detail:", error);
+    return null;
+  }
+  return getIssueDetailFor(scope, projectKey, number);
+}
+
+/**
+ * getIssueDetail for an explicit scope (the assistant worker has no session):
+ * null when the project or issue is missing or the project is invisible.
+ */
+export async function getIssueDetailFor(
+  scope: AccessScope,
+  projectKey: string,
+  number: number
+): Promise<IssueDetail | null> {
   try {
     const project = await db.query.projects.findFirst({
       where: { key: projectKey.toUpperCase() },
       columns: { id: true },
     });
     if (!project) return null;
-    if (!(await getProjectRole({ projectId: project.id }))) return null;
+    if (!roleOn(scope, project.id)) return null;
     const issue = await db.query.issues.findFirst({
       where: { projectId: project.id, number },
       with: {
@@ -411,14 +438,24 @@ const MAX_PAGE_SIZE = 200;
 export async function listAllIssues(
   query: IssueQuery = {}
 ): Promise<IssuePage> {
-  await requireSession();
+  return listAllIssuesFor(await accessScopeFromSession(), query);
+}
 
+/**
+ * listAllIssues for an explicit scope (the assistant worker has no session):
+ * the global Issues page's list and search over the scope's projects. A
+ * `projectId` filter naming an invisible project matches nothing.
+ */
+export async function listAllIssuesFor(
+  scope: AccessScope,
+  query: IssueQuery = {}
+): Promise<IssuePage> {
   const assigneeUser = alias(userTable, "assignee_user");
   const creatorUser = alias(userTable, "creator_user");
 
   const conditions: SQL[] = [];
-  const scope = await projectScope(issues.projectId);
-  if (scope) conditions.push(scope);
+  const visible = scopedProjectFilter(scope, issues.projectId);
+  if (visible) conditions.push(visible);
   const q = query.q?.trim();
   if (q) {
     const pattern = `%${q}%`;
@@ -638,7 +675,19 @@ export async function listIssues(
   projectId: string,
   statuses?: readonly Issue["status"][]
 ): Promise<IssueWithMeta[]> {
-  await requireProjectPage({ projectId });
+  return listIssuesFor(await accessScopeFromSession(), projectId, statuses);
+}
+
+/**
+ * listIssues for an explicit scope (the assistant worker has no session): 404
+ * when the project is invisible, like the page.
+ */
+export async function listIssuesFor(
+  scope: AccessScope,
+  projectId: string,
+  statuses?: readonly Issue["status"][]
+): Promise<IssueWithMeta[]> {
+  await requireProjectPermissionIn(scope, { projectId }, { project: ["read"] });
   try {
     const rows = await db.query.issues.findMany({
       where: statuses
