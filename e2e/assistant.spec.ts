@@ -128,7 +128,7 @@ for (const how of ["click", "Enter"] as const) {
   }) => {
     await page.goto("/en/assistant");
     const box = page.getByPlaceholder(ASK);
-    await box.fill("ringkas @E2E");
+    await box.fill(`ringkas @${KEY}`);
     const option = page.getByRole("option", { name: PROJECT_NAME });
     await expect(option).toBeVisible();
     if (how === "click") await option.click();
@@ -148,9 +148,9 @@ for (const how of ["click", "Enter"] as const) {
     expect(body.context.kind).toBe("project");
     const list = await page.request.get("/api/project-catalog/list-projects");
     const projects = (await list.json()) as { id: string; key: string }[];
-    expect(body.context.projectId).toBe(
-      projects.find((p) => p.key === KEY)?.id
-    );
+    const projectId = projects.find((p) => p.key === KEY)?.id;
+    expect(projectId).toBeDefined();
+    expect(body.context.projectId).toBe(projectId);
     await expect(page.getByText("lives in the auth module.")).toBeVisible({
       timeout: 30_000,
     });
@@ -162,7 +162,10 @@ test("switching chats keeps each chat's unsent text and context", async ({
 }) => {
   await page.goto("/en/assistant");
   // A chat of its own, so the test doesn't lean on the others.
-  await page.getByPlaceholder(ASK).fill("Seed the switch chat");
+  // Unique per run: the title is how the chat is found again, and a retry or
+  // a reused database holds earlier runs' chats.
+  const title = `Seed the switch chat ${Date.now()}`;
+  await page.getByPlaceholder(ASK).fill(title);
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText("lives in the auth module.")).toBeVisible({
     timeout: 30_000,
@@ -170,7 +173,7 @@ test("switching chats keeps each chat's unsent text and context", async ({
   await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible();
 
   const box = page.getByPlaceholder(ASK);
-  await box.fill("draft @E2E");
+  await box.fill(`draft @${KEY}`);
   await page.getByRole("option", { name: PROJECT_NAME }).click();
   await box.pressSequentially("kept");
   const text = await box.inputValue();
@@ -184,7 +187,7 @@ test("switching chats keeps each chat's unsent text and context", async ({
 
   await page
     .getByRole("navigation", { name: "Chats" })
-    .getByText("Seed the switch chat")
+    .getByText(title)
     .click();
   await expect(box).toHaveValue(text);
   await expect(chip).toHaveAttribute("aria-label", chipName as string);
