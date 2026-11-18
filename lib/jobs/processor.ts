@@ -1204,7 +1204,9 @@ function normalizeJobName(name: string): JobName {
  * and release jobs postdate the rename and carry no environment id at all. Provision jobs
  * postdate it too and carry `environmentId` from the start, so the shim has
  * nothing to migrate in them. Instance and server-key jobs belong to no
- * environment.
+ * environment. Only a payload that carries the old `projectId` is rewritten:
+ * the scheduled prunes send `{}` to strict schemas, where an added
+ * `environmentId: undefined` key would fail every run.
  */
 function migrateLegacyPayload(name: JobName, data: unknown): unknown {
   if (
@@ -1216,7 +1218,12 @@ function migrateLegacyPayload(name: JobName, data: unknown): unknown {
     name.startsWith("server-key-")
   )
     return data;
-  if (data && typeof data === "object" && !("environmentId" in data)) {
+  if (
+    data &&
+    typeof data === "object" &&
+    "projectId" in data &&
+    !("environmentId" in data)
+  ) {
     const { projectId, sourceProjectId, ...rest } = data as Record<
       string,
       unknown
