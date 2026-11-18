@@ -2,7 +2,7 @@
 // Every write goes through the knowledge service cores as the --as user, so
 // the same permission and visibility rules apply as in the app. The folder is
 // checked whole before anything is written: one problem anywhere stops the run.
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -38,11 +38,17 @@ export interface ImportFile {
   collection: string;
   title: string;
   slug: string;
+  // Whether the front matter names the slug; otherwise it follows the title.
+  explicitSlug: boolean;
   docType: DocType;
   // undefined = not declared by this file; [] = everyone.
   visibleTo: OrgRole[] | undefined;
   body: string;
 }
+
+// Knowledge pages are prose; anything this large is a mistake (a dump, a
+// binary renamed .md), refused before it is read.
+const MAX_FILE_BYTES = 1024 * 1024;
 
 const KEYS = ["collection", "title", "slug", "docType", "visibleTo"];
 const FRONT_MATTER = /^---\n(?:([\s\S]*?)\n)?---[ \t]*(?:\n|$)/;
@@ -156,7 +162,16 @@ export function parseImportFile(
     return { problems };
   }
   return {
-    doc: { file, collection, title, slug, docType, visibleTo, body },
+    doc: {
+      file,
+      collection,
+      title,
+      slug,
+      explicitSlug: fields.slug !== undefined,
+      docType,
+      visibleTo,
+      body,
+    },
     problems,
   };
 }
@@ -239,12 +254,16 @@ const sameRoles = (a: readonly string[], b: readonly string[]) =>
 /** Runs the import; the exit code: 0, or 1 on any problem or refusal. */
 export async function importKnowledge(opts: ImportOptions): Promise<number> {
   const { folder, dryRun, out, err } = opts;
-  let names: string[];
+  const names: string[] = [];
   try {
-    names = (await readdir(folder, { withFileTypes: true }))
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-      .map((entry) => entry.name)
-      .sort();
+    const entries = (await readdir(folder, { withFileTypes: true }))
+      .filter((entry) => entry.name.endsWith(".md"))
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const entry of entries) {
+      // Symlinks are not followed: the import reads only what is in the folder.
+      if (entry.isFile()) names.push(entry.name);
+      else out(`skipped ${entry.name} (not a regular file)`);
+    }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     err(`cannot read the folder ${folder}: ${reason}`);
@@ -260,10 +279,13 @@ export async function importKnowledge(opts: ImportOptions): Promise<number> {
   const actor = await findActor(opts.asEmail, problems);
   const docs: ImportFile[] = [];
   for (const name of names) {
-    const parsed = parseImportFile(
-      name,
-      await readFile(join(folder, name), "utf8")
-    );
+    const path = join(folder, name);
+    const { size } = await lstat(path);
+    if (size > MAX_FILE_BYTES) {
+      problems.push(`${name}: larger than 1 MB (${size} bytes)`);
+      continue;
+    }
+    const parsed = parseImportFile(name, await readFile(path, "utf8"));
     problems.push(...parsed.problems);
     if (parsed.doc) docs.push(parsed.doc);
   }
@@ -307,6 +329,16 @@ export async function importKnowledge(opts: ImportOptions): Promise<number> {
     }
     if (group[0]) collectionByName.set(name, group[0]);
   }
+  if (!opts.updateVisibility) {
+    for (const [name, roles] of declared) {
+      const existing = collectionByName.get(name);
+      if (existing && roles && !sameRoles(existing.visibleToRoles, roles)) {
+        problems.push(
+          `collection "${name}" is visible to ${rolesText(existing.visibleToRoles)}, the files say ${rolesText(roles)}; rerun with --update-visibility to apply it`
+        );
+      }
+    }
+  }
 
   const existingDocs =
     docs.length === 0
@@ -349,20 +381,44 @@ export async function importKnowledge(opts: ImportOptions): Promise<number> {
     return 1;
   }
 
+  for (const doc of docs) {
+    if (!doc.explicitSlug) {
+      err(
+        `warning: ${doc.file} has no slug, so its document follows the title (a new title makes a new document); add "slug: ${doc.slug}"`
+      );
+    }
+  }
+
   // --- Collections ------------------------------------------------------------
+  // Past this point a failure is a database or race problem, not the folder's:
+  // report it with what is already written and stop. Rerunning is safe, since
+  // the run matches collections by name and documents by slug.
+  const tally = { created: 0, updated: 0, unchanged: 0, refused: 0 };
+  let collectionsWritten = 0;
+  const fail = (what: string, error: unknown) => {
+    const reason = error instanceof Error ? error.message : String(error);
+    err(
+      `failed: ${what}: ${reason} (${collectionsWritten} collection${collectionsWritten === 1 ? "" : "s"} and ${tally.created + tally.updated} document${tally.created + tally.updated === 1 ? "" : "s"} already written; rerun is safe)`
+    );
+    return 1;
+  };
   const collectionIds = new Map<string, string | undefined>();
-  const refusedCollections = new Map<string, string>();
   for (const [name, roles] of declared) {
     const existing = collectionByName.get(name);
     if (!existing) {
       out(`create collection "${name}" (visible to ${rolesText(roles ?? [])})`);
       if (!dryRun) {
-        const created = await createCollectionFor(actor, {
-          name,
-          visibleToRoles: roles ?? [],
-        });
-        if (!created.success) throw new Error(created.message);
-        collectionIds.set(name, created.data?.id);
+        try {
+          const created = await createCollectionFor(actor, {
+            name,
+            visibleToRoles: roles ?? [],
+          });
+          if (!created.success) throw new Error(created.message);
+          collectionIds.set(name, created.data?.id);
+          collectionsWritten++;
+        } catch (error) {
+          return fail(`creating collection "${name}"`, error);
+        }
       }
       continue;
     }
@@ -370,34 +426,27 @@ export async function importKnowledge(opts: ImportOptions): Promise<number> {
     if (roles === undefined || sameRoles(existing.visibleToRoles, roles)) {
       continue;
     }
-    const change = `${rolesText(existing.visibleToRoles)} → ${rolesText(roles)}`;
-    if (!opts.updateVisibility) {
-      refusedCollections.set(
-        name,
-        `collection "${name}" is visible to ${rolesText(existing.visibleToRoles)}, the files say ${rolesText(roles)}; rerun with --update-visibility to apply it`
-      );
-      continue;
-    }
-    out(`update collection "${name}" visibility: ${change}`);
+    // Only reached with --update-visibility (the check phase refused otherwise).
+    out(
+      `update collection "${name}" visibility: ${rolesText(existing.visibleToRoles)} → ${rolesText(roles)}`
+    );
     if (!dryRun) {
-      const updated = await updateCollectionFor(actor, existing.id, {
-        visibleToRoles: roles,
-      });
-      if (!updated.success) throw new Error(updated.message);
+      try {
+        const updated = await updateCollectionFor(actor, existing.id, {
+          visibleToRoles: roles,
+        });
+        if (!updated.success) throw new Error(updated.message);
+        collectionsWritten++;
+      } catch (error) {
+        return fail(`updating collection "${name}"`, error);
+      }
     }
   }
 
   // --- Documents --------------------------------------------------------------
   const slugByFile = new Map(docs.map((d) => [d.file, d.slug]));
-  const tally = { created: 0, updated: 0, unchanged: 0, refused: 0 };
   const publishedAt = new Date().toISOString();
   for (const doc of docs) {
-    const refusal = refusedCollections.get(doc.collection);
-    if (refusal) {
-      out(`refused ${doc.file} → ${doc.slug} (${refusal})`);
-      tally.refused++;
-      continue;
-    }
     const content = rewriteImportLinks(doc.body, slugByFile);
     const existing: KnowledgeDocument | undefined = existingBySlug.get(
       doc.slug
@@ -415,29 +464,34 @@ export async function importKnowledge(opts: ImportOptions): Promise<number> {
     }
     let slug = doc.slug;
     if (!dryRun) {
-      const result = existing
-        ? await updateDocumentFor(
-            actor,
-            existing.id,
-            {
-              title: doc.title,
-              content,
-              docType: doc.docType,
-              ...(existing.publishedAt === null ? { publishedAt } : {}),
-            },
-            { slug: doc.slug }
-          )
-        : await createDocumentFor(
-            actor,
-            {
-              collectionId: collectionIds.get(doc.collection),
-              title: doc.title,
-              docType: doc.docType,
-              content,
-              publishedAt,
-            },
-            { slug: doc.slug }
-          );
+      let result: Awaited<ReturnType<typeof createDocumentFor>>;
+      try {
+        result = existing
+          ? await updateDocumentFor(
+              actor,
+              existing.id,
+              {
+                title: doc.title,
+                content,
+                docType: doc.docType,
+                ...(existing.publishedAt === null ? { publishedAt } : {}),
+              },
+              { slug: doc.slug }
+            )
+          : await createDocumentFor(
+              actor,
+              {
+                collectionId: collectionIds.get(doc.collection),
+                title: doc.title,
+                docType: doc.docType,
+                content,
+                publishedAt,
+              },
+              { slug: doc.slug }
+            );
+      } catch (error) {
+        return fail(`writing ${doc.file}`, error);
+      }
       if (!result.success) {
         out(`refused ${doc.file} → ${doc.slug} (${result.message})`);
         tally.refused++;

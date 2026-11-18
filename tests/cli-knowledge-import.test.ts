@@ -1,5 +1,11 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { asc, eq } from "drizzle-orm";
@@ -83,6 +89,7 @@ describe("knowledge import front matter", () => {
       collection: "Platform Notes",
       title: "Host map",
       slug: "host-map",
+      explicitSlug: true,
       docType: "runbook",
       visibleTo: ["infra", "qa"],
       body: "# Hosts\n\nText.",
@@ -96,6 +103,7 @@ describe("knowledge import front matter", () => {
     );
     expect(parsed.doc).toMatchObject({
       slug: "deploy-flow",
+      explicitSlug: false,
       docType: "doc",
       visibleTo: undefined,
     });
@@ -386,7 +394,11 @@ describe.skipIf(!enabled)("menara knowledge import on Postgres", () => {
     const dir = folder("guides", guides);
     const before = await counts();
     expect(await run(dir)).toBe(0);
-    expect(err).toEqual([]);
+    // Files without a slug are imported, with a warning each.
+    expect(err).toEqual([
+      'warning: branches.md has no slug, so its document follows the title (a new title makes a new document); add "slug: branches"',
+      'warning: deploy-flow.md has no slug, so its document follows the title (a new title makes a new document); add "slug: deploy-flow"',
+    ]);
     expect(out.at(-1)).toBe(
       "imported: 3 created, 0 updated, 0 unchanged, 0 refused"
     );
@@ -517,30 +529,38 @@ describe.skipIf(!enabled)("menara knowledge import on Postgres", () => {
     expect(await counts()).toEqual(before);
   });
 
-  it("refuses an existing collection whose visibility differs, unless --update-visibility", async () => {
+  it("refuses an existing collection whose visibility differs before any write, unless --update-visibility", async () => {
+    const editedBranches = file(
+      "collection: Team Guides\ntitle: Branches\ndocType: runbook",
+      "Merge main first, always."
+    );
     const dir = folder("guides", {
       ...guides,
       ...editedFlow,
+      "branches.md": editedBranches,
       "host-map.md": file(
         "collection: Platform Notes\ntitle: Host Map\nslug: hosts\nvisibleTo: [engineer, infra]",
         "sandbox-1.invalid and sandbox-2.invalid run the stack."
       ),
+      "zz-new.md": file("collection: Brand New\ntitle: Brand New Page"),
     });
     const before = await counts();
+    const branches = await docBySlug("branches");
     expect(await run(dir)).toBe(1);
-    expect(out).toEqual([
-      "unchanged branches.md → branches",
-      "unchanged deploy-flow.md → deploy-flow",
-      'refused host-map.md → hosts (collection "Platform Notes" is visible to infra, the files say infra, engineer; rerun with --update-visibility to apply it)',
-      "imported: 0 created, 0 updated, 2 unchanged, 1 refused",
+    expect(out).toEqual([]);
+    expect(err).toEqual([
+      'collection "Platform Notes" is visible to infra, the files say infra, engineer; rerun with --update-visibility to apply it',
+      "nothing imported: 1 problem",
     ]);
+    // Nothing at all: not the changed branches.md, not the new collection.
     expect(await counts()).toEqual(before);
+    expect(await docBySlug("branches")).toEqual(branches);
     expect((await collectionByName("Platform Notes")).visibleToRoles).toEqual([
       "infra",
     ]);
 
     expect(await run(dir, { updateVisibility: true, dryRun: true })).toBe(0);
-    expect(out[0]).toBe(
+    expect(out).toContain(
       'update collection "Platform Notes" visibility: infra → infra, engineer'
     );
     expect(await counts()).toEqual(before);
@@ -548,10 +568,12 @@ describe.skipIf(!enabled)("menara knowledge import on Postgres", () => {
     expect(await run(dir, { updateVisibility: true })).toBe(0);
     expect(out).toEqual([
       'update collection "Platform Notes" visibility: infra → infra, engineer',
-      "unchanged branches.md → branches",
+      'create collection "Brand New" (visible to everyone)',
+      "updated branches.md → branches",
       "unchanged deploy-flow.md → deploy-flow",
       "updated host-map.md → hosts",
-      "imported: 0 created, 1 updated, 2 unchanged, 0 refused",
+      "created zz-new.md → brand-new-page",
+      "imported: 1 created, 2 updated, 1 unchanged, 0 refused",
     ]);
     expect((await collectionByName("Platform Notes")).visibleToRoles).toEqual([
       "infra",
@@ -592,6 +614,77 @@ describe.skipIf(!enabled)("menara knowledge import on Postgres", () => {
     });
     expect(await run(dir)).toBe(0);
     expect(out).toContain("unchanged host-map.md → hosts");
+  });
+
+  it("reports a write failure with what is already written, without a stack trace", async () => {
+    // A real database refusal for the second collection only.
+    await client.unsafe(
+      "alter table knowledge_collections add constraint import_test_refuse check (name <> 'Refused Here')"
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const dir = folder("failing", {
+        "a.md": file(
+          "collection: Accepted Here\ntitle: Accepted\nslug: accepted"
+        ),
+        "b.md": file("collection: Refused Here\ntitle: Refused\nslug: refused"),
+      });
+      expect(await run(dir)).toBe(1);
+      expect(out).toEqual([
+        'create collection "Accepted Here" (visible to everyone)',
+        'create collection "Refused Here" (visible to everyone)',
+      ]);
+      expect(err).toEqual([
+        'failed: creating collection "Refused Here": Failed to create collection (1 collection and 0 documents already written; rerun is safe)',
+      ]);
+      await client.unsafe(
+        "alter table knowledge_collections drop constraint import_test_refuse"
+      );
+      // The rerun finishes the job.
+      expect(await run(dir)).toBe(0);
+      expect(out).toEqual([
+        'create collection "Refused Here" (visible to everyone)',
+        "created a.md → accepted",
+        "created b.md → refused",
+        "imported: 2 created, 0 updated, 0 unchanged, 0 refused",
+      ]);
+    } finally {
+      logged.mockRestore();
+      await client.unsafe(
+        "alter table knowledge_collections drop constraint if exists import_test_refuse"
+      );
+    }
+  });
+
+  it("refuses files over 1 MB and skips what is not a regular file", async () => {
+    const dir = folder("odd", {
+      "big.md": file(
+        "collection: Accepted Here\ntitle: Big\nslug: big",
+        "x".repeat(1024 * 1024)
+      ),
+      "ok.md": file("collection: Accepted Here\ntitle: Okay\nslug: okay"),
+    });
+    mkdirSync(join(dir, "folder.md"));
+    symlinkSync(join(dir, "ok.md"), join(dir, "link.md"));
+    const before = await counts();
+    expect(await run(dir)).toBe(1);
+    expect(out).toEqual([
+      "skipped folder.md (not a regular file)",
+      "skipped link.md (not a regular file)",
+    ]);
+    expect(err).toEqual([
+      expect.stringMatching(/^big\.md: larger than 1 MB \(\d+ bytes\)$/),
+      "nothing imported: 1 problem",
+    ]);
+    expect(await counts()).toEqual(before);
+    rmSync(join(dir, "big.md"));
+    expect(await run(dir)).toBe(0);
+    expect(out).toEqual([
+      "skipped folder.md (not a regular file)",
+      "skipped link.md (not a regular file)",
+      "created ok.md → okay",
+      "imported: 1 created, 0 updated, 0 unchanged, 0 refused",
+    ]);
   });
 
   it("refuses a folder without markdown files", async () => {

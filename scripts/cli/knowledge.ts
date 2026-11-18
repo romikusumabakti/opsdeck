@@ -12,18 +12,21 @@ Each file starts with YAML front matter:
   ---
   collection: Team Guides     # collection name; created when missing
   title: Deploy Flow
-  slug: deploy-flow           # optional; defaults to the title's slug
+  slug: deploy-flow           # recommended: the document's identity across runs
   docType: runbook            # optional: doc (default), runbook, spec, requirement
   visibleTo: [infra]          # optional: roles that see the collection; [] = everyone
   ---
 
-A document is matched by its slug: a new one is appended at the end of its
+A document is matched by its slug. Without a slug the title's is used (with a
+warning), so a changed title then imports as a new document. A new one is appended at the end of its
 collection, an existing one is updated with a revision when its title, type or
 body changed and left alone otherwise. Links to other files of the folder,
 [text](other.md) or (other.md#section), become /knowledge/<slug> links.
 The whole folder is checked first (unknown roles, missing titles, duplicate
 slugs, a slug held in another collection, files disagreeing on a collection's
-visibleTo); any problem stops the run before anything is written.
+visibleTo, an existing collection whose visibility differs without
+--update-visibility, files over 1 MB); any problem stops the run before
+anything is written. Symlinks and other non-regular files are skipped.
 
 --dry-run            Print what would happen; write nothing.
 --update-visibility  Apply the files' visibleTo to an existing collection that

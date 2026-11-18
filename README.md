@@ -119,10 +119,21 @@ collection it does not own, and a second run adds nothing.
 
 `knowledge import` writes every `*.md` file of a folder as a published
 knowledge document, as the `--as` user (who must hold `knowledge:manage`), from
-YAML front matter `collection`, `title` and optional `slug`, `docType` and
-`visibleTo` (the collection's roles; `[]` = everyone). Documents are matched by
-slug: unchanged files are skipped, changed ones get a revision, and links
-between the files become `/knowledge/<slug>` links. The folder is checked
+YAML front matter:
+
+```
+---
+collection: Team Guides
+title: Deploy Flow
+slug: deploy-flow     # recommended: the document's identity across runs
+docType: runbook      # optional: doc (default), runbook, spec, requirement
+visibleTo: [infra]    # optional: the collection's roles; [] = everyone
+---
+```
+
+Documents are matched by slug (without one, the title's, with a warning):
+unchanged files are skipped, changed ones get a revision, and links between
+the files become `/knowledge/<slug>` links. The folder is checked
 whole first, so a problem in any file (an unknown role, say) stops the run
 before anything is written; `--dry-run` shows the plan. `menara knowledge
 --help` has the details.
