@@ -157,6 +157,45 @@ for (const how of ["click", "Enter"] as const) {
   });
 }
 
+// The caret goes back into the middle of text already there: the mention is
+// typed and picked between two words, and the text around it stays.
+test("picking a mention typed between existing words keeps the text around it", async ({
+  page,
+}) => {
+  await page.goto("/en/assistant");
+  const box = page.getByPlaceholder(ASK);
+  await box.fill("ringkas  singkat");
+  // Between the two spaces.
+  await box.evaluate((el: HTMLTextAreaElement) => {
+    el.focus();
+    el.setSelectionRange(8, 8);
+  });
+  await box.pressSequentially(`@${KEY}`);
+  await page.getByRole("option", { name: PROJECT_NAME }).click();
+  // The pick adds its own trailing space; the second original one follows.
+  await expect(box).toHaveValue(`ringkas @${PROJECT_NAME}  singkat`);
+
+  const sent = page.waitForRequest(
+    (r) =>
+      r.method() === "POST" && r.url().endsWith("/api/assistant/send-message")
+  );
+  await page.getByRole("button", { name: "Send" }).click();
+  const body = (await sent).postDataJSON() as {
+    text: string;
+    context: { kind: string; projectId?: string };
+  };
+  expect(body.text).toBe(`ringkas @${PROJECT_NAME}  singkat`);
+  const list = await page.request.get("/api/project-catalog/list-projects");
+  const projects = (await list.json()) as { id: string; key: string }[];
+  expect(body.context).toEqual({
+    kind: "project",
+    projectId: projects.find((p) => p.key === KEY)?.id,
+  });
+  await expect(page.getByText("lives in the auth module.")).toBeVisible({
+    timeout: 30_000,
+  });
+});
+
 test("switching chats keeps each chat's unsent text and context", async ({
   page,
 }) => {
