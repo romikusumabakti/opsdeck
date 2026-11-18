@@ -8,6 +8,11 @@ import {
 } from "@/lib/db/schema";
 import { pgErrorCode } from "@/lib/domains/errors";
 import { contextFromRow, type StoredQuestionContext } from "./context";
+import {
+  type UploadRef,
+  type UploadSummary,
+  uploadsOfConversation,
+} from "./file-store";
 import type { AssistantSource } from "./sources";
 
 /**
@@ -24,6 +29,8 @@ export type TurnHistoryMessage = {
   status: "queued" | "streaming" | "done" | "failed";
   /** User messages: the context asked about; null on assistant messages. */
   context: StoredQuestionContext | null;
+  /** User messages: the files uploaded with the question. */
+  files: UploadSummary[];
 };
 
 export type TurnContext = {
@@ -46,6 +53,11 @@ export type TurnContext = {
   history: TurnHistoryMessage[];
   /** Attachment ids ticked on the user message this turn answers. */
   attachmentIds: string[];
+  /**
+   * Every file uploaded with the chat's questions up to this turn: what
+   * read_upload may read.
+   */
+  uploads: UploadRef[];
 };
 
 /** Null when the message does not exist or is not an assistant message. */
@@ -94,6 +106,11 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
     )
     .orderBy(asc(assistantMessages.id));
 
+  const uploads = await uploadsOfConversation(
+    row.conversationId,
+    row.userId,
+    row.id
+  );
   const lastUser = earlier.findLast((m) => m.role === "user");
   return {
     messageId: row.id,
@@ -109,8 +126,17 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       content: m.content,
       status: m.status,
       context: m.role === "user" ? contextFromRow(m) : null,
+      files: (uploads.get(m.id) ?? []).map(
+        ({ id, filename, mediaType, size }) => ({
+          id,
+          filename,
+          mediaType,
+          size,
+        })
+      ),
     })),
     attachmentIds: lastUser?.attachmentIds ?? [],
+    uploads: [...uploads.values()].flat(),
   };
 }
 

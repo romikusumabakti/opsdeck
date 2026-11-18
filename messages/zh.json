@@ -3669,7 +3669,10 @@
     "draftProjectLocked": "此草稿已在其项目中于跟踪系统创建了问题，因此不能更改项目。请再次创建问题以关联它。",
     "draftProjectRequired": "创建问题前，请先为此草稿选择项目。",
     "draftAlreadyCreated": "已根据此草稿创建过问题。",
-    "jiraCreateFailed": "无法创建该问题。请稍后重试。"
+    "jiraCreateFailed": "无法创建该问题。请稍后重试。",
+    "tooManyFiles": "每个问题最多可附带 {max} 个文件。",
+    "fileTooLarge": "文件过大。此类文件最大为 {limitMb} MB。",
+    "fileTypeUnsupported": "无法附加此文件：不支持该类型，或内容与文件名不符。可附加图片、PDF、Word、Excel 或文本文件。"
   },
   "assistant": {
     "title": "助手",
@@ -3696,7 +3699,6 @@
     "placeholder": "输入问题…",
     "send": "发送",
     "sendHint": "按 Enter 发送，Shift+Enter 换行",
-    "attachments": "问题附件",
     "removeAttachment": "移除附件 {name}",
     "attachedCount": "{count, plural, other {# 个附件}}",
     "attachmentWarning": "问题附件可能包含参与者数据（NIK、姓名、银行账户）。其内容会发送给已配置的 AI 提供商。只勾选确实需要的附件。",
@@ -3766,6 +3768,14 @@
     "mentionList": "项目和环境",
     "shortcutHint": "在任意位置按 {shortcut} 打开助手。",
     "noProjectsTitle": "暂时没有可询问的内容",
-    "noProjectsDescription": "你还看不到任何项目。请让管理员将你加入某个项目后再使用助手。"
+    "noProjectsDescription": "你还看不到任何项目。请让管理员将你加入某个项目后再使用助手。",
+    "attach": "附加",
+    "attachFiles": "上传文件",
+    "attachFromIssue": "来自问题单",
+    "attachedFiles": "本次提问的文件",
+    "removeFile": "移除 {name}",
+    "uploading": "正在上传 {name}",
+    "modelNoImages": "当前配置的模型无法查看图片，只能看到文件名。",
+    "dropFiles": "松开即可附加文件"
   }
 }

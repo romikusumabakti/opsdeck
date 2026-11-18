@@ -116,6 +116,9 @@ export type JobMap = {
   "environment/archives.prune": Record<string, never>;
   // Release every expired deploy lock (repeatable; see scheduleDeployLockSweep).
   "deploy/lock-sweep": Record<string, never>;
+  // Hourly: delete assistant uploads no question carried within 24 h
+  // (repeatable; see scheduleAssistantUploadPrune).
+  "assistant/uploads.prune": Record<string, never>;
   // --- Instance self-backup ---
   // One backup of the Panel itself (lib/instance-backup/archive). The
   // destination and retention are read from instance_settings in the worker.
@@ -368,6 +371,32 @@ export async function scheduleEnvironmentArchivePrune(
     { pattern: ENVIRONMENT_ARCHIVE_PRUNE_CRON, tz },
     {
       name: "environment/archives.prune",
+      data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 50 },
+      },
+    }
+  );
+}
+
+const ASSISTANT_UPLOAD_PRUNE_SCHEDULER_ID = "assistant-uploads-prune";
+export const ASSISTANT_UPLOAD_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Register the hourly prune of unsent assistant uploads
+ * (lib/assistant/upload-prune). Keyed like the other schedulers, so
+ * every worker boot replaces it instead of stacking a second one.
+ */
+export async function scheduleAssistantUploadPrune(
+  everyMs: number = ASSISTANT_UPLOAD_PRUNE_INTERVAL_MS
+): Promise<void> {
+  await getQueue().upsertJobScheduler(
+    ASSISTANT_UPLOAD_PRUNE_SCHEDULER_ID,
+    { every: everyMs },
+    {
+      name: "assistant/uploads.prune",
       data: {},
       opts: {
         attempts: 1,

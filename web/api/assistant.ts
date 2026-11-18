@@ -1,6 +1,13 @@
 import { queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import { api, NO_REFETCH, type PostJson } from "@/web/api/client";
+import type { UploadSummary } from "@/lib/assistant/file-store";
+import {
+  ApiError,
+  api,
+  apiErrorOf,
+  NO_REFETCH,
+  type PostJson,
+} from "@/web/api/client";
 
 // The assistant's chats. Every call returns plain data, so a refusal
 // rejects with an ApiError (rule 2 of web/api/client.ts's error contract):
@@ -94,6 +101,64 @@ export async function deleteConversation(conversationId: string) {
  */
 export async function sendMessage(input: Body<"send-message">) {
   return parseResponse(routes["send-message"].$post({ json: input }));
+}
+
+export type UploadedFile = UploadSummary;
+
+/**
+ * Uploads one file for the next question (POST /api/assistant/upload). Sent
+ * with XMLHttpRequest, the one browser API that reports upload progress:
+ * `onProgress` gets 0..1. Rejects with an ApiError (a refusal's `code`:
+ * `assistant.file_too_large`, `assistant.file_type_unsupported`,
+ * `assistant.too_many_files`), or an AbortError once `signal` aborts.
+ */
+export function uploadFile(
+  file: File,
+  options: {
+    onProgress?: (fraction: number) => void;
+    signal?: AbortSignal;
+  } = {}
+): Promise<UploadedFile> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const aborted = () =>
+      reject(new DOMException("The upload was aborted.", "AbortError"));
+    if (options.signal?.aborted) return aborted();
+    options.signal?.addEventListener("abort", () => xhr.abort(), {
+      once: true,
+    });
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        options.onProgress?.(event.loaded / event.total);
+      }
+    });
+    xhr.addEventListener("abort", aborted);
+    xhr.addEventListener("error", () =>
+      reject(new ApiError(0, "Network error"))
+    );
+    xhr.addEventListener("load", () => {
+      const response = new Response(xhr.responseText, {
+        status: xhr.status,
+        headers: { "Content-Type": "application/json" },
+      });
+      if (xhr.status >= 200 && xhr.status < 300) {
+        response.json().then(resolve, reject);
+      } else {
+        apiErrorOf(response).then(reject, reject);
+      }
+    });
+    const body = new FormData();
+    body.set("file", file);
+    xhr.open("POST", "/api/assistant/upload");
+    xhr.send(body);
+  });
+}
+
+/** Removes an upload no question carries yet (a chip's remove). */
+export async function deleteUpload(id: string) {
+  return parseResponse(
+    routes.upload[":id"].$delete({ param: { id } }, NO_REFETCH)
+  );
 }
 
 /** Has the model write a BRD or Jira draft from the conversation. */

@@ -58,6 +58,7 @@ import {
   normalizeJiraKey,
   visibleIssueByKey,
 } from "@/lib/assistant/tools/context";
+import { MAX_UPLOADS_PER_QUESTION } from "@/lib/assistant/upload-types";
 import { quotaDayResetsAt, spentTodayUsd } from "@/lib/assistant/usage";
 import { loadAssistantViewer } from "@/lib/assistant/viewer";
 import { requireSession } from "@/lib/auth-session";
@@ -106,14 +107,25 @@ export const sendMessageInputSchema = z.object({
     )
     .max(MAX_ATTACHMENTS)
     .optional(),
+  // The caller's unsent uploads (POST /upload). More than
+  // MAX_UPLOADS_PER_QUESTION is a coded refusal, so the bound here is only
+  // against oversized bodies.
+  fileIds: z
+    .array(uuidSchema)
+    .max(MAX_UPLOADS_PER_QUESTION * 5)
+    .optional(),
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageInputSchema>;
 
-async function refusal(
-  status: 400 | 409 | 422 | 429 | 502 | 503,
+/**
+ * A coded refusal, worded in the caller's language for logs and old
+ * clients; `params` (a Date sent as ISO) let the client word it itself.
+ */
+export async function refusal(
+  status: 400 | 409 | 413 | 415 | 422 | 429 | 502 | 503,
   code: AssistantErrorCodeKey,
-  params?: { resetsAt: Date }
+  params?: Record<string, string | number | Date>
 ): Promise<CodedHTTPException> {
   const t = await getServerTranslator("assistantErrors");
   const message = t(ASSISTANT_ERROR_MESSAGE_KEYS[code], params);
@@ -121,7 +133,14 @@ async function refusal(
     status,
     code,
     message,
-    params ? { resetsAt: params.resetsAt.toISOString() } : undefined
+    params
+      ? Object.fromEntries(
+          Object.entries(params).map(([key, value]) => [
+            key,
+            value instanceof Date ? value.toISOString() : value,
+          ])
+        )
+      : undefined
   );
 }
 
@@ -130,7 +149,7 @@ async function refusal(
  * on with a key (else the assistant.not_configured refusal) and the caller
  * sees at least one project (else 403).
  */
-async function requireAssistantGate() {
+export async function requireAssistantGate() {
   const session = await requireSession();
   const limits = await loadAssistantLimits();
   if (!(limits.enabled && limits.hasApiKey)) {
@@ -337,17 +356,24 @@ async function requireAllowance(
 }
 
 /**
- * Stores the question with its context and a queued answer, then queues the
- * turn. A pinned project or environment must be one the caller may use the
- * assistant on, else 404. Refuses when the assistant is off or has no usable
- * key, when the caller has spent the day's cap, or while the conversation's
- * previous answer is still running.
+ * Stores the question with its context, its uploaded files and a queued
+ * answer, then queues the turn. A pinned project or environment must be one
+ * the caller may use the assistant on, and each file one of the caller's
+ * unsent uploads, else 404. Refuses when the assistant is off or has no
+ * usable key, when the caller has spent the day's cap, or while the
+ * conversation's previous answer is still running.
  */
 export async function sendMessage(
   input: SendMessageInput
 ): Promise<CreatedTurn> {
   const { conversation, userId } = await ownConversation(input.conversationId);
   const context = await resolveQuestionContext(input.context);
+  const fileIds = [...new Set(input.fileIds ?? [])];
+  if (fileIds.length > MAX_UPLOADS_PER_QUESTION) {
+    throw await refusal(400, "assistant.too_many_files", {
+      max: MAX_UPLOADS_PER_QUESTION,
+    });
+  }
 
   const now = new Date();
   await requireAllowance(userId, await requireRuntime(), now);
@@ -359,12 +385,16 @@ export async function sendMessage(
     attachmentIds: [
       ...new Set((input.attachments ?? []).map(formatAttachmentRef)),
     ],
+    fileIds,
     context,
     now,
   });
   if (turn === "busy") throw await refusal(409, "assistant.busy");
   // Deleted between the check above and the insert.
   if (turn === "context_gone") notFound();
+  // A file that is not the caller's own unsent upload (another user's, sent
+  // already, removed, or unknown): 404, and nothing was written.
+  if (turn === "files_gone") notFound();
 
   // After the commit, so the worker always finds the rows it is given.
   try {
@@ -394,6 +424,8 @@ export type Allowance = {
   capReached: boolean;
   /** The next quota-day start (APP_TIMEZONE midnight), ISO. */
   resetsAt: string;
+  /** The configured model can view uploaded images. */
+  readsImages: boolean;
 };
 
 /**
@@ -416,6 +448,7 @@ export async function getAllowance(): Promise<Allowance> {
     // Same test as requireAllowance, which refuses the send.
     capReached: spent >= cap,
     resetsAt: quotaDayResetsAt(now).toISOString(),
+    readsImages: limits.readsImages,
   };
 }
 

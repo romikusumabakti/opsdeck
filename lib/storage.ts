@@ -55,6 +55,30 @@ export async function deleteObject(key: string): Promise<void> {
 }
 
 /**
+ * An object's bytes in memory, refused (throws) past `maxBytes` so a stored
+ * object larger than expected never fills the heap.
+ */
+export async function getObjectBytes(
+  key: string,
+  maxBytes: number
+): Promise<Uint8Array> {
+  const res = await getClient().send(
+    new GetObjectCommand({ Bucket: bucket(), Key: key })
+  );
+  if (!res.Body) throw new Error("empty object body");
+  if ((res.ContentLength ?? 0) > maxBytes) {
+    throw new Error(`object ${key} exceeds ${maxBytes} bytes`);
+  }
+  const bytes = await (
+    res.Body as { transformToByteArray(): Promise<Uint8Array> }
+  ).transformToByteArray();
+  if (bytes.byteLength > maxBytes) {
+    throw new Error(`object ${key} exceeds ${maxBytes} bytes`);
+  }
+  return bytes;
+}
+
+/**
  * Fetch an object's raw bytes as a web stream, for the app to proxy back to the
  * client (issue attachments are served as-is — no imgproxy transform, since they
  * can be any file type, not just images).

@@ -510,6 +510,51 @@ describe("lookups by client-supplied id check the caller first", () => {
       /requireAssistantGate\(\)[\s\S]*listConversationsOf\(session\.user\.id\)/
     );
   });
+  it("assistant uploads are their uploader's, behind the global gate", () => {
+    const service = readFileSync("server/services/assistant-files.ts", "utf8");
+    // The gate runs before the request body is even parsed.
+    const upload = body(service, "uploadFile");
+    expect(upload).toMatch(
+      /requireAssistantGate\(\)[\s\S]*await readFile\(\)[\s\S]*sniffUpload\(/
+    );
+    expect(upload).toMatch(/storageKey = `assistant\/\$\{userId\}\/\$\{id\}`/);
+    expect(body(service, "deleteUpload")).toMatch(
+      /requireAssistantGate\(\)[\s\S]*deleteUnsentUpload\(session\.user\.id, fileId\)[\s\S]*if \(!storageKey\) notFound\(\)/
+    );
+    const store = readFileSync("lib/assistant/file-store.ts", "utf8");
+    for (const fn of ["deleteUnsentUpload", "attachUploads"]) {
+      expect(body(store, fn), fn).toMatch(
+        /eq\(assistantFiles\.userId, (userId|params\.userId)\)[\s\S]*isNull\(assistantFiles\.messageId\)/
+      );
+    }
+    expect(body(store, "uploadsOfConversation")).toMatch(
+      /eq\(assistantMessages\.conversationId, conversationId\)[\s\S]*eq\(assistantFiles\.userId, ownerId\)/
+    );
+    // A question carries files of its chat's owner only, in its transaction.
+    expect(
+      body(
+        readFileSync("lib/assistant/conversation-store.ts", "utf8"),
+        "insertTurn"
+      )
+    ).toMatch(/attachUploads\(tx, \{\s*userId: conversation\.userId,/);
+    expect(
+      body(readFileSync("server/services/assistant.ts", "utf8"), "sendMessage")
+    ).toMatch(
+      /ownConversation\([\s\S]*fileIds,[\s\S]*if \(turn === "files_gone"\) notFound\(\)/
+    );
+    // A turn reads the files of its own chat's earlier questions only.
+    expect(
+      body(readFileSync("lib/assistant/turn-store.ts", "utf8"), "loadTurn")
+    ).toMatch(
+      /uploadsOfConversation\(\s*row\.conversationId,\s*row\.userId,\s*row\.id\s*\)/
+    );
+    expect(
+      body(
+        readFileSync("lib/assistant/tools/uploads.ts", "utf8"),
+        "readUploadTool"
+      )
+    ).toMatch(/uploads\.find\(\(u\) => u\.id === id\)[\s\S]*if \(!file\)/);
+  });
   it("the attachment picker finds the issue among the caller's visible projects", () => {
     const fn = body(
       readFileSync("server/services/assistant.ts", "utf8"),

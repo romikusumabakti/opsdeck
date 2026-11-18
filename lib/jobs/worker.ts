@@ -9,6 +9,7 @@ import { registerShutdown } from "@/lib/jobs/shutdown";
 import { failStaleProvisionRuns } from "@/lib/provisioning/repository";
 import {
   createRedisConnection,
+  scheduleAssistantUploadPrune,
   scheduleDeployLockSweep,
   scheduleEnvironmentArchivePrune,
   scheduleInstanceUpdateCheck,
@@ -100,6 +101,12 @@ export function startWorker(): Worker | null {
   // in Redis.
   scheduleEnvironmentArchivePrune().catch((error) => {
     console.error("Failed to schedule the environment archive prune:", error);
+  });
+
+  // The hourly prune of assistant uploads no question carried; its
+  // scheduler lives in Redis.
+  scheduleAssistantUploadPrune().catch((error) => {
+    console.error("Failed to schedule the assistant upload prune:", error);
   });
 
   tasksWorker = worker;

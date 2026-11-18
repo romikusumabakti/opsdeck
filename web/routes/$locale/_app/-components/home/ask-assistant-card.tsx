@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { SendHorizontal } from "lucide-react";
+import { Paperclip, SendHorizontal } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { QuestionContextInput } from "@/lib/assistant/context";
+import { UPLOAD_ACCEPT } from "@/lib/assistant/upload-types";
 import { cn } from "@/lib/utils";
 import {
   createConversation,
@@ -21,6 +22,12 @@ import {
   visibleContext,
 } from "@/web/components/assistant/context-picker";
 import { useAssistantErrorText } from "@/web/components/assistant/error-text";
+import {
+  DropOverlay,
+  FileChips,
+  useFileDrop,
+  useFileUploads,
+} from "@/web/components/assistant/file-chips";
 import { useMentions } from "@/web/components/assistant/mention-popover";
 
 const AUTO: QuestionContextInput = { kind: "auto" };
@@ -29,7 +36,8 @@ const MAX_RECENTS = 3;
 
 /**
  * Starts a conversation from Home: type a question, pick what it is about
- * (Automatic by default; the chip or an `@` mention in the text), Enter. The answer is followed on /assistant, which
+ * (Automatic by default; the chip or an `@` mention in the text), attach
+ * files (📎, drop or paste), Enter. The answer is followed on /assistant, which
  * the send navigates to. Below the box: the latest conversations, or example
  * questions that fill the box. Hidden unless the assistant is on and the
  * user sees a project.
@@ -49,6 +57,9 @@ export function AskAssistantCard() {
   const [picked, setPicked] = React.useState<QuestionContextInput>(AUTO);
   const [text, setText] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const fileInput = React.useRef<HTMLInputElement>(null);
+  const uploads = useFileUploads();
+  const drop = useFileDrop(uploads.add, false);
 
   // The conversation made for a send that then failed: a retry reuses it
   // instead of leaving another empty one behind. Conversations are global,
@@ -61,6 +72,7 @@ export function AskAssistantCard() {
     mutationFn: async (input: {
       context: QuestionContextInput;
       text: string;
+      fileIds: string[];
     }) => {
       const id = created.current ?? (await createConversation()).id;
       created.current = id;
@@ -68,6 +80,7 @@ export function AskAssistantCard() {
         conversationId: id,
         text: input.text,
         context: input.context,
+        ...(input.fileIds.length > 0 ? { fileIds: input.fileIds } : {}),
       });
       created.current = null;
       return id;
@@ -88,9 +101,15 @@ export function AskAssistantCard() {
 
   const capped = allowance.capReached;
   const canSend =
-    !capped && !ask.isPending && !ask.isSuccess && text.trim() !== "";
+    !capped &&
+    !ask.isPending &&
+    !ask.isSuccess &&
+    !uploads.uploading &&
+    text.trim() !== "";
   const submit = () => {
-    if (canSend) ask.mutate({ context, text: text.trim() });
+    if (canSend) {
+      ask.mutate({ context, text: text.trim(), fileIds: uploads.fileIds });
+    }
   };
   const message = capped
     ? codeText("assistant.daily_cap_reached", { resetsAt: allowance.resetsAt })
@@ -104,10 +123,12 @@ export function AskAssistantCard() {
     <section className="flex flex-col gap-3">
       <div
         className={cn(
-          "flex flex-col gap-2 rounded-2xl border bg-card p-3 shadow-xs transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+          "relative flex flex-col gap-2 rounded-2xl border bg-card p-3 shadow-xs transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
           locked && "opacity-70"
         )}
+        {...(locked ? {} : drop.dropProps)}
       >
+        <DropOverlay show={drop.dragging && !locked} />
         <textarea
           ref={textareaRef}
           rows={2}
@@ -115,6 +136,7 @@ export function AskAssistantCard() {
           {...mentions.inputProps}
           onChange={mentions.onChange}
           onSelect={mentions.onSelect}
+          onPaste={locked ? undefined : drop.onPaste}
           onKeyDown={(e) => {
             if (mentions.onKeyDown(e)) return;
             if (
@@ -134,15 +156,40 @@ export function AskAssistantCard() {
           disabled={locked}
           className="field-sizing-content max-h-36 min-h-12 w-full resize-none border-0 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground md:text-sm"
         />
+        <FileChips uploads={uploads} readsImages={allowance.readsImages} />
         <div className="flex items-center justify-between gap-2">
-          <ContextPicker
-            value={context}
-            onChange={(next) => {
-              setPicked(next);
-              textareaRef.current?.focus();
-            }}
-            disabled={locked}
-          />
+          <div className="flex min-w-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-full"
+              aria-label={tAssistant("attachFiles")}
+              disabled={locked || uploads.full}
+              onClick={() => fileInput.current?.click()}
+            >
+              <Paperclip />
+            </Button>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              hidden
+              accept={UPLOAD_ACCEPT}
+              data-testid="home-file-input"
+              onChange={(e) => {
+                uploads.add(Array.from(e.target.files ?? []));
+                e.target.value = "";
+              }}
+            />
+            <ContextPicker
+              value={context}
+              onChange={(next) => {
+                setPicked(next);
+                textareaRef.current?.focus();
+              }}
+              disabled={locked}
+            />
+          </div>
           <Button
             size="icon"
             className="rounded-full"

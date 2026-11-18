@@ -216,7 +216,11 @@ export function AssistantWorkspace({
     selectedRef.current = selectedId;
   }, [selectedId]);
 
-  const send = async (text: string, attachments: AttachmentRef[]) => {
+  const send = async (
+    text: string,
+    attachments: AttachmentRef[],
+    fileIds: string[]
+  ) => {
     let id = selectedId;
     if (!id) {
       id = created.current ?? (await createConversation()).id;
@@ -227,6 +231,7 @@ export function AssistantWorkspace({
       text,
       context,
       ...(attachments.length > 0 ? { attachments } : {}),
+      ...(fileIds.length > 0 ? { fileIds } : {}),
     });
     if (id !== selectedRef.current) {
       created.current = null;
@@ -380,6 +385,7 @@ export function AssistantWorkspace({
             <Composer
               disabled={busy || capped}
               capResetsAt={capped ? allowance.resetsAt : null}
+              readsImages={allowance.readsImages}
               onSend={send}
               focusKey={selectedId ?? "new"}
               context={context}

@@ -199,6 +199,13 @@ describe("parseJobPayload", () => {
     expect(parseJobPayload("deploy/lock-sweep", {})).toEqual({});
   });
 
+  it("assistant upload prune payload is empty", () => {
+    expect(parseJobPayload("assistant/uploads.prune", {})).toEqual({});
+    expect(() =>
+      parseJobPayload("assistant/uploads.prune", { all: true })
+    ).toThrow();
+  });
+
   it("still accepts a Jira issue push queued before actorId existed", () => {
     expect(
       parseJobPayload("jira/push.issue", { issueId: ENV_ID, fields: [] })

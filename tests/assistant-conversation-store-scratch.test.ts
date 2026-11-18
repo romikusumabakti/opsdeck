@@ -168,6 +168,8 @@ describe.skipIf(!enabled)(
         enabled: false,
         hasApiKey: false,
         dailyCapUsd: 1.5,
+        // No provider chosen yet: nothing says images cannot be read.
+        readsImages: true,
       });
 
       const conversationId = await store.insertConversation({

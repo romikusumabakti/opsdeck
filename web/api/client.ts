@@ -158,6 +158,15 @@ async function errorBody(response: Response): Promise<{
   return { message: response.statusText || `HTTP ${response.status}` };
 }
 
+/**
+ * The ApiError of a non-2xx response read outside `apiFetch` (an upload sent
+ * with XMLHttpRequest for its progress events).
+ */
+export async function apiErrorOf(response: Response): Promise<ApiError> {
+  const { message, code, params } = await errorBody(response);
+  return new ApiError(response.status, message, code, params);
+}
+
 function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
   return (
     init?.method ?? (input instanceof Request ? input.method : "GET")

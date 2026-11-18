@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  FileText,
   FolderKanban,
+  ImageIcon,
   Loader2,
   Paperclip,
   Server,
@@ -11,6 +13,7 @@ import remarkGfm from "remark-gfm";
 import { useTranslations } from "use-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { qualifiedEnvName } from "@/lib/nav-path";
+import { formatBytes } from "@/lib/utils";
 import {
   type ConversationMessage,
   getAllowanceQuery,
@@ -110,6 +113,30 @@ export function MessageView({
         <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap break-words">
           {message.content}
         </div>
+        {message.files.length > 0 && (
+          <ul
+            className="flex max-w-[85%] flex-wrap justify-end gap-1.5"
+            aria-label={t("attachedFiles")}
+          >
+            {message.files.map((f) => (
+              <li
+                key={f.id}
+                data-sent-file
+                className="flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
+              >
+                {f.mediaType.startsWith("image/") ? (
+                  <ImageIcon className="size-3.5 shrink-0" aria-hidden />
+                ) : (
+                  <FileText className="size-3.5 shrink-0" aria-hidden />
+                )}
+                <span className="truncate">{f.filename}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {formatBytes(f.size)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {(message.context || message.attachmentIds.length > 0) && (
           <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {message.context && (

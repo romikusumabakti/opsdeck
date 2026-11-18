@@ -175,3 +175,12 @@ export function probeOptionsFor(
       return undefined;
   }
 }
+
+/**
+ * Whether the provider's models read images and PDFs sent as file parts. An
+ * OpenAI-compatible endpoint may front any model, so it gets text instead
+ * (lib/assistant/tools/uploads.ts).
+ */
+export function readsFilesNatively(provider: Provider): boolean {
+  return provider !== "openai-compatible";
+}

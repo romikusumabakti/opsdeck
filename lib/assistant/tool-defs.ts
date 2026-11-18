@@ -2,6 +2,7 @@ import type { ToolResultOutput } from "@ai-sdk/provider-utils";
 import { type FlexibleSchema, jsonSchema, type ToolSet, tool } from "ai";
 import { z } from "zod";
 import type { AttachmentRef } from "./attachment-refs";
+import type { UploadRef } from "./file-store";
 import type { ProviderOptions } from "./providers";
 import {
   listFiles,
@@ -33,6 +34,8 @@ import {
   runPanelTool,
   unknownProjectError,
 } from "./tools/panel";
+import { readUploadTool } from "./tools/uploads";
+import { MAX_UPLOAD_TEXT_CHARS } from "./upload-types";
 import type { AssistantViewer } from "./viewer";
 
 /**
@@ -176,6 +179,19 @@ const AUTO_DEFINITIONS = {
   read_knowledge: DEFINITIONS.read_knowledge,
 } as const;
 
+/**
+ * Offered in every context, after the context's own tools: the files the
+ * user uploaded with this chat's questions.
+ */
+const UPLOAD_DEFINITIONS = {
+  read_upload: {
+    description: `Read one file the user uploaded with a question of this chat, by the file_id listed with that question (files of other chats are refused). Images and PDFs are returned as-is when the model can read them; Word documents, spreadsheets (CSV text per sheet) and text files as text of at most ${MAX_UPLOAD_TEXT_CHARS} characters, marked when truncated.`,
+    inputSchema: z.strictObject({
+      file_id: str("The file_id listed with the question's uploaded files."),
+    }),
+  },
+} as const;
+
 /** The tools of a pinned context, in order. */
 export const TOOL_NAMES = Object.keys(DEFINITIONS) as ToolName[];
 
@@ -219,7 +235,7 @@ export function toolModelOutput(
   result: ToolResult<unknown>
 ): ToolResultOutput {
   if (!result.ok) return { type: "error-text", value: result.error };
-  if (name === "read_attachment") {
+  if (name === "read_attachment" || name === "read_upload") {
     return attachmentOutput(result.data as AttachmentContent);
   }
   return { type: "text", value: JSON.stringify(result.data) };
@@ -245,6 +261,7 @@ export function buildTools(
   // only on the user's org role (stable across their turns, prompt cache).
   const entries = [
     ...Object.entries(ctx.mode === "auto" ? AUTO_DEFINITIONS : DEFINITIONS),
+    ...Object.entries(UPLOAD_DEFINITIONS),
     ...panelDefinitions(ctx.viewer),
   ] as Array<
     [ToolName, { description: string; inputSchema: FlexibleSchema<unknown> }]
@@ -304,6 +321,7 @@ const INPUTS = {
   }),
   search_knowledge: z.strictObject({ query: z.string() }),
   read_knowledge: z.strictObject({ slug: z.string() }),
+  read_upload: z.strictObject({ file_id: z.string() }),
 } as const;
 
 /** The automatic context's inputs: the code tools also name the project. */
@@ -316,6 +334,7 @@ const AUTO_INPUTS = {
   read_attachment: INPUTS.read_attachment,
   search_knowledge: INPUTS.search_knowledge,
   read_knowledge: INPUTS.read_knowledge,
+  read_upload: INPUTS.read_upload,
 } as const;
 
 export type ToolName = keyof typeof AUTO_INPUTS | PanelToolName;
@@ -334,6 +353,10 @@ type BaseToolContext = {
   panel: PanelTurn;
   /** Jira attachments the user ticked on the message being answered. */
   attachments: AttachmentRef[];
+  /** Files uploaded with the chat's questions so far (read_upload). */
+  uploads: UploadRef[];
+  /** The model reads images and PDFs as file parts (providers.ts). */
+  nativeFiles: boolean;
 };
 
 /**
@@ -527,6 +550,10 @@ async function run(
     case "read_knowledge": {
       const i = data as z.infer<typeof INPUTS.read_knowledge>;
       return readKnowledgeTool(ctx.viewer, i.slug);
+    }
+    case "read_upload": {
+      const i = data as z.infer<typeof INPUTS.read_upload>;
+      return readUploadTool(ctx.uploads, ctx.nativeFiles, i.file_id);
     }
   }
   return { ok: false, error: `unknown tool: ${name}`, meta: {} };

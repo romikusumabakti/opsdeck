@@ -1,3 +1,4 @@
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { readStreamSnapshot } from "@/lib/assistant/conversation-store";
 import { uuidSchema } from "@/lib/validation";
@@ -23,6 +24,12 @@ import {
   sendMessage,
   sendMessageInputSchema,
 } from "@/server/services/assistant";
+import {
+  deleteUpload,
+  fileTooLarge,
+  UPLOAD_BODY_LIMIT,
+  uploadFile,
+} from "@/server/services/assistant-files";
 import { eventStream, pollSnapshots, sendEvent } from "@/server/sse";
 import { json, query } from "@/server/validation";
 
@@ -62,6 +69,34 @@ export const assistantRouter = sessionRouter()
   .post("/send-message", json(sendMessageInputSchema), async (c) =>
     c.json(await sendMessage(c.req.valid("json")))
   )
+  /**
+   * One file for the next question (multipart, field `file`) →
+   * `{ id, filename, mediaType, size }`. The body is capped before it is
+   * parsed, so an oversized request is a 413 without being buffered whole.
+   */
+  .post(
+    "/upload",
+    bodyLimit({
+      maxSize: UPLOAD_BODY_LIMIT,
+      onError: async () => {
+        throw await fileTooLarge();
+      },
+    }),
+    async (c) =>
+      c.json(
+        await uploadFile(async () => {
+          const form = await c.req.raw.formData().catch(() => null);
+          const file = form?.get("file");
+          return file instanceof File ? file : null;
+        })
+      )
+  )
+  // The caller's own upload, while no question carries it.
+  .delete("/upload/:id", async (c) => {
+    const id = c.req.param("id");
+    await deleteUpload(id);
+    return c.json({ id });
+  })
   // Drafts: written by the model from the conversation, edited by the user, and
   // (Jira drafts) created as an issue on an explicit request.
   .post("/generate-draft", json(generateDraftInputSchema), async (c) =>

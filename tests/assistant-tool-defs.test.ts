@@ -53,6 +53,8 @@ const ctx = {
   viewer,
   attachments: ticked,
   panel: panelFor(viewer),
+  uploads: [],
+  nativeFiles: true,
 };
 const viewerAs = (orgRole: AssistantViewer["orgRole"]): AssistantViewer => ({
   ...viewer,
@@ -80,6 +82,8 @@ const autoCtx = {
   viewer,
   attachments: ticked,
   panel: panelFor(viewer),
+  uploads: [],
+  nativeFiles: true,
   snapshotsFor,
   listProjects,
 };
@@ -217,6 +221,7 @@ describe("buildTools", () => {
     ]);
     expect(Object.keys(pinned)).toEqual([
       ...STAGE2_TOOLS,
+      "read_upload",
       ...ALWAYS_PANEL_TOOLS,
     ]);
     // Explicit: strict tools need the empty required list.
@@ -239,20 +244,22 @@ describe("buildTools", () => {
       ]);
       expect(String(auto[name]?.description), name).toContain("project");
     }
-    // Issue and knowledge tools are the same in both modes.
+    // Issue, knowledge and upload tools are the same in both modes.
     for (const name of [
       "get_issue",
       "read_attachment",
       "search_knowledge",
       "read_knowledge",
+      "read_upload",
     ]) {
       expect(auto[name], name).toEqual(pinned[name]);
     }
   });
 
-  it("defines the seven Stage 2 tools in order, then the Panel tools", () => {
+  it("defines the seven Stage 2 tools in order, then read_upload and the Panel tools", () => {
     expect(Object.keys(buildTools(ctx, noRecord))).toEqual([
       ...STAGE2_TOOLS,
+      "read_upload",
       ...ALWAYS_PANEL_TOOLS,
     ]);
     expect(TOOL_NAMES).toEqual(STAGE2_TOOLS);

@@ -20,6 +20,7 @@ const queue = vi.hoisted(() => ({
   scheduleDeployLockSweep: vi.fn(async () => {}),
   scheduleInstanceUpdateCheck: vi.fn(async () => {}),
   scheduleEnvironmentArchivePrune: vi.fn(async () => {}),
+  scheduleAssistantUploadPrune: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/queue", () => queue);
 const locks = vi.hoisted(() => ({ sweepExpiredLocks: vi.fn(async () => 0) }));
@@ -167,6 +168,34 @@ describe("startWorker teardown sweep and archive prune", () => {
     });
     expect(teardown.failStaleTeardownRuns).toHaveBeenCalledTimes(1);
     expect(queue.scheduleEnvironmentArchivePrune).toHaveBeenCalledTimes(1);
+
+    errors.mockRestore();
+    once.mockRestore();
+    vi.unstubAllEnvs();
+  });
+});
+
+describe("startWorker assistant upload prune", () => {
+  it("schedules the hourly prune of unsent uploads, and survives a failure", async () => {
+    const startWorker = await freshStartWorker();
+    vi.stubEnv("REDIS_URL", "redis://test:6379");
+    const once = vi.spyOn(process, "once").mockImplementation(() => process);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    deploy.failStaleDeployments.mockResolvedValue(undefined);
+    teardown.failStaleTeardownRuns.mockResolvedValue(0);
+    queue.scheduleEnvironmentArchivePrune.mockResolvedValue(undefined);
+    queue.scheduleAssistantUploadPrune.mockRejectedValue(
+      new Error("redis down")
+    );
+
+    expect(startWorker()).not.toBeNull();
+    await vi.waitFor(() =>
+      expect(errors).toHaveBeenCalledWith(
+        "Failed to schedule the assistant upload prune:",
+        expect.any(Error)
+      )
+    );
+    expect(queue.scheduleAssistantUploadPrune).toHaveBeenCalledTimes(1);
 
     errors.mockRestore();
     once.mockRestore();

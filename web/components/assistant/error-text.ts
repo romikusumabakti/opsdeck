@@ -14,7 +14,9 @@ function isKnownCode(
  * The one place the chat words an assistant error code (a refused request's
  * ApiError or a failed message's `errorCode`) with the `assistantErrors`
  * messages. The daily cap's `resetsAt` (ISO) is formatted as a time in the
- * reader's zone by the message itself; unknown codes read as "failed".
+ * reader's zone by the message itself; other params (`{ max }`,
+ * `{ limitMb }`) go to the message as they are. Unknown codes read as
+ * "failed".
  */
 export function useAssistantErrorText() {
   const t = useTranslations("assistantErrors");
@@ -28,7 +30,7 @@ export function useAssistantErrorText() {
         resetsAt: new Date(String(params?.resetsAt ?? Date.now())),
       });
     }
-    return t(key);
+    return t(key, params);
   };
 
   const errorText = (error: unknown) => {

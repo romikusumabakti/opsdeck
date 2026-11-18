@@ -3669,7 +3669,10 @@
     "draftProjectLocked": "Este borrador ya tiene una incidencia creada en el gestor en su proyecto, así que su proyecto no puede cambiar. Vuelve a crear la incidencia para vincularla.",
     "draftProjectRequired": "Elige el proyecto de este borrador antes de crear la incidencia.",
     "draftAlreadyCreated": "Ya se creó una incidencia a partir de este borrador.",
-    "jiraCreateFailed": "No se pudo crear la incidencia. Inténtalo de nuevo en un momento."
+    "jiraCreateFailed": "No se pudo crear la incidencia. Inténtalo de nuevo en un momento.",
+    "tooManyFiles": "Una pregunta puede llevar como máximo {max} archivos.",
+    "fileTooLarge": "Este archivo es demasiado grande. Los archivos de este tipo pueden tener como máximo {limitMb} MB.",
+    "fileTypeUnsupported": "No se puede adjuntar este archivo: su tipo no es compatible o su contenido no coincide con su nombre. Adjunta imágenes, PDF, Word, Excel o archivos de texto."
   },
   "assistant": {
     "title": "Asistente",
@@ -3696,7 +3699,6 @@
     "placeholder": "Escribe una pregunta…",
     "send": "Enviar",
     "sendHint": "Enter para enviar, Mayús+Enter para nueva línea",
-    "attachments": "Adjuntos de la incidencia",
     "removeAttachment": "Quitar el adjunto {name}",
     "attachedCount": "{count, plural, one {# adjunto} other {# adjuntos}}",
     "attachmentWarning": "Los adjuntos de las incidencias pueden contener datos de participantes (NIK, nombres, cuentas bancarias). Su contenido se envía al proveedor de IA configurado. Marca solo los adjuntos que de verdad necesites.",
@@ -3766,6 +3768,14 @@
     "mentionList": "Proyectos y entornos",
     "shortcutHint": "Pulsa {shortcut} en cualquier lugar para abrir el asistente.",
     "noProjectsTitle": "Aún no hay nada que preguntar",
-    "noProjectsDescription": "Todavía no ves ningún proyecto. Pide a un administrador que te añada a un proyecto para usar el asistente."
+    "noProjectsDescription": "Todavía no ves ningún proyecto. Pide a un administrador que te añada a un proyecto para usar el asistente.",
+    "attach": "Adjuntar",
+    "attachFiles": "Subir archivos",
+    "attachFromIssue": "Desde una incidencia",
+    "attachedFiles": "Archivos de esta pregunta",
+    "removeFile": "Quitar {name}",
+    "uploading": "Subiendo {name}",
+    "modelNoImages": "El modelo configurado no puede ver imágenes: solo verá sus nombres.",
+    "dropFiles": "Suelta los archivos para adjuntarlos"
   }
 }

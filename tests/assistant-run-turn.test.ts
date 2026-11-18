@@ -339,6 +339,7 @@ function autoTurn(): TurnContext {
         content: "Bagaimana Iuran dihitung?",
         status: "done",
         context: { kind: "auto" },
+        files: [],
       },
     ],
   };
@@ -371,9 +372,11 @@ function baseTurn(): TurnContext {
         content: "Bagaimana Iuran dihitung?",
         status: "done",
         context: envContext("Dev 1", "env-1"),
+        files: [],
       },
     ],
     attachmentIds: [],
+    uploads: [],
   };
 }
 
@@ -742,8 +745,9 @@ describe("runTurn", () => {
     // message, so switching it keeps the cached history prefix.
     expect(String(volatile?.content)).not.toContain("Environment:");
     const tools = toolsOf(call);
-    // The seven Stage 2 tools, then the eight Panel tools every role gets.
-    expect(tools).toHaveLength(15);
+    // The seven Stage 2 tools, read_upload, then the eight Panel tools
+    // every role gets.
+    expect(tools).toHaveLength(16);
     expect(tools.at(-1)?.providerOptions).toEqual(CACHE);
     expect(tools.slice(0, -1).some((t) => t.providerOptions)).toBe(false);
     expect(conversationOf(call)).toEqual([
@@ -1145,30 +1149,35 @@ describe("runTurn", () => {
         content: "Di Dev 1?",
         status: "done",
         context: envContext("Dev 1"),
+        files: [],
       },
       {
         role: "assistant",
         content: "Jawab 1",
         status: "done",
         context: null,
+        files: [],
       },
       {
         role: "user",
         content: "Di branch?",
         status: "done",
         context: PROJECT_CONTEXT,
+        files: [],
       },
       {
         role: "assistant",
         content: "Jawab 2",
         status: "done",
         context: null,
+        files: [],
       },
       {
         role: "user",
         content: "Lalu?",
         status: "done",
         context: PROJECT_CONTEXT,
+        files: [],
       },
     ];
     const promptOf = async (turn: TurnContext) => {
@@ -1669,30 +1678,35 @@ describe("runTurn", () => {
           content: "Q1",
           status: "done",
           context: envContext("UAT"),
+          files: [],
         },
         {
           role: "assistant",
           content: "A1",
           status: "done",
           context: null,
+          files: [],
         },
         {
           role: "user",
           content: "Q2",
           status: "done",
           context: PROJECT_CONTEXT,
+          files: [],
         },
         {
           role: "assistant",
           content: "",
           status: "failed",
           context: null,
+          files: [],
         },
         {
           role: "user",
           content: "Q3",
           status: "done",
           context: envContext("Dev 1"),
+          files: [],
         },
       ],
       // A malformed (pre-pair) entry is dropped.

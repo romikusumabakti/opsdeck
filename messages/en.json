@@ -3669,7 +3669,10 @@
     "draftProjectLocked": "This draft already has a tracker issue created in its project, so its project cannot change. Create the issue again to link it.",
     "draftProjectRequired": "Choose the project for this draft before creating the issue.",
     "draftAlreadyCreated": "An issue was already created from this draft.",
-    "jiraCreateFailed": "The issue could not be created. Try again in a moment."
+    "jiraCreateFailed": "The issue could not be created. Try again in a moment.",
+    "tooManyFiles": "A question can carry at most {max} files.",
+    "fileTooLarge": "This file is too large. Files of this type can be at most {limitMb} MB.",
+    "fileTypeUnsupported": "This file can't be attached: its type isn't supported or its content doesn't match its name. Attach images, PDFs, Word, Excel or text files."
   },
   "assistant": {
     "title": "Assistant",
@@ -3696,7 +3699,6 @@
     "placeholder": "Write a question…",
     "send": "Send",
     "sendHint": "Enter to send, Shift+Enter for a new line",
-    "attachments": "Issue attachments",
     "removeAttachment": "Remove attachment {name}",
     "attachedCount": "{count, plural, one {# attachment} other {# attachments}}",
     "attachmentWarning": "Issue attachments can contain participant data (NIK, names, bank accounts). Their content is sent to the configured AI provider. Tick only the attachments you really need.",
@@ -3766,6 +3768,14 @@
     "mentionList": "Projects and environments",
     "shortcutHint": "Press {shortcut} anywhere to open the assistant.",
     "noProjectsTitle": "Nothing to ask about yet",
-    "noProjectsDescription": "You do not see any project yet. Ask an admin to add you to a project to use the assistant."
+    "noProjectsDescription": "You do not see any project yet. Ask an admin to add you to a project to use the assistant.",
+    "attach": "Attach",
+    "attachFiles": "Upload files",
+    "attachFromIssue": "From an issue",
+    "attachedFiles": "Files for this question",
+    "removeFile": "Remove {name}",
+    "uploading": "Uploading {name}",
+    "modelNoImages": "The configured model can't view images: it will only see their names.",
+    "dropFiles": "Drop files to attach them"
   }
 }

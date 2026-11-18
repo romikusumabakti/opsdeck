@@ -16,6 +16,7 @@ import {
 } from "ai";
 import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import { type AssistantRuntime, loadAssistantRuntime } from "./client";
+import type { UploadSummary } from "./file-store";
 import { CHARS_PER_TOKEN, estimateUsage, type TokenUsage } from "./pricing";
 import { resolveProjectSources as defaultResolveProjectSources } from "./project-sources";
 import {
@@ -23,6 +24,7 @@ import {
   outputTokenLimitFor,
   type ProviderOptions,
   providerOptionsFor,
+  readsFilesNatively,
 } from "./providers";
 import {
   ensureSnapshot as defaultEnsureSnapshot,
@@ -246,6 +248,22 @@ export function classifyError(
 }
 
 /**
+ * The files uploaded with a question, for the model to read with
+ * read_upload. Each question keeps its own list, so the replayed history
+ * stays the same from turn to turn (prompt cache).
+ */
+export function uploadsNote(files: readonly UploadSummary[]): string {
+  if (files.length === 0) return "";
+  const list = files
+    .map(
+      (f) =>
+        `- file_id ${f.id}: ${f.filename} (${f.mediaType}, ${f.size} bytes)`
+    )
+    .join("\n");
+  return `\n\n(Files uploaded with this question, readable with read_upload:\n${list})`;
+}
+
+/**
  * Prior messages as plain text turns. Failed assistant messages without any
  * text and unfinished ones are skipped; consecutive same-role turns are fine
  * (the API merges them). Each earlier question starts with the short label of
@@ -270,11 +288,11 @@ export function buildHistory(
     if (index !== lastUserIndex) {
       messages.push({
         role: "user",
-        content: `${questionContextLabel(m.context)}\n${m.content}`,
+        content: `${questionContextLabel(m.context)}\n${m.content}${uploadsNote(m.files)}`,
       });
       return;
     }
-    let text = m.content;
+    let text = m.content + uploadsNote(m.files);
     if (ticked.length > 0) {
       const list = ticked
         .map(
@@ -831,16 +849,21 @@ async function runClaimedTurn(
     cores: deps.panelCores,
     probeTimeoutMs: deps.probeTimeoutMs,
   });
+  const shared = {
+    viewer,
+    attachments,
+    panel,
+    uploads: turn.uploads,
+    nativeFiles: readsFilesNatively(runtime.provider),
+  };
   const toolContext: ToolContext =
     resolved.question.kind === "auto"
       ? {
           mode: "auto",
-          viewer,
-          attachments,
-          panel,
+          ...shared,
           ...projectAccess(turn.messageId, resolved.projects, sourceDeps, stop),
         }
-      : { mode: "pinned", snaps: resolved.snaps, viewer, attachments, panel };
+      : { mode: "pinned", snaps: resolved.snaps, ...shared };
   // Set by prepareStep for the step about to run.
   let capped = false;
   let promptChars = 0;

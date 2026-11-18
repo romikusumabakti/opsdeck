@@ -114,7 +114,13 @@ function contextFor(
     cores: cores as unknown as PanelCores,
     probeTimeoutMs,
   });
-  const base = { viewer, attachments: [], panel };
+  const base = {
+    viewer,
+    attachments: [],
+    uploads: [],
+    nativeFiles: true,
+    panel,
+  };
   return mode === "auto"
     ? {
         ...base,

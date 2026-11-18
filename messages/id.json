@@ -3669,7 +3669,10 @@
     "draftProjectLocked": "Draf ini sudah punya issue di tracker yang dibuat di proyeknya, jadi proyeknya tidak dapat diubah. Buat issue lagi untuk menautkannya.",
     "draftProjectRequired": "Pilih proyek untuk draf ini sebelum membuat issue.",
     "draftAlreadyCreated": "Issue sudah dibuat dari draf ini.",
-    "jiraCreateFailed": "Issue tidak dapat dibuat. Coba lagi sebentar lagi."
+    "jiraCreateFailed": "Issue tidak dapat dibuat. Coba lagi sebentar lagi.",
+    "tooManyFiles": "Satu pertanyaan bisa membawa paling banyak {max} file.",
+    "fileTooLarge": "File ini terlalu besar. File jenis ini paling besar {limitMb} MB.",
+    "fileTypeUnsupported": "File ini tidak bisa dilampirkan: jenisnya tidak didukung atau isinya tidak sesuai dengan namanya. Lampirkan gambar, PDF, Word, Excel, atau file teks."
   },
   "assistant": {
     "title": "Asisten",
@@ -3696,7 +3699,6 @@
     "placeholder": "Tulis pertanyaan…",
     "send": "Kirim",
     "sendHint": "Enter untuk mengirim, Shift+Enter untuk baris baru",
-    "attachments": "Lampiran issue",
     "removeAttachment": "Hapus lampiran {name}",
     "attachedCount": "{count, plural, other {# lampiran}}",
     "attachmentWarning": "Lampiran issue bisa berisi data peserta (NIK, nama, rekening). Isinya dikirim ke penyedia AI yang dikonfigurasi. Centang hanya lampiran yang benar-benar diperlukan.",
@@ -3766,6 +3768,14 @@
     "mentionList": "Proyek dan environment",
     "shortcutHint": "Tekan {shortcut} di mana saja untuk membuka asisten.",
     "noProjectsTitle": "Belum ada yang bisa ditanyakan",
-    "noProjectsDescription": "Anda belum melihat project apa pun. Minta admin menambahkan Anda ke sebuah project untuk memakai asisten."
+    "noProjectsDescription": "Anda belum melihat project apa pun. Minta admin menambahkan Anda ke sebuah project untuk memakai asisten.",
+    "attach": "Lampirkan",
+    "attachFiles": "Unggah file",
+    "attachFromIssue": "Dari issue",
+    "attachedFiles": "File untuk pertanyaan ini",
+    "removeFile": "Hapus {name}",
+    "uploading": "Mengunggah {name}",
+    "modelNoImages": "Model yang dipakai tidak bisa melihat gambar: model hanya melihat namanya.",
+    "dropFiles": "Lepaskan file untuk melampirkannya"
   }
 }

@@ -23,6 +23,8 @@ const api = vi.hoisted(() => ({
   generateDraft: vi.fn(),
   renameConversation: vi.fn(),
   deleteConversation: vi.fn(),
+  uploadFile: vi.fn(),
+  deleteUpload: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 // A test's own get-conversation result (e.g. a 404); default: never settles.
@@ -219,6 +221,11 @@ const button = (label: string) =>
     (b) => b.textContent?.trim() === label
   );
 
+const menuItem = (label: string) =>
+  [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (item) => item.textContent?.trim() === label
+  );
+
 // The form's create button and the dialog's confirm button share a label.
 const confirmButton = () =>
   [
@@ -268,6 +275,7 @@ describe("daily cap", () => {
     capReached: true,
     // Midnight in Asia/Jakarta.
     resetsAt: "2026-11-16T17:00:00.000Z",
+    readsImages: true,
   };
 
   it("the meter shows the share used and the reset time, without dollars", async () => {
@@ -361,7 +369,7 @@ describe("daily cap", () => {
       box.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => button(t.send)?.click());
-    expect(onSend).toHaveBeenCalledWith("Bagaimana iuran dihitung?", []);
+    expect(onSend).toHaveBeenCalledWith("Bagaimana iuran dihitung?", [], []);
     expect(text()).toMatch(
       /reached today's limit\. It resets at (12:00|00:00)/
     );
@@ -673,6 +681,7 @@ describe("sources", () => {
           ? null
           : [{ ...source, commitSha: null, deployed: false, deployedAt: null }],
       attachmentIds: [],
+      files: [],
       createdAt: "2026-11-16T01:00:00Z",
       toolCalls: [],
       context: contextOf(role, environmentId, environmentName),
@@ -749,6 +758,7 @@ describe("sources", () => {
       status: "done",
       errorCode: null,
       attachmentIds: [],
+      files: [],
       createdAt: "2026-11-16T01:00:00Z",
       toolCalls: [],
     };
@@ -817,6 +827,7 @@ describe("answer stream", () => {
         errorCode: null,
         sources: null,
         attachmentIds: [],
+        files: [],
         createdAt: "2026-11-16T01:00:00Z",
         toolCalls: [],
       },
@@ -828,6 +839,7 @@ describe("answer stream", () => {
         errorCode: null,
         sources: null,
         attachmentIds: [],
+        files: [],
         createdAt: "2026-11-16T01:00:01Z",
         toolCalls: [],
       },
@@ -1082,7 +1094,9 @@ describe("composer attachments", () => {
         focusKey="new"
       />
     );
-    await act(async () => button(t.attachments)?.click());
+    // One Attach menu: "From an issue" opens the picker.
+    await act(async () => button(t.attach)?.click());
+    await act(async () => menuItem(t.attachFromIssue)?.click());
     const input = document.querySelector<HTMLInputElement>(
       "#assistant-issue-key"
     );
@@ -1113,9 +1127,207 @@ describe("composer attachments", () => {
       box.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => button(t.send)?.click());
-    expect(onSend).toHaveBeenCalledWith("Apa isi BRD ini?", [
-      { issueKey: "KST-12", attachmentId: "10001" },
+    expect(onSend).toHaveBeenCalledWith(
+      "Apa isi BRD ini?",
+      [{ issueKey: "KST-12", attachmentId: "10001" }],
+      []
+    );
+  });
+});
+
+describe("composer files", () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]);
+  const file = (name: string, size?: number) =>
+    size === undefined
+      ? new File([PNG], name, { type: "image/png" })
+      : new File([new Uint8Array(size)], name);
+
+  /** A drop of `files` on `target`, as the browser fires it. */
+  const dropOn = async (target: Element, files: File[]) => {
+    const dataTransfer = { types: ["Files"], files, dropEffect: "none" };
+    for (const type of ["dragenter", "dragover", "drop"]) {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+      await act(async () => {
+        target.dispatchEvent(event);
+      });
+    }
+  };
+  const pasteInto = async (target: Element, files: File[], text = "") => {
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        files,
+        getData: (type: string) => (type === "text/plain" ? text : ""),
+      },
+    });
+    await act(async () => {
+      target.dispatchEvent(event);
+    });
+    return event;
+  };
+  const chips = () => [
+    ...document.querySelectorAll<HTMLElement>("[data-file-chip]"),
+  ];
+  const typeQuestion = async (value: string) => {
+    const box = container.querySelector("textarea");
+    if (!box) throw new Error("no textarea");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set?.call(box, value);
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    return box;
+  };
+  const composer = (
+    onSend = vi.fn().mockResolvedValue(undefined),
+    readsImages = true
+  ) => (
+    <Composer
+      context={AUTO}
+      onContextChange={() => {}}
+      disabled={false}
+      onSend={onSend}
+      focusKey="new"
+      readsImages={readsImages}
+    />
+  );
+
+  it("a drop shows a chip per file with its progress, and the send carries the uploads", async () => {
+    let finish: (value: unknown) => void = () => {};
+    api.uploadFile.mockImplementation(
+      (_file: File, options: { onProgress?: (n: number) => void }) => {
+        options.onProgress?.(0.5);
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      }
+    );
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    await render(composer(onSend));
+    const box = await typeQuestion("What is on the screen?");
+    const target = container.firstElementChild as Element;
+    await dropOn(target, [file("shot.png")]);
+
+    expect(api.uploadFile).toHaveBeenCalledTimes(1);
+    expect(chips()).toHaveLength(1);
+    expect(chips()[0]?.textContent).toContain("shot.png");
+    expect(chips()[0]?.textContent).toContain("8 B");
+    const bar = chips()[0]?.querySelector("[role=progressbar]");
+    expect(bar?.getAttribute("aria-valuenow")).toBe("50");
+    // No send while a file is still uploading.
+    expect(button(t.send)?.disabled).toBe(true);
+
+    await act(async () =>
+      finish({
+        id: "u1",
+        filename: "shot.png",
+        mediaType: "image/png",
+        size: 8,
+      })
+    );
+    expect(chips()[0]?.querySelector("[role=progressbar]")).toBeNull();
+    await act(async () => button(t.send)?.click());
+    expect(onSend).toHaveBeenCalledWith("What is on the screen?", [], ["u1"]);
+    // Sent: the chips belong to the question now.
+    expect(chips()).toHaveLength(0);
+    expect(box.value).toBe("");
+    expect(api.deleteUpload).not.toHaveBeenCalled();
+  });
+
+  it("a pasted image is attached; a paste that carries text pastes the text", async () => {
+    api.uploadFile.mockResolvedValue({
+      id: "u2",
+      filename: "image.png",
+      mediaType: "image/png",
+      size: 8,
+    });
+    await render(composer());
+    const box = container.querySelector("textarea") as HTMLTextAreaElement;
+    const withText = await pasteInto(box, [file("image.png")], "Copied words");
+    expect(withText.defaultPrevented).toBe(false);
+    expect(chips()).toHaveLength(0);
+    const image = await pasteInto(box, [file("image.png")]);
+    expect(image.defaultPrevented).toBe(true);
+    expect(chips()).toHaveLength(1);
+    expect(api.uploadFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("Attach > Upload files opens the picker; removing a chip deletes the upload", async () => {
+    api.uploadFile.mockResolvedValue({
+      id: "u3",
+      filename: "notes.txt",
+      mediaType: "text/plain",
+      size: 5,
+    });
+    api.deleteUpload.mockResolvedValue({ id: "u3" });
+    await render(composer());
+    const input = document.querySelector<HTMLInputElement>(
+      "[data-testid=composer-file-input]"
+    );
+    if (!input) throw new Error("no file input");
+    const click = vi.spyOn(input, "click").mockImplementation(() => {});
+    await act(async () => button(t.attach)?.click());
+    await act(async () => menuItem(t.attachFiles)?.click());
+    expect(click).toHaveBeenCalled();
+    Object.defineProperty(input, "files", {
+      value: [new File(["notes"], "notes.txt")],
+      configurable: true,
+    });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(chips()).toHaveLength(1);
+    await act(async () =>
+      (
+        document.querySelector(
+          `[aria-label="Remove notes.txt"]`
+        ) as HTMLElement | null
+      )?.click()
+    );
+    expect(chips()).toHaveLength(0);
+    expect(api.deleteUpload).toHaveBeenCalledWith("u3");
+  });
+
+  it("refuses a too large or unsupported file before uploading, and an 11th file", async () => {
+    api.uploadFile.mockImplementation(() => new Promise(() => {}));
+    await render(composer());
+    const target = container.firstElementChild as Element;
+    await dropOn(target, [
+      file("big.png", 6 * 1024 * 1024),
+      file("tool.exe", 10),
     ]);
+    expect(api.uploadFile).not.toHaveBeenCalled();
+    expect(
+      chips().map((c) => c.querySelector("[role=alert]")?.textContent)
+    ).toEqual([
+      "This file is too large. Files of this type can be at most 5 MB.",
+      messages.assistantErrors.fileTypeUnsupported,
+    ]);
+    await dropOn(
+      target,
+      Array.from({ length: 11 }, (_, i) => file(`f${i}.png`))
+    );
+    expect(api.uploadFile).toHaveBeenCalledTimes(10);
+    expect(text()).toContain("A question can carry at most 10 files.");
+  });
+
+  it("words a refused upload from its code, and says when the model cannot see images", async () => {
+    api.uploadFile.mockRejectedValue(
+      new ApiError(415, "Unsupported", "assistant.file_type_unsupported")
+    );
+    await render(composer(undefined, false));
+    await dropOn(container.firstElementChild as Element, [file("shot.png")]);
+    expect(chips()[0]?.querySelector("[role=alert]")?.textContent).toBe(
+      messages.assistantErrors.fileTypeUnsupported
+    );
+    // A refused image is not sent, so nothing to say about it yet.
+    expect(text()).not.toContain(t.modelNoImages);
+    api.uploadFile.mockReturnValue(new Promise(() => {}));
+    await dropOn(container.firstElementChild as Element, [file("two.png")]);
+    expect(text()).toContain(t.modelNoImages);
   });
 });
 
@@ -1199,7 +1411,7 @@ describe("composer focus and keys", () => {
         })
       );
     });
-    expect(onSend).toHaveBeenCalledWith("Hello", []);
+    expect(onSend).toHaveBeenCalledWith("Hello", [], []);
     expect(box.value).toBe("");
     expect(document.activeElement).toBe(box);
   });
@@ -1219,6 +1431,7 @@ describe("draft panel", () => {
         errorCode: null,
         sources: null,
         attachmentIds: [],
+        files: [],
         createdAt: "2026-11-16T01:00:01Z",
         toolCalls: [],
       },
@@ -1371,6 +1584,7 @@ describe("context picker", () => {
     errorCode: null,
     sources: null,
     attachmentIds: [],
+    files: [],
     createdAt: "2026-11-16T01:00:00Z",
     toolCalls: [],
     context,
@@ -2233,6 +2447,7 @@ describe("question bubble context", () => {
     errorCode: null,
     sources: null,
     attachmentIds: [],
+    files: [],
     createdAt: "2026-11-16T01:00:00Z",
     toolCalls: [],
     context: contextOf("user", null, null),
@@ -2243,6 +2458,37 @@ describe("question bubble context", () => {
     seedCatalog();
     return render(<MessageView message={{ ...question, context } as never} />);
   };
+
+  it("lists the files sent with the question", async () => {
+    seedCatalog();
+    await render(
+      <MessageView
+        message={
+          {
+            ...question,
+            files: [
+              {
+                id: "f1",
+                filename: "shot.png",
+                mediaType: "image/png",
+                size: 2048,
+              },
+              {
+                id: "f2",
+                filename: "notes.md",
+                mediaType: "text/markdown",
+                size: 10,
+              },
+            ],
+          } as never
+        }
+      />
+    );
+    const sent = [...container.querySelectorAll("[data-sent-file]")].map(
+      (f) => f.textContent
+    );
+    expect(sent).toEqual(["shot.png2 KB", "notes.md10 B"]);
+  });
 
   it("names an automatic question", async () => {
     await renderQuestion({

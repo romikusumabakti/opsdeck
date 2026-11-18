@@ -26,6 +26,9 @@ export const ASSISTANT_ERROR_MESSAGE_KEYS = {
   "assistant.draft_project_locked": "draftProjectLocked",
   "assistant.draft_already_created": "draftAlreadyCreated",
   "assistant.jira_create_failed": "jiraCreateFailed",
+  "assistant.too_many_files": "tooManyFiles",
+  "assistant.file_too_large": "fileTooLarge",
+  "assistant.file_type_unsupported": "fileTypeUnsupported",
 } as const;
 
 export type AssistantErrorCodeKey = keyof typeof ASSISTANT_ERROR_MESSAGE_KEYS;

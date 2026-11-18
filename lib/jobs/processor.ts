@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Job } from "bullmq";
+import { pruneUnsentUploads } from "@/lib/assistant/upload-prune";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { dbLocationMatches } from "@/lib/db-location";
 import { sweepExpiredLocks } from "@/lib/deploy/lock-release";
@@ -1303,6 +1304,9 @@ export async function processJob(job: Job): Promise<unknown> {
     case "deploy/lock-sweep":
       parseJobPayload(name, raw);
       return sweepExpiredLocks();
+    case "assistant/uploads.prune":
+      parseJobPayload(name, raw);
+      return pruneUnsentUploads();
     case "instance/backup.run":
       return handleInstanceBackup(parseJobPayload(name, raw).trigger);
     case "instance/update.check":

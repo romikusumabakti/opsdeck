@@ -1,17 +1,30 @@
-import { Paperclip, SendHorizontal, X } from "lucide-react";
+import { Paperclip, SendHorizontal, Ticket, Upload, X } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import type { QuestionContextInput } from "@/lib/assistant/context";
+import { UPLOAD_ACCEPT } from "@/lib/assistant/upload-types";
 import { ASSISTANT_COMPOSER_ID } from "./assistant-shortcut";
 import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
 import { shouldSend } from "./composer-keys";
 import { ContextPicker } from "./context-picker";
 import { useAssistantErrorText } from "./error-text";
+import {
+  DropOverlay,
+  FileChips,
+  useFileDrop,
+  useFileUploads,
+} from "./file-chips";
 import { useMentions } from "./mention-popover";
 
 // Mirrors the API's limits (server/services/assistant.ts).
@@ -19,11 +32,12 @@ const MAX_MESSAGE_CHARS = 8000;
 const MAX_ATTACHMENTS = 10;
 
 /**
- * The question box: text, the ticked Jira attachments, the context chip and
- * the send. An `@` mention anywhere in the text sets the chip too (see
- * `useMentions`). A refused send (daily cap, busy, not
- * configured) is shown above the box, worded from its code; the text is kept
- * so it can be sent again.
+ * The question box: text, uploaded files and ticked Jira attachments (one
+ * Attach menu: "Upload files" or "From an issue"; files can also be dropped
+ * on the box or pasted), the context chip and the send. An `@` mention
+ * anywhere in the text sets the chip too (see `useMentions`). A refused send
+ * (daily cap, busy, not configured) is shown above the box, worded from its
+ * code; the text and files are kept so it can be sent again.
  */
 export function Composer({
   disabled,
@@ -32,10 +46,15 @@ export function Composer({
   context,
   onContextChange,
   capResetsAt,
+  readsImages = true,
 }: {
   /** An answer is still running, or the assistant cannot take questions. */
   disabled: boolean;
-  onSend: (text: string, attachments: AttachmentRef[]) => Promise<void>;
+  onSend: (
+    text: string,
+    attachments: AttachmentRef[],
+    fileIds: string[]
+  ) => Promise<void>;
   /** The box takes focus on mount and whenever this changes. */
   focusKey: string | null;
   /** What the next question is about (the chip beside the attachments). */
@@ -43,6 +62,8 @@ export function Composer({
   onContextChange: (context: QuestionContextInput) => void;
   /** Set (ISO) when today's limit is reached: says when it resets. */
   capResetsAt?: string | null;
+  /** False: the configured model cannot view images (said under them). */
+  readsImages?: boolean;
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
@@ -53,6 +74,11 @@ export function Composer({
   const [error, setError] = React.useState<string | null>(null);
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const fileInput = React.useRef<HTMLInputElement>(null);
+  const uploads = useFileUploads();
+  // Files can be added while an answer runs, for the next question; past
+  // the limit, add() says so.
+  const drop = useFileDrop(uploads.add, false);
   const mentions = useMentions({
     text,
     onTextChange: setText,
@@ -66,7 +92,8 @@ export function Composer({
     textareaRef.current?.focus();
   }, [focusKey]);
 
-  const canSend = !disabled && !sending && text.trim().length > 0;
+  const canSend =
+    !disabled && !sending && !uploads.uploading && text.trim().length > 0;
 
   const send = async () => {
     if (!canSend) return;
@@ -75,10 +102,12 @@ export function Composer({
     try {
       await onSend(
         text.trim(),
-        attachments.map((a) => ({ issueKey: a.issueKey, attachmentId: a.id }))
+        attachments.map((a) => ({ issueKey: a.issueKey, attachmentId: a.id })),
+        uploads.fileIds
       );
       setText("");
       setAttachments([]);
+      uploads.clear();
       textareaRef.current?.focus();
     } catch (e) {
       setError(errorText(e));
@@ -98,7 +127,11 @@ export function Composer({
 
   // A container, so the footer adapts to the chat column, not the viewport.
   return (
-    <div className="@container/composer flex flex-col gap-2">
+    <div
+      className="@container/composer relative flex flex-col gap-2"
+      {...drop.dropProps}
+    >
+      <DropOverlay show={drop.dragging} />
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -134,6 +167,7 @@ export function Composer({
           </p>
         </div>
       )}
+      <FileChips uploads={uploads} readsImages={readsImages} />
       {capResetsAt && (
         <p className="text-sm text-destructive" role="status">
           {t("usageCapReached", { time: new Date(capResetsAt) })}
@@ -146,6 +180,7 @@ export function Composer({
         {...mentions.inputProps}
         onChange={mentions.onChange}
         onSelect={mentions.onSelect}
+        onPaste={drop.onPaste}
         onKeyDown={(e) => {
           if (mentions.onKeyDown(e)) return;
           if (
@@ -168,15 +203,42 @@ export function Composer({
       />
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPickerOpen(true)}
-            disabled={attachments.length >= MAX_ATTACHMENTS}
-          >
-            <Paperclip data-icon="inline-start" />
-            {t("attachments")}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="outline" size="sm" />}
+            >
+              <Paperclip data-icon="inline-start" />
+              {t("attach")}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem
+                disabled={uploads.full}
+                onClick={() => fileInput.current?.click()}
+              >
+                <Upload />
+                {t("attachFiles")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={attachments.length >= MAX_ATTACHMENTS}
+                onClick={() => setPickerOpen(true)}
+              >
+                <Ticket />
+                {t("attachFromIssue")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            hidden
+            accept={UPLOAD_ACCEPT}
+            data-testid="composer-file-input"
+            onChange={(e) => {
+              uploads.add(Array.from(e.target.files ?? []));
+              e.target.value = "";
+            }}
+          />
           <ContextPicker
             value={context}
             onChange={onContextChange}

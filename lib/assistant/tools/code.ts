@@ -36,6 +36,10 @@ export type ToolMeta = {
   environment?: string;
   /** get_environment_status: whether the live probe ran (audit). */
   checked?: boolean;
+  /** read_upload: the uploaded file read (audit). */
+  fileIds?: string[];
+  /** read_upload: the file's text was cut at the limit. */
+  truncated?: boolean;
 };
 
 export type ToolResult<T> =

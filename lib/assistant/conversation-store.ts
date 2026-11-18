@@ -18,6 +18,12 @@ import {
   messageContextOf,
   type QuestionContext,
 } from "./context";
+import {
+  attachUploads,
+  type UploadSummary,
+  uploadsOfConversation,
+} from "./file-store";
+import { readsFilesNatively } from "./providers";
 import type { AssistantSource } from "./sources";
 
 /**
@@ -39,17 +45,20 @@ export function titleFrom(text: string): string {
     .join("");
 }
 
-/** The admin switch and cap, without decrypting the key. */
+/** The admin switch, cap and provider, without decrypting the key. */
 export async function loadAssistantLimits(): Promise<{
   enabled: boolean;
   hasApiKey: boolean;
   dailyCapUsd: number;
+  /** The configured model reads images (providers.ts readsFilesNatively). */
+  readsImages: boolean;
 }> {
   const [row] = await db
     .select({
       enabled: instanceSettings.assistantEnabled,
       apiKey: instanceSettings.assistantApiKey,
       dailyCapUsd: instanceSettings.assistantDailyCapUsd,
+      provider: instanceSettings.assistantProvider,
     })
     .from(instanceSettings)
     .where(eq(instanceSettings.id, 1))
@@ -58,6 +67,7 @@ export async function loadAssistantLimits(): Promise<{
     enabled: row?.enabled ?? false,
     hasApiKey: !!row?.apiKey,
     dailyCapUsd: Number(row?.dailyCapUsd ?? 0),
+    readsImages: row?.provider ? readsFilesNatively(row.provider) : true,
   };
 }
 
@@ -266,6 +276,8 @@ export type ConversationMessage = {
   errorCode: string | null;
   sources: AssistantSource[] | null;
   attachmentIds: string[];
+  /** User messages: the files uploaded with the question. */
+  files: UploadSummary[];
   /** User messages: the context the question asked about; null on answers. */
   context: MessageContext | null;
   createdAt: Date;
@@ -327,6 +339,7 @@ export async function loadConversationDetail(
     .select({
       id: assistantConversations.id,
       title: assistantConversations.title,
+      userId: assistantConversations.userId,
     })
     .from(assistantConversations)
     .where(eq(assistantConversations.id, conversationId))
@@ -370,11 +383,15 @@ export async function loadConversationDetail(
       .where(eq(assistantDrafts.conversationId, conversationId))
       .orderBy(asc(assistantDrafts.id)),
   ]);
-  const calls = await toolCallsByMessage(
-    messages.filter((m) => m.role === "assistant").map((m) => m.id)
-  );
+  const [calls, uploads] = await Promise.all([
+    toolCallsByMessage(
+      messages.filter((m) => m.role === "assistant").map((m) => m.id)
+    ),
+    uploadsOfConversation(conversationId, conversation.userId),
+  ]);
   return {
-    ...conversation,
+    id: conversation.id,
+    title: conversation.title,
     messages: messages.map(
       ({ projectId, projectName, environmentId, environmentName, ...m }) => ({
         ...m,
@@ -387,6 +404,14 @@ export async function loadConversationDetail(
                 environmentName,
               })
             : null,
+        files: (uploads.get(m.id) ?? []).map(
+          ({ id, filename, mediaType, size }) => ({
+            id,
+            filename,
+            mediaType,
+            size,
+          })
+        ),
         toolCalls: calls.get(m.id) ?? [],
       })
     ),
@@ -420,20 +445,27 @@ export type CreatedTurn = { userMessageId: string; assistantMessageId: string };
  * streaming. The conversation row is locked first, so two sends at once
  * cannot both pass that check. "context_gone" (nothing written) when the
  * pinned project or environment was deleted after the caller's check: the
- * message's foreign key refuses it.
+ * message's foreign key refuses it. "files_gone" (nothing written) unless
+ * every file id is an unsent upload of the conversation's owner; the files
+ * are attached to the question in the same transaction.
  */
 export async function insertTurn(params: {
   conversationId: string;
   text: string;
   attachmentIds: string[];
+  /** The owner's unsent uploads the question carries (file-store). */
+  fileIds?: string[];
   context: QuestionContext;
   now?: Date;
-}): Promise<CreatedTurn | "busy" | "context_gone"> {
+}): Promise<CreatedTurn | "busy" | "context_gone" | "files_gone"> {
   const now = params.now ?? new Date();
   try {
     return await db.transaction(async (tx) => {
       const [conversation] = await tx
-        .select({ title: assistantConversations.title })
+        .select({
+          title: assistantConversations.title,
+          userId: assistantConversations.userId,
+        })
         .from(assistantConversations)
         .where(eq(assistantConversations.id, params.conversationId))
         .for("update");
@@ -476,6 +508,14 @@ export async function insertTurn(params: {
       if (!question || !answer)
         throw new Error("message insert returned no row");
 
+      const attached = await attachUploads(tx, {
+        userId: conversation.userId,
+        fileIds: params.fileIds ?? [],
+        conversationId: params.conversationId,
+        messageId: question.id,
+      });
+      if (!attached) throw new FilesGone();
+
       await tx
         .update(assistantConversations)
         .set({
@@ -487,7 +527,16 @@ export async function insertTurn(params: {
     });
   } catch (error) {
     if (isMissingContext(error)) return "context_gone";
+    if (error instanceof FilesGone) return "files_gone";
     throw error;
+  }
+}
+
+/** Rolls the turn back: a file it names is not the owner's unsent upload. */
+class FilesGone extends Error {
+  constructor() {
+    super("files gone");
+    this.name = "FilesGone";
   }
 }
 

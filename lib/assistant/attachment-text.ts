@@ -129,7 +129,7 @@ export async function xlsxToText(
     Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength) as never
   );
 
-  const marker = "\n[truncated: attachment text exceeds 200 KiB]";
+  const marker = `\n[truncated: attachment text exceeds ${Math.round(maxBytes / 1024)} KiB]`;
   const budget = maxBytes - Buffer.byteLength(marker);
   const parts: string[] = [];
   let used = 0;

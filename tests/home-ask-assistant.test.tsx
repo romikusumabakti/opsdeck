@@ -17,6 +17,8 @@ const api = vi.hoisted(() => ({
   createConversation: vi.fn(),
   sendMessage: vi.fn(),
   listConversations: vi.fn(() => new Promise(() => {})),
+  uploadFile: vi.fn(),
+  deleteUpload: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ push: vi.fn() }));
 
@@ -63,6 +65,7 @@ const ENABLED = {
   usedFraction: 0.1,
   capReached: false,
   resetsAt: "2026-11-17T17:00:00.000Z",
+  readsImages: true,
 };
 
 let container: HTMLDivElement;
@@ -75,6 +78,8 @@ beforeEach(() => {
   });
   api.createConversation.mockReset();
   api.sendMessage.mockReset();
+  api.uploadFile.mockReset();
+  api.deleteUpload.mockReset();
   api.listConversations.mockClear();
   nav.push.mockReset();
 });
@@ -433,5 +438,70 @@ describe("home ask-the-assistant card", () => {
     await renderCard({ allowance: { ...ENABLED, capReached: true } });
     const note = container.querySelector('[role="status"]');
     expect(note?.className).not.toContain("text-destructive");
+  });
+});
+
+describe("home box files", () => {
+  const png = (name: string) =>
+    new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], name);
+  const chips = () => [...container.querySelectorAll("[data-file-chip]")];
+
+  it("a dropped and a pasted file become chips and go with the question", async () => {
+    let n = 0;
+    api.uploadFile.mockImplementation(async (file: File) => ({
+      id: `u${++n}`,
+      filename: file.name,
+      mediaType: "image/png",
+      size: file.size,
+    }));
+    api.createConversation.mockResolvedValue({ id: "c9" });
+    api.sendMessage.mockResolvedValue({});
+    await renderCard({});
+    const card = box().parentElement as HTMLElement;
+    for (const type of ["dragenter", "dragover", "drop"]) {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "dataTransfer", {
+        value: { types: ["Files"], files: [png("drop.png")] },
+      });
+      await act(async () => {
+        card.dispatchEvent(event);
+      });
+    }
+    const paste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", {
+      value: { files: [png("paste.png")], getData: () => "" },
+    });
+    await act(async () => {
+      box().dispatchEvent(paste);
+    });
+    expect(chips().map((c) => c.textContent)).toEqual([
+      expect.stringContaining("drop.png"),
+      expect.stringContaining("paste.png"),
+    ]);
+    await type("What do these show?");
+    await pressEnter();
+    expect(api.sendMessage).toHaveBeenCalledWith({
+      conversationId: "c9",
+      text: "What do these show?",
+      context: { kind: "auto" },
+      fileIds: ["u1", "u2"],
+    });
+  });
+
+  it("the 📎 button opens the file picker", async () => {
+    await renderCard({});
+    const input = container.querySelector<HTMLInputElement>(
+      "[data-testid=home-file-input]"
+    );
+    if (!input) throw new Error("no input");
+    const click = vi.spyOn(input, "click").mockImplementation(() => {});
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          `button[aria-label="${messages.assistant.attachFiles}"]`
+        )
+        ?.click()
+    );
+    expect(click).toHaveBeenCalled();
   });
 });
