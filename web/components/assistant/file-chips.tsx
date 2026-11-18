@@ -174,8 +174,8 @@ export function FileChips({
   const t = useTranslations("assistant");
   const { files, notice } = uploads;
   if (files.length === 0 && !notice) return null;
-  const imageUnreadable =
-    !readsImages && files.some((f) => f.image && f.status !== "failed");
+  const kept = files.filter((f) => f.status !== "failed");
+  const imageUnreadable = !readsImages && kept.some((f) => f.image);
   return (
     <div className="flex flex-col gap-1.5">
       {files.length > 0 && (
@@ -232,6 +232,11 @@ export function FileChips({
       {notice && (
         <p role="alert" className="text-xs text-destructive">
           {notice}
+        </p>
+      )}
+      {kept.length > 0 && (
+        <p className="text-xs text-amber-600 dark:text-amber-500">
+          {t("fileWarning")}
         </p>
       )}
       {imageUnreadable && (

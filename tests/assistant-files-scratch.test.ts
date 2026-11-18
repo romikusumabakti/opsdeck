@@ -105,13 +105,13 @@ describe.skipIf(!enabled)("assistant uploads on a real Postgres", () => {
         {
           id: "00000000-0000-7000-8000-00000000f001",
           name: "Wulan",
-          email: "qa@example.com",
+          email: "qa@example.invalid",
           role: "qa",
         },
         {
           id: "00000000-0000-7000-8000-00000000f002",
           name: "Bayu",
-          email: "pm@example.com",
+          email: "pm@example.invalid",
           role: "pm",
         },
       ])

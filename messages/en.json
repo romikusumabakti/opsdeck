@@ -3672,7 +3672,8 @@
     "jiraCreateFailed": "The issue could not be created. Try again in a moment.",
     "tooManyFiles": "A question can carry at most {max} files.",
     "fileTooLarge": "This file is too large. Files of this type can be at most {limitMb} MB.",
-    "fileTypeUnsupported": "This file can't be attached: its type isn't supported or its content doesn't match its name. Attach images, PDFs, Word, Excel or text files."
+    "fileTypeUnsupported": "This file can't be attached: its type isn't supported or its content doesn't match its name. Attach images, PDFs, Word, Excel or text files.",
+    "fileTooComplex": "This file can't be read safely: it would unpack to far more data than its size. Save it again or attach only the part that matters."
   },
   "assistant": {
     "title": "Assistant",
@@ -3776,6 +3777,7 @@
     "removeFile": "Remove {name}",
     "uploading": "Uploading {name}",
     "modelNoImages": "The configured model can't view images: it will only see their names.",
-    "dropFiles": "Drop files to attach them"
+    "dropFiles": "Drop files to attach them",
+    "fileWarning": "Files can contain participant data (NIK, names, bank accounts). Their content is sent to the configured AI provider. Attach only the files you really need."
   }
 }

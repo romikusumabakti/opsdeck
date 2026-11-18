@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { extractUploadText } from "@/lib/assistant/file-text";
+import {
+  ExtractionLimitError,
+  extractUploadText,
+  pdfToText,
+} from "@/lib/assistant/file-text";
 import {
   DOCX_MEDIA_TYPE,
   MAX_UPLOAD_TEXT_CHARS,
@@ -7,12 +11,15 @@ import {
   uploadFilename,
   XLSX_MEDIA_TYPE,
 } from "@/lib/assistant/upload-types";
+import { zipWithinBounds } from "@/lib/assistant/zip-bounds";
 import {
   docxBytes,
   jpegBytes,
   pdfBytes,
   pngBytes,
+  withClaimedSizes,
   xlsxBytes,
+  zip,
   zipBytes,
 } from "./support/upload-fixtures";
 
@@ -150,5 +157,88 @@ describe("extractUploadText", () => {
   it("throws for bytes that are not the kind", async () => {
     await expect(extractUploadText(utf8("nope"), "pdf")).rejects.toThrow();
     await expect(extractUploadText(utf8("nope"), "docx")).rejects.toThrow();
+  });
+});
+
+describe("PDF extraction bounds", () => {
+  it("reads every page, in a worker", async () => {
+    const { text, truncated } = await pdfToText(
+      pdfBytes(["Page one", "Page two", "Page three"])
+    );
+    expect(text).toBe("Page one\nPage two\nPage three");
+    expect(truncated).toBe(false);
+  });
+
+  it("stops at the page cap and at the character cap, saying so", async () => {
+    const pages = pdfBytes(["Page one", "Page two", "Page three"]);
+    expect(await pdfToText(pages, { maxPages: 2 })).toEqual({
+      text: "Page one\nPage two",
+      truncated: true,
+    });
+    expect(await pdfToText(pages, { maxChars: 12 })).toEqual({
+      text: "Page one\nPag",
+      truncated: true,
+    });
+  });
+
+  it("kills a worker that does not answer in time", async () => {
+    const started = Date.now();
+    const error = await pdfToText(pdfBytes("Hi"), {
+      timeoutMs: 200,
+      workerUrl: new URL("./support/slow-pdf-worker.ts", import.meta.url),
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ExtractionLimitError);
+    expect((error as ExtractionLimitError).reason).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it("rejects bytes pdf.js cannot read", async () => {
+    await expect(pdfToText(utf8("not a pdf"))).rejects.toThrow(
+      "the PDF could not be read"
+    );
+  });
+});
+
+describe("ZIP bounds", () => {
+  const MiB = 1024 * 1024;
+
+  it("lets a real Word document and workbook through", async () => {
+    expect(await zipWithinBounds(await docxBytes(["Hello"]))).toBe(true);
+    expect(await zipWithinBounds(await xlsxBytes([["a", "b"]]))).toBe(true);
+    // 2 MiB of zeros compresses far, but stays under the ratio floor.
+    expect(
+      await zipWithinBounds(await zip({ "a.bin": new Uint8Array(2 * MiB) }))
+    ).toBe(true);
+  });
+
+  it("refuses a small ZIP whose directory claims a huge total", async () => {
+    const small = await zip({ "a.xml": "<a/>", "b.xml": "<b/>" });
+    expect(small.byteLength).toBeLessThan(1024);
+    expect(await zipWithinBounds(withClaimedSizes(small, 60 * MiB))).toBe(
+      false
+    );
+  });
+
+  it("refuses an entry that claims an extreme ratio", async () => {
+    const small = await zip({ "a.xml": "<a/>" });
+    expect(await zipWithinBounds(withClaimedSizes(small, 20 * MiB))).toBe(
+      false
+    );
+  });
+
+  it("refuses a directory that claims less than the part inflates to", async () => {
+    const zeros = await zip({ "a.bin": new Uint8Array(MiB) });
+    expect(await zipWithinBounds(withClaimedSizes(zeros, 1000))).toBe(false);
+  });
+
+  it("refuses bytes without a readable directory", async () => {
+    expect(await zipWithinBounds(utf8("PK not really"))).toBe(false);
+  });
+
+  it("extraction stops before inflating a crafted document", async () => {
+    const bomb = withClaimedSizes(await docxBytes(["Hi"]), 60 * MiB);
+    const error = await extractUploadText(bomb, "docx").catch((e) => e);
+    expect(error).toBeInstanceOf(ExtractionLimitError);
+    expect((error as ExtractionLimitError).reason).toBe("zip");
   });
 });

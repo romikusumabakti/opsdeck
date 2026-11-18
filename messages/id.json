@@ -3672,7 +3672,8 @@
     "jiraCreateFailed": "Issue tidak dapat dibuat. Coba lagi sebentar lagi.",
     "tooManyFiles": "Satu pertanyaan bisa membawa paling banyak {max} file.",
     "fileTooLarge": "File ini terlalu besar. File jenis ini paling besar {limitMb} MB.",
-    "fileTypeUnsupported": "File ini tidak bisa dilampirkan: jenisnya tidak didukung atau isinya tidak sesuai dengan namanya. Lampirkan gambar, PDF, Word, Excel, atau file teks."
+    "fileTypeUnsupported": "File ini tidak bisa dilampirkan: jenisnya tidak didukung atau isinya tidak sesuai dengan namanya. Lampirkan gambar, PDF, Word, Excel, atau file teks.",
+    "fileTooComplex": "File ini tidak bisa dibaca dengan aman: isinya akan membengkak jauh melebihi ukurannya. Simpan ulang atau lampirkan hanya bagian yang diperlukan."
   },
   "assistant": {
     "title": "Asisten",
@@ -3776,6 +3777,7 @@
     "removeFile": "Hapus {name}",
     "uploading": "Mengunggah {name}",
     "modelNoImages": "Model yang dipakai tidak bisa melihat gambar: model hanya melihat namanya.",
-    "dropFiles": "Lepaskan file untuk melampirkannya"
+    "dropFiles": "Lepaskan file untuk melampirkannya",
+    "fileWarning": "File bisa berisi data peserta (NIK, nama, rekening). Isinya dikirim ke penyedia AI yang dikonfigurasi. Lampirkan hanya file yang benar-benar diperlukan."
   }
 }

@@ -478,6 +478,7 @@ describe("home box files", () => {
       expect.stringContaining("drop.png"),
       expect.stringContaining("paste.png"),
     ]);
+    expect(container.textContent).toContain(messages.assistant.fileWarning);
     await type("What do these show?");
     await pressEnter();
     expect(api.sendMessage).toHaveBeenCalledWith({

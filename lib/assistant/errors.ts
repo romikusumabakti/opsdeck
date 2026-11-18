@@ -29,6 +29,7 @@ export const ASSISTANT_ERROR_MESSAGE_KEYS = {
   "assistant.too_many_files": "tooManyFiles",
   "assistant.file_too_large": "fileTooLarge",
   "assistant.file_type_unsupported": "fileTypeUnsupported",
+  "assistant.file_too_complex": "fileTooComplex",
 } as const;
 
 export type AssistantErrorCodeKey = keyof typeof ASSISTANT_ERROR_MESSAGE_KEYS;

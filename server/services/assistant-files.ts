@@ -1,3 +1,4 @@
+import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import {
   countUnsentUploads,
@@ -14,6 +15,7 @@ import {
   uploadFilename,
   uploadLimit,
 } from "@/lib/assistant/upload-types";
+import { zipWithinBounds } from "@/lib/assistant/zip-bounds";
 import { putObject } from "@/lib/storage";
 import { uuidSchema } from "@/lib/validation";
 import { notFound } from "@/server/errors";
@@ -25,8 +27,9 @@ import { refusal, requireAssistantGate } from "@/server/services/assistant";
  * only: stored under `assistant/<userId>/<fileId>`, unsent until a question
  * carries it (sendMessage), removable by its owner only while unsent, and
  * removed by the hourly prune (lib/assistant/upload-prune.ts) once unsent
- * for 24 h. Its type is decided by
- * its bytes (lib/assistant/upload-types.ts) and its size limit by that type.
+ * for 24 h. Its type is decided by its bytes (lib/assistant/upload-types.ts),
+ * its size limit by that type, and a Word document or workbook must stay
+ * within the ZIP bounds (lib/assistant/zip-bounds.ts).
  */
 
 /**
@@ -38,6 +41,16 @@ export const MAX_UNSENT_UPLOADS = MAX_UPLOADS_PER_QUESTION * 3;
 
 /** The upload route's body limit: the largest file plus multipart framing. */
 export const UPLOAD_BODY_LIMIT = MAX_UPLOAD_BYTES + 64 * 1024;
+
+/**
+ * The upload route's gate, mounted before its body limit: a caller the gate
+ * refuses (assistant off, no visible project) is answered before any of
+ * the body is read. uploadFile checks it again, like every service call.
+ */
+export const uploadGate = createMiddleware(async (_c, next) => {
+  await requireAssistantGate();
+  await next();
+});
 
 const limitMb = (bytes: number) => Math.round(bytes / MiB);
 
@@ -73,6 +86,14 @@ export async function uploadFile(
   if (!sniffed) throw await refusal(415, "assistant.file_type_unsupported");
   const limit = uploadLimit(sniffed.kind);
   if (bytes.byteLength > limit) throw await fileTooLarge(limit);
+  // A Word document or workbook that would inflate past the bounds (a ZIP
+  // bomb, or a directory that lies) is refused before it is stored.
+  if (
+    (sniffed.kind === "docx" || sniffed.kind === "xlsx") &&
+    !(await zipWithinBounds(bytes))
+  ) {
+    throw await refusal(422, "assistant.file_too_complex");
+  }
 
   const id = Bun.randomUUIDv7();
   const storageKey = `assistant/${userId}/${id}`;

@@ -3672,7 +3672,8 @@
     "jiraCreateFailed": "No se pudo crear la incidencia. Inténtalo de nuevo en un momento.",
     "tooManyFiles": "Una pregunta puede llevar como máximo {max} archivos.",
     "fileTooLarge": "Este archivo es demasiado grande. Los archivos de este tipo pueden tener como máximo {limitMb} MB.",
-    "fileTypeUnsupported": "No se puede adjuntar este archivo: su tipo no es compatible o su contenido no coincide con su nombre. Adjunta imágenes, PDF, Word, Excel o archivos de texto."
+    "fileTypeUnsupported": "No se puede adjuntar este archivo: su tipo no es compatible o su contenido no coincide con su nombre. Adjunta imágenes, PDF, Word, Excel o archivos de texto.",
+    "fileTooComplex": "Este archivo no se puede leer de forma segura: al descomprimirse ocuparía mucho más que su tamaño. Guárdalo de nuevo o adjunta solo la parte que importa."
   },
   "assistant": {
     "title": "Asistente",
@@ -3776,6 +3777,7 @@
     "removeFile": "Quitar {name}",
     "uploading": "Subiendo {name}",
     "modelNoImages": "El modelo configurado no puede ver imágenes: solo verá sus nombres.",
-    "dropFiles": "Suelta los archivos para adjuntarlos"
+    "dropFiles": "Suelta los archivos para adjuntarlos",
+    "fileWarning": "Los archivos pueden contener datos de participantes (NIK, nombres, cuentas bancarias). Su contenido se envía al proveedor de IA configurado. Adjunta solo los archivos que de verdad necesites."
   }
 }

@@ -3,6 +3,7 @@ import {
   docxBytes,
   pdfBytes,
   pngBytes,
+  withClaimedSizes,
   zipBytes,
 } from "./support/upload-fixtures";
 
@@ -148,6 +149,12 @@ vi.mock("@/lib/assistant/file-store", async (importOriginal) => ({
   }),
 }));
 
+vi.mock("@/lib/assistant/file-text", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("@/lib/assistant/file-text")>();
+  return { ...real, extractUploadText: vi.fn(real.extractUploadText) };
+});
+
 const storage = vi.hoisted(() => ({
   putObject: vi.fn(async (key: string, bytes: Buffer, contentType: string) => {
     state.objects.set(key, { bytes, contentType });
@@ -171,6 +178,7 @@ const { executeTool, toolModelOutput } = await import(
 );
 const { buildHistory } = await import("@/lib/assistant/run-turn");
 const { MODEL_NO_IMAGES } = await import("@/lib/assistant/tools/uploads");
+const fileText = await import("@/lib/assistant/file-text");
 
 const BASE = "/api/assistant";
 const MiB = 1024 * 1024;
@@ -322,10 +330,24 @@ describe("POST /upload", () => {
     });
   });
 
-  it("is behind the assistant's gate", async () => {
+  it("is behind the assistant's gate, checked before the body limit", async () => {
     state.limits.enabled = false;
     const res = await upload(pngBytes(), "shot.png");
     expect(res.status).toBe(503);
+    // An oversized body gets the gate's answer, not the body limit's.
+    const huge = await upload(new Uint8Array(21 * MiB), "huge.txt");
+    expect(huge.status).toBe(503);
+    expect(state.files).toEqual([]);
+  });
+
+  it("refuses a Word document that would inflate past the bounds", async () => {
+    const bomb = withClaimedSizes(await docxBytes(["Hi"]), 60 * MiB);
+    const res = await upload(bomb, "brief.docx");
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({
+      code: "assistant.file_too_complex",
+    });
+    expect(storage.putObject).not.toHaveBeenCalled();
     expect(state.files).toEqual([]);
   });
 });
@@ -574,6 +596,37 @@ describe("read_upload", () => {
     expect(text).toContain("Install the app.");
     expect(text).not.toContain("hunter2");
     expect(result.meta).toEqual({ fileIds: [DOC], withheld: 1 });
+  });
+
+  it("a tripped bound is a tool error, not a failed turn", async () => {
+    const ctx = toolContext(
+      [
+        uploadRef(
+          DOC,
+          "brief.docx",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          withClaimedSizes(await docxBytes(["Hi"]), 60 * MiB)
+        ),
+        uploadRef(PDF, "slow.pdf", "application/pdf", pdfBytes("Slow")),
+      ],
+      false
+    );
+    const zipped = await executeTool("read_upload", { file_id: DOC }, ctx);
+    expect(zipped).toEqual({
+      ok: false,
+      error: expect.stringContaining("too large or too complex to read"),
+      meta: { fileIds: [DOC] },
+    });
+    // A PDF whose extraction ran past its time (the worker was killed).
+    vi.mocked(fileText.extractUploadText).mockRejectedValueOnce(
+      new fileText.ExtractionLimitError("timeout")
+    );
+    const slow = await executeTool("read_upload", { file_id: PDF }, ctx);
+    expect(slow.ok).toBe(false);
+    expect(toolModelOutput("read_upload", slow)).toEqual({
+      type: "error-text",
+      value: expect.stringContaining("slow.pdf is too large or too complex"),
+    });
   });
 
   it("marks a text file cut at the limit", async () => {

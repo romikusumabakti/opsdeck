@@ -18,6 +18,7 @@ COPY . .
 # Produces, in one step:
 #   dist/client           the Vite SPA (docs/time-mocking-api.md is inlined)
 #   dist/server/index.js  the Hono API + static server
+#   dist/server/pdf-text-worker.js  the PDF text worker it starts
 #   dist/terminal-server.js  the WebSocket terminal sidecar
 # Both server bundles are self-contained, including ssh2's native .node file,
 # so the runtime image needs no node_modules.

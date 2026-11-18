@@ -29,6 +29,7 @@ import {
   fileTooLarge,
   UPLOAD_BODY_LIMIT,
   uploadFile,
+  uploadGate,
 } from "@/server/services/assistant-files";
 import { eventStream, pollSnapshots, sendEvent } from "@/server/sse";
 import { json, query } from "@/server/validation";
@@ -71,11 +72,13 @@ export const assistantRouter = sessionRouter()
   )
   /**
    * One file for the next question (multipart, field `file`) →
-   * `{ id, filename, mediaType, size }`. The body is capped before it is
-   * parsed, so an oversized request is a 413 without being buffered whole.
+   * `{ id, filename, mediaType, size }`. The gate runs first, then the body
+   * is capped before it is parsed, so an oversized request is a 413 without
+   * being buffered whole.
    */
   .post(
     "/upload",
+    uploadGate,
     bodyLimit({
       maxSize: UPLOAD_BODY_LIMIT,
       onError: async () => {

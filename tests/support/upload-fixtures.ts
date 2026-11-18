@@ -4,16 +4,22 @@ import { ZipFile } from "yazl";
 // Small upload fixtures built in the test (neutral content): a one-page PDF,
 // a Word document, a workbook, image headers and a plain ZIP.
 
-/** A valid one-page PDF showing `text` in Helvetica (ASCII only). */
-export function pdfBytes(text: string): Uint8Array {
-  const stream = `BT /F1 12 Tf 20 100 Td (${text}) Tj ET`;
+/** A valid PDF with one page per text (ASCII only), in Helvetica. */
+export function pdfBytes(text: string | string[]): Uint8Array {
+  const pages = Array.isArray(text) ? text : [text];
+  // 1 catalog, 2 pages, 3 font, then a page and its content per text.
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    `<< /Type /Pages /Kids [${pages.map((_, i) => `${4 + i * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
   ];
+  pages.forEach((page, i) => {
+    const stream = `BT /F1 12 Tf 20 100 Td (${page}) Tj ET`;
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents ${5 + i * 2} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`,
+      `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`
+    );
+  });
   let out = "%PDF-1.4\n";
   const offsets: number[] = [];
   objects.forEach((body, i) => {
@@ -29,7 +35,9 @@ export function pdfBytes(text: string): Uint8Array {
   return new TextEncoder().encode(out);
 }
 
-async function zip(entries: Record<string, string>): Promise<Uint8Array> {
+export async function zip(
+  entries: Record<string, string | Uint8Array>
+): Promise<Uint8Array> {
   const file = new ZipFile();
   for (const [path, content] of Object.entries(entries)) {
     file.addBuffer(Buffer.from(content), path);
@@ -77,4 +85,28 @@ export function jpegBytes(size = 64): Uint8Array {
   const bytes = new Uint8Array(size);
   bytes.set([0xff, 0xd8, 0xff, 0xe0]);
   return bytes;
+}
+
+/**
+ * The ZIP with every central-directory entry claiming `uncompressedSize`
+ * (a crafted directory: small bytes, huge or false sizes).
+ */
+export function withClaimedSizes(
+  bytes: Uint8Array,
+  uncompressedSize: number
+): Uint8Array {
+  const out = new Uint8Array(bytes);
+  const view = new DataView(out.buffer);
+  let eocd = out.byteLength - 22;
+  while (view.getUint32(eocd, true) !== 0x06054b50) eocd--;
+  let at = view.getUint32(eocd + 16, true);
+  for (let n = view.getUint16(eocd + 10, true); n > 0; n--) {
+    view.setUint32(at + 24, uncompressedSize, true);
+    at +=
+      46 +
+      view.getUint16(at + 28, true) +
+      view.getUint16(at + 30, true) +
+      view.getUint16(at + 32, true);
+  }
+  return out;
 }

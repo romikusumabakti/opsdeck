@@ -3672,7 +3672,8 @@
     "jiraCreateFailed": "无法创建该问题。请稍后重试。",
     "tooManyFiles": "每个问题最多可附带 {max} 个文件。",
     "fileTooLarge": "文件过大。此类文件最大为 {limitMb} MB。",
-    "fileTypeUnsupported": "无法附加此文件：不支持该类型，或内容与文件名不符。可附加图片、PDF、Word、Excel 或文本文件。"
+    "fileTypeUnsupported": "无法附加此文件：不支持该类型，或内容与文件名不符。可附加图片、PDF、Word、Excel 或文本文件。",
+    "fileTooComplex": "无法安全读取此文件：解压后的数据会远大于其大小。请重新保存，或只附加需要的部分。"
   },
   "assistant": {
     "title": "助手",
@@ -3776,6 +3777,7 @@
     "removeFile": "移除 {name}",
     "uploading": "正在上传 {name}",
     "modelNoImages": "当前配置的模型无法查看图片，只能看到文件名。",
-    "dropFiles": "松开即可附加文件"
+    "dropFiles": "松开即可附加文件",
+    "fileWarning": "文件可能包含参与者数据（NIK、姓名、银行账户）。其内容会发送给已配置的 AI 提供商。只附加确实需要的文件。"
   }
 }

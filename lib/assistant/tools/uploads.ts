@@ -1,7 +1,7 @@
 import { getObjectBytes } from "@/lib/storage";
 import type { ImageMediaType } from "../attachment-text";
 import type { UploadRef } from "../file-store";
-import { extractUploadText } from "../file-text";
+import { ExtractionLimitError, extractUploadText } from "../file-text";
 import { redactSecretLines } from "../secret-filter";
 import {
   kindOfMediaType,
@@ -89,7 +89,15 @@ export async function readUploadTool(
   let extracted: { text: string; truncated: boolean };
   try {
     extracted = await extractUploadText(bytes, kind);
-  } catch {
+  } catch (error) {
+    // A bound tripped (a PDF that does not finish in time, a ZIP that
+    // inflates too far): a tool error the model words, not a failed turn.
+    if (error instanceof ExtractionLimitError) {
+      return fail(
+        `the file ${file.filename} is too large or too complex to read; ask the user for a smaller file or the part that matters`,
+        meta
+      );
+    }
     return fail(`the file ${file.filename} could not be read as ${kind}`, meta);
   }
   const { text, redacted } = redactSecretLines(extracted.text);

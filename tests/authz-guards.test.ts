@@ -512,7 +512,14 @@ describe("lookups by client-supplied id check the caller first", () => {
   });
   it("assistant uploads are their uploader's, behind the global gate", () => {
     const service = readFileSync("server/services/assistant-files.ts", "utf8");
-    // The gate runs before the request body is even parsed.
+    // The gate runs before the body limit reads the request, and again
+    // in the service before the body is parsed.
+    expect(readFileSync("server/routes/assistant.ts", "utf8")).toMatch(
+      /"\/upload",\s*uploadGate,\s*bodyLimit\(/
+    );
+    expect(service).toMatch(
+      /export const uploadGate = createMiddleware\(async \(_c, next\) => \{\s*await requireAssistantGate\(\);\s*await next\(\);/
+    );
     const upload = body(service, "uploadFile");
     expect(upload).toMatch(
       /requireAssistantGate\(\)[\s\S]*await readFile\(\)[\s\S]*sniffUpload\(/

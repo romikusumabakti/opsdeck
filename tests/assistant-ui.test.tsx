@@ -1219,6 +1219,8 @@ describe("composer files", () => {
     expect(bar?.getAttribute("aria-valuenow")).toBe("50");
     // No send while a file is still uploading.
     expect(button(t.send)?.disabled).toBe(true);
+    // Its content goes to the AI provider: said as for issue attachments.
+    expect(text()).toContain(t.fileWarning);
 
     await act(async () =>
       finish({
@@ -1233,6 +1235,7 @@ describe("composer files", () => {
     expect(onSend).toHaveBeenCalledWith("What is on the screen?", [], ["u1"]);
     // Sent: the chips belong to the question now.
     expect(chips()).toHaveLength(0);
+    expect(text()).not.toContain(t.fileWarning);
     expect(box.value).toBe("");
     expect(api.deleteUpload).not.toHaveBeenCalled();
   });
@@ -1306,6 +1309,8 @@ describe("composer files", () => {
       "This file is too large. Files of this type can be at most 5 MB.",
       messages.assistantErrors.fileTypeUnsupported,
     ]);
+    // Nothing will be sent, so no warning yet.
+    expect(text()).not.toContain(t.fileWarning);
     await dropOn(
       target,
       Array.from({ length: 11 }, (_, i) => file(`f${i}.png`))
