@@ -1066,6 +1066,65 @@ describe("runTurn", () => {
     error.mockRestore();
   });
 
+  it("marks a stopped answer's partial text in the next turn's history", async () => {
+    const { model, calls } = mockModel([{ text: ["Ok"], finish: "stop" }]);
+    const context = envContext("Dev 1", "env-1");
+    state.turn = {
+      ...baseTurn(),
+      history: [
+        {
+          role: "user",
+          content: "Q1",
+          status: "done",
+          context,
+          files: [],
+        },
+        {
+          role: "assistant",
+          content: "Half an ans",
+          status: "failed",
+          errorCode: "assistant.stopped",
+          context: null,
+          files: [],
+        },
+        {
+          role: "user",
+          content: "Q2",
+          status: "done",
+          context,
+          files: [],
+        },
+        {
+          role: "assistant",
+          content: "Cut by a crash",
+          status: "failed",
+          errorCode: "assistant.interrupted",
+          context: null,
+          files: [],
+        },
+        {
+          role: "user",
+          content: "Q3",
+          status: "done",
+          context,
+          files: [],
+        },
+      ],
+    };
+    await runTurn(MESSAGE_ID, deps(model));
+    const assistantTexts = conversationOf(calls[0])
+      .filter((m) => m.role === "assistant")
+      .map((m) =>
+        typeof m.content === "string"
+          ? m.content
+          : m.content.map((p) => ("text" in p ? p.text : "")).join("")
+      );
+    expect(assistantTexts).toEqual([
+      "Half an ans\n\n(Stopped by the user before the answer was finished.)",
+      "Cut by a crash",
+    ]);
+  });
+
   it("counts the reasoning of a stopped request in its estimate", async () => {
     const { model } = mockModel([
       {

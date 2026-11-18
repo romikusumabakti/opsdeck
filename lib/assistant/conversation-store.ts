@@ -13,12 +13,12 @@ import {
 } from "@/lib/db/schema";
 import {
   contextColumns,
+  contextFromRow,
   contextListLabel,
   type MessageContext,
   messageContextOf,
   type QuestionContext,
   type StoredQuestionContext,
-  contextFromRow,
 } from "./context";
 import {
   attachUploads,

@@ -277,6 +277,11 @@ export function uploadsNote(files: readonly UploadSummary[]): string {
   return `\n\n(Files uploaded with this question, readable with read_upload:\n${list})`;
 }
 
+const STOPPED_CODE = "assistant.stopped";
+/** Added to a stopped answer's partial text in the history. */
+const STOPPED_MARKER =
+  "\n\n(Stopped by the user before the answer was finished.)";
+
 /**
  * Prior messages as plain text turns. Failed assistant messages without any
  * text and unfinished ones are skipped; consecutive same-role turns are fine
@@ -296,7 +301,13 @@ export function buildHistory(
     if (m.role === "assistant") {
       if (m.status !== "done" && m.status !== "failed") return;
       if (m.content.trim() === "") return;
-      messages.push({ role: "assistant", content: m.content });
+      messages.push({
+        role: "assistant",
+        content:
+          m.errorCode === STOPPED_CODE
+            ? `${m.content}${STOPPED_MARKER}`
+            : m.content,
+      });
       return;
     }
     if (index !== lastUserIndex) {

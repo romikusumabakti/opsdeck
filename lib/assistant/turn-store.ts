@@ -27,6 +27,8 @@ export type TurnHistoryMessage = {
   role: "user" | "assistant";
   content: string;
   status: "queued" | "streaming" | "done" | "failed";
+  /** Why a failed answer failed; absent or null otherwise. */
+  errorCode?: string | null;
   /** User messages: the context asked about; null on assistant messages. */
   context: StoredQuestionContext | null;
   /** User messages: the files uploaded with the question. */
@@ -91,6 +93,7 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       role: assistantMessages.role,
       content: assistantMessages.content,
       status: assistantMessages.status,
+      errorCode: assistantMessages.errorCode,
       attachmentIds: assistantMessages.attachmentIds,
       projectId: assistantMessages.projectId,
       projectName: assistantMessages.projectName,
@@ -125,6 +128,7 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       role: m.role,
       content: m.content,
       status: m.status,
+      errorCode: m.errorCode,
       context: m.role === "user" ? contextFromRow(m) : null,
       files: (uploads.get(m.id) ?? []).map(
         ({ id, filename, mediaType, size }) => ({
