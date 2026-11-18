@@ -40,7 +40,16 @@ export function pendingAnswer(
  * answer follows its SSE stream; once it ends the conversation (sources,
  * final status) and the allowance are refetched.
  */
-export function ChatThread({ conversationId }: { conversationId: string }) {
+export function ChatThread({
+  conversationId,
+  onRetry,
+  retryDisabled,
+}: {
+  conversationId: string;
+  /** Asks the last answer again (offered on that answer only). */
+  onRetry?: () => void;
+  retryDisabled?: boolean;
+}) {
   const t = useTranslations("assistant");
   const queryClient = useQueryClient();
   const conversation = useQuery(getConversationQuery(conversationId)).data;
@@ -105,6 +114,9 @@ export function ChatThread({ conversationId }: { conversationId: string }) {
             <MessageView
               key={message.id}
               message={message}
+              isLast={index === messages.length - 1}
+              onRetry={index === messages.length - 1 ? onRetry : undefined}
+              retryDisabled={retryDisabled}
               projectBranches={isProjectBranches(
                 messages.slice(0, index).findLast((m) => m.role === "user")
               )}

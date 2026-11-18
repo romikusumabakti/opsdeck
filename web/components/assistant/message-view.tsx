@@ -5,13 +5,17 @@ import {
   ImageIcon,
   Loader2,
   Paperclip,
+  RotateCcw,
   Server,
   Sparkles,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslations } from "use-intl";
+import { CopyButton } from "@/components/copy-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { qualifiedEnvName } from "@/lib/nav-path";
 import { formatBytes } from "@/lib/utils";
 import {
@@ -87,16 +91,34 @@ function QuestionContextLabel({ context }: { context: MessageContext }) {
 }
 
 /**
+ * Actions under a message: hidden until the message is hovered or focused
+ * (always visible on touch screens and on the last answer).
+ */
+function actionsClass(always: boolean) {
+  return always
+    ? "flex gap-1 opacity-100"
+    : "flex gap-1 opacity-0 group-hover/message:opacity-100 group-focus-within/message:opacity-100 pointer-coarse:opacity-100";
+}
+
+/**
  * One message of the thread: the user's question, with what it asked about
  * and its attachments, or the assistant's answer.
  */
 export function MessageView({
   message,
   projectBranches = false,
+  isLast = false,
+  onRetry,
+  retryDisabled = false,
 }: {
   message: ConversationMessage;
   /** An answer to a question about project branches (not an environment). */
   projectBranches?: boolean;
+  /** The thread's last message: its actions stay visible. */
+  isLast?: boolean;
+  /** Asks the assistant again; offered on the last answer only. */
+  onRetry?: () => void;
+  retryDisabled?: boolean;
 }) {
   const t = useTranslations("assistant");
   const { codeText } = useAssistantErrorText();
@@ -109,9 +131,12 @@ export function MessageView({
 
   if (message.role === "user") {
     return (
-      <div className="flex flex-col items-end gap-1">
+      <div className="group/message flex flex-col items-end gap-1">
         <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap break-words">
           {message.content}
+        </div>
+        <div data-message-actions className={actionsClass(false)}>
+          <CopyButton value={message.content} label={t("copyQuestion")} />
         </div>
         {message.files.length > 0 && (
           <ul
@@ -156,7 +181,7 @@ export function MessageView({
 
   const pending = message.status === "queued" || message.status === "streaming";
   return (
-    <div className="flex flex-col gap-2" aria-busy={pending}>
+    <div className="group/message flex flex-col gap-2" aria-busy={pending}>
       {message.content && <AnswerMarkdown content={message.content} />}
       {pending && (
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -164,25 +189,51 @@ export function MessageView({
           {message.status === "queued" ? t("queued") : t("streaming")}
         </span>
       )}
-      {message.status === "failed" && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            {codeText(
-              message.errorCode,
-              allowance ? { resetsAt: allowance.resetsAt } : undefined
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-      {message.status === "done" && (
-        <p className="text-xs text-muted-foreground">{t("disclaimer")}</p>
-      )}
+      {message.status === "failed" &&
+        message.errorCode === "assistant.stopped" && (
+          <p className="text-xs text-muted-foreground">
+            {codeText(message.errorCode)}
+          </p>
+        )}
+      {message.status === "failed" &&
+        message.errorCode !== "assistant.stopped" && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {codeText(
+                message.errorCode,
+                allowance ? { resetsAt: allowance.resetsAt } : undefined
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
       {!pending && (
         <MessageSources
           sources={message.sources}
           toolCalls={message.toolCalls}
           projectBranches={projectBranches}
         />
+      )}
+      {!pending && (
+        <div data-message-actions className={actionsClass(isLast)}>
+          {message.content && (
+            <CopyButton value={message.content} label={t("copyAnswer")} />
+          )}
+          {isLast && onRetry && (
+            <TooltipHint label={t("retry")}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={onRetry}
+                disabled={retryDisabled}
+                aria-label={t("retry")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
+            </TooltipHint>
+          )}
+        </div>
       )}
     </div>
   );

@@ -905,7 +905,6 @@ describe("answer stream", () => {
     );
     expect(source?.closed).toBe(true);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
-    expect(text()).toContain(t.disclaimer);
     expect(FakeEventSource.instances).toHaveLength(1);
   });
 
@@ -2679,6 +2678,114 @@ describe("attachment picker", () => {
     expect(onAdd).toHaveBeenCalledWith([
       { id: "2", filename: "b.pdf", issueKey: "KST-1" },
     ]);
+  });
+});
+
+describe("message actions", () => {
+  const msg = (
+    id: string,
+    role: string,
+    content: string,
+    status = "done",
+    errorCode: string | null = null
+  ) => ({
+    id,
+    role,
+    content,
+    status,
+    errorCode,
+    sources: null,
+    attachmentIds: [],
+    files: [],
+    createdAt: "2026-11-16T01:00:00Z",
+    toolCalls: [],
+  });
+  const key = ["assistant", "getConversation", ["c1"]];
+  const seed = (messagesList: ReturnType<typeof msg>[]) =>
+    queryClient.setQueryData(key, {
+      id: "c1",
+      title: "Iuran",
+      drafts: [],
+      messages: messagesList,
+    });
+  const byLabel = (label: string) =>
+    [...document.querySelectorAll<HTMLButtonElement>("button")].filter(
+      (b) => b.getAttribute("aria-label") === label
+    );
+
+  it("the last answer has Copy and Retry; earlier answers have Copy only", async () => {
+    seed([
+      msg("m1", "user", "Q1"),
+      msg("m2", "assistant", "A1"),
+      msg("m3", "user", "Q2"),
+      msg("m4", "assistant", "A2"),
+    ]);
+    await render(<ChatThread conversationId="c1" onRetry={() => {}} />);
+    expect(byLabel(t.copyAnswer)).toHaveLength(2);
+    expect(byLabel(t.copyQuestion)).toHaveLength(2);
+    expect(byLabel(t.retry)).toHaveLength(1);
+    const groups = [...document.querySelectorAll("[data-message-actions]")];
+    const answerRows = groups.filter((g) =>
+      g.querySelector(`[aria-label="${t.copyAnswer}"]`)
+    );
+    expect(answerRows[0]?.className).toContain("opacity-0");
+    expect(answerRows[1]?.className.split(" ")).toContain("opacity-100");
+  });
+
+  it("offers no Retry without onRetry", async () => {
+    seed([msg("m1", "user", "Q1"), msg("m2", "assistant", "A1")]);
+    await render(<ChatThread conversationId="c1" />);
+    expect(byLabel(t.retry)).toHaveLength(0);
+  });
+
+  it("Retry calls onRetry and is disabled while retryDisabled", async () => {
+    seed([msg("m1", "user", "Q1"), msg("m2", "assistant", "A1")]);
+    const onRetry = vi.fn();
+    await render(<ChatThread conversationId="c1" onRetry={onRetry} />);
+    await act(async () => byLabel(t.retry)[0]?.click());
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+    onRetry.mockClear();
+    await render(
+      <ChatThread conversationId="c1" onRetry={onRetry} retryDisabled />
+    );
+    const retry = byLabel(t.retry)[0];
+    expect(retry?.disabled).toBe(true);
+    await act(async () => retry?.click());
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
+  it("a stopped answer shows a muted Stopped note, not an alert, and offers Retry", async () => {
+    seed([
+      msg("m1", "user", "Q1"),
+      msg("m2", "assistant", "", "failed", "assistant.stopped"),
+    ]);
+    await render(<ChatThread conversationId="c1" onRetry={() => {}} />);
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    const note = [...document.querySelectorAll("p")].find(
+      (p) => p.textContent === messages.assistantErrors.stopped
+    );
+    expect(note?.className).toContain("text-muted-foreground");
+    expect(byLabel(t.retry)).toHaveLength(1);
+    // No content: nothing to copy.
+    expect(byLabel(t.copyAnswer)).toHaveLength(0);
+  });
+
+  it("message actions are focusable and labelled", async () => {
+    seed([msg("m1", "user", "Q1"), msg("m2", "assistant", "A1")]);
+    await render(<ChatThread conversationId="c1" onRetry={() => {}} />);
+    for (const label of [t.copyAnswer, t.copyQuestion, t.retry]) {
+      const b = byLabel(label)[0];
+      expect(b, label).toBeDefined();
+      expect(b?.hidden).toBe(false);
+      expect(b?.tabIndex).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("shows no per-answer disclaimer", async () => {
+    seed([msg("m1", "user", "Q1"), msg("m2", "assistant", "A1")]);
+    await render(<ChatThread conversationId="c1" />);
+    expect(text()).not.toContain(t.disclaimer);
   });
 });
 
