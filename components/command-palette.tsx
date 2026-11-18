@@ -64,6 +64,7 @@ import {
   canOrg,
   canOrgAccess,
   canProject,
+  hasProjects,
   type OrgRole,
   type ProjectRole,
   SETUP_PERMISSIONS,
@@ -103,6 +104,8 @@ export function CommandPalette({
   const { setPreference } = useMotif();
   const tHeader = useTranslations("header");
   const modKey = useModKey();
+  // The same rule as the sidebar: staff gets no project, issue or people entry.
+  const seesProjects = hasProjects(orgRole);
   const { setTheme } = useTheme();
   // The palette has no project context: offer "create environment" when any
   // project the caller can see lets them. The create dialog re-checks per project.
@@ -197,21 +200,25 @@ export function CommandPalette({
               <Folder />
               {tNav("home")}
             </CommandItem>
-            <CommandItem
-              value="projects environments"
-              onSelect={() => run(() => router.push("/projects"))}
-            >
-              <FolderKanban />
-              {tNav("projects")}
-            </CommandItem>
-            <CommandItem
-              value="issues bugs tasks"
-              onSelect={() => run(() => router.push("/issues"))}
-            >
-              <CircleDot />
-              {tNav("allIssues")}
-            </CommandItem>
-            {assistantEnabled && projects.length > 0 && (
+            {seesProjects && (
+              <CommandItem
+                value="projects environments"
+                onSelect={() => run(() => router.push("/projects"))}
+              >
+                <FolderKanban />
+                {tNav("projects")}
+              </CommandItem>
+            )}
+            {seesProjects && (
+              <CommandItem
+                value="issues bugs tasks"
+                onSelect={() => run(() => router.push("/issues"))}
+              >
+                <CircleDot />
+                {tNav("allIssues")}
+              </CommandItem>
+            )}
+            {seesProjects && assistantEnabled && projects.length > 0 && (
               <CommandItem
                 value="ask assistant ai chat code question"
                 onSelect={() => run(() => openAssistant(router, pathname))}
@@ -230,13 +237,15 @@ export function CommandPalette({
               <BookOpen />
               {tNav("knowledge")}
             </CommandItem>
-            <CommandItem
-              value="people team directory profiles"
-              onSelect={() => run(() => router.push("/people"))}
-            >
-              <UsersRound />
-              {tNav("people")}
-            </CommandItem>
+            {seesProjects && (
+              <CommandItem
+                value="people team directory profiles"
+                onSelect={() => run(() => router.push("/people"))}
+              >
+                <UsersRound />
+                {tNav("people")}
+              </CommandItem>
+            )}
             {canOrgAccess(orgRole, {
               server: ["read"],
             }) && (

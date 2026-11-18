@@ -63,7 +63,7 @@ import {
   canOrg,
   canOrgAccess,
   canProject,
-  normalizeOrgRole,
+  hasProjects,
   type OrgPermissions,
   type OrgRole,
   type ProjectPermissions,
@@ -244,7 +244,7 @@ export function AppSidebar({
   const canSeeStorage = canOrgAccess(orgRole, { storage: ["read"] });
   const canSeeAdmin = canOrg(orgRole, { audit: ["read"] });
   // staff sees no project, so nothing that lists or works on projects.
-  const seesProjects = normalizeOrgRole(orgRole) !== "staff";
+  const seesProjects = hasProjects(orgRole);
   const inAdmin =
     canSeeAdmin && (pathname === "/admin" || pathname.startsWith("/admin/"));
 

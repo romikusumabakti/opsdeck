@@ -222,6 +222,13 @@ export function seesAllProjects(orgRole: string | null | undefined): boolean {
   return org === "admin" || org === "infra" || org === "observer";
 }
 
+// Whether the role works with projects at all. staff (and every unknown role,
+// which floors to it) does not: the navigation, the command palette and the
+// people pages that carry project data stay hidden from it.
+export function hasProjects(orgRole: string | null | undefined): boolean {
+  return normalizeOrgRole(orgRole) !== "staff";
+}
+
 // The statement set that applies to one user on one project. A membership
 // makes the project visible to engineer, qa, ba and pm; it never changes the
 // set. staff (and every unknown role, which floors to it) sees no project even

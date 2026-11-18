@@ -192,3 +192,32 @@ describe("command palette Ask the assistant entry", () => {
     expect(askItem()).toBeUndefined();
   });
 });
+
+describe("command palette for staff", () => {
+  it("offers Home and Knowledge but no project, issue or people entry", async () => {
+    await openPalette("staff", "viewer", true);
+    const items = labels();
+    expect(items).toContain(messages.nav.home);
+    expect(items).toContain(messages.nav.knowledge);
+    for (const hidden of [
+      messages.nav.projects,
+      messages.nav.allIssues,
+      messages.nav.people,
+      messages.commandPalette.askAssistant,
+    ]) {
+      expect(items.some((l) => l.startsWith(hidden))).toBe(false);
+    }
+  });
+
+  it("keeps them for a BA (control)", async () => {
+    await openPalette("ba", "qa", true);
+    const items = labels();
+    for (const shown of [
+      messages.nav.projects,
+      messages.nav.allIssues,
+      messages.nav.people,
+    ]) {
+      expect(items.some((l) => l.startsWith(shown))).toBe(true);
+    }
+  });
+});

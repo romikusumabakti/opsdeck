@@ -138,4 +138,26 @@ describe("knowledge for a staff user", () => {
       "/knowledge/intro/edit",
     ]);
   });
+
+  it("offers a read-only viewer only Copy link in the More menu", async () => {
+    await render(
+      <DocumentActions
+        documentId="d1"
+        slug="intro"
+        canWrite={false}
+        canDelete={false}
+      />
+    );
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>(
+          `button[aria-label="${messages.common.more}"]`
+        )
+        ?.click();
+    });
+    const items = [...document.querySelectorAll('[role="menuitem"]')].map(
+      (el) => el.textContent
+    );
+    expect(items).toEqual([messages.knowledge.copyLink]);
+  });
 });
