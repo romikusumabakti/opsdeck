@@ -179,7 +179,11 @@ export function AssistantWorkspace({
     conversationQuery.error instanceof ApiError &&
     conversationQuery.error.status === 404;
   const conversation = foreign ? undefined : conversationQuery.data;
-  const dropForeign = React.useEffectEvent(() => select(null));
+  const dropForeign = React.useEffectEvent(() => {
+    // A preselection meant for that chat belongs to New chat now.
+    setPreselect((p) => (p?.key === selectedId ? { ...p, key: NEW_CHAT } : p));
+    select(null);
+  });
   React.useEffect(() => {
     if (foreign) dropForeign();
   }, [foreign]);
@@ -200,14 +204,19 @@ export function AssistantWorkspace({
   // Store writes, so after render (and after `useDraftUser` made the user
   // the store's owner): a preselection replaces its chat's chip, a seed
   // fills an unset one.
+  // One for a chat not read yet waits for it (it may turn out foreign).
+  const waitingForChat =
+    preselect !== null &&
+    preselect.key === selectedId &&
+    (foreign || !loaded);
   React.useEffect(() => {
-    if (!userId || !preselect) return;
+    if (!userId || !preselect || waitingForChat) return;
     composerDrafts.update(preselect.key, (d) => ({
       ...d,
       context: preselect.context,
     }));
     setPreselect(null);
-  }, [userId, preselect]);
+  }, [userId, preselect, waitingForChat]);
   React.useEffect(() => {
     if (!userId || seed === undefined || draft.context !== null) return;
     composerDrafts.update(draftKey, (d) =>

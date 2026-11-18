@@ -100,7 +100,10 @@ import { AssistantWorkspace } from "@/web/components/assistant/assistant-workspa
 import { AttachmentPicker } from "@/web/components/assistant/attachment-picker";
 import { ChatThread } from "@/web/components/assistant/chat-thread";
 import { Composer } from "@/web/components/assistant/composer";
-import { composerDrafts } from "@/web/components/assistant/composer-drafts";
+import {
+  composerDrafts,
+  NEW_CHAT,
+} from "@/web/components/assistant/composer-drafts";
 import { DraftPanel } from "@/web/components/assistant/draft-panel";
 import { JiraDraftForm } from "@/web/components/assistant/jira-draft-form";
 import {
@@ -2975,6 +2978,25 @@ describe("context picker", () => {
       expect(chip()?.textContent).toBe("Heron Membership");
       await open("Iuran");
       expect(chip()?.textContent).toBe(t.contextAuto);
+    });
+
+    it("a preselection with a ?c= that is not found sets New chat's chip", async () => {
+      const missing = "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4aff";
+      conversationFetch.set(missing, () =>
+        Promise.reject(new ApiError(404, "Not Found"))
+      );
+      await renderWorkspace({
+        conversationId: missing,
+        initialContext: { kind: "project", projectId: "p1" },
+      });
+      await settle();
+      expect(text()).toContain(t.emptyThreadTitle);
+      expect(chip()?.textContent).toBe("Heron Membership");
+      expect(composerDrafts.get(missing).context).toBeNull();
+      expect(composerDrafts.get(NEW_CHAT).context).toEqual({
+        kind: "project",
+        projectId: "p1",
+      });
     });
 
     it("switching chats starts the @ list afresh for that chat's text", async () => {
