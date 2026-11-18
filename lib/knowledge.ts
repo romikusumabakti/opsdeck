@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  inArray,
   isNotNull,
   isNull,
   or,
@@ -19,54 +20,121 @@ import {
   type KnowledgeTreeNode,
   knowledgeCollections,
   knowledgeDocuments,
+  knowledgeLinks,
 } from "@/lib/db/schema";
-import { canOrg } from "@/lib/permissions";
+import { canOrg, normalizeOrgRole, type OrgRole } from "@/lib/permissions";
 
 // --- Visibility -------------------------------------------------------------
 
 /**
- * Who is asking. Draft documents (publishedAt IS NULL) are visible only to
- * their author or an admin; everyone else sees published docs only. Enforced in
- * the DATA layer (here) — not the UI — so no caller can forget to gate.
+ * Who is asking. Two rules, both enforced in the DATA layer (here) — not the
+ * UI — so no caller can forget to gate:
+ *
+ * 1. Collections: a collection with an empty `visibleToRoles` is visible to
+ *    every role holding knowledge:read; otherwise only to the listed roles.
+ *    Unknown stored roles grant nothing.
+ * 2. Drafts (publishedAt IS NULL): visible only to their author.
+ *
+ * knowledge:manage (`canManage`) bypasses both. Collection visibility wins
+ * over every other grant: authorship, drafts and a document's projectId never
+ * open a collection the viewer's role cannot see. Hidden rows answer exactly
+ * like missing ones (null / absent), so nothing about them leaks.
  */
-export type KnowledgeViewer = { userId: string | null; canManage: boolean };
+export type KnowledgeViewer = {
+  userId: string | null;
+  role: OrgRole | null;
+  canManage: boolean;
+};
 
 /** Resolve the current request's viewer from the session. */
 export async function currentViewer(): Promise<KnowledgeViewer> {
   const session = await getServerSession();
+  if (!session) return { userId: null, role: null, canManage: false };
+  const role = normalizeOrgRole(session.user.role);
   return {
-    userId: session?.user.id ?? null,
-    canManage: session
-      ? canOrg(session.user.role, { knowledge: ["manage"] })
-      : false,
+    userId: session.user.id,
+    role,
+    canManage: canOrg(role, { knowledge: ["manage"] }),
   };
 }
 
+function readsKnowledge(viewer: KnowledgeViewer): viewer is KnowledgeViewer & {
+  role: OrgRole;
+} {
+  return viewer.role !== null && canOrg(viewer.role, { knowledge: ["read"] });
+}
+
 /**
- * SQL predicate constraining a `knowledge_documents` row (aliased here as the
- * base table) to what `viewer` may see. `undefined` (admin) means no constraint.
+ * SQL predicate constraining a `knowledge_collections` row to what `viewer`
+ * may see. `undefined` (knowledge:manage) means no constraint.
  */
-function visibleDocs(viewer: KnowledgeViewer): SQL | undefined {
+export function visibleCollections(viewer: KnowledgeViewer): SQL | undefined {
   if (viewer.canManage) return undefined;
-  return or(
-    isNotNull(knowledgeDocuments.publishedAt),
-    // `false` literal when anonymous so only published rows match.
-    viewer.userId
-      ? eq(knowledgeDocuments.createdById, viewer.userId)
-      : sql`false`
+  if (!readsKnowledge(viewer)) return sql`false`;
+  return sql`(cardinality(${knowledgeCollections.visibleToRoles}) = 0 OR ${viewer.role}::text = ANY(${knowledgeCollections.visibleToRoles}))`;
+}
+
+/** Same rule applied to an already-loaded collection. */
+export function canViewCollection(
+  collection: { visibleToRoles: string[] },
+  viewer: KnowledgeViewer
+): boolean {
+  if (viewer.canManage) return true;
+  if (!readsKnowledge(viewer)) return false;
+  return (
+    collection.visibleToRoles.length === 0 ||
+    collection.visibleToRoles.includes(viewer.role)
   );
 }
 
-/** Same rule applied to an already-loaded row. */
-function canViewDoc(
-  doc: { publishedAt: Date | null; createdById: string | null },
+/**
+ * SQL predicate constraining a `knowledge_documents` row (referenced by its
+ * table name, so raw queries must not alias it) to what `viewer` may see: the
+ * collection rule, then the draft rule. `undefined` (knowledge:manage) means
+ * no constraint.
+ */
+export function visibleDocs(viewer: KnowledgeViewer): SQL | undefined {
+  if (viewer.canManage) return undefined;
+  return and(
+    sql`${knowledgeDocuments.collectionId} IN (SELECT ${knowledgeCollections.id} FROM ${knowledgeCollections} WHERE ${visibleCollections(viewer)})`,
+    or(
+      isNotNull(knowledgeDocuments.publishedAt),
+      // `false` literal when anonymous so only published rows match.
+      viewer.userId
+        ? eq(knowledgeDocuments.createdById, viewer.userId)
+        : sql`false`
+    )
+  );
+}
+
+/** Same rule applied to an already-loaded row and its collection. */
+export function canViewDoc(
+  doc: {
+    publishedAt: Date | null;
+    createdById: string | null;
+    collection: { visibleToRoles: string[] };
+  },
   viewer: KnowledgeViewer
 ): boolean {
+  if (!canViewCollection(doc.collection, viewer)) return false;
   return (
     doc.publishedAt !== null ||
     viewer.canManage ||
     (viewer.userId !== null && doc.createdById === viewer.userId)
   );
+}
+
+/** Whether the document `id` exists and `viewer` may see it (one query). */
+async function isDocVisible(
+  id: string,
+  viewer: KnowledgeViewer
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: knowledgeDocuments.id })
+    .from(knowledgeDocuments)
+    .where(and(eq(knowledgeDocuments.id, id), visibleDocs(viewer)))
+    .limit(1);
+  return row !== undefined;
 }
 
 // --- Text helpers -----------------------------------------------------------
@@ -79,22 +147,30 @@ export {
 
 // --- Read-side loaders ------------------------------------------------------
 
-/** All collections, ordered for the tree sidebar. */
-export async function loadCollections(): Promise<KnowledgeCollection[]> {
-  return db.query.knowledgeCollections.findMany({
-    orderBy: { rank: "asc", name: "asc" },
-  });
+/** The collections the viewer may see, ordered for the tree sidebar. */
+export async function loadCollections(
+  // Session-free callers pass the viewer explicitly.
+  viewerOverride?: KnowledgeViewer
+): Promise<KnowledgeCollection[]> {
+  const viewer = viewerOverride ?? (await currentViewer());
+  return db
+    .select()
+    .from(knowledgeCollections)
+    .where(visibleCollections(viewer))
+    .orderBy(asc(knowledgeCollections.rank), asc(knowledgeCollections.name));
 }
 
 /**
  * Flat list of tree nodes for a collection (or all collections when omitted) —
  * body-free, ordered by (parent, rank) so the client can assemble the nesting
- * cheaply. Drafts the viewer can't see are filtered out here (see visibleDocs).
+ * cheaply. Documents the viewer can't see (hidden collections, others' drafts)
+ * are filtered out here (see visibleDocs).
  */
 export async function loadTreeNodes(
-  collectionId?: string
+  collectionId?: string,
+  viewerOverride?: KnowledgeViewer
 ): Promise<KnowledgeTreeNode[]> {
-  const viewer = await currentViewer();
+  const viewer = viewerOverride ?? (await currentViewer());
   return db
     .select({
       id: knowledgeDocuments.id,
@@ -118,46 +194,52 @@ export async function loadTreeNodes(
     .orderBy(asc(knowledgeDocuments.rank), asc(knowledgeDocuments.title));
 }
 
+// The reader's relations. The collection's visibility list is loaded for the
+// check and stripped before the document leaves this module.
+const documentWith = {
+  collection: {
+    columns: { id: true, name: true, icon: true, visibleToRoles: true },
+  },
+  createdBy: { columns: { id: true, name: true } },
+  updatedBy: { columns: { id: true, name: true, image: true } },
+} as const;
+
+async function loadVisibleDocument(
+  where: { slug: string } | { id: string },
+  viewerOverride: KnowledgeViewer | undefined
+): Promise<KnowledgeDocumentWithMeta | null> {
+  const doc = await db.query.knowledgeDocuments.findFirst({
+    where,
+    with: documentWith,
+  });
+  // The FK makes the collection non-null; the relation type does not know it.
+  if (!doc?.collection) return null;
+  const viewer = viewerOverride ?? (await currentViewer());
+  if (!canViewDoc({ ...doc, collection: doc.collection }, viewer)) return null;
+  const { visibleToRoles: _, ...collection } = doc.collection;
+  return { ...doc, collection } as KnowledgeDocumentWithMeta;
+}
+
 /**
  * Load one document by slug with author/collection metadata for the reader.
  * Slugs are globally unique (see the unique index), so the lookup is
- * deterministic. Returns null for a draft the viewer may not see, so the route
- * treats a hidden draft exactly like a missing doc (notFound) — no title leak.
+ * deterministic. Returns null for a document the viewer may not see (hidden
+ * collection, someone else's draft), so the route treats it exactly like a
+ * missing doc (notFound) — no title leak.
  */
 export async function loadDocumentBySlug(
   slug: string,
   // Session-free callers (the assistant worker) pass the viewer explicitly.
   viewerOverride?: KnowledgeViewer
 ): Promise<KnowledgeDocumentWithMeta | null> {
-  const doc = await db.query.knowledgeDocuments.findFirst({
-    where: { slug },
-    with: {
-      collection: { columns: { id: true, name: true, icon: true } },
-      createdBy: { columns: { id: true, name: true } },
-      updatedBy: { columns: { id: true, name: true, image: true } },
-    },
-  });
-  if (!doc) return null;
-  const viewer = viewerOverride ?? (await currentViewer());
-  if (!canViewDoc(doc, viewer)) return null;
-  return doc as KnowledgeDocumentWithMeta;
+  return loadVisibleDocument({ slug }, viewerOverride);
 }
 
 export async function loadDocumentById(
-  id: string
+  id: string,
+  viewerOverride?: KnowledgeViewer
 ): Promise<KnowledgeDocumentWithMeta | null> {
-  const doc = await db.query.knowledgeDocuments.findFirst({
-    where: { id },
-    with: {
-      collection: { columns: { id: true, name: true, icon: true } },
-      createdBy: { columns: { id: true, name: true } },
-      updatedBy: { columns: { id: true, name: true, image: true } },
-    },
-  });
-  if (!doc) return null;
-  const viewer = await currentViewer();
-  if (!canViewDoc(doc, viewer)) return null;
-  return doc as KnowledgeDocumentWithMeta;
+  return loadVisibleDocument({ id }, viewerOverride);
 }
 
 /** A document's revisions, newest first, with the editor's display name. */
@@ -165,9 +247,13 @@ export type RevisionWithEditor = KnowledgeRevision & {
   editedBy: { id: string; name: string; image: string | null } | null;
 };
 
+/** Empty for a document the viewer may not see, like for a missing one. */
 export async function loadRevisions(
-  documentId: string
+  documentId: string,
+  viewerOverride?: KnowledgeViewer
 ): Promise<RevisionWithEditor[]> {
+  const viewer = viewerOverride ?? (await currentViewer());
+  if (!(await isDocVisible(documentId, viewer))) return [];
   const rows = await db.query.knowledgeRevisions.findMany({
     where: { documentId },
     with: { editedBy: { columns: { id: true, name: true, image: true } } },
@@ -179,22 +265,32 @@ export async function loadRevisions(
 
 export type Backlink = { id: string; title: string; slug: string };
 
-/** Documents that link TO the given document, for the "Referenced by" panel. */
-export async function loadBacklinks(documentId: string): Promise<Backlink[]> {
-  const viewer = await currentViewer();
-  // Hide inbound links from drafts the viewer may not see (title would leak).
-  const draftFilter = viewer.canManage
-    ? sql``
-    : sql`AND (d.published_at IS NOT NULL OR d.created_by_id = ${viewer.userId})`;
-  const rows = await db.execute<Backlink>(sql`
-    SELECT d.id, d.title, d.slug
-    FROM knowledge_links l
-    JOIN knowledge_documents d ON d.id = l.from_document_id
-    WHERE l.to_document_id = ${documentId}
-    ${draftFilter}
-    ORDER BY d.title ASC
-  `);
-  return rows as unknown as Backlink[];
+/**
+ * Documents that link TO the given document, for the "Referenced by" panel.
+ * Both ends are gated: a hidden target answers no backlinks at all, and a
+ * hidden source (its title would leak) is left out.
+ */
+export async function loadBacklinks(
+  documentId: string,
+  viewerOverride?: KnowledgeViewer
+): Promise<Backlink[]> {
+  const viewer = viewerOverride ?? (await currentViewer());
+  if (!(await isDocVisible(documentId, viewer))) return [];
+  return db
+    .select({
+      id: knowledgeDocuments.id,
+      title: knowledgeDocuments.title,
+      slug: knowledgeDocuments.slug,
+    })
+    .from(knowledgeLinks)
+    .innerJoin(
+      knowledgeDocuments,
+      eq(knowledgeDocuments.id, knowledgeLinks.fromDocumentId)
+    )
+    .where(
+      and(eq(knowledgeLinks.toDocumentId, documentId), visibleDocs(viewer))
+    )
+    .orderBy(asc(knowledgeDocuments.title));
 }
 
 export type SearchHit = {
@@ -223,26 +319,26 @@ export async function searchDocuments(
   viewerOverride?: KnowledgeViewer
 ): Promise<SearchHit[]> {
   const viewer = viewerOverride ?? (await currentViewer());
-  // Keep drafts the viewer may not see out of results.
-  const draftFilter = viewer.canManage
-    ? sql``
-    : sql`AND (d.published_at IS NOT NULL OR d.created_by_id = ${viewer.userId})`;
+  // Keep what the viewer may not see out of the results — and out of the
+  // ranking, so the hit list never differs by a hidden document. visibleDocs
+  // names the table, so the FROM below must not alias it.
+  const visible = visibleDocs(viewer);
   const rows = await db.execute<SearchHit>(sql`
     SELECT
-      d.id,
-      d.title,
-      d.slug,
-      d.collection_id AS "collectionId",
+      knowledge_documents.id,
+      knowledge_documents.title,
+      knowledge_documents.slug,
+      knowledge_documents.collection_id AS "collectionId",
       ts_headline(
         'simple',
-        d.content_text,
+        knowledge_documents.content_text,
         websearch_to_tsquery('simple', ${query}),
         ${`MaxFragments=2,MinWords=5,MaxWords=18,StartSel=${HL_START},StopSel=${HL_STOP}`}
       ) AS snippet,
-      ts_rank(d.search_vector, websearch_to_tsquery('simple', ${query})) AS rank
-    FROM knowledge_documents d
-    WHERE d.search_vector @@ websearch_to_tsquery('simple', ${query})
-    ${draftFilter}
+      ts_rank(knowledge_documents.search_vector, websearch_to_tsquery('simple', ${query})) AS rank
+    FROM knowledge_documents
+    WHERE knowledge_documents.search_vector @@ websearch_to_tsquery('simple', ${query})
+    ${visible ? sql`AND ${visible}` : sql``}
     ORDER BY rank DESC
     LIMIT 20
   `);
@@ -274,19 +370,64 @@ export async function ensureUniqueSlug(
   }
 }
 
-/** Resolve a set of slugs to ids in one query (backlink rebuild). */
+/**
+ * Resolve `/knowledge/<slug>` links to ids in one query, as `viewer` sees
+ * them: a slug of a document they may not see is absent, like a missing one.
+ * (The backlink graph itself is stored for every target and filtered on read;
+ * see rebuildLinks in server/services/knowledge.)
+ */
 export async function resolveSlugIds(
-  slugs: string[]
+  slugs: string[],
+  viewerOverride?: KnowledgeViewer
 ): Promise<Map<string, string>> {
   if (slugs.length === 0) return new Map();
+  const viewer = viewerOverride ?? (await currentViewer());
   const rows = await db
     .select({
       id: knowledgeDocuments.id,
       slug: knowledgeDocuments.slug,
     })
     .from(knowledgeDocuments)
-    .where(sql`${knowledgeDocuments.slug} = ANY(${slugs})`);
+    .where(and(inArray(knowledgeDocuments.slug, slugs), visibleDocs(viewer)));
   return new Map(rows.map((r) => [r.slug, r.id]));
+}
+
+/** An attachment's object location, as the asset route serves it. */
+export type VisibleAttachment = { storageKey: string; mime: string };
+
+/**
+ * The attachment `id` if `viewer` may fetch it: they hold knowledge:manage,
+ * uploaded it, or a document visible to them references
+ * `/api/knowledge/asset/<id>` in its body (the body is the source of truth for
+ * which document uses an asset). Null otherwise, like a missing id — an image
+ * used only inside a hidden document is not served.
+ */
+export async function loadVisibleAttachment(
+  id: string,
+  viewerOverride?: KnowledgeViewer
+): Promise<VisibleAttachment | null> {
+  const row = await db.query.knowledgeAttachments.findFirst({
+    where: { id },
+    columns: { storageKey: true, mime: true, uploadedById: true },
+  });
+  if (!row) return null;
+  const viewer = viewerOverride ?? (await currentViewer());
+  const attachment = { storageKey: row.storageKey, mime: row.mime };
+  if (viewer.canManage) return attachment;
+  if (viewer.userId !== null && row.uploadedById === viewer.userId) {
+    return attachment;
+  }
+  const [used] = await db
+    .select({ id: knowledgeDocuments.id })
+    .from(knowledgeDocuments)
+    .where(
+      and(
+        sql`strpos(${knowledgeDocuments.content}, ${`/api/knowledge/asset/${id}`}) > 0`,
+        visibleDocs(viewer)
+      )
+    )
+    .limit(1);
+  return used ? attachment : null;
 }
 
 /**

@@ -18,7 +18,6 @@ import {
   extractLinkedSlugs,
   loadBacklinks,
   markdownToPlainText,
-  resolveSlugIds,
   type SearchHit,
   searchDocuments,
   slugify,
@@ -155,8 +154,17 @@ async function rebuildLinks(
     .where(eq(knowledgeLinks.fromDocumentId, documentId));
   const slugs = extractLinkedSlugs(content);
   if (slugs.length === 0) return;
-  const idsBySlug = await resolveSlugIds(slugs);
-  const edges = [...idsBySlug.values()]
+  // Every existing target, whoever saves: the graph is stored whole and gated
+  // on read (loadBacklinks filters both ends by the reader), so an edge to a
+  // collection the writer cannot see is kept for those who can, and stays
+  // right when a collection's visibility changes. Nothing here reaches the
+  // writer's response.
+  const targets = await tx
+    .select({ id: knowledgeDocuments.id })
+    .from(knowledgeDocuments)
+    .where(inArray(knowledgeDocuments.slug, slugs));
+  const edges = targets
+    .map((t) => t.id)
     .filter((toId) => toId !== documentId)
     .map((toId) => ({ fromDocumentId: documentId, toDocumentId: toId }));
   if (edges.length > 0) {

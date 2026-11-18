@@ -2032,7 +2032,8 @@ export const knowledgeDocTypeEnum = pgEnum("knowledge_doc_type", [
 ]);
 
 // Top-level grouping for documents (e.g. "Runbooks", "Onboarding"). Managing
-// collections is admin-only; documents inside are member-editable.
+// collections is admin-only; documents inside are member-editable. A collection
+// may be visible to selected org roles only (visible_to_roles).
 export const knowledgeCollections = pgTable("knowledge_collections", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
   name: text("name").notNull(),
@@ -2043,6 +2044,10 @@ export const knowledgeCollections = pgTable("knowledge_collections", {
   // inserting between two ranks never renumbers neighbours. The column is
   // C-collated (see migration) so byte order matches the rank alphabet.
   rank: text("rank").notNull(),
+  // Org roles (ORG_ROLES) that may read this collection and its documents.
+  // Empty = every role with knowledge:read; knowledge:manage always sees it.
+  // Unknown stored values grant nothing (lib/knowledge#visibleCollections).
+  visibleToRoles: text("visible_to_roles").array().notNull().default(sql`'{}'`),
   createdById: uuid("created_by_id").references(() => users.id, {
     onDelete: "set null",
   }),

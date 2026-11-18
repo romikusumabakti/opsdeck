@@ -11,6 +11,7 @@ import {
   loadDocumentBySlug,
   loadRevisions,
   loadTreeNodes,
+  loadVisibleAttachment,
 } from "@/lib/knowledge";
 import { putObject } from "@/lib/storage";
 import {
@@ -47,8 +48,8 @@ const bySlug = param(z.object({ slug: z.string().min(1).max(200) }));
 
 export const knowledgeRouter = sessionRouter()
   // --- Page data (knowledge layout and pages), straight from lib/knowledge.
-  // Each route applies the guard its page did. Draft visibility is enforced
-  // inside the loaders.
+  // Each route applies the guard its page did. Collection and draft
+  // visibility are enforced inside the loaders.
   .get("/collections", async (c) => {
     await requireOrgPermission({ knowledge: ["read"] });
     return c.json(await loadCollections());
@@ -59,7 +60,7 @@ export const knowledgeRouter = sessionRouter()
   })
   .get("/documents/:slug", bySlug, async (c) => {
     await requireOrgPermission({ knowledge: ["read"] });
-    // A draft the caller may not see is null too: same 404, no title leak.
+    // A document the caller may not see is null too: same 404, no title leak.
     const doc = await loadDocumentBySlug(c.req.valid("param").slug);
     if (!doc) notFound();
     return c.json(doc);
@@ -67,8 +68,8 @@ export const knowledgeRouter = sessionRouter()
   .get("/documents/:slug/revisions", bySlug, async (c) => {
     // The history page needs write, not just read.
     await requireOrgPermission({ knowledge: ["write"] });
-    // Resolve through the slug loader so a hidden draft's history 404s too;
-    // loadRevisions itself does not check visibility.
+    // Resolve through the slug loader so a hidden document's history 404s
+    // (loadRevisions alone would answer an empty list).
     const doc = await loadDocumentBySlug(c.req.valid("param").slug);
     if (!doc) notFound();
     return c.json(await loadRevisions(doc.id));
@@ -212,10 +213,9 @@ export const knowledgeRouter = sessionRouter()
       return new Response("Bad request", { status: 400 });
     }
 
-    const row = await db.query.knowledgeAttachments.findFirst({
-      where: { id },
-      columns: { storageKey: true, mime: true },
-    });
+    // Null for a missing id and for an image the caller may not see (used
+    // only in documents hidden from them): the same 404, no existence leak.
+    const row = await loadVisibleAttachment(id);
     if (!row) return new Response("Not found", { status: 404 });
 
     let upstream: Response;

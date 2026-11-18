@@ -27,7 +27,7 @@ type DocRow = {
   content: string;
   publishedAt: Date | null;
   createdById: string | null;
-  collection: { name: string } | null;
+  collection: { name: string; visibleToRoles: string[] } | null;
 };
 
 const state = vi.hoisted(() => ({
@@ -581,7 +581,7 @@ describe("knowledge tools", () => {
     content: "# not yet",
     publishedAt: null,
     createdById: "someone-else",
-    collection: { name: "Ops" },
+    collection: { name: "Ops", visibleToRoles: [] },
   };
 
   it("keeps a draft invisible to a qa viewer", async () => {
@@ -625,15 +625,32 @@ describe("knowledge tools", () => {
     expect(result.meta).toEqual({ docSlugs: ["draft-plan"], withheld: 1 });
   });
 
-  it("filters drafts out of search for non-managers only", async () => {
+  it("hides a document of a collection the viewer's role cannot see", async () => {
+    state.docs = [
+      {
+        ...draft,
+        publishedAt: new Date(),
+        collection: { name: "Infra", visibleToRoles: ["infra"] },
+      },
+    ];
+    const result = await readKnowledgeTool(qa, "draft-plan");
+    expect(!result.ok && result.error).toMatch(/not found/);
+    expect((await readKnowledgeTool(admin, "draft-plan")).ok).toBe(true);
+  });
+
+  it("filters drafts and hidden collections out of search for non-managers only", async () => {
+    state.executed = [];
     await searchKnowledgeTool(qa, "iuran");
     await searchKnowledgeTool(admin, "iuran");
     const dialect = new PgDialect();
     const [asQa, asAdmin] = state.executed.map((q) => dialect.sqlToQuery(q));
     expect(asQa?.sql).toContain(
-      "d.published_at IS NOT NULL OR d.created_by_id ="
+      '"knowledge_documents"."published_at" is not null'
     );
+    expect(asQa?.sql).toContain('"knowledge_collections"."visible_to_roles"');
     expect(asQa?.params).toContain(qa.userId);
-    expect(asAdmin?.sql).not.toContain("published_at IS NOT NULL");
+    expect(asQa?.params).toContain("qa");
+    expect(asAdmin?.sql).not.toContain("published_at");
+    expect(asAdmin?.sql).not.toContain("visible_to_roles");
   });
 });

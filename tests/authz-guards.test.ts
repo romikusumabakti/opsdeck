@@ -1070,10 +1070,12 @@ describe("API routers reach a guard", () => {
     const source = readFileSync("server/routes/knowledge.ts", "utf8");
     const handlers = source.split(/\n {2}\.(?:get|post)\(/).slice(1);
     const loading = handlers.filter((h) => /\bload\w+\(/.test(h));
-    expect(loading.length).toBe(4);
+    // The four page reads and the asset download (routeOrgGuard, since it
+    // answers plain responses).
+    expect(loading.length).toBe(5);
     for (const h of loading) {
       const guard = h.search(
-        /requireOrgPermission\(\{ knowledge: \["(read|write)"\] \}\)/
+        /(?:requireOrgPermission|routeOrgGuard)\(\{ knowledge: \["(read|write)"\] \}\)/
       );
       expect(guard).toBeGreaterThan(-1);
       expect(guard).toBeLessThan(h.search(/\bload\w+\(/));

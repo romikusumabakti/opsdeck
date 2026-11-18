@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "d45c761b-fc9c-4372-bf48-651e0ac3d56b",
+  "prevIds": [
+    "38840628-e453-4e88-bc89-58572db81625"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "knowledge_collections",
+        "visible_to_roles"
+      ],
+      "writes": [
+        "s|col|public.knowledge_collections.visible_to_roles",
+        "n|col|public.knowledge_collections.visible_to_roles",
+        "e|col|public.knowledge_collections.visible_to_roles"
+      ],
+      "reads": [
+        "n|tbl|public.knowledge_collections",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "knowledge_collections",
+        "name": "visible_to_roles",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 1,
+        "default": "'{}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

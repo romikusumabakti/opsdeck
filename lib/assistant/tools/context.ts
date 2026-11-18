@@ -11,6 +11,7 @@ import type { JiraAttachmentMeta } from "@/lib/jira/types";
 import {
   HL_START,
   HL_STOP,
+  type KnowledgeViewer,
   loadDocumentBySlug,
   searchDocuments,
 } from "@/lib/knowledge";
@@ -331,8 +332,14 @@ export async function readAttachmentTool(
   };
 }
 
-function knowledgeViewer(viewer: AssistantViewer) {
-  return { userId: viewer.userId, canManage: viewer.canManageKnowledge };
+// The knowledge rules (collection visibility by org role, drafts) for the
+// asking user, built from their AccessScope since the worker has no session.
+function knowledgeViewer(viewer: AssistantViewer): KnowledgeViewer {
+  return {
+    userId: viewer.userId,
+    role: viewer.orgRole,
+    canManage: viewer.canManageKnowledge,
+  };
 }
 
 export type KnowledgeHit = { slug: string; title: string; snippet: string };
