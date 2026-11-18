@@ -195,6 +195,9 @@ beforeEach(() => {
     timeZone: "UTC",
   });
   composerDrafts.resetForTests();
+  // The owner `useDraftUser` makes the signed-in user; a Composer rendered
+  // alone has no workspace to do it.
+  composerDrafts.forUser("user-1");
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
   for (const fn of Object.values(api)) fn.mockReset();
@@ -346,7 +349,8 @@ describe("daily cap", () => {
         running={false}
         onStop={() => {}}
         context={AUTO}
-        onContextChange={() => {}}
+        draftKey="new"
+        userId="user-1"
         disabled
         onSend={vi.fn()}
         focusKey="new"
@@ -370,7 +374,8 @@ describe("daily cap", () => {
         running={false}
         onStop={() => {}}
         context={AUTO}
-        onContextChange={() => {}}
+        draftKey="new"
+        userId="user-1"
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -1137,7 +1142,8 @@ describe("composer attachments", () => {
         running={false}
         onStop={() => {}}
         context={AUTO}
-        onContextChange={() => {}}
+        draftKey="new"
+        userId="user-1"
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -1238,7 +1244,8 @@ describe("composer files", () => {
       running={false}
       onStop={() => {}}
       context={AUTO}
-      onContextChange={() => {}}
+      draftKey="new"
+      userId="user-1"
       disabled={false}
       onSend={onSend}
       focusKey="new"
@@ -1407,7 +1414,8 @@ describe("composer focus and keys", () => {
       running={false}
       onStop={() => {}}
       context={AUTO}
-      onContextChange={() => {}}
+      draftKey="new"
+      userId="user-1"
       disabled={false}
       onSend={vi.fn().mockResolvedValue(undefined)}
       focusKey={focusKey}
@@ -1450,7 +1458,8 @@ describe("composer focus and keys", () => {
         running={false}
         onStop={() => {}}
         context={AUTO}
-        onContextChange={() => {}}
+        draftKey="new"
+        userId="user-1"
         disabled={false}
         onSend={onSend}
         focusKey="new"
@@ -2237,6 +2246,8 @@ describe("context picker", () => {
     expect(chip()?.textContent).toBe("Heron Membership");
     act(() => root.unmount());
     container.remove();
+    // Drafts outlive the workspace: start this chat without one again.
+    composerDrafts.drop(CONV_ID);
     await renderWorkspace({ conversationId: CONV_ID }, [
       userMessage("u1", {
         kind: "project",
@@ -2746,6 +2757,251 @@ describe("context picker", () => {
       kind: "jira",
     });
   });
+
+  describe("per-chat drafts", () => {
+    const C2 = "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4a5d";
+    const twoChats = [
+      {
+        id: CONV_ID,
+        title: "Iuran",
+        updatedAt: "2026-11-16T01:00:00Z",
+        lastContextLabel: null,
+      },
+      {
+        id: C2,
+        title: "Tagihan",
+        updatedAt: "2026-11-16T00:00:00Z",
+        lastContextLabel: null,
+      },
+    ];
+    const seedC2 = (messages: unknown[] = [{ ...answer, id: "a9" }]) =>
+      queryClient.setQueryData(["assistant", "getConversation", [C2]], {
+        id: C2,
+        title: "Tagihan",
+        drafts: [],
+        messages,
+      });
+    const open = async (title: string) => {
+      const row = [
+        ...document.querySelectorAll<HTMLButtonElement>("nav button"),
+      ].find((b) => b.textContent?.includes(title));
+      if (!row) throw new Error(`no chat ${title}`);
+      await act(async () => row.click());
+      await settle();
+    };
+    const box = () => {
+      const el = container.querySelector("textarea");
+      if (!el) throw new Error("no textarea");
+      return el;
+    };
+    const press = async (key: string) => {
+      await act(async () => {
+        box().dispatchEvent(
+          new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })
+        );
+      });
+      await settle();
+    };
+    const attach = async (name: string) => {
+      const input = document.querySelector<HTMLInputElement>(
+        "[data-testid=composer-file-input]"
+      );
+      if (!input) throw new Error("no file input");
+      Object.defineProperty(input, "files", {
+        value: [new File(["notes"], name)],
+        configurable: true,
+      });
+      await act(async () => {
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await settle();
+    };
+    const deleteChat = async (title: string) => {
+      await openChatMenu(title);
+      await act(async () => menuItem(t.deleteChat)?.click());
+      await settle();
+      const confirm = [
+        ...document.querySelectorAll<HTMLButtonElement>(
+          '[role="alertdialog"] button'
+        ),
+      ].find((b) => b.textContent?.trim() === t.deleteChat);
+      await act(async () => confirm?.click());
+      await settle();
+    };
+    const chipCount = () =>
+      document.querySelectorAll("[data-file-chip]").length;
+
+    it("switching chats keeps each chat's text and chip", async () => {
+      await renderWorkspace({ conversationId: CONV_ID }, [answer]);
+      await type("ask @her");
+      await settle();
+      await press("Enter");
+      expect(chip()?.textContent).toBe("Heron Membership");
+      await act(async () => button(t.newChat)?.click());
+      await settle();
+      expect(box().value).toBe("");
+      expect(chip()?.textContent).toBe(t.contextAuto);
+      await open("Iuran");
+      expect(box().value).toBe("ask @Heron Membership ");
+      expect(chip()?.textContent).toBe("Heron Membership");
+    });
+
+    it("a send clears the draft it was sent from", async () => {
+      let finishSend = () => {};
+      api.sendMessage.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishSend = () => resolve({});
+          })
+      );
+      await renderWorkspace({ conversationId: CONV_ID }, [answer], twoChats);
+      seedC2();
+      await typeAndSend("Pertanyaan di Iuran");
+      await settle();
+      await open("Tagihan");
+      await type("Masih diketik");
+      await act(async () => finishSend());
+      await settle();
+      expect(box().value).toBe("Masih diketik");
+      expect(composerDrafts.get(C2).text).toBe("Masih diketik");
+      expect(composerDrafts.get(CONV_ID).text).toBe("");
+      await open("Iuran");
+      expect(box().value).toBe("");
+    });
+
+    const deletable = () => {
+      api.uploadFile.mockImplementation(async (file: File) => ({
+        id: `up-${file.name}`,
+        filename: file.name,
+        mediaType: "text/plain",
+        size: 5,
+      }));
+      api.deleteUpload.mockResolvedValue({});
+      api.deleteConversation.mockImplementation(async (id: string) => ({ id }));
+    };
+
+    it("deleting a chat drops its draft and its unsent uploads", async () => {
+      deletable();
+      const onConversationChange = vi.fn();
+      await renderWorkspace({ conversationId: CONV_ID, onConversationChange }, [
+        answer,
+      ]);
+      await attach("a.txt");
+      await type("Draft di Iuran");
+      expect(chipCount()).toBe(1);
+      await deleteChat("Iuran");
+      expect(api.deleteUpload).toHaveBeenCalledExactlyOnceWith("up-a.txt");
+      // New chat shows, with its own (empty) draft.
+      expect(onConversationChange).toHaveBeenLastCalledWith(null);
+      expect(text()).toContain(t.emptyThreadTitle);
+      expect(box().value).toBe("");
+      expect(chipCount()).toBe(0);
+      expect(composerDrafts.get(CONV_ID).files).toEqual([]);
+      expect(composerDrafts.get(CONV_ID).text).toBe("");
+    });
+
+    it("deleting another chat drops its draft and its unsent uploads", async () => {
+      deletable();
+      await renderWorkspace({ conversationId: CONV_ID }, [answer], twoChats);
+      seedC2();
+      await open("Tagihan");
+      await attach("b.txt");
+      await type("Draft di Tagihan");
+      await open("Iuran");
+      await type("Draft di Iuran");
+      await deleteChat("Tagihan");
+      expect(api.deleteUpload).toHaveBeenCalledExactlyOnceWith("up-b.txt");
+      expect(composerDrafts.get(C2).text).toBe("");
+      // The open chat and its draft stay.
+      expect(box().value).toBe("Draft di Iuran");
+    });
+
+    it("preselection seeds the New chat draft", async () => {
+      await renderWorkspace(
+        { initialContext: { kind: "project", projectId: "p1" } },
+        [answer]
+      );
+      expect(chip()?.textContent).toBe("Heron Membership");
+      await open("Iuran");
+      expect(chip()?.textContent).toBe(t.contextAuto);
+      await act(async () => button(t.newChat)?.click());
+      await settle();
+      expect(chip()?.textContent).toBe("Heron Membership");
+      // A link followed while on New chat moves its chip.
+      await act(async () =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <IntlProvider
+              locale="en"
+              messages={messages}
+              timeZone="Asia/Jakarta"
+              now={new Date("2026-11-16T05:00:00Z")}
+            >
+              <AssistantWorkspace
+                initialContext={{ kind: "environment", environmentId: ENV_ID }}
+              />
+            </IntlProvider>
+          </QueryClientProvider>
+        )
+      );
+      await settle();
+      expect(chip()?.textContent).toBe("Heron Membership · Dev 1");
+    });
+
+    it("a chat without a draft seeds its chip from its last question", async () => {
+      await renderWorkspace({}, [
+        userMessage("u1", {
+          kind: "environment",
+          label: "Heron Membership UAT",
+          deleted: false,
+          projectId: "p1",
+          environmentId: ENV_2,
+        }),
+        answer,
+      ]);
+      await type("@gbil");
+      await settle();
+      await press("Enter");
+      expect(chip()?.textContent).toBe("Globex Billing");
+      await open("Iuran");
+      expect(chip()?.textContent).toBe("Heron Membership · UAT");
+      // A pick in the chat is its draft's from then on.
+      await act(async () => chip()?.click());
+      await settle();
+      await act(async () => item("Staging")?.click());
+      await settle();
+      await act(async () => button(t.newChat)?.click());
+      await settle();
+      expect(chip()?.textContent).toBe("Globex Billing");
+      await open("Iuran");
+      expect(chip()?.textContent).toBe("Globex Billing · Staging");
+    });
+
+    it("the 17:41 case: a mid-sentence pick by click is sent with the question", async () => {
+      api.createConversation.mockResolvedValue({ id: CONV_ID });
+      api.sendMessage.mockResolvedValue({});
+      await renderWorkspace();
+      await type("buatkan ringkasan untuk proyek @her");
+      await settle();
+      const option = [
+        ...document.querySelectorAll<HTMLElement>(
+          '[data-slot="mention-list"] [role="option"]'
+        ),
+      ].find((el) => el.textContent === "Heron Membership");
+      await act(async () => option?.click());
+      await settle();
+      expect(chip()?.textContent).toBe("Heron Membership");
+      await typeAndSend(
+        "buatkan ringkasan untuk proyek @Heron Membership secara singkat"
+      );
+      await settle();
+      expect(api.sendMessage).toHaveBeenCalledExactlyOnceWith({
+        conversationId: CONV_ID,
+        text: "buatkan ringkasan untuk proyek @Heron Membership secara singkat",
+        context: { kind: "project", projectId: "p1" },
+      });
+    });
+  });
 });
 
 describe("question bubble context", () => {
@@ -3110,7 +3366,8 @@ describe("wording", () => {
 describe("composer container", () => {
   const props = {
     context: AUTO,
-    onContextChange: () => {},
+    draftKey: "new",
+    userId: "user-1",
     onSend: vi.fn().mockResolvedValue(undefined),
     focusKey: "new",
   };

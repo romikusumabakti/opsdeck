@@ -21,7 +21,12 @@ import type { QuestionContextInput } from "@/lib/assistant/context";
 import { UPLOAD_ACCEPT } from "@/lib/assistant/upload-types";
 import { ASSISTANT_COMPOSER_ID } from "./assistant-shortcut";
 import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
-import { NEW_CHAT, useDraftUser } from "./composer-drafts";
+import {
+  composerDrafts,
+  type DraftKey,
+  EMPTY_DRAFT,
+  useComposerDraft,
+} from "./composer-drafts";
 import { shouldSend } from "./composer-keys";
 import { ContextPicker } from "./context-picker";
 import { useAssistantErrorText } from "./error-text";
@@ -45,6 +50,10 @@ const MAX_ATTACHMENTS = 10;
  * anywhere in the text sets the chip too (see `useMentions`). A refused send
  * (daily cap, busy, not configured) is shown above the box, worded from its
  * code; the text and files are kept so it can be sent again.
+ *
+ * What is typed, attached and picked is the draft of `draftKey` (the open
+ * chat, see `composer-drafts`), so each chat keeps its own; the chip shows
+ * `context`, which the caller resolves from that draft.
  */
 export function Composer({
   disabled,
@@ -53,8 +62,9 @@ export function Composer({
   onStop,
   onSend,
   focusKey,
+  draftKey,
+  userId,
   context,
-  onContextChange,
   capResetsAt,
   readsImages = true,
 }: {
@@ -73,9 +83,15 @@ export function Composer({
   ) => Promise<void>;
   /** The box takes focus on mount and whenever this changes. */
   focusKey: string | null;
-  /** What the next question is about (the chip beside the attachments). */
+  /** The draft this box shows and edits: the open chat, or NEW_CHAT. */
+  draftKey: DraftKey;
+  /** The signed-in user (`useDraftUser`); null: nothing to show or keep. */
+  userId: string | null;
+  /**
+   * What the next question is about (the chip beside the attachments): the
+   * draft's context as the caller resolved it. A pick writes the draft.
+   */
   context: QuestionContextInput;
-  onContextChange: (context: QuestionContextInput) => void;
   /** Set (ISO) when today's limit is reached: says when it resets. */
   capResetsAt?: string | null;
   /** False: the configured model cannot view images (said under them). */
@@ -83,11 +99,23 @@ export function Composer({
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
-  const [text, setText] = React.useState("");
-  const [attachments, setAttachments] = React.useState<PickedAttachment[]>([]);
+  const [draft, updateDraft] = useComposerDraft(userId, draftKey);
+  const { text, attachments } = draft;
+  const setText = (next: string) => updateDraft((d) => ({ ...d, text: next }));
+  const setAttachments = (
+    change: (prev: PickedAttachment[]) => PickedAttachment[]
+  ) => updateDraft((d) => ({ ...d, attachments: change(d.attachments) }));
+  const setContext = (next: QuestionContextInput) =>
+    updateDraft((d) => ({ ...d, context: next }));
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // A refused send is about the chat it was sent from.
+  const [errorKey, setErrorKey] = React.useState(draftKey);
+  if (errorKey !== draftKey) {
+    setErrorKey(draftKey);
+    setError(null);
+  }
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   // An addon focuses its first `input` on a click, which here is the hidden
@@ -96,15 +124,14 @@ export function Composer({
     if (e.target === e.currentTarget) textareaRef.current?.focus();
   };
   const fileInput = React.useRef<HTMLInputElement>(null);
-  const userId = useDraftUser();
-  const uploads = useFileUploads(userId, NEW_CHAT);
+  const uploads = useFileUploads(userId, draftKey);
   // Files can be added while an answer runs, for the next question; past
   // the limit, add() says so.
   const drop = useFileDrop(uploads.add, false);
   const mentions = useMentions({
     text,
     onTextChange: setText,
-    onPick: onContextChange,
+    onPick: setContext,
     textareaRef,
     disabled,
   });
@@ -121,7 +148,9 @@ export function Composer({
     attachments.length > 0 || uploads.files.length > 0 || !!uploads.notice;
 
   const send = async () => {
-    if (!canSend) return;
+    if (!canSend || !userId) return;
+    // The chat it is sent from: the user may open another before it resolves.
+    const key = draftKey;
     setSending(true);
     setError(null);
     try {
@@ -130,9 +159,12 @@ export function Composer({
         attachments.map((a) => ({ issueKey: a.issueKey, attachmentId: a.id })),
         uploads.fileIds
       );
-      setText("");
-      setAttachments([]);
-      uploads.clear();
+      // Sent: the text, attachments and files belong to the question now;
+      // the chip keeps the context just sent.
+      composerDrafts.update(key, (d) => ({
+        ...EMPTY_DRAFT,
+        context: d.context,
+      }));
       textareaRef.current?.focus();
     } catch (e) {
       setError(errorText(e));
@@ -279,7 +311,7 @@ export function Composer({
           />
           <ContextPicker
             value={context}
-            onChange={onContextChange}
+            onChange={setContext}
             disabled={disabled}
           />
           {running ? (

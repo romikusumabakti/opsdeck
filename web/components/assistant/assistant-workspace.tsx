@@ -42,6 +42,13 @@ import { AllowanceBadge, capReached, showMeter } from "./allowance-badge";
 import { assistantShortcutLabel } from "./assistant-shortcut";
 import { ChatThread, pendingAnswer } from "./chat-thread";
 import { Composer } from "./composer";
+import {
+  composerDrafts,
+  type DraftKey,
+  NEW_CHAT,
+  useComposerDraft,
+  useDraftUser,
+} from "./composer-drafts";
 import { useContextOptions, visibleContext } from "./context-picker";
 import { ConversationList } from "./conversation-list";
 import {
@@ -104,19 +111,21 @@ function keyOf(context: QuestionContextInput | null): string {
  * The Assistant: the caller's chats, the open thread with its question box,
  * and, on demand, the drafts of that chat. Each
  * question asks about the context in the composer's chip: Automatic, a
- * project, or an environment. The chip starts at `initialContext` (else
- * Automatic), and an opened conversation moves it to the context of its last
- * question; a project or environment the caller no longer sees reads as
- * Automatic. It fills the height its route gives it: the conversation list
- * and the thread scroll on their own while the question box stays at the
- * bottom. A new conversation is created by its first question.
+ * project, or an environment. The question box keeps an unsent draft per
+ * chat (text, files, attachments and chip; New chat has its own), so
+ * switching chats shows that chat's. A chat without a chip yet starts at the
+ * context of its last question (New chat: Automatic); `initialContext` sets
+ * the chip of the chat open when it arrives. A project or environment the
+ * caller no longer sees reads as Automatic. It fills the height its route
+ * gives it: the conversation list and the thread scroll on their own while
+ * the question box stays at the bottom. A new conversation is created by its first question.
  */
 export function AssistantWorkspace({
   initialContext = null,
   conversationId = null,
   onConversationChange,
 }: {
-  /** The chip's first value, e.g. from `?project=` or `?env=`. */
+  /** Sets the open chat's chip, e.g. from `?project=` or `?env=`. */
   initialContext?: QuestionContextInput | null;
   /** The open conversation, e.g. `?c=`; a change from outside opens it. */
   conversationId?: string | null;
@@ -130,31 +139,29 @@ export function AssistantWorkspace({
   const [selectedId, setSelectedIdState] = React.useState(conversationId);
   // A new `conversationId` from the URL opens that conversation.
   const [seenProp, setSeenProp] = React.useState(conversationId);
-  // The chip. `seededFor` is the conversation whose last question set it, so
-  // opening a conversation moves the chip once and the user's pick then
-  // stands. A preselection counts as seeding the opened conversation.
-  const [picked, setPicked] = React.useState<QuestionContextInput>(
-    initialContext ?? AUTO
+  // A preselection (at mount, or a link followed while here) waiting to be
+  // written into the chip of the chat open when it came; dropping it from
+  // the URL changes nothing.
+  const [preselect, setPreselect] = React.useState<{
+    key: DraftKey;
+    context: QuestionContextInput;
+  } | null>(
+    initialContext
+      ? { key: conversationId ?? NEW_CHAT, context: initialContext }
+      : null
   );
-  const [seededFor, setSeededFor] = React.useState<string | null>(
-    initialContext ? conversationId : null
-  );
-  // A new `initialContext` (a link followed while here) moves the chip;
-  // dropping it from the URL does not.
   const [seenInitial, setSeenInitial] = React.useState(keyOf(initialContext));
   if (keyOf(initialContext) !== seenInitial) {
     setSeenInitial(keyOf(initialContext));
-    if (initialContext) setPicked(initialContext);
+    if (initialContext) {
+      setPreselect({ key: selectedId ?? NEW_CHAT, context: initialContext });
+    }
   }
   if (conversationId !== seenProp) {
     setSeenProp(conversationId);
-    if (conversationId !== selectedId) {
-      setSelectedIdState(conversationId);
-      setSeededFor(null);
-    }
+    if (conversationId !== selectedId) setSelectedIdState(conversationId);
   }
   const select = (id: string | null) => {
-    if (id !== selectedId) setSeededFor(null);
     setSelectedIdState(id);
     onConversationChange?.(id);
   };
@@ -174,19 +181,45 @@ export function AssistantWorkspace({
     if (foreign) dropForeign();
   }, [foreign]);
 
-  if (
-    conversation &&
-    conversation.id === selectedId &&
-    seededFor !== selectedId
-  ) {
-    const last = lastContextOf(conversation);
-    setSeededFor(selectedId);
-    if (last !== undefined) setPicked(last);
-  }
+  // The open chat's draft. Its chip, until set, is seeded: a chat's from its
+  // last question once read, New chat's Automatic. A pending preselection
+  // for this chat is shown until written.
+  const userId = useDraftUser();
+  const draftKey: DraftKey = selectedId ?? NEW_CHAT;
+  const [draft] = useComposerDraft(userId, draftKey);
+  const loaded = conversation !== undefined && conversation.id === selectedId;
+  const seed =
+    selectedId === null
+      ? AUTO
+      : loaded
+        ? (lastContextOf(conversation) ?? AUTO)
+        : undefined;
+  // Store writes, so after render (and after `useDraftUser` made the user
+  // the store's owner): a preselection replaces its chat's chip, a seed
+  // fills an unset one.
+  React.useEffect(() => {
+    if (!userId || !preselect) return;
+    composerDrafts.update(preselect.key, (d) => ({
+      ...d,
+      context: preselect.context,
+    }));
+    setPreselect(null);
+  }, [userId, preselect]);
+  React.useEffect(() => {
+    if (!userId || seed === undefined || draft.context !== null) return;
+    composerDrafts.update(draftKey, (d) =>
+      d.context === null ? { ...d, context: seed } : d
+    );
+  }, [userId, draftKey, draft.context, seed]);
   // A project or environment the caller does not (or no longer) see is
   // Automatic.
   const contextOptions = useContextOptions();
-  const context = visibleContext(picked, contextOptions);
+  const context = visibleContext(
+    (preselect?.key === draftKey ? preselect.context : draft.context) ??
+      seed ??
+      AUTO,
+    contextOptions
+  );
 
   const isLarge = useIsLarge();
   const [draftsOpen, setDraftsOpen] = React.useState(false);
@@ -280,6 +313,14 @@ export function AssistantWorkspace({
       ...(attachments.length > 0 ? { attachments } : {}),
       ...(fileIds.length > 0 ? { fileIds } : {}),
     });
+    if (!selectedId && userId) {
+      // A first question: New chat starts over, and the chat it created keeps
+      // the context just sent (the composer empties the rest).
+      composerDrafts.clear(NEW_CHAT);
+      composerDrafts.update(id, (d) =>
+        d.context === null ? { ...d, context } : d
+      );
+    }
     if (id !== selectedRef.current) {
       created.current = null;
       // Only if the user is still on the new-conversation view: one who
@@ -288,8 +329,6 @@ export function AssistantWorkspace({
         // Opened only once its first question is stored: a read racing the
         // send could come back empty, and nothing would read it again.
         select(id);
-        // The chip keeps the context just sent.
-        setSeededFor(id);
       }
     }
   };
@@ -399,16 +438,15 @@ export function AssistantWorkspace({
           <ConversationList
             selectedId={selectedId}
             onSelect={select}
-            onNew={() => {
-              select(null);
-              setPicked(AUTO);
-            }}
+            // New chat's draft, as it was left.
+            onNew={() => select(null)}
             onDeleted={(id) => {
               if (created.current === id) created.current = null;
+              // Its unsent text goes, and its unsent uploads are deleted.
+              if (userId) composerDrafts.drop(id);
               // Deleting the open chat returns to a new one (and clears ?c=).
               if (id !== selectedRef.current) return;
               select(null);
-              setPicked(AUTO);
               setDraftsOpen(false);
             }}
           />
@@ -446,8 +484,9 @@ export function AssistantWorkspace({
               readsImages={allowance.readsImages}
               onSend={send}
               focusKey={selectedId ?? "new"}
+              draftKey={draftKey}
+              userId={userId}
               context={context}
-              onContextChange={setPicked}
             />
           </div>
         </div>
