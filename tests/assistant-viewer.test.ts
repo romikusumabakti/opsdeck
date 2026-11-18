@@ -77,9 +77,9 @@ describe("loadAssistantViewer", () => {
     });
   });
 
-  it("normalizes an unknown role to qa with no projects", async () => {
+  it("normalizes an unknown role to staff with no projects", async () => {
     expect(await loadAssistantViewer("weird")).toMatchObject({
-      orgRole: "qa",
+      orgRole: "staff",
       projectIds: [],
     });
   });

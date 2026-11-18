@@ -6,10 +6,12 @@
 // both the org-level rights (orgRoles) and, on every project the user can see,
 // which project statement set applies (ProjectRole: viewer, qa or engineer).
 // ProjectRole is that statement-set key, not a stored per-project value.
-// admin, infra and observer see every project; engineer, qa and pm see the
-// projects they are members of. pm holds exactly the qa set (it only carries
-// a different label). Roles are defined in code on purpose; admins
-// only assign them.
+// admin, infra and observer see every project; engineer, qa, ba and pm see
+// the projects they are members of. ba and pm hold exactly the qa set (they
+// only carry a different label). staff sees no project at all, even with a
+// membership row, and only reads the knowledge base; it is also the floor for
+// a user nobody assigned a role to. Roles are defined in code on purpose;
+// admins only assign them.
 
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/admin/access";
@@ -19,7 +21,9 @@ export const ORG_ROLES = [
   "infra",
   "engineer",
   "qa",
+  "ba",
   "pm",
+  "staff",
   "observer",
 ] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
@@ -79,9 +83,16 @@ export const orgRoles = {
   qa: orgAc.newRole({
     knowledge: ["read", "write"],
   }),
-  // pm is qa under another name: the same org rights.
+  // ba and pm are qa under another name: the same org rights.
+  ba: orgAc.newRole({
+    knowledge: ["read", "write"],
+  }),
   pm: orgAc.newRole({
     knowledge: ["read", "write"],
+  }),
+  // Non-IT staff and management: Home and reading the knowledge base.
+  staff: orgAc.newRole({
+    knowledge: ["read"],
   }),
   observer: orgAc.newRole({
     user: ["list"],
@@ -182,13 +193,15 @@ export function isOrgRole(value: string): value is OrgRole {
 }
 
 // Unknown org roles — legacy `member`/`viewer`/`maintainer`, typos, forged
-// values — floor to `qa`, the least privileged role: it sees only the projects
-// it is a member of.
+// values — floor to `staff`, the least privileged role: it sees no project
+// and only reads the knowledge base.
 export function normalizeOrgRole(role: string | null | undefined): OrgRole {
-  return role && isOrgRole(role) ? role : "qa";
+  return role && isOrgRole(role) ? role : "staff";
 }
 
 // The project statement set a job role holds on any project it can see.
+// staff sees none (effectiveProjectRole), so its "viewer" here never grants
+// anything; it only keeps the answer total and below engineer.
 export function projectRoleForOrgRole(
   orgRole: string | null | undefined
 ): ProjectRole {
@@ -196,28 +209,31 @@ export function projectRoleForOrgRole(
   if (org === "admin" || org === "infra" || org === "engineer") {
     return "engineer";
   }
+  if (org === "qa" || org === "ba" || org === "pm") return "qa";
   if (org === "observer") return "viewer";
-  if (org === "qa" || org === "pm") return "qa";
-  return "qa";
+  // staff: never applied, see effectiveProjectRole.
+  return "viewer";
 }
 
-// admin, infra and observer see every project; engineer, qa and pm only the
-// projects they are members of.
+// admin, infra and observer see every project; engineer, qa, ba and pm only
+// the projects they are members of; staff none.
 export function seesAllProjects(orgRole: string | null | undefined): boolean {
   const org = normalizeOrgRole(orgRole);
   return org === "admin" || org === "infra" || org === "observer";
 }
 
 // The statement set that applies to one user on one project. A membership
-// makes the project visible to engineer and qa; it never changes the set.
+// makes the project visible to engineer, qa, ba and pm; it never changes the
+// set. staff (and every unknown role, which floors to it) sees no project even
+// with a membership row, e.g. one left over from an earlier role.
 // Null = no access, and the project must look like it does not exist.
 export function effectiveProjectRole(
   orgRole: string | null | undefined,
   isMember: boolean
 ): ProjectRole | null {
-  return seesAllProjects(orgRole) || isMember
-    ? projectRoleForOrgRole(orgRole)
-    : null;
+  const org = normalizeOrgRole(orgRole);
+  if (org === "staff") return null;
+  return seesAllProjects(org) || isMember ? projectRoleForOrgRole(org) : null;
 }
 
 // Org actions a session may perform however it signed in (a password alone

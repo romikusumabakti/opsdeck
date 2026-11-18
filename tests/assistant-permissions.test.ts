@@ -29,7 +29,9 @@ describe("assistant permissions", () => {
       "infra",
       "engineer",
       "qa",
+      "ba",
       "pm",
+      "staff",
       "observer",
     ] as OrgRole[]) {
       expect(canOrg(role, { assistant: ["manage"] })).toBe(false);
@@ -58,7 +60,7 @@ describe("assistant permissions", () => {
   // The worker re-checks a pinned question against the viewer's visible
   // projects, and the global gate counts visible projects: both rely on every
   // visible project granting assistant:use.
-  it.each(["admin", "infra", "engineer", "qa", "pm", "observer"])(
+  it.each(["admin", "infra", "engineer", "qa", "ba", "pm", "observer"])(
     "a %s may use the assistant on every project they see",
     (orgRole) => {
       const access = resolveProjectAccess(
@@ -72,4 +74,15 @@ describe("assistant permissions", () => {
       }
     }
   );
+
+  // The global gate refuses a caller who sees no project: staff, even with a
+  // membership row left over from an earlier role.
+  it("a staff member sees no project, so the assistant gate refuses them", () => {
+    const access = resolveProjectAccess(
+      "staff",
+      ["p-member", "p-other"],
+      ["p-member"]
+    );
+    expect(access).toEqual({ all: false, roles: {} });
+  });
 });

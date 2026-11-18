@@ -5,8 +5,8 @@ import { normalizeOrgRole } from "@/lib/permissions";
 
 export function RoleBadge({ role }: { role: string }) {
   const t = useTranslations("users");
-  // An unknown or legacy role string (e.g. `member`) is treated as `qa` for
-  // access, so it is shown as `qa` too.
+  // An unknown or legacy role string (e.g. `member`) is treated as `staff` for
+  // access, so it is shown as `staff` too.
   const label = t(`role.${normalizeOrgRole(role)}`);
   return (
     <Badge

@@ -170,8 +170,8 @@ describe("buildTools", () => {
         (PANEL_TOOL_NAMES as string[]).includes(n)
       );
     for (const mode of [ctx, autoCtx]) {
-      // qa and pm: no Servers page, no Activity page.
-      for (const role of ["qa", "pm"] as const) {
+      // qa, ba and pm: no Servers page, no Activity page.
+      for (const role of ["qa", "ba", "pm"] as const) {
         const v = viewerAs(role);
         expect(
           panelNames({ ...mode, viewer: v, panel: panelFor(v) }),

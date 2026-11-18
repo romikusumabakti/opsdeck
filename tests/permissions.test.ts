@@ -40,20 +40,22 @@ const JUNK_ROLES = [
 ];
 
 describe("normalizeOrgRole", () => {
-  it("lists the six roles in order", () => {
+  it("lists the eight roles in order", () => {
     expect(ORG_ROLES).toEqual([
       "admin",
       "infra",
       "engineer",
       "qa",
+      "ba",
       "pm",
+      "staff",
       "observer",
     ]);
   });
-  it("keeps the six roles", () => {
+  it("keeps the eight roles", () => {
     for (const r of ORG_ROLES) expect(normalizeOrgRole(r)).toBe(r);
   });
-  it("floors member, legacy and junk roles to qa", () => {
+  it("floors member, legacy and junk roles to staff", () => {
     for (const r of [
       "member",
       "viewer",
@@ -62,9 +64,10 @@ describe("normalizeOrgRole", () => {
       "",
       null,
       undefined,
+      "legacy",
     ])
-      expect(normalizeOrgRole(r)).toBe("qa");
-    for (const r of JUNK_ROLES) expect(normalizeOrgRole(r)).toBe("qa");
+      expect(normalizeOrgRole(r)).toBe("staff");
+    for (const r of JUNK_ROLES) expect(normalizeOrgRole(r)).toBe("staff");
   });
 });
 
@@ -74,9 +77,9 @@ describe("projectRoleForOrgRole", () => {
     ["infra", "engineer"],
     ["engineer", "engineer"],
     ["qa", "qa"],
+    ["ba", "qa"],
+    ["pm", "qa"],
     ["observer", "viewer"],
-    ["member", "qa"],
-    ["toString", "qa"],
   ])("%s → %s", (org, set) => expect(projectRoleForOrgRole(org)).toBe(set));
 });
 
@@ -91,14 +94,21 @@ describe("effectiveProjectRole", () => {
     ["engineer", false, null],
     ["qa", true, "qa"],
     ["qa", false, null],
-    ["member", true, "qa"],
+    ["ba", true, "qa"],
+    ["ba", false, null],
+    ["staff", true, null],
+    ["staff", false, null],
+    // A legacy role floors to staff: no project, even as a member.
+    ["member", true, null],
     ["member", false, null],
   ] as const)("%s, member %s → %s", (org, isMember, expected) =>
     expect(effectiveProjectRole(org, isMember)).toBe(expected)
   );
-  it("never lets a junk org role see a project without membership", () => {
-    for (const r of JUNK_ROLES)
+  it("never lets a junk org role see a project, even as a member", () => {
+    for (const r of JUNK_ROLES) {
       expect(effectiveProjectRole(r, false)).toBeNull();
+      expect(effectiveProjectRole(r, true)).toBeNull();
+    }
   });
 });
 
@@ -117,6 +127,61 @@ describe("pm", () => {
   });
 });
 
+// ba is qa under another label, exactly as pm: the same checks as pm above.
+describe("ba", () => {
+  it("holds the qa set on memberships and nothing elsewhere", () => {
+    expect(projectRoleForOrgRole("ba")).toBe("qa");
+    expect(effectiveProjectRole("ba", true)).toBe("qa");
+    expect(effectiveProjectRole("ba", false)).toBeNull();
+    expect(seesAllProjects("ba")).toBe(false);
+  });
+  it("has no engineer grant", () => {
+    expect(holdsEngineerAnywhere("ba")).toBe(false);
+    expect(canCreateProject("ba")).toBe(false);
+    expect(canRegisterApp("ba")).toBe(false);
+    expect(canOrgAccess("ba", { server: ["read"] })).toBe(false);
+  });
+  it("is qa everywhere: every org statement and the project set", () => {
+    for (const [resource, action] of ORG_MATRIX) {
+      const perms = { [resource]: [action] } as never;
+      expect(canOrgAccess("ba", perms)).toBe(canOrgAccess("qa", perms));
+      expect(canOrg("ba", perms)).toBe(canOrg("qa", perms));
+    }
+    for (const isMember of [true, false]) {
+      expect(effectiveProjectRole("ba", isMember)).toBe(
+        effectiveProjectRole("qa", isMember)
+      );
+    }
+  });
+});
+
+describe("staff", () => {
+  it("never sees a project, even as a member", () => {
+    expect(seesAllProjects("staff")).toBe(false);
+    expect(effectiveProjectRole("staff", true)).toBeNull();
+    expect(effectiveProjectRole("staff", false)).toBeNull();
+  });
+  it("reads the knowledge base and nothing else", () => {
+    expect(canOrgAccess("staff", { knowledge: ["read"] })).toBe(true);
+    expect(canOrgAccess("staff", { knowledge: ["write"] })).toBe(false);
+    expect(canOrgAccess("staff", { knowledge: ["manage"] })).toBe(false);
+    expect(canOrgAccess("staff", { user: ["list"] })).toBe(false);
+    expect(canOrgAccess("staff", { server: ["read"] })).toBe(false);
+    expect(canOrgAccess("staff", { storage: ["read"] })).toBe(false);
+    expect(canOrgAccess("staff", { tunnel: ["read"] })).toBe(false);
+    expect(canOrgAccess("staff", { audit: ["read"] })).toBe(false);
+    expect(canOrgAccess("staff", { assistant: ["manage"] })).toBe(false);
+  });
+  it("has no engineer grant", () => {
+    expect(holdsEngineerAnywhere("staff")).toBe(false);
+    expect(canCreateProject("staff")).toBe(false);
+    expect(canRegisterApp("staff")).toBe(false);
+  });
+  it("is the floor for an unknown role", () => {
+    expect(normalizeOrgRole("legacy")).toBe("staff");
+  });
+});
+
 describe("seesAllProjects", () => {
   it.each([
     ["admin", true],
@@ -124,6 +189,9 @@ describe("seesAllProjects", () => {
     ["observer", true],
     ["engineer", false],
     ["qa", false],
+    ["ba", false],
+    ["pm", false],
+    ["staff", false],
     ["member", false],
   ] as const)("%s → %s", (org, expected) =>
     expect(seesAllProjects(org)).toBe(expected)
@@ -133,26 +201,26 @@ describe("seesAllProjects", () => {
 // The spec's org matrix, verbatim. One row per statement, one column per role.
 // biome-ignore format: kept as a one-row-per-statement table to mirror the spec
 const ORG_MATRIX: [string, string, Record<OrgRole, boolean>][] = [
-  ["user", "list", { admin: true, infra: false, observer: true, engineer: false, qa: false, pm: false }],
-  ["user", "invite", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
-  ["user", "set-role", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
-  ["user", "offboard", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
-  ["project", "create", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
-  ["project", "delete", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
-  ["server", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, pm: false }],
-  ["server", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
-  ["server", "terminal", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
-  ["server", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
-  ["storage", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, pm: false }],
-  ["storage", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
-  ["storage", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
-  ["tunnel", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, pm: false }],
-  ["tunnel", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, pm: false }],
-  ["integration", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
-  ["knowledge", "read", { admin: true, infra: true, observer: true, engineer: true, qa: true, pm: true }],
-  ["knowledge", "write", { admin: true, infra: true, observer: false, engineer: true, qa: true, pm: true }],
-  ["knowledge", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false, pm: false }],
-  ["audit", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, pm: false }],
+  ["user", "list", { admin: true, infra: false, observer: true, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["user", "invite", { admin: true, infra: false, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["user", "set-role", { admin: true, infra: false, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["user", "offboard", { admin: true, infra: false, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["project", "create", { admin: true, infra: false, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["project", "delete", { admin: true, infra: false, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["server", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["server", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["server", "terminal", { admin: true, infra: true, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["server", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["storage", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["storage", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["storage", "files", { admin: true, infra: true, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["tunnel", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["tunnel", "manage", { admin: true, infra: true, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["integration", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["knowledge", "read", { admin: true, infra: true, observer: true, engineer: true, qa: true, ba: true, pm: true, staff: true }],
+  ["knowledge", "write", { admin: true, infra: true, observer: false, engineer: true, qa: true, ba: true, pm: true, staff: false }],
+  ["knowledge", "manage", { admin: true, infra: false, observer: false, engineer: false, qa: false, ba: false, pm: false, staff: false }],
+  ["audit", "read", { admin: true, infra: true, observer: true, engineer: false, qa: false, ba: false, pm: false, staff: false }],
 ];
 
 describe("canOrg matrix", () => {
@@ -165,10 +233,11 @@ describe("canOrg matrix", () => {
       });
     }
   }
-  it("denies every statement to junk roles except what qa has", () => {
+  it("denies every statement to junk roles except what staff has", () => {
     for (const r of JUNK_ROLES) {
       expect(canOrg(r, { user: ["invite"] })).toBe(false);
       expect(canOrg(r, { server: ["terminal"] })).toBe(false);
+      expect(canOrg(r, { knowledge: ["write"] })).toBe(false);
       expect(canOrg(r, { knowledge: ["read"] })).toBe(true);
     }
   });
@@ -263,8 +332,8 @@ describe("QA and engineer behaviour", () => {
 });
 
 describe("canOrg for the new roles", () => {
-  it("gives engineer and qa exactly member's old grant", () => {
-    for (const r of ["engineer", "qa"]) {
+  it("gives engineer, qa and ba exactly member's old grant", () => {
+    for (const r of ["engineer", "qa", "ba"]) {
       expect(canOrg(r, { knowledge: ["read", "write"] })).toBe(true);
       expect(canOrg(r, { knowledge: ["manage"] })).toBe(false);
       expect(canOrg(r, { server: ["read"] })).toBe(false);
@@ -292,8 +361,8 @@ describe("canOrgAccess", () => {
     for (const p of grant) expect(canOrgAccess("engineer", p)).toBe(true);
     for (const p of beyond) expect(canOrgAccess("engineer", p)).toBe(false);
   });
-  it("gives qa, member and junk roles no grant", () => {
-    for (const r of ["qa", "member", "toString"])
+  it("gives qa, ba, pm, staff, member and junk roles no grant", () => {
+    for (const r of ["qa", "ba", "pm", "staff", "member", "toString"])
       expect(canOrgAccess(r, { server: ["read"] })).toBe(false);
   });
   it("leaves observer and infra on their org role", () => {
@@ -322,6 +391,9 @@ describe("canCreateProject and canRegisterApp", () => {
     ["infra", true],
     ["engineer", true],
     ["qa", false],
+    ["ba", false],
+    ["pm", false],
+    ["staff", false],
     ["observer", false],
     ["member", false],
     ["toString", false],

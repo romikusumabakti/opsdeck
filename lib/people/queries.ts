@@ -13,11 +13,7 @@ import {
   sessions,
   users,
 } from "@/lib/db/schema";
-import {
-  canOrg,
-  effectiveProjectRole,
-  seesAllProjects,
-} from "@/lib/permissions";
+import { canOrg, effectiveProjectRole } from "@/lib/permissions";
 import { effectiveTimeZone } from "@/lib/timezone";
 import { activeStatus, type WorkingHours } from "@/lib/user-display";
 
@@ -167,7 +163,7 @@ export async function getPersonProjects(
   const membership = new Set(memberships.map((m) => m.projectId));
   return visibleProjects.flatMap((p) => {
     if (!access.roles[p.id]) return [];
-    return seesAllProjects(target.role) || membership.has(p.id) ? [p] : [];
+    return effectiveProjectRole(target.role, membership.has(p.id)) ? [p] : [];
   });
 }
 

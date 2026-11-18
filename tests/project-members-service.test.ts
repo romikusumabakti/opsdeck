@@ -111,7 +111,7 @@ describe("project members service", () => {
       { userId: U, name: "Rina", image: null, email: "r@x", role: "member" },
     ];
     expect(await listProjectMembers(P)).toEqual([
-      { userId: U, name: "Rina", image: null, email: "r@x", orgRole: "qa" },
+      { userId: U, name: "Rina", image: null, email: "r@x", orgRole: "staff" },
     ]);
   });
 });

@@ -1,0 +1,63 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "38840628-e453-4e88-bc89-58572db81625",
+  "prevIds": [
+    "cd116527-83a3-4b3c-b317-6daaf074844b"
+  ],
+  "footprints": [
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "invitations",
+        "role"
+      ],
+      "writes": [
+        "s|colprop|public.invitations.role.default"
+      ],
+      "reads": [
+        "n|tbl|public.invitations",
+        "n|sch|public",
+        "n|col|public.invitations.role"
+      ],
+      "sqlHash": "6ef772a8e28acd90"
+    },
+    {
+      "statementType": "alter_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "users",
+        "role"
+      ],
+      "writes": [
+        "s|colprop|public.users.role.default"
+      ],
+      "reads": [
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.users.role"
+      ],
+      "sqlHash": "21c34db3f22518f0"
+    }
+  ],
+  "deltas": [
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"invitations\",\"role\"]",
+      "set": {
+        "default": "'staff'"
+      }
+    },
+    {
+      "op": "alter",
+      "key": "columns\u0000[\"public\",\"users\",\"role\"]",
+      "set": {
+        "default": "'staff'"
+      }
+    }
+  ]
+}

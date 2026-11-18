@@ -159,7 +159,7 @@ describe("Members tab", () => {
     ]);
     expect(text()).toContain("Rina");
     expect(text()).toContain("Engineer");
-    expect(text()).toContain("QA / BA");
+    expect(text()).toContain("QA");
     expect(text()).toContain("Admin");
     // Only the user picker: no per-member role select.
     expect(

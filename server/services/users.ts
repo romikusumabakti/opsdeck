@@ -287,8 +287,8 @@ export async function inviteUser(input: {
   const session = await requireOrgPermission({ user: ["invite"] });
   const t = await getServerTranslator("actionErrors");
 
-  // The invite must name one of the five roles; an unknown string is refused
-  // rather than quietly turned into `qa`.
+  // The invite must name one of the ORG_ROLES; an unknown string is refused
+  // rather than quietly turned into the `staff` floor.
   if (!isOrgRole(input.role)) {
     return { success: false, message: t("invalidInput") };
   }
@@ -378,7 +378,7 @@ export async function updateUserRole(input: {
     return { success: false, message: t("cannotChangeOwnRole") };
   }
 
-  // Only the five org roles (admin, infra, engineer, qa, observer) are assignable.
+  // Only the org roles (lib/permissions ORG_ROLES) are assignable.
   // An unrecognised string is rejected outright instead of being silently
   // rewritten, so a bad client can't quietly change a role.
   if (!isOrgRole(input.role)) {

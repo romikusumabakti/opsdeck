@@ -137,4 +137,44 @@ describe("global job roles through the API", () => {
     const { status } = await control("restart");
     expect([401, 403, 404]).not.toContain(status);
   });
+
+  it("a ba sees only their memberships, with the qa set", async () => {
+    as("ba", P1);
+    const res = await app.request("/api/project-catalog/my-access");
+    expect(await res.json()).toEqual({ all: false, roles: { [P1]: "qa" } });
+  });
+
+  it("a ba member cannot deploy (403)", async () => {
+    as("ba", P1);
+    expect((await deploy()).status).toBe(403);
+  });
+
+  it("a ba member cannot start or stop a service (403)", async () => {
+    as("ba", P1);
+    expect((await control("start")).status).toBe(403);
+    expect((await control("stop")).status).toBe(403);
+  });
+
+  it("a ba member passes the restart guard", async () => {
+    as("ba", P1);
+    const { status } = await control("restart");
+    expect([401, 403, 404]).not.toContain(status);
+  });
+
+  // A membership row left over from an earlier role (qa changed to staff
+  // without removing it) must not open the project.
+  it("staff never sees a project, even as a member", async () => {
+    as("staff", P1, P2);
+    const res = await app.request("/api/project-catalog/my-access");
+    expect(await res.json()).toEqual({ all: false, roles: {} });
+    expect((await deploy()).status).toBe(404);
+    expect((await control("restart")).status).toBe(404);
+  });
+
+  it("a legacy role floors to staff: no project, even as a member", async () => {
+    as("member", P1);
+    const res = await app.request("/api/project-catalog/my-access");
+    expect(await res.json()).toEqual({ all: false, roles: {} });
+    expect((await control("restart")).status).toBe(404);
+  });
 });

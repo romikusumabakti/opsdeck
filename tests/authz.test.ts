@@ -37,10 +37,10 @@ describe("resolveProjectAccess", () => {
         roles: { p1: "engineer", p2: "engineer", p3: "engineer" },
       });
   });
-  it("floors member and junk roles to qa on their memberships", () => {
+  it("floors member and junk roles to staff: no project, even as a member", () => {
     expect(resolveProjectAccess("member", ALL, ["p1"])).toEqual({
       all: false,
-      roles: { p1: "qa" },
+      roles: {},
     });
     expect(resolveProjectAccess("maintainer", ALL, [])).toEqual({
       all: false,

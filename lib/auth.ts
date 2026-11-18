@@ -112,9 +112,9 @@ export const auth = betterAuth({
           // Two things keep that from being a hole:
           //   - the `databaseHooks` guard below rejects any email outside
           //     ALLOWED_EMAIL_DOMAIN, and
-          //   - new users land on `defaultRole` (qa): QA rights on zero
-          //     projects until an admin adds memberships, never with ops
-          //     rights.
+          //   - new users land on `defaultRole` (staff): reading the
+          //     knowledge base and no project until an admin assigns a job
+          //     role, never with ops rights.
           // Invitations still exist for anyone who needs a higher role up front.
           disableSignUp: false,
           // Entra hands back a Graph photo URL that needs a bearer token, so
@@ -334,10 +334,11 @@ export const auth = betterAuth({
     admin({
       // Roles and their statements live in lib/permissions. A user nobody
       // assigned a role to — in practice a fresh Microsoft sign-in — lands on
-      // `qa`: QA rights on zero projects until an admin adds memberships.
+      // `staff`: reading the knowledge base, no project, until an admin
+      // assigns a job role.
       ac: orgAc,
       roles: orgRoles,
-      defaultRole: "qa",
+      defaultRole: "staff",
       adminRoles: ["admin"],
     }),
     // Passkeys are an additional factor a user enrols from their account page —

@@ -8,8 +8,9 @@ import type { ServerView } from "@/lib/server-view";
 // The issue, people, server and activity read cores (xxxFor(scope, …))
 // against their session wrappers on a real Postgres, as
 // tests/read-cores-scratch.test.ts does for environments and deploys: for an
-// admin, an observer, an engineer member of one project and a qa user who is
-// a member of nothing, each core given accessScopeForUser returns what the
+// admin, an observer, an engineer member of one project, a qa user who is
+// a member of nothing and a staff user who is a member of one project (and
+// must still see none), each core given accessScopeForUser returns what the
 // page's wrapper returns for that user's session, and refuses where the page
 // refuses (same status, or the same emptiness). The
 // local menara-postgres container (postgres 18) through its published port,
@@ -174,6 +175,8 @@ describe.skipIf(!enabled)(
         "engineer"
       );
       const qa = await user("00000000-0000-7000-8000-00000000c004", "qa");
+      // A membership left over from an earlier role opens nothing to staff.
+      const staff = await user("00000000-0000-7000-8000-00000000c006", "staff");
       // Deactivated: listed only for a role holding user:list.
       const gone = await user(
         "00000000-0000-7000-8000-00000000c005",
@@ -256,10 +259,11 @@ describe.skipIf(!enabled)(
       };
       const p1 = await seed("ALPHA");
       const p2 = await seed("BETA");
-      // The engineer is a member of the first project; qa of none.
-      await d
-        .insert(schema.projectMembers)
-        .values({ projectId: p1.project.id, userId: engineer.id });
+      // The engineer and staff are members of the first project; qa of none.
+      await d.insert(schema.projectMembers).values([
+        { projectId: p1.project.id, userId: engineer.id },
+        { projectId: p1.project.id, userId: staff.id },
+      ]);
       await d.insert(schema.activityLog).values([
         {
           actorId: admin.id,
@@ -269,7 +273,7 @@ describe.skipIf(!enabled)(
         { actorId: null, action: "member.added", data: { user: "x" } },
       ]);
 
-      const everyone = [admin, observer, engineer, qa];
+      const everyone = [admin, observer, engineer, qa, staff];
       const seesP1 = new Set([admin.id, observer.id, engineer.id]);
       const seesP2 = new Set([admin.id, observer.id]);
       // member:manage: admin everywhere, the engineer on its own project.
@@ -447,6 +451,50 @@ describe.skipIf(!enabled)(
           readsAudit.has(person.id) ? 200 : 403
         );
       }
+
+      // Seen by an admin, staff holds no project: not on the People page, not
+      // on its own card, not as an assignee or environment owner.
+      session.user = { id: admin.id, role: "admin" };
+      const usersService = await import("@/server/services/users");
+      const staffRow = (await people.listPeople()).find(
+        (p) => p.id === staff.id
+      );
+      expect(staffRow?.projectIds).toEqual([]);
+      expect(await people.getPersonProjects(staff.id)).toEqual([]);
+      expect(
+        (await people.getPersonProjects(engineer.id)).map((p) => p.id)
+      ).toEqual([p1.project.id]);
+      const assignable = await usersService.listAssignableUsers(p1.project.id);
+      expect(assignable.map((u) => u.id)).toContain(engineer.id);
+      expect(assignable.map((u) => u.id)).not.toContain(staff.id);
+      expect(
+        (await usersService.listAssignableUsersAcrossProjects()).map(
+          (u) => u.id
+        )
+      ).not.toContain(staff.id);
+
+      // The migrated column defaults: a row written without a role is staff.
+      const unassigned = one(
+        await d
+          .insert(schema.users)
+          .values({
+            id: "00000000-0000-7000-8000-00000000c007",
+            name: "unassigned",
+            email: "unassigned@example.com",
+          })
+          .returning()
+      );
+      expect(unassigned.role).toBe("staff");
+      const [rawUser] = await client`
+        insert into users (id, name, email)
+        values ('00000000-0000-7000-8000-00000000c008', 'raw', 'raw@example.com')
+        returning role`;
+      expect(rawUser?.role).toBe("staff");
+      const [rawInvite] = await client`
+        insert into invitations (email, name, token, expires_at)
+        values ('invitee@example.com', 'invitee', 'scratch-token', now() + interval '1 day')
+        returning role`;
+      expect(rawInvite?.role).toBe("staff");
 
       // The activity limit is clamped server-side.
       const scope = await accessScopeForUser(admin.id);

@@ -113,20 +113,25 @@ describe("Change role submenu", () => {
     await click(byText('[role="menuitem"]', en.roleChangeTitle));
   }
 
-  it("offers the six roles, each with a one-line description", async () => {
+  it("offers the eight roles, each with a one-line description", async () => {
     await openRoleSubmenu(user("qa"));
     for (const label of [
       "Admin",
       "Infra",
       "Engineer",
-      "QA / BA",
+      "QA",
+      "BA",
       "PM",
+      "Staff",
       "Observer",
     ]) {
       expect(bodyText()).toContain(label);
     }
+    expect(bodyText()).not.toContain("QA / BA");
     expect(bodyText()).toContain(en.roleDescription.engineer);
+    expect(bodyText()).toContain(en.roleDescription.ba);
     expect(bodyText()).toContain(en.roleDescription.pm);
+    expect(bodyText()).toContain(en.roleDescription.staff);
     expect(bodyText()).not.toContain("Member");
   });
 });
@@ -166,9 +171,9 @@ describe("Invite dialog", () => {
 });
 
 describe("RoleBadge", () => {
-  it("shows a legacy member value as the floored QA label", async () => {
+  it("shows a legacy member value as the floored Staff label", async () => {
     await mount(<RoleBadge {...{ role: "member" }} />);
-    expect(container?.textContent).toBe(en.role.qa);
+    expect(container?.textContent).toBe(en.role.staff);
   });
 
   it("shows a known role by its label", async () => {

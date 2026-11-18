@@ -1110,8 +1110,9 @@ export const projectRoleEnum = pgEnum("project_role", [
 ]);
 
 // A row lists a person on a project, and makes the project visible to an
-// engineer or QA (admin, infra and observer see every project anyway). What
-// they may do there comes from their global role (users.role).
+// engineer, QA, BA or PM (admin, infra and observer see every project anyway;
+// staff sees none, even with a row). What they may do there comes from their
+// global role (users.role).
 export const projectMembers = pgTable(
   "project_members",
   {
@@ -1514,7 +1515,7 @@ export const notifications = pgTable(
 
 // `role`, `banned`, `banReason`, `banExpires` are managed by the better-auth
 // admin plugin (lib/auth.ts). `role` is the global job role (lib/permissions
-// ORG_ROLES); it defaults to "qa", and the bootstrap user created in
+// ORG_ROLES); it defaults to "staff", and the bootstrap user created in
 // `createInitialUser` is promoted to "admin".
 export type AvatarSource = "upload" | "microsoft" | "removed";
 
@@ -1526,7 +1527,7 @@ export const users = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),
-    role: text("role").notNull().default("qa"),
+    role: text("role").notNull().default("staff"),
     banned: boolean("banned").notNull().default(false),
     banReason: text("ban_reason"),
     banExpires: timestamp("ban_expires"),
@@ -1704,7 +1705,7 @@ export const invitations = pgTable(
     name: text("name").notNull(),
     // The global job role the user gets upon accepting the invitation, one of
     // lib/permissions ORG_ROLES (validated in server/services/users.ts).
-    role: text("role").notNull().default("qa"),
+    role: text("role").notNull().default("staff"),
     // token is a separate random secret used in the invite URL — keep as text.
     token: text("token").notNull().unique(),
     invitedById: uuid("invited_by_id").references(() => users.id, {
