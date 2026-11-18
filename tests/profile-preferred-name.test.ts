@@ -37,6 +37,8 @@ describe("profileInputSchema preferredName", () => {
     expect(parse(null).data?.preferredName).toBeNull();
     expect(parse("x".repeat(40)).success).toBe(true);
     expect(parse("x".repeat(41)).success).toBe(false);
+    const omitted = profileInputSchema.parse(base);
+    expect(Object.keys(omitted)).not.toContain("preferredName");
   });
 });
 
@@ -90,6 +92,22 @@ describe("POST /api/profile/update-profile", () => {
   it("clears it when blank", async () => {
     expect((await post("  ")).status).toBe(200);
     expect(state.sets[0]?.preferredName).toBeNull();
+  });
+
+  it("leaves the stored value alone when the field is omitted", async () => {
+    const res = await app.request("/api/profile/update-profile", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ input: base }),
+    });
+    expect(res.status).toBe(200);
+    expect(state.sets).toHaveLength(1);
+    expect(Object.keys(state.sets[0] ?? {})).not.toContain("preferredName");
+  });
+
+  it("clears it on an explicit null", async () => {
+    expect((await post(null)).status).toBe(200);
+    expect(state.sets[0]).toHaveProperty("preferredName", null);
   });
 
   it("answers 400 for 41 characters and writes nothing", async () => {

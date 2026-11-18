@@ -840,7 +840,9 @@ export const profileInputSchema = z.object({
     .overwrite(normalizeDisplayName)
     .min(1)
     .max(PROFILE_LIMITS.name),
-  preferredName: optionalText(PROFILE_LIMITS.preferredName),
+  // Omitted = unchanged (undefined is skipped by the update); null or blank
+  // clears it. .optional() wraps the transform so undefined stays undefined.
+  preferredName: optionalText(PROFILE_LIMITS.preferredName).optional(),
   title: optionalText(PROFILE_LIMITS.title),
   bio: optionalText(PROFILE_LIMITS.bio),
   timezone: timeZoneSchema.nullable(),

@@ -76,7 +76,6 @@ describe("statusEmojiSchema", () => {
 describe("profileInputSchema", () => {
   const base = {
     name: "Budi",
-    preferredName: "",
     title: "",
     bio: "",
     timezone: null,
@@ -101,7 +100,6 @@ describe("profileInputSchema", () => {
     });
     expect(r).toEqual({
       name: "Budi",
-      preferredName: null,
       title: null,
       bio: null,
       timezone: null,

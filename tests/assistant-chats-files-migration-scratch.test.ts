@@ -174,10 +174,20 @@ describe.skipIf(!enabled)(
           is_nullable: "NO",
         },
       ]);
-      const [index] = await sql`select indexdef from pg_indexes
-        where tablename = 'assistant_files'
-        and indexname = 'assistant_files_user_created_idx'`;
-      expect(index?.indexdef).toMatch(/\(user_id, created_at\)/);
+      const indexes = await sql`select indexname, indexdef from pg_indexes
+        where tablename = 'assistant_files' and indexname <> 'assistant_files_pkey'
+        order by indexname`;
+      // The chat and message indexes back their ON DELETE CASCADE.
+      expect(
+        indexes.map((i) => [
+          i.indexname,
+          String(i.indexdef).replace(/^.* USING btree /, ""),
+        ])
+      ).toEqual([
+        ["assistant_files_conversation_idx", "(conversation_id)"],
+        ["assistant_files_message_idx", "(message_id)"],
+        ["assistant_files_user_created_idx", "(user_id, created_at)"],
+      ]);
     });
 
     it("cascades files with their message, chat and user; usage survives with message_id null", async () => {

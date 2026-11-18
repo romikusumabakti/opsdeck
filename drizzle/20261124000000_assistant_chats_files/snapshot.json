@@ -2,7 +2,7 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "28b8a224-aad7-4375-be22-735c1438d81b",
+  "id": "cd116527-83a3-4b3c-b317-6daaf074844b",
   "prevIds": [
     "1d635c00-e223-41b0-a6ed-8bbeed54e1d8"
   ],
@@ -63,6 +63,46 @@
         "n|sch|public",
         "n|col|public.assistant_files.user_id",
         "n|col|public.assistant_files.created_at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "assistant_files",
+        "assistant_files_conversation_idx"
+      ],
+      "writes": [
+        "s|idx|public.assistant_files_conversation_idx",
+        "n|idx|public.assistant_files_conversation_idx",
+        "e|idx|public.assistant_files_conversation_idx",
+        "n|rel|public.assistant_files_conversation_idx"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_files",
+        "n|sch|public",
+        "n|col|public.assistant_files.conversation_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "assistant_files",
+        "assistant_files_message_idx"
+      ],
+      "writes": [
+        "s|idx|public.assistant_files_message_idx",
+        "n|idx|public.assistant_files_message_idx",
+        "e|idx|public.assistant_files_message_idx",
+        "n|rel|public.assistant_files_message_idx"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_files",
+        "n|sch|public",
+        "n|col|public.assistant_files.message_id"
       ]
     },
     {
@@ -322,6 +362,54 @@
           },
           {
             "value": "created_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "assistant_files_conversation_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "conversation_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "assistant_files_message_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "message_id",
             "isExpression": false,
             "asc": true,
             "nullsFirst": false,

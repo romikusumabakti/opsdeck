@@ -2889,7 +2889,12 @@ export const assistantFiles = pgTable(
     size: integer("size").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("assistant_files_user_created_idx").on(t.userId, t.createdAt)]
+  (t) => [
+    index("assistant_files_user_created_idx").on(t.userId, t.createdAt),
+    // Back the ON DELETE CASCADE from chats and messages.
+    index("assistant_files_conversation_idx").on(t.conversationId),
+    index("assistant_files_message_idx").on(t.messageId),
+  ]
 );
 
 export type AssistantConversation = InferSelectModel<

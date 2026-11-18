@@ -13,6 +13,8 @@ CREATE TABLE "assistant_files" (
 --> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "preferred_name" text;--> statement-breakpoint
 CREATE INDEX "assistant_files_user_created_idx" ON "assistant_files" ("user_id","created_at");--> statement-breakpoint
+CREATE INDEX "assistant_files_conversation_idx" ON "assistant_files" ("conversation_id");--> statement-breakpoint
+CREATE INDEX "assistant_files_message_idx" ON "assistant_files" ("message_id");--> statement-breakpoint
 ALTER TABLE "assistant_files" ADD CONSTRAINT "assistant_files_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "assistant_files" ADD CONSTRAINT "assistant_files_conversation_id_assistant_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "assistant_conversations"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "assistant_files" ADD CONSTRAINT "assistant_files_message_id_assistant_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "assistant_messages"("id") ON DELETE CASCADE;
