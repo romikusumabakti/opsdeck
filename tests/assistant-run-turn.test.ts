@@ -72,13 +72,13 @@ vi.mock("@/lib/assistant/turn-store", () => ({
     return true;
   }),
   saveContent: vi.fn(async (_id: string, content: string) => {
-    if (state.gone) return false;
+    if (state.gone || state.message.status !== "streaming") return false;
     state.contentWrites.push(content);
     state.message.content = content;
     return true;
   }),
   saveSources: vi.fn(async (_id: string, sources: unknown) => {
-    if (state.gone) return false;
+    if (state.gone || state.message.status !== "streaming") return false;
     if (
       Array.isArray(sources) &&
       sources.length > 0 &&
@@ -112,7 +112,7 @@ vi.mock("@/lib/assistant/turn-store", () => ({
       resultMeta: Record<string, unknown>
     ) => {
       if (state.recordToolCallFails) throw new Error("db down");
-      if (state.gone) return false;
+      if (state.gone || state.message.status !== "streaming") return false;
       state.toolCalls.push({ tool, input, resultMeta });
       return true;
     }
@@ -1001,6 +1001,58 @@ describe("runTurn", () => {
     expect(calls).toHaveLength(1);
     expect(state.finishes).toBe(0);
     expect(state.contentWrites).toEqual([]);
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("stops at the next write while a tool runs when the answer is stopped", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model, calls } = mockModel([
+      toolStep(1),
+      { text: ["never sent"], finish: "stop" },
+    ]);
+    const executeTool = vi.fn(async () => {
+      // The user presses Stop while the tool runs.
+      state.message.status = "failed";
+      state.message.errorCode = "assistant.stopped";
+      return { ok: true as const, data: { files: [] }, meta: { paths: [] } };
+    });
+    await runTurn(MESSAGE_ID, deps(model, { executeTool }));
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
+    expect(state.toolCalls).toHaveLength(0);
+    expect(state.finishes).toBe(0);
+    expect(state.message).toMatchObject({
+      status: "failed",
+      errorCode: "assistant.stopped",
+    });
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("meters the in-flight request once when stopped while text streams", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model, calls } = mockModel([
+      {
+        text: ["Iuran ", "dihitung ", "per bulan"],
+        finish: "stop",
+        usage: NO_USAGE,
+      },
+    ]);
+    const { saveContent } = await import("@/lib/assistant/turn-store");
+    vi.mocked(saveContent).mockImplementationOnce(async () => {
+      state.message.status = "failed";
+      state.message.errorCode = "assistant.stopped";
+      return false;
+    });
+    await runTurn(MESSAGE_ID, deps(model));
+    expect(calls).toHaveLength(1);
+    expect(state.finishes).toBe(0);
+    expect(state.usage).toHaveLength(1);
+    expect(state.usage[0]).toMatchObject({
+      messageId: MESSAGE_ID,
+      estimated: true,
+    });
     expect(error).not.toHaveBeenCalled();
     error.mockRestore();
   });

@@ -3657,6 +3657,7 @@
     "refused": "El asistente se negó a responder esta solicitud.",
     "tooManySteps": "El asistente se detuvo tras demasiados pasos. Prueba con una pregunta más concreta.",
     "interrupted": "La respuesta se interrumpió. Envía tu mensaje de nuevo.",
+    "stopped": "Detenida",
     "failed": "El asistente no pudo responder. Inténtalo de nuevo.",
     "modelNoTools": "El modelo configurado no puede usar herramientas, que el asistente necesita para leer el código y las incidencias. Pide a un administrador que elija otro modelo.",
     "modelNoDrafts": "El modelo configurado no puede redactar borradores estructurados. Pide a un administrador que elija otro modelo.",

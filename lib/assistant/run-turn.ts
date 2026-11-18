@@ -170,9 +170,10 @@ const NO_TOOL_SUPPORT =
   /does not support (tools|tool use|tool calling|function calling)|(tools?|tool use|tool calling|function calling) (are|is) not supported/i;
 
 /**
- * Set once a write finds the answer gone: the user deleted its chat mid-turn.
- * Aborts the model request; the turn then ends without another write, error
- * or log (usage already spent is still recorded, without the message).
+ * Set once a write finds the answer gone: the user deleted its chat or stopped
+ * the answer mid-turn. Aborts the model request; the turn then ends without
+ * another write, error or log (usage already spent is still recorded; the
+ * request cut off by the abort is estimated).
  */
 class TurnStop {
   readonly controller = new AbortController();
@@ -187,6 +188,19 @@ class TurnStop {
     return found;
   }
 }
+
+/** No usage reported: `meter` then estimates from the characters. */
+const EMPTY_USAGE = {
+  inputTokens: undefined,
+  outputTokens: undefined,
+  totalTokens: undefined,
+  inputTokenDetails: {
+    noCacheTokens: undefined,
+    cacheReadTokens: undefined,
+    cacheWriteTokens: undefined,
+  },
+  outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
+} satisfies LanguageModelUsage;
 
 /**
  * Where the error happened. Only a draft asks for structured output, so only
@@ -998,6 +1012,13 @@ async function runClaimedTurn(
         streamError ??= part.error;
         break;
     }
+  }
+  // The request cut off by the abort never reached its call end: meter it
+  // from the text streamed so far (once; stepMetered guards a double count).
+  if (stop.gone && !stepMetered && promptChars > 0) {
+    await meter(runtime.modelId, EMPTY_USAGE, [
+      { type: "text", text: writer.text },
+    ]);
   }
   if (stop.gone) return;
   if (auditError) throw auditError;

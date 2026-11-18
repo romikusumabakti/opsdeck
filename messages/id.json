@@ -3657,6 +3657,7 @@
     "refused": "Asisten menolak menjawab permintaan ini.",
     "tooManySteps": "Asisten berhenti setelah terlalu banyak langkah. Coba pertanyaan yang lebih spesifik.",
     "interrupted": "Jawaban terputus. Kirim ulang pesan Anda.",
+    "stopped": "Dihentikan",
     "failed": "Asisten tidak dapat menjawab. Coba lagi.",
     "modelNoTools": "Model yang dipilih tidak dapat memakai tools, padahal asisten membutuhkannya untuk membaca kode dan issue. Minta admin memilih model lain.",
     "modelNoDrafts": "Model yang dipilih tidak dapat menulis draf terstruktur. Minta admin memilih model lain.",

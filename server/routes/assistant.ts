@@ -23,6 +23,7 @@ import {
   saveDraftInputSchema,
   sendMessage,
   sendMessageInputSchema,
+  stopAnswer,
 } from "@/server/services/assistant";
 import {
   deleteUpload,
@@ -67,6 +68,10 @@ export const assistantRouter = sessionRouter()
     await deleteConversation(conversationId);
     return c.json({ id: conversationId });
   })
+  // The running answer ends as failed (assistant.stopped), keeping its text.
+  .post("/stop-answer", json(conversationIdInputSchema), async (c) =>
+    c.json(await stopAnswer(c.req.valid("json").conversationId))
+  )
   .post("/send-message", json(sendMessageInputSchema), async (c) =>
     c.json(await sendMessage(c.req.valid("json")))
   )

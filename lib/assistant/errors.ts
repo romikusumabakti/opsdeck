@@ -13,6 +13,7 @@ export const ASSISTANT_ERROR_MESSAGE_KEYS = {
   "assistant.refused": "refused",
   "assistant.too_many_steps": "tooManySteps",
   "assistant.interrupted": "interrupted",
+  "assistant.stopped": "stopped",
   "assistant.failed": "failed",
   "assistant.model_no_tools": "modelNoTools",
   "assistant.model_no_drafts": "modelNoDrafts",

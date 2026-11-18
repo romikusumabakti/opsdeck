@@ -29,6 +29,7 @@ import {
   listConversationsOf,
   loadAssistantLimits,
   loadConversationDetail,
+  stopPendingAnswer,
   TITLE_MAX_CHARS,
   updateConversationTitle,
 } from "@/lib/assistant/conversation-store";
@@ -405,6 +406,18 @@ export async function sendMessage(
     throw await refusal(503, "assistant.unavailable");
   }
   return turn;
+}
+
+/**
+ * Stops the caller's pending (queued or streaming) answer in a chat: it ends
+ * as failed with `assistant.stopped`, keeping the text streamed so far. `id`
+ * is the stopped answer, null when none was pending.
+ */
+export async function stopAnswer(
+  conversationId: string
+): Promise<{ id: string | null }> {
+  const { conversation } = await ownConversation(conversationId);
+  return { id: await stopPendingAnswer(conversation.id) };
 }
 
 /** Authorizes the stream of an assistant message before it opens. */

@@ -405,6 +405,17 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       if (m?.status === "queued")
         Object.assign(m, { status: "failed", errorCode });
     },
+    stopPendingAnswer: async (conversationId: string) => {
+      const m = store.messages.find(
+        (x) =>
+          x.conversationId === conversationId &&
+          x.role === "assistant" &&
+          (x.status === "queued" || x.status === "streaming")
+      );
+      if (!m) return null;
+      Object.assign(m, { status: "failed", errorCode: "assistant.stopped" });
+      return m.id;
+    },
     readStreamSnapshot: async (id: string) => {
       const m = store.messages.find((x) => x.id === id);
       return m
@@ -1167,6 +1178,35 @@ describe("rename and delete a chat", () => {
     expect(store.conversations[0]?.title).not.toBe("X");
     expect(store.messages).toHaveLength(2);
     expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it("stops the owner's pending answer; another user's chat is 404; nothing pending is null", async () => {
+    const id = await newConversation();
+    const sent = await send(id);
+    const answerId = store.messages[1]!.id;
+    expect(sent.status).toBe(200);
+    const res = await post("/stop-answer", { conversationId: id });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: answerId });
+    expect(store.messages[1]).toMatchObject({
+      status: "failed",
+      errorCode: "assistant.stopped",
+    });
+    const again = await post("/stop-answer", { conversationId: id });
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual({ id: null });
+
+    as(OTHER);
+    const theirs = await newConversation();
+    await send(theirs);
+    as(QA);
+    expect(
+      (await post("/stop-answer", { conversationId: theirs })).status
+    ).toBe(404);
+    expect(
+      (await post("/stop-answer", { conversationId: UNKNOWN_ID })).status
+    ).toBe(404);
+    expect(store.messages[3]?.status).toBe("queued");
   });
 
   it("deletes the owner's chat with its messages, drafts and stored files", async () => {

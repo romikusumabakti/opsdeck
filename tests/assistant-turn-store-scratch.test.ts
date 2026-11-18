@@ -329,5 +329,16 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     const [swept] =
       await client`select status, content from assistant_messages where id = ${stale.id}`;
     expect(swept).toMatchObject({ status: "failed", content: "half" });
+
+    // A stopped (failed) answer takes no more content or sources.
+    const stopped = await message("assistant", "failed", "kept");
+    expect(await store.saveContent(stopped.id, "more")).toBe(false);
+    expect(await store.saveSources(stopped.id, [])).toBe(false);
+    const [after] =
+      await client`select content, sources from assistant_messages where id = ${stopped.id}`;
+    expect(after?.content).toBe("kept");
+    expect(after?.sources).toBeNull();
+    const live = await message("assistant", "streaming");
+    expect(await store.saveContent(live.id, "x")).toBe(true);
   });
 });

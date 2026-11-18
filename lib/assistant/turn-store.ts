@@ -155,7 +155,10 @@ export async function claimMessage(messageId: string): Promise<boolean> {
   return claimed.length > 0;
 }
 
-/** False when the message is gone (its chat was deleted). */
+/**
+ * False when the message is gone or no longer streaming (its chat was
+ * deleted, or the answer was stopped).
+ */
 export async function saveContent(
   messageId: string,
   content: string
@@ -163,12 +166,20 @@ export async function saveContent(
   const saved = await db
     .update(assistantMessages)
     .set({ content })
-    .where(eq(assistantMessages.id, messageId))
+    .where(
+      and(
+        eq(assistantMessages.id, messageId),
+        eq(assistantMessages.status, "streaming")
+      )
+    )
     .returning({ id: assistantMessages.id });
   return saved.length > 0;
 }
 
-/** False when the message is gone (its chat was deleted). */
+/**
+ * False when the message is gone or no longer streaming (its chat was
+ * deleted, or the answer was stopped).
+ */
 export async function saveSources(
   messageId: string,
   sources: AssistantSource[]
@@ -176,7 +187,12 @@ export async function saveSources(
   const saved = await db
     .update(assistantMessages)
     .set({ sources })
-    .where(eq(assistantMessages.id, messageId))
+    .where(
+      and(
+        eq(assistantMessages.id, messageId),
+        eq(assistantMessages.status, "streaming")
+      )
+    )
     .returning({ id: assistantMessages.id });
   return saved.length > 0;
 }

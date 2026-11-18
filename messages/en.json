@@ -3657,6 +3657,7 @@
     "refused": "The assistant declined to answer this request.",
     "tooManySteps": "The assistant stopped after too many steps. Try a narrower question.",
     "interrupted": "The answer was interrupted. Send your message again.",
+    "stopped": "Stopped",
     "failed": "The assistant could not answer. Try again.",
     "modelNoTools": "The configured model cannot use tools, which the assistant needs to read code and issues. Ask an admin to choose another model.",
     "modelNoDrafts": "The configured model cannot write structured drafts. Ask an admin to choose another model.",

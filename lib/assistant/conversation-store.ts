@@ -557,6 +557,30 @@ export async function failQueuedMessage(
     );
 }
 
+/**
+ * queued | streaming → failed (`assistant.stopped`), for the answer the user
+ * stopped. Returns its id, or null when none was pending. The content stays as
+ * last flushed; the turn's own writes then find the message no longer
+ * streaming and end the turn (lib/assistant/run-turn.ts).
+ */
+export async function stopPendingAnswer(
+  conversationId: string,
+  now: Date = new Date()
+): Promise<string | null> {
+  const [stopped] = await db
+    .update(assistantMessages)
+    .set({ status: "failed", errorCode: "assistant.stopped", finishedAt: now })
+    .where(
+      and(
+        eq(assistantMessages.conversationId, conversationId),
+        eq(assistantMessages.role, "assistant"),
+        inArray(assistantMessages.status, ["queued", "streaming"])
+      )
+    )
+    .returning({ id: assistantMessages.id });
+  return stopped?.id ?? null;
+}
+
 export type StreamSnapshot = {
   content: string;
   status: MessageStatus;

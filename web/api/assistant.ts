@@ -94,6 +94,13 @@ export async function deleteConversation(conversationId: string) {
   );
 }
 
+/** Stops the chat's running answer; `id` is null when none was pending. */
+export async function stopAnswer(conversationId: string) {
+  return parseResponse(
+    routes["stop-answer"].$post({ json: { conversationId } })
+  );
+}
+
 /**
  * Sends a question. `context` is what it asks about: `{ kind: "auto" }`, a
  * pinned project `{ kind: "project", projectId }` (its branches) or a pinned

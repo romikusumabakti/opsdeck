@@ -602,10 +602,82 @@ describe.skipIf(!enabled)(
       expect(
         await count("assistant_tool_calls", `message_id = '${answer}'`)
       ).toBe(0);
-      // The live chat's writes still land.
+      // The live chat's writes still land (while its answer streams).
+      await turns.claimMessage(keptTurn.assistantMessageId);
       expect(await turns.saveContent(keptTurn.assistantMessageId, "ok")).toBe(
         true
       );
+    });
+
+    it("stops a pending answer without touching a finished one", async () => {
+      const d = drizzle({ client });
+      const store = await import("@/lib/assistant/conversation-store");
+      const turns = await import("@/lib/assistant/turn-store");
+      const user = one(
+        await d
+          .insert(schema.users)
+          .values({
+            id: "00000000-0000-7000-8000-00000000c00a",
+            name: "Sari",
+            email: "sari@example.com",
+            role: "qa",
+          })
+          .returning()
+      );
+      const ask = async (conversationId: string) => {
+        const turn = await store.insertTurn({
+          conversationId,
+          text: "Why?",
+          attachmentIds: [],
+          context: { kind: "auto" },
+        });
+        if (typeof turn === "string") throw new Error(turn);
+        return turn.assistantMessageId;
+      };
+      const row = async (id: string) =>
+        one(
+          await client`select status, content, error_code, finished_at from assistant_messages where id = ${id}`
+        );
+      const at = new Date("2026-11-18T03:00:00Z");
+
+      // Streaming: failed with assistant.stopped, content kept.
+      const chat = await store.insertConversation({ userId: user.id });
+      const streaming = await ask(chat);
+      expect(await turns.claimMessage(streaming)).toBe(true);
+      await turns.saveContent(streaming, "half an answer");
+      expect(await store.stopPendingAnswer(chat, at)).toBe(streaming);
+      expect(await row(streaming)).toMatchObject({
+        status: "failed",
+        content: "half an answer",
+        error_code: "assistant.stopped",
+        finished_at: expect.any(String),
+      });
+      // The turn's own later writes no-op.
+      expect(await turns.saveContent(streaming, "late")).toBe(false);
+      expect((await row(streaming)).content).toBe("half an answer");
+      // Nothing pending any more.
+      expect(await store.stopPendingAnswer(chat)).toBeNull();
+
+      // Done: untouched.
+      const doneChat = await store.insertConversation({ userId: user.id });
+      const done = await ask(doneChat);
+      await client`update assistant_messages set status = 'done', content = 'ok' where id = ${done}`;
+      expect(await store.stopPendingAnswer(doneChat)).toBeNull();
+      expect(await row(done)).toMatchObject({
+        status: "done",
+        content: "ok",
+        error_code: null,
+      });
+
+      // Queued: stopped too, and the worker can no longer claim it.
+      const queuedChat = await store.insertConversation({ userId: user.id });
+      const queued = await ask(queuedChat);
+      expect(await store.stopPendingAnswer(queuedChat)).toBe(queued);
+      expect(await row(queued)).toMatchObject({
+        status: "failed",
+        error_code: "assistant.stopped",
+      });
+      expect(await turns.claimMessage(queued)).toBe(false);
     });
   }
 );
