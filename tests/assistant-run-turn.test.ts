@@ -8,6 +8,7 @@ import {
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantRuntime } from "@/lib/assistant/client";
+import { CHARS_PER_TOKEN } from "@/lib/assistant/pricing";
 import {
   cacheControlFor,
   outputTokenLimitFor,
@@ -171,6 +172,7 @@ type ToolCall = { id: string; name: string; input: unknown };
 type Step =
   | {
       text?: string[];
+      reasoning?: string[];
       toolCalls?: ToolCall[];
       finish: "stop" | "tool-calls" | "length" | "content-filter";
       usage?: LanguageModelV4Usage;
@@ -185,6 +187,12 @@ function chunksOf(step: Step): LanguageModelV4StreamPart[] {
   const chunks: LanguageModelV4StreamPart[] = [
     { type: "response-metadata", modelId: "served-model-1" },
   ];
+  if (step.reasoning?.length) {
+    chunks.push({ type: "reasoning-start", id: "r" });
+    for (const delta of step.reasoning)
+      chunks.push({ type: "reasoning-delta", id: "r", delta });
+    chunks.push({ type: "reasoning-end", id: "r" });
+  }
   if (step.text?.length) {
     chunks.push({ type: "text-start", id: "t" });
     for (const delta of step.text)
@@ -1056,6 +1064,30 @@ describe("runTurn", () => {
     });
     expect(error).not.toHaveBeenCalled();
     error.mockRestore();
+  });
+
+  it("counts the reasoning of a stopped request in its estimate", async () => {
+    const { model } = mockModel([
+      {
+        reasoning: ["x".repeat(300)],
+        text: ["abc"],
+        finish: "stop",
+        usage: NO_USAGE,
+      },
+    ]);
+    const { saveContent } = await import("@/lib/assistant/turn-store");
+    vi.mocked(saveContent).mockImplementationOnce(async () => {
+      state.message.status = "failed";
+      state.message.errorCode = "assistant.stopped";
+      return false;
+    });
+    await runTurn(MESSAGE_ID, deps(model));
+    expect(state.usage).toHaveLength(1);
+    // 300 reasoning + 3 text characters.
+    expect(state.usage[0]).toMatchObject({
+      estimated: true,
+      outputTokens: Math.ceil(303 / CHARS_PER_TOKEN),
+    });
   });
 
   it("fails with not_configured when the runtime is missing or its key cannot be decrypted", async () => {

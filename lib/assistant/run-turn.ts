@@ -926,7 +926,9 @@ async function runClaimedTurn(
   const meter = (
     modelId: string,
     usage: LanguageModelUsage,
-    content: ReadonlyArray<ContentPart<ToolSet>>
+    content: ReadonlyArray<ContentPart<ToolSet>>,
+    // Streamed characters the content does not hold (a cut-off request).
+    extraOutputChars = 0
   ) => {
     stepMetered = true;
     const reported = reportedUsage(usage);
@@ -935,7 +937,9 @@ async function runClaimedTurn(
       userId: turn.userId,
       modelId: modelId || runtime.modelId,
       prices: runtime.prices,
-      usage: reported ?? estimateUsage(promptChars, outputCharsOf(content)),
+      usage:
+        reported ??
+        estimateUsage(promptChars, outputCharsOf(content) + extraOutputChars),
       estimated: !reported,
       now: now(),
     });
@@ -999,12 +1003,19 @@ async function runClaimedTurn(
   });
 
   let streamError: unknown;
+  // Reasoning characters of the current step: part of what a request cut off
+  // by the abort is estimated from.
+  let reasoningChars = 0;
   for await (const part of result.fullStream) {
     switch (part.type) {
       case "text-delta":
         writer.append(part.text);
         break;
+      case "reasoning-delta":
+        reasoningChars += part.text.length;
+        break;
       case "finish-step":
+        reasoningChars = 0;
         // Text of a step that asked for tools is not the answer (R11).
         if (part.finishReason === "tool-calls") writer.discard();
         break;
@@ -1017,9 +1028,12 @@ async function runClaimedTurn(
   // from the text streamed so far (once; stepMetered guards a double count).
   if (stop.gone && !stepMetered && promptChars > 0) {
     try {
-      await meter(runtime.modelId, EMPTY_USAGE, [
-        { type: "text", text: writer.text },
-      ]);
+      await meter(
+        runtime.modelId,
+        EMPTY_USAGE,
+        [{ type: "text", text: writer.text }],
+        reasoningChars
+      );
     } catch (error) {
       console.error("[assistant] could not meter a stopped request:", error);
     }
