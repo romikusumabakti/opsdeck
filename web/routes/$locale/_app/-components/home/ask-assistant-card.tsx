@@ -64,9 +64,17 @@ export function AskAssistantCard() {
   const fileInput = React.useRef<HTMLInputElement>(null);
   const userId = useDraftUser();
   // The card keeps no draft across mounts: its own key, dropped (unsent
-  // uploads deleted) on unmount and reset after a send.
+  // uploads deleted) on unmount and reset after a send. A send still pending
+  // at unmount owns its files: they go with the question (or, if it fails,
+  // are left to the daily prune).
   const draftKey = React.useId();
-  React.useEffect(() => () => composerDrafts.drop(draftKey), [draftKey]);
+  const sending = React.useRef(false);
+  React.useEffect(
+    () => () => {
+      if (!sending.current) composerDrafts.drop(draftKey);
+    },
+    [draftKey]
+  );
   const uploads = useFileUploads(userId, draftKey);
   const drop = useFileDrop(uploads.add, false);
 
@@ -83,16 +91,21 @@ export function AskAssistantCard() {
       text: string;
       fileIds: string[];
     }) => {
-      const id = created.current ?? (await createConversation()).id;
-      created.current = id;
-      await sendMessage({
-        conversationId: id,
-        text: input.text,
-        context: input.context,
-        ...(input.fileIds.length > 0 ? { fileIds: input.fileIds } : {}),
-      });
-      created.current = null;
-      return id;
+      sending.current = true;
+      try {
+        const id = created.current ?? (await createConversation()).id;
+        created.current = id;
+        await sendMessage({
+          conversationId: id,
+          text: input.text,
+          context: input.context,
+          ...(input.fileIds.length > 0 ? { fileIds: input.fileIds } : {}),
+        });
+        created.current = null;
+        return id;
+      } finally {
+        sending.current = false;
+      }
     },
     onSuccess: (conversationId) => {
       composerDrafts.clear(draftKey);

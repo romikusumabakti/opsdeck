@@ -533,6 +533,57 @@ describe("home box files", () => {
     expect(api.deleteUpload).not.toHaveBeenCalled();
   });
 
+  async function attachReadyFile() {
+    api.deleteUpload.mockResolvedValue(undefined);
+    api.uploadFile.mockResolvedValue({
+      id: "u1",
+      filename: "a.png",
+      mediaType: "image/png",
+      size: 1,
+    });
+    await renderCard({});
+    const picker = container.querySelector(
+      "input[type=file]"
+    ) as HTMLInputElement;
+    Object.defineProperty(picker, "files", { value: [png("a.png")] });
+    await act(async () => {
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(chips()).toHaveLength(1);
+  }
+
+  it("leaving with an unsent file deletes it", async () => {
+    await attachReadyFile();
+    await act(async () => root.unmount());
+    expect(api.deleteUpload).toHaveBeenCalledTimes(1);
+    expect(api.deleteUpload).toHaveBeenCalledWith("u1");
+  });
+
+  it("leaving while the question is being sent keeps its files", async () => {
+    await attachReadyFile();
+    let resolveCreate: (v: { id: string }) => void = () => {};
+    api.createConversation.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCreate = resolve;
+      })
+    );
+    api.sendMessage.mockResolvedValue({});
+    await type("Look");
+    await pressEnter();
+    await act(async () => root.unmount());
+    expect(api.deleteUpload).not.toHaveBeenCalled();
+    await act(async () => {
+      resolveCreate({ id: "c9" });
+    });
+    expect(api.sendMessage).toHaveBeenCalledWith({
+      conversationId: "c9",
+      text: "Look",
+      context: { kind: "auto" },
+      fileIds: ["u1"],
+    });
+    expect(api.deleteUpload).not.toHaveBeenCalled();
+  });
+
   it("the 📎 button opens the file picker", async () => {
     await renderCard({});
     const input = container.querySelector<HTMLInputElement>(
