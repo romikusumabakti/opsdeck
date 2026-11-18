@@ -25,6 +25,7 @@ import {
   orgGrantAllows,
   requireOrgPermission,
   requireProjectPermission,
+  requireProjectUser,
 } from "@/lib/authz";
 import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
 import {
@@ -133,9 +134,12 @@ async function step<T>(label: string, run: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Any signed-in user: apps and components, never their notify secrets. */
+/**
+ * Any signed-in user who works with projects (not staff): apps and
+ * components, never their notify secrets.
+ */
 export async function listAllApps(): Promise<AppWithComponents[]> {
-  await requireSession();
+  await requireProjectUser();
   return listApps();
 }
 

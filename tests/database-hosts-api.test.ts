@@ -199,7 +199,7 @@ describe("database hosts API", () => {
       source.indexOf("export async function listDatabaseHosts"),
       source.indexOf("// Postgres 15 stopped")
     );
-    expect(list).toContain("requireSession()");
+    expect(list).toContain("requireProjectUser()");
     expect(list).not.toContain("backupPath");
   });
 

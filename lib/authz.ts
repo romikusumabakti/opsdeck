@@ -23,6 +23,7 @@ import {
   canOrgAccess,
   canOrgAccessTarget,
   canProject,
+  hasProjects,
   normalizeOrgRole,
   type OrgPermissions,
   type OrgRole,
@@ -158,6 +159,17 @@ export async function requireOrgPermission(
     perms,
     isStrongSignIn(session.session.signInMethod)
   );
+  return session;
+}
+
+// A caller whose job role works with projects (lib/permissions#hasProjects).
+// staff, and every unknown role (it floors to staff), is refused with a 403:
+// the org-wide lists that exist to pick or bind something inside a project
+// (apps, database hosts, cross-project assignees, the people directory) are
+// not theirs to read.
+export async function requireProjectUser(): Promise<Session> {
+  const session = await requireSession();
+  if (!hasProjects(session.user.role)) throw new ForbiddenError();
   return session;
 }
 

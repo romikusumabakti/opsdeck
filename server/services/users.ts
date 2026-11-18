@@ -17,11 +17,11 @@ import {
   uploadStorageKeysOfUser,
 } from "@/lib/assistant/file-store";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
-import { requireSession } from "@/lib/auth-session";
 import {
   projectScope,
   requireOrgPermission,
   requireProjectPermission,
+  requireProjectUser,
 } from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
@@ -193,12 +193,14 @@ export type CrossProjectAssignableUser = AssignableUserRow & {
  * The cross-project variant for the global issues list, which has no single
  * project in scope: org admin/infra, or a member of any project the caller can
  * see. Deliberately never wider than that, so the picker can't enumerate users
- * or memberships from projects the caller can't reach.
+ * or memberships from projects the caller can't reach. Staff sees no project,
+ * yet the admin/infra branch does not depend on the caller's projects, so it
+ * is refused outright rather than handed every admin's name and email.
  */
 export async function listAssignableUsersAcrossProjects(): Promise<
   CrossProjectAssignableUser[]
 > {
-  await requireSession();
+  await requireProjectUser();
   const scope = await projectScope(projectMembers.projectId);
   const rows = await db
     .select({ ...assignableColumns, role: userTable.role })

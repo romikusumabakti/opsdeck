@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { requireSession } from "@/lib/auth-session";
-import { ForbiddenError } from "@/lib/authz";
+import { requireProjectUser } from "@/lib/authz";
 import { getUserCard } from "@/lib/people/card";
 import {
   getPersonMeta,
@@ -9,7 +9,6 @@ import {
   listPersonOpenIssues,
   listPersonRecentRuns,
 } from "@/lib/people/queries";
-import { hasProjects } from "@/lib/permissions";
 import { uuidSchema } from "@/lib/validation";
 import { notFound } from "@/server/errors";
 import { publicRouter, sessionRouter } from "@/server/router";
@@ -52,12 +51,6 @@ const PERSON_LIST_ROWS = 8;
  * make while signed out. Public, so it lives on its own prefix — a session
  * router mounted at /api/users would gate it.
  */
-async function requireProjectUser() {
-  const session = await requireSession();
-  if (!hasProjects(session.user.role)) throw new ForbiddenError();
-  return session;
-}
-
 export const onboardingRouter = publicRouter()
   .get("/has-any-user", async (c) => c.json(await hasAnyUser()))
   .post(
@@ -149,13 +142,15 @@ export const usersRouter = sessionRouter()
   // --- Page data (people pages), straight from lib/people. Both pages needed
   // only a session; the queries scope anything carrying a project to the
   // viewer's projects.
-  // staff has no project and no user list: both refuse it.
+  // The directory refuses staff (no project, no user list). A person's page
+  // does not: My profile and author links lead there, and its project, issue
+  // and run lists come out empty for a viewer who sees no project.
   .get("/people", async (c) => {
     await requireProjectUser();
     return c.json(await listPeople());
   })
   .get("/:id/person", async (c) => {
-    const session = await requireProjectUser();
+    const session = await requireSession();
     const id = c.req.param("id");
     if (!uuidSchema.safeParse(id).success) notFound();
     // The card decides visibility (a deactivated user is hidden from non-user

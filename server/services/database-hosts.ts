@@ -2,8 +2,11 @@ import { asc, eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
-import { requireSession } from "@/lib/auth-session";
-import { ForbiddenError, requireOrgPermission } from "@/lib/authz";
+import {
+  ForbiddenError,
+  requireOrgPermission,
+  requireProjectUser,
+} from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
   type DatabaseHost,
@@ -61,12 +64,13 @@ export type DatabaseHostSummary = Pick<
   "id" | "serverId" | "label" | "containerName" | "network"
 >;
 
-// Readable by any signed-in user (an engineer binds a shared database on an
-// open server without server:manage). The backup path stays out.
+// Readable by any signed-in user who works with projects (an engineer binds a
+// shared database on an open server without server:manage); staff, which has
+// no project to bind one in, is refused. The backup path stays out.
 export async function listDatabaseHosts(
   serverId?: string
 ): Promise<DatabaseHostSummary[]> {
-  await requireSession();
+  await requireProjectUser();
   return db
     .select({
       id: databaseHosts.id,
