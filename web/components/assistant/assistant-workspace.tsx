@@ -154,7 +154,10 @@ export function AssistantWorkspace({
   if (keyOf(initialContext) !== seenInitial) {
     setSeenInitial(keyOf(initialContext));
     if (initialContext) {
-      setPreselect({ key: selectedId ?? NEW_CHAT, context: initialContext });
+      // The chat open after this change: a link can close one and preselect
+      // in the same step (?c=A to ?project=).
+      const target = conversationId !== seenProp ? conversationId : selectedId;
+      setPreselect({ key: target ?? NEW_CHAT, context: initialContext });
     }
   }
   if (conversationId !== seenProp) {
@@ -314,9 +317,9 @@ export function AssistantWorkspace({
       ...(fileIds.length > 0 ? { fileIds } : {}),
     });
     if (!selectedId && userId) {
-      // A first question: New chat starts over, and the chat it created keeps
-      // the context just sent (the composer empties the rest).
-      composerDrafts.clear(NEW_CHAT);
+      // A first question: New chat's chip starts over (the composer empties
+      // what was sent), and the chat it created keeps the context just sent.
+      composerDrafts.update(NEW_CHAT, (d) => ({ ...d, context: null }));
       composerDrafts.update(id, (d) =>
         d.context === null ? { ...d, context } : d
       );

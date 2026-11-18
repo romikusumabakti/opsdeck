@@ -59,12 +59,18 @@ export function useMentions({
   onPick,
   textareaRef,
   disabled,
+  resetKey,
 }: {
   text: string;
   onTextChange: (text: string) => void;
   onPick: (context: QuestionContextInput) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   disabled?: boolean;
+  /**
+   * The text's owner (the composer's chat): when it changes, the box shows
+   * other text, so the caret is at its end and nothing is dismissed.
+   */
+  resetKey?: string;
 }) {
   const t = useTranslations("assistant");
   const { loaded, projects } = useContextOptions();
@@ -76,6 +82,14 @@ export function useMentions({
   const [emptyDone, setEmptyDone] = React.useState<number | null>(null);
   const [highlight, setHighlight] = React.useState({ key: "", index: 0 });
   const pendingCaret = React.useRef<number | null>(null);
+  const [seenKey, setSeenKey] = React.useState(resetKey);
+  if (seenKey !== resetKey) {
+    setSeenKey(resetKey);
+    setCaret(text.length);
+    setDismissed(null);
+    setEmptyDone(null);
+    setHighlight({ key: "", index: 0 });
+  }
 
   const mention = disabled || !loaded ? null : activeMention(text, caret);
   const matches = mention ? mentionMatches(projects, mention.query) : [];

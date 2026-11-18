@@ -2830,6 +2830,32 @@ describe("context picker", () => {
     };
     const chipCount = () =>
       document.querySelectorAll("[data-file-chip]").length;
+    /** New props for the mounted workspace, as a URL change gives it. */
+    const rerender = (props: React.ComponentProps<typeof AssistantWorkspace>) =>
+      act(async () =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <IntlProvider
+              locale="en"
+              messages={messages}
+              timeZone="Asia/Jakarta"
+              now={new Date("2026-11-16T05:00:00Z")}
+            >
+              <AssistantWorkspace {...props} />
+            </IntlProvider>
+          </QueryClientProvider>
+        )
+      );
+    const mentionOptions = () =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          '[data-slot="mention-list"] [role="option"]'
+        ),
+      ].map((el) => el.textContent);
+    const alerts = () =>
+      [...container.querySelectorAll('[role="alert"]')].map(
+        (el) => el.textContent
+      );
 
     it("switching chats keeps each chat's text and chip", async () => {
       await renderWorkspace({ conversationId: CONV_ID }, [answer]);
@@ -2928,24 +2954,120 @@ describe("context picker", () => {
       await settle();
       expect(chip()?.textContent).toBe("Heron Membership");
       // A link followed while on New chat moves its chip.
-      await act(async () =>
-        root.render(
-          <QueryClientProvider client={queryClient}>
-            <IntlProvider
-              locale="en"
-              messages={messages}
-              timeZone="Asia/Jakarta"
-              now={new Date("2026-11-16T05:00:00Z")}
-            >
-              <AssistantWorkspace
-                initialContext={{ kind: "environment", environmentId: ENV_ID }}
-              />
-            </IntlProvider>
-          </QueryClientProvider>
-        )
-      );
+      await rerender({
+        initialContext: { kind: "environment", environmentId: ENV_ID },
+      });
       await settle();
       expect(chip()?.textContent).toBe("Heron Membership · Dev 1");
+    });
+
+    it("a preselection that comes with leaving a chat sets New chat's chip", async () => {
+      // On ?c=A, a link to ?project=: the chat closes and the project comes
+      // in the same change.
+      await renderWorkspace({ conversationId: CONV_ID }, [answer]);
+      expect(chip()?.textContent).toBe(t.contextAuto);
+      await rerender({
+        conversationId: null,
+        initialContext: { kind: "project", projectId: "p1" },
+      });
+      await settle();
+      expect(text()).toContain(t.emptyThreadTitle);
+      expect(chip()?.textContent).toBe("Heron Membership");
+      await open("Iuran");
+      expect(chip()?.textContent).toBe(t.contextAuto);
+    });
+
+    it("switching chats starts the @ list afresh for that chat's text", async () => {
+      const GLOBEX = ["Globex Billing", "Globex Billing · Staging"];
+      await renderWorkspace({ conversationId: CONV_ID }, [answer]);
+      await type("@gbil");
+      await settle();
+      expect(mentionOptions()).toEqual(GLOBEX);
+      await act(async () => button(t.newChat)?.click());
+      await settle();
+      // Closed with Esc here: a mention at the same offset in Iuran's text
+      // is another one.
+      await type("@her");
+      await settle();
+      await press("Escape");
+      expect(mentionOptions()).toEqual([]);
+      await open("Iuran");
+      expect(box().value).toBe("@gbil");
+      expect(mentionOptions()).toEqual(GLOBEX);
+      await press("Enter");
+      expect(box().value).toBe("@Globex Billing ");
+      expect(chip()?.textContent).toBe("Globex Billing");
+    });
+
+    it("a refused send shows on the chat it was sent from only", async () => {
+      let refuse = () => {};
+      api.sendMessage.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            refuse = () =>
+              reject(new ApiError(409, "busy", "assistant.busy", {}));
+          })
+      );
+      await renderWorkspace({ conversationId: CONV_ID }, [answer], twoChats);
+      seedC2();
+      await typeAndSend("Pertanyaan di Iuran");
+      await settle();
+      await open("Tagihan");
+      await act(async () => refuse());
+      await settle();
+      expect(alerts()).toEqual([]);
+      await open("Iuran");
+      expect(alerts()).toHaveLength(1);
+      expect(box().value).toBe("Pertanyaan di Iuran");
+    });
+
+    it("a file added while a send runs stays for the next question", async () => {
+      deletable();
+      let finishSend = () => {};
+      api.sendMessage.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishSend = () => resolve({});
+          })
+      );
+      await renderWorkspace({ conversationId: CONV_ID }, [answer]);
+      await attach("sent.txt");
+      await typeAndSend("Dengan file");
+      await settle();
+      expect(api.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ fileIds: ["up-sent.txt"] })
+      );
+      await attach("late.txt");
+      await act(async () => finishSend());
+      await settle();
+      expect(box().value).toBe("");
+      expect(composerDrafts.get(CONV_ID).files.map((f) => f.name)).toEqual([
+        "late.txt",
+      ]);
+      expect(chipCount()).toBe(1);
+    });
+
+    it("a file added while a first question is sent stays in New chat", async () => {
+      deletable();
+      const NEW_ID = "8b9d7a10-1c2d-4e5f-8a9b-0c1d2e3f4a5c";
+      api.createConversation.mockResolvedValue({ id: NEW_ID });
+      let finishSend = () => {};
+      api.sendMessage.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishSend = () => resolve({});
+          })
+      );
+      await renderWorkspace();
+      await typeAndSend("Pertanyaan pertama");
+      await settle();
+      await attach("late.txt");
+      await act(async () => finishSend());
+      await settle();
+      const left = composerDrafts.get("new");
+      expect(left.text).toBe("");
+      expect(left.files.map((f) => f.name)).toEqual(["late.txt"]);
+      expect(api.deleteUpload).not.toHaveBeenCalled();
     });
 
     it("a chat without a draft seeds its chip from its last question", async () => {
@@ -2991,9 +3113,17 @@ describe("context picker", () => {
       await act(async () => option?.click());
       await settle();
       expect(chip()?.textContent).toBe("Heron Membership");
-      await typeAndSend(
-        "buatkan ringkasan untuk proyek @Heron Membership secara singkat"
+      expect(box().value).toBe(
+        "buatkan ringkasan untuk proyek @Heron Membership "
       );
+      // Typed on after the pick, a key at a time from the caret it left.
+      for (const ch of "secara singkat") {
+        const at = box().selectionStart;
+        const value = box().value;
+        await type(value.slice(0, at) + ch + value.slice(at));
+      }
+      expect(chip()?.textContent).toBe("Heron Membership");
+      await act(async () => button(t.send)?.click());
       await settle();
       expect(api.sendMessage).toHaveBeenCalledExactlyOnceWith({
         conversationId: CONV_ID,

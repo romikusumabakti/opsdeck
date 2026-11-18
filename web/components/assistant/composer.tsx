@@ -109,13 +109,12 @@ export function Composer({
     updateDraft((d) => ({ ...d, context: next }));
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  // A refused send is about the chat it was sent from.
-  const [errorKey, setErrorKey] = React.useState(draftKey);
-  if (errorKey !== draftKey) {
-    setErrorKey(draftKey);
-    setError(null);
-  }
+  // A refused send, shown only on the chat it was sent from.
+  const [refused, setRefused] = React.useState<{
+    key: DraftKey;
+    message: string;
+  } | null>(null);
+  const error = refused?.key === draftKey ? refused.message : null;
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   // An addon focuses its first `input` on a click, which here is the hidden
@@ -132,6 +131,7 @@ export function Composer({
     text,
     onTextChange: setText,
     onPick: setContext,
+    resetKey: draftKey,
     textareaRef,
     disabled,
   });
@@ -151,8 +151,10 @@ export function Composer({
     if (!canSend || !userId) return;
     // The chat it is sent from: the user may open another before it resolves.
     const key = draftKey;
+    // The files this question carries; one added while it is sent stays.
+    const sentFiles = new Set(uploads.files.map((f) => f.key));
     setSending(true);
-    setError(null);
+    setRefused(null);
     try {
       await onSend(
         text.trim(),
@@ -164,10 +166,11 @@ export function Composer({
       composerDrafts.update(key, (d) => ({
         ...EMPTY_DRAFT,
         context: d.context,
+        files: d.files.filter((f) => !sentFiles.has(f.key)),
       }));
       textareaRef.current?.focus();
     } catch (e) {
-      setError(errorText(e));
+      setRefused({ key, message: errorText(e) });
     } finally {
       setSending(false);
     }
