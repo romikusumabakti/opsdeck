@@ -206,9 +206,7 @@ export function AssistantWorkspace({
   // fills an unset one.
   // One for a chat not read yet waits for it (it may turn out foreign).
   const waitingForChat =
-    preselect !== null &&
-    preselect.key === selectedId &&
-    (foreign || !loaded);
+    preselect !== null && preselect.key === selectedId && (foreign || !loaded);
   React.useEffect(() => {
     if (!userId || !preselect || waitingForChat) return;
     composerDrafts.update(preselect.key, (d) => ({
