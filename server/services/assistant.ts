@@ -29,6 +29,7 @@ import {
   listConversationsOf,
   loadAssistantLimits,
   loadConversationDetail,
+  lastQuestionContext,
   replaceLastAnswer,
   stopPendingAnswer,
   TITLE_MAX_CHARS,
@@ -428,6 +429,26 @@ export async function retryAnswer(
   const { conversation, userId } = await ownConversation(conversationId);
   const now = new Date();
   await requireAllowance(userId, await requireRuntime(), now);
+
+  // Retry answers the same question as asked, so its context must still be
+  // usable: checked before the old answer is replaced (the worker checks
+  // again when the turn runs).
+  const context = await lastQuestionContext(conversation.id);
+  if (context?.kind === "gone") {
+    throw await refusal(
+      409,
+      context.of === "environment"
+        ? "assistant.environment_gone"
+        : "assistant.context_gone"
+    );
+  }
+  if (context && context.kind !== "auto") {
+    await resolveQuestionContext(
+      context.kind === "project"
+        ? { kind: "project", projectId: context.projectId }
+        : { kind: "environment", environmentId: context.environmentId }
+    );
+  }
 
   const result = await replaceLastAnswer(conversation.id, now);
   if (result === "busy") throw await refusal(409, "assistant.busy");

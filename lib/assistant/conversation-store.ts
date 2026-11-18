@@ -17,6 +17,8 @@ import {
   type MessageContext,
   messageContextOf,
   type QuestionContext,
+  type StoredQuestionContext,
+  contextFromRow,
 } from "./context";
 import {
   attachUploads,
@@ -588,6 +590,32 @@ export async function replaceLastAnswer(
       .where(eq(assistantConversations.id, conversationId));
     return { assistantMessageId: answer.id };
   });
+}
+
+/**
+ * The context the conversation's latest question asked about (a deleted
+ * pinned project or environment reads as "gone"); null before any question.
+ */
+export async function lastQuestionContext(
+  conversationId: string
+): Promise<StoredQuestionContext | null> {
+  const [row] = await db
+    .select({
+      projectId: assistantMessages.projectId,
+      projectName: assistantMessages.projectName,
+      environmentId: assistantMessages.environmentId,
+      environmentName: assistantMessages.environmentName,
+    })
+    .from(assistantMessages)
+    .where(
+      and(
+        eq(assistantMessages.conversationId, conversationId),
+        eq(assistantMessages.role, "user")
+      )
+    )
+    .orderBy(desc(assistantMessages.id))
+    .limit(1);
+  return row ? contextFromRow(row) : null;
 }
 
 /** queued → failed, for a turn whose job could not be enqueued. */

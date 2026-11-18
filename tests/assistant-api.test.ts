@@ -215,7 +215,7 @@ vi.mock("@/lib/assistant/tools/context", async (importOriginal) => ({
 vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
   const { titleFrom, TITLE_MAX_CHARS } =
     await importOriginal<typeof import("@/lib/assistant/conversation-store")>();
-  const { contextListLabel, messageContextOf } = await import(
+  const { contextFromRow, contextListLabel, messageContextOf } = await import(
     "@/lib/assistant/context"
   );
   const nextId = () =>
@@ -404,6 +404,10 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       const m = store.messages.find((x) => x.id === id);
       if (m?.status === "queued")
         Object.assign(m, { status: "failed", errorCode });
+    },
+    lastQuestionContext: async (conversationId: string) => {
+      const q = lastQuestion(conversationId);
+      return q ? contextFromRow(q) : null;
     },
     replaceLastAnswer: async (conversationId: string) => {
       const mine = store.messages.filter(
@@ -671,6 +675,12 @@ describe("global gate", () => {
     expect(
       (await send(id, "Tanya", { context: { kind: "auto" } })).status
     ).toBe(403);
+    expect((await post("/stop-answer", { conversationId: id })).status).toBe(
+      403
+    );
+    expect((await post("/retry-answer", { conversationId: id })).status).toBe(
+      403
+    );
     expect(store.conversations).toHaveLength(1);
     expect(store.messages).toEqual([]);
   });
@@ -1064,6 +1074,56 @@ describe("retry-answer", () => {
       code: "assistant.daily_cap_reached",
     });
     expect(store.messages[1]).toMatchObject({ id: before, status: "done" });
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "environment",
+      { environmentId: null, environmentName: "Dev 1", projectId: null },
+      "assistant.environment_gone",
+    ],
+    [
+      "project",
+      { projectId: null },
+      "assistant.context_gone",
+    ],
+  ])(
+    "refuses when the question's pinned %s was deleted and keeps the answer",
+    async (_kind, gone, code) => {
+      const id = await newConversation();
+      await send(id);
+      store.messages[1]!.status = "done";
+      store.messages[1]!.content = "A good answer";
+      Object.assign(store.messages[0]!, gone);
+      queue.enqueue.mockClear();
+      const res = await post("/retry-answer", { conversationId: id });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ code });
+      expect(store.messages).toHaveLength(2);
+      expect(store.messages[1]).toMatchObject({
+        status: "done",
+        content: "A good answer",
+      });
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    }
+  );
+
+  it("is a 404 and keeps the answer when the user lost the project", async () => {
+    const id = await newConversation();
+    await send(id);
+    store.messages[1]!.status = "done";
+    store.messages[1]!.content = "A good answer";
+    state.members[PROJECT_KMEM] = [OTHER];
+    state.members[PROJECT_HMEM] = [QA];
+    queue.enqueue.mockClear();
+    const res = await post("/retry-answer", { conversationId: id });
+    expect(res.status).toBe(404);
+    expect(store.messages).toHaveLength(2);
+    expect(store.messages[1]).toMatchObject({
+      status: "done",
+      content: "A good answer",
+    });
     expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
