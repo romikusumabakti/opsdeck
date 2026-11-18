@@ -179,7 +179,10 @@ export function FileChips({
   return (
     <div className="flex flex-col gap-1.5">
       {files.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5" aria-label={t("attachedFiles")}>
+        <ul
+          className="flex flex-wrap items-start gap-1.5"
+          aria-label={t("attachedFiles")}
+        >
           {files.map((f) => (
             <li
               key={f.key}
