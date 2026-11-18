@@ -3685,6 +3685,7 @@
     "untitled": "دردشة جديدة",
     "chatActions": "إجراءات الدردشة",
     "chatTitle": "عنوان الدردشة",
+    "chatTitleTooLong": "يمكن أن يحتوي عنوان الدردشة على {max} حرفًا كحد أقصى.",
     "renameChat": "إعادة التسمية",
     "deleteChat": "حذف",
     "deleteChatConfirm": "هل تريد حذف هذه الدردشة؟",

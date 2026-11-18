@@ -1804,7 +1804,11 @@ describe("context picker", () => {
         "value"
       )?.set?.call(field, value);
       field.dispatchEvent(new Event("input", { bubbles: true }));
-      field.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      field.dispatchEvent(
+        key === "blur"
+          ? new FocusEvent("focusout", { bubbles: true })
+          : new KeyboardEvent("keydown", { key, bubbles: true })
+      );
     });
     await settle();
   };
@@ -1828,6 +1832,53 @@ describe("context picker", () => {
     expect(api.renameConversation).toHaveBeenCalledWith({
       conversationId: CONV_ID,
       title: "Iuran tambahan",
+    });
+  });
+
+  it("saves a renamed title on blur; an empty or unchanged one cancels", async () => {
+    api.renameConversation.mockResolvedValue({ id: CONV_ID });
+    await renderWorkspace();
+    const edit = async () => {
+      await openChatMenu("Iuran");
+      await act(async () => menuItem(t.renameChat)?.click());
+      await settle();
+    };
+    for (const value of ["   ", "Iuran"]) {
+      await edit();
+      await typeTitle(value, "blur");
+      expect(titleField()).toBeNull();
+    }
+    expect(api.renameConversation).not.toHaveBeenCalled();
+    await edit();
+    await typeTitle("Iuran baru", "blur");
+    expect(titleField()).toBeNull();
+    expect(api.renameConversation).toHaveBeenCalledWith({
+      conversationId: CONV_ID,
+      title: "Iuran baru",
+    });
+  });
+
+  it("counts a title's characters, not UTF-16 units, and refuses more than 80", async () => {
+    api.renameConversation.mockResolvedValue({ id: CONV_ID });
+    await renderWorkspace();
+    await openChatMenu("Iuran");
+    await act(async () => menuItem(t.renameChat)?.click());
+    await settle();
+    expect(titleField()?.hasAttribute("maxlength")).toBe(false);
+    const tooLong = t.chatTitleTooLong.replace("{max}", "80");
+    for (const key of ["Enter", "blur"]) {
+      await typeTitle("😀".repeat(81), key);
+      expect(titleField()).not.toBeNull();
+      expect(titleField()?.getAttribute("aria-invalid")).toBe("true");
+      expect(text()).toContain(tooLong);
+    }
+    expect(api.renameConversation).not.toHaveBeenCalled();
+    await typeTitle("😀".repeat(80), "Enter");
+    expect(titleField()).toBeNull();
+    expect(text()).not.toContain(tooLong);
+    expect(api.renameConversation).toHaveBeenCalledWith({
+      conversationId: CONV_ID,
+      title: "😀".repeat(80),
     });
   });
 

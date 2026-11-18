@@ -3685,6 +3685,7 @@
     "untitled": "New chat",
     "chatActions": "Chat actions",
     "chatTitle": "Chat title",
+    "chatTitleTooLong": "A chat title can have at most {max} characters.",
     "renameChat": "Rename",
     "deleteChat": "Delete",
     "deleteChatConfirm": "Delete this chat?",

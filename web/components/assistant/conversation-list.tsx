@@ -38,7 +38,7 @@ const TITLE_MAX_CHARS = 80;
 /**
  * The caller's chats (all projects), newest first, each with what its last
  * question was about and when it changed, and a ⋯ menu to rename it (in
- * place: Enter saves, Escape or leaving the field cancels) or delete it
+ * place: Enter or leaving the field saves, Escape cancels) or delete it
  * (after a confirmation). The list scrolls on its own below the pinned "New
  * chat" button.
  */
@@ -59,6 +59,9 @@ export function ConversationList({
   const queryClient = useQueryClient();
   const conversations = useQuery(listConversationsQuery()).data ?? [];
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [titleTooLong, setTitleTooLong] = React.useState(false);
+  // Escape cancels; the blur that may follow must not save.
+  const cancelled = React.useRef(false);
   // The menu hands focus to the title field it opened, not back to itself.
   const titleInput = React.useRef<HTMLInputElement>(null);
   const [deleting, setDeleting] = React.useState<ConversationSummary | null>(
@@ -87,9 +90,29 @@ export function ConversationList({
     onError: () => toast.error(tCommon("errorGeneric")),
   });
 
-  const saveTitle = (conversation: ConversationSummary, value: string) => {
+  const startEditing = (id: string) => {
+    cancelled.current = false;
+    setTitleTooLong(false);
+    setEditingId(id);
+  };
+  const stopEditing = () => {
+    cancelled.current = true;
     setEditingId(null);
+  };
+
+  /**
+   * Saves a changed title, else (empty or unchanged) cancels. One over the
+   * limit, in characters (code points, as the server counts), stays open
+   * with the error.
+   */
+  const saveTitle = (conversation: ConversationSummary, value: string) => {
+    if (cancelled.current) return;
     const title = value.trim().replace(/\s+/g, " ");
+    if (Array.from(title).length > TITLE_MAX_CHARS) {
+      setTitleTooLong(true);
+      return;
+    }
+    stopEditing();
     if (!title || title === conversation.title) return;
     rename.mutate({ conversationId: conversation.id, title });
   };
@@ -111,24 +134,38 @@ export function ConversationList({
           {conversations.map((c) => (
             <li key={c.id} className="group relative">
               {editingId === c.id ? (
-                <Input
-                  ref={titleInput}
-                  autoFocus
-                  aria-label={t("chatTitle")}
-                  defaultValue={c.title}
-                  maxLength={TITLE_MAX_CHARS}
-                  onFocus={(event) => event.currentTarget.select()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      saveTitle(c, event.currentTarget.value);
-                    } else if (event.key === "Escape") {
-                      event.preventDefault();
-                      setEditingId(null);
+                <div className="flex flex-col gap-1">
+                  <Input
+                    ref={titleInput}
+                    autoFocus
+                    aria-label={t("chatTitle")}
+                    aria-invalid={titleTooLong || undefined}
+                    aria-describedby={
+                      titleTooLong ? `chat-title-error-${c.id}` : undefined
                     }
-                  }}
-                  onBlur={() => setEditingId(null)}
-                />
+                    defaultValue={c.title}
+                    onFocus={(event) => event.currentTarget.select()}
+                    onChange={() => setTitleTooLong(false)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        saveTitle(c, event.currentTarget.value);
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        stopEditing();
+                      }
+                    }}
+                    onBlur={(event) => saveTitle(c, event.currentTarget.value)}
+                  />
+                  {titleTooLong && (
+                    <p
+                      id={`chat-title-error-${c.id}`}
+                      className="px-1 text-xs text-destructive"
+                    >
+                      {t("chatTitleTooLong", { max: TITLE_MAX_CHARS })}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <button
                   type="button"
@@ -175,7 +212,7 @@ export function ConversationList({
                   align="end"
                   finalFocus={editingId === c.id ? titleInput : true}
                 >
-                  <DropdownMenuItem onClick={() => setEditingId(c.id)}>
+                  <DropdownMenuItem onClick={() => startEditing(c.id)}>
                     <Pencil />
                     {t("renameChat")}
                   </DropdownMenuItem>

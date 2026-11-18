@@ -75,8 +75,8 @@ import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
 /**
- * The code assistant's chat API. Every function authorizes the caller itself.
- * Conversations are global (not bound to a project) and sit behind the
+ * The assistant's chat API. Every function authorizes the caller itself.
+ * Chats (conversations) are global (not bound to a project) and sit behind the
  * global gate (requireAssistantGate). A conversation is visible to its owner
  * only (admins included: audit goes through the database and the usage
  * view), and another user's conversation, message or draft is a 404, so ids

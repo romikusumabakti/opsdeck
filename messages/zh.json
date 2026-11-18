@@ -3685,6 +3685,7 @@
     "untitled": "新聊天",
     "chatActions": "聊天操作",
     "chatTitle": "聊天标题",
+    "chatTitleTooLong": "聊天标题最多 {max} 个字符。",
     "renameChat": "重命名",
     "deleteChat": "删除",
     "deleteChatConfirm": "删除此聊天？",
