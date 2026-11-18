@@ -4,6 +4,7 @@
 // which needs the polyfill before anything else, as in server/index.ts.
 import "reflect-metadata";
 import { runBackup } from "./cli/backup";
+import { runKnowledge } from "./cli/knowledge";
 import { runMigrate } from "./cli/migrate";
 import { runRestoreCommand } from "./cli/restore";
 import { runSeed } from "./cli/seed";
@@ -17,6 +18,8 @@ Commands:
   restore <objectKey> Restore an instance backup (the host updater runs it)
   seed demo [--print-passwords] [--force]
                       Fictional demo data and one test account per role (beta)
+  knowledge import <folder> --as <email> [--dry-run] [--update-visibility]
+                      Import a folder of Markdown files into the knowledge base
 
 Run a command with --help for its options.`;
 
@@ -25,6 +28,7 @@ const commands: Record<string, (args: string[]) => Promise<number>> = {
   backup: runBackup,
   restore: runRestoreCommand,
   seed: runSeed,
+  knowledge: runKnowledge,
 };
 
 const [command, ...args] = process.argv.slice(2);

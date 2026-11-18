@@ -271,6 +271,28 @@ describe.skipIf(!enabled)("knowledge write cores on Postgres", () => {
     await updateDocumentFor(qa, ids.guide, { title: "Deploy guide" });
   });
 
+  it("links a new document from documents that already pointed at its slug", async () => {
+    const { createDocumentFor } = await import("@/server/services/knowledge");
+    const linker = await createDocumentFor(qa, {
+      collectionId: ids.guides,
+      title: "Linker",
+      content:
+        "See [later](/knowledge/later-page), not [longer](/knowledge/later-page-2) or `[code](/knowledge/later-page)`.",
+    });
+    if (!linker.success) throw new Error(linker.message);
+    const target = await createDocumentFor(qa, {
+      collectionId: ids.guides,
+      title: "Later page",
+    });
+    if (!target.success) throw new Error(target.message);
+    expect(target.data.slug).toBe("later-page");
+    const edges = await d
+      .select()
+      .from(schema.knowledgeLinks)
+      .where(eq(schema.knowledgeLinks.toDocumentId, target.data.id));
+    expect(edges.map((e) => e.fromDocumentId)).toEqual([linker.data.id]);
+  });
+
   it("answers an update of a hidden document like a missing one and writes nothing", async () => {
     const { updateDocumentFor } = await import("@/server/services/knowledge");
     const before = await docRow(ids.hostMap);

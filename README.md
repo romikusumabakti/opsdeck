@@ -107,6 +107,7 @@ menara migrate [--adopt]       Apply pending migrations
 menara backup run [--trigger …] Back up the instance (S3 destination or local)
 menara restore <objectKey>     Restore an instance backup (run by the updater)
 menara seed demo [--print-passwords] [--force]
+menara knowledge import <folder> --as <email> [--dry-run] [--update-visibility]
 ```
 
 `seed demo` fills a beta or test instance with fictional data: five projects
@@ -115,6 +116,16 @@ month of finished deploy history, staff who cannot sign in, issues with
 comments and milestones, a small knowledge base, and one sign-in account per
 role. It never changes existing rows, adds nothing under a project or
 collection it does not own, and a second run adds nothing.
+
+`knowledge import` writes every `*.md` file of a folder as a published
+knowledge document, as the `--as` user (who must hold `knowledge:manage`), from
+YAML front matter `collection`, `title` and optional `slug`, `docType` and
+`visibleTo` (the collection's roles; `[]` = everyone). Documents are matched by
+slug: unchanged files are skipped, changed ones get a revision, and links
+between the files become `/knowledge/<slug>` links. The folder is checked
+whole first, so a problem in any file (an unknown role, say) stops the run
+before anything is written; `--dry-run` shows the plan. `menara knowledge
+--help` has the details.
 
 In production: `docker exec <app container> menara <command>`. Locally:
 `bun scripts/cli.ts <command>`.

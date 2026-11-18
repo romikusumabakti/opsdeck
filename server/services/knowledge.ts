@@ -273,18 +273,58 @@ async function rebuildLinks(
   }
 }
 
+/**
+ * Edges into a document just created at `slug` from the documents that
+ * already link to that slug: a link written before its target existed (a
+ * placeholder in the editor, a later file of the same import) resolves once
+ * the target is there, without re-saving the linking document. Stored whole
+ * and gated on read, like rebuildLinks.
+ */
+async function linkInbound(
+  tx: Tx,
+  documentId: string,
+  slug: string
+): Promise<void> {
+  // Slugs are [a-z0-9-] (knowledgeSlugSchema), so no LIKE wildcard to escape;
+  // extractLinkedSlugs then drops matches inside code or of a longer slug.
+  const candidates = await tx
+    .select({ id: knowledgeDocuments.id, content: knowledgeDocuments.content })
+    .from(knowledgeDocuments)
+    .where(
+      and(
+        sql`${knowledgeDocuments.id} <> ${documentId}`,
+        sql`${knowledgeDocuments.content} like ${`%/knowledge/${slug})%`}`
+      )
+    );
+  const edges = candidates
+    .filter((c) => extractLinkedSlugs(c.content).includes(slug))
+    .map((c) => ({ fromDocumentId: c.id, toDocumentId: documentId }));
+  if (edges.length > 0) {
+    await tx.insert(knowledgeLinks).values(edges).onConflictDoNothing();
+  }
+}
+
 export async function createDocument(
   data: unknown
 ): Promise<ActionResponse<KnowledgeDocument>> {
   return createDocumentFor(await sessionActor(), data);
 }
 
+/**
+ * Server-side options of the document cores, never read from a request body:
+ * `slug` asks for that slug instead of the title's (the knowledge import's
+ * front matter). It goes through the same uniqueness rule, so it may come back
+ * suffixed.
+ */
+export type DocumentWriteOptions = { slug?: string };
+
 // The slug is unique across every document, hidden ones included, so a title
 // that collides with a document the actor cannot see is suffixed like any
 // other collision — never refused with a conflict that would name it.
 export async function createDocumentFor(
   actor: KnowledgeActor,
-  data: unknown
+  data: unknown,
+  options: DocumentWriteOptions = {}
 ): Promise<ActionResponse<KnowledgeDocument>> {
   requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["write"] });
   const parsed = documentInputSchema.safeParse(data);
@@ -308,7 +348,7 @@ export async function createDocumentFor(
       (await collectionVisible(db, viewer, collectionId)) &&
       (!parentId || (await findVisibleDoc(db, viewer, parentId)) !== undefined);
     if (visible) {
-      const slug = await ensureUniqueSlug(slugify(title));
+      const slug = await ensureUniqueSlug(options.slug ?? slugify(title));
       const rank = await appendDocumentRank(collectionId, parentId ?? null);
       created = await db.transaction(async (tx) => {
         const doc = one(
@@ -332,6 +372,7 @@ export async function createDocumentFor(
           "knowledge document"
         );
         await rebuildLinks(tx, doc.id, content);
+        await linkInbound(tx, doc.id, doc.slug);
         return doc;
       });
     }
@@ -353,7 +394,8 @@ export async function updateDocument(
 export async function updateDocumentFor(
   actor: KnowledgeActor,
   id: string,
-  data: unknown
+  data: unknown,
+  options: DocumentWriteOptions = {}
 ): Promise<ActionResponse<KnowledgeDocument>> {
   requireOrgPermissionIn({ orgRole: actor.role }, { knowledge: ["write"] });
   if (!knowledgeIdSchema.safeParse(id).success) {
@@ -396,11 +438,14 @@ export async function updateDocumentFor(
       const nextContent = input.content ?? existing.content;
       const nextCollectionId = input.collectionId ?? existing.collectionId;
 
-      // Re-slug only when the title changed; keep stable URLs otherwise.
+      // Re-slug only when the title changed; keep stable URLs otherwise. An
+      // explicit slug (options) wins over the title's.
       const slug =
-        input.title && input.title !== existing.title
-          ? await ensureUniqueSlug(slugify(nextTitle), id)
-          : existing.slug;
+        options.slug !== undefined
+          ? await ensureUniqueSlug(options.slug, id)
+          : input.title && input.title !== existing.title
+            ? await ensureUniqueSlug(slugify(nextTitle), id)
+            : existing.slug;
 
       const set: Partial<typeof knowledgeDocuments.$inferInsert> = {
         title: nextTitle,
