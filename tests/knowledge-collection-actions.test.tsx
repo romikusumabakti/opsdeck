@@ -133,7 +133,7 @@ describe("collection header actions", () => {
     );
     expect(byLabel("Actions for Handbook")).not.toBeNull();
     await click(byLabel("Actions for Handbook") as Element);
-    expect(itemByText("Rename collection")).toBeDefined();
+    expect(itemByText("Edit collection")).toBeDefined();
     expect(itemByText("Delete collection")).toBeDefined();
   });
 
@@ -179,7 +179,7 @@ describe("collection header actions", () => {
       />
     );
     await click(byLabel("Actions for Handbook") as Element);
-    await click(itemByText("Rename collection") as Element);
+    await click(itemByText("Edit collection") as Element);
     const input = document.querySelector(
       "#collection-rename-name"
     ) as HTMLInputElement;
@@ -198,6 +198,7 @@ describe("collection header actions", () => {
     await click(save);
     expect(api.updateCollection).toHaveBeenCalledWith(COL_A, {
       name: "Guides",
+      visibleToRoles: [],
     });
   });
 

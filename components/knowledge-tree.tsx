@@ -3,6 +3,7 @@ import {
   ChevronRight,
   FileText,
   Folder,
+  Lock,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -30,7 +31,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import type { KnowledgeCollection, KnowledgeTreeNode } from "@/lib/db/schema";
+import type {
+  KnowledgeCollectionView,
+  KnowledgeTreeNode,
+} from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import type { Serialized } from "@/web/api/client";
 import {
@@ -239,7 +243,7 @@ export function KnowledgeTree({
   canManage = false,
   canWrite = false,
 }: {
-  collections: Serialized<KnowledgeCollection>[];
+  collections: Serialized<KnowledgeCollectionView>[];
   nodes: Serialized<KnowledgeTreeNode>[];
   canManage?: boolean;
   // Whether the viewer may create documents (shows the per-collection "+").
@@ -250,9 +254,11 @@ export function KnowledgeTree({
   const pathname = usePathname();
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(
-    null
-  );
+  const [renaming, setRenaming] = useState<{
+    id: string;
+    name: string;
+    visibleToRoles: string[];
+  } | null>(null);
   // The document count is captured when the dialog opens so it doesn't shift
   // while the refetch after a delete lands.
   const [deleting, setDeleting] = useState<{
@@ -543,6 +549,13 @@ export function KnowledgeTree({
                 />
                 <Folder className="size-3.5 shrink-0" />
                 <span className="truncate">{collection.name}</span>
+                {collection.restricted && (
+                  <Lock
+                    className="size-3 shrink-0 text-muted-foreground/70"
+                    role="img"
+                    aria-label={t("restrictedLabel")}
+                  />
+                )}
                 {items.length > 0 && (
                   <span className="text-muted-foreground/50 normal-case">
                     {items.length}
@@ -590,11 +603,12 @@ export function KnowledgeTree({
                             setRenaming({
                               id: collection.id,
                               name: collection.name,
+                              visibleToRoles: collection.visibleToRoles ?? [],
                             })
                           }
                         >
                           <Pencil />
-                          {t("renameCollection")}
+                          {t("editCollection")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"

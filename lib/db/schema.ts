@@ -2196,6 +2196,14 @@ export const knowledgeAttachments = pgTable("knowledge_attachments", {
 });
 
 export type KnowledgeCollection = InferSelectModel<typeof knowledgeCollections>;
+/**
+ * A collection as the sidebar receives it: everyone gets `restricted` (shown
+ * as a lock), only viewers with knowledge:manage also get the role list.
+ */
+export type KnowledgeCollectionView = Omit<
+  KnowledgeCollection,
+  "visibleToRoles"
+> & { restricted: boolean; visibleToRoles?: string[] };
 export type NewKnowledgeCollection = InferInsertModel<
   typeof knowledgeCollections
 >;

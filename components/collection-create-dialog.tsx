@@ -2,6 +2,13 @@ import { FolderPlus, Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
+import {
+  type CollectionVisibility,
+  CollectionVisibilityField,
+  EVERYONE,
+  isVisibilityValid,
+  rolesPayload,
+} from "@/components/collection-visibility-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,14 +30,16 @@ export function CollectionCreateDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [visibility, setVisibility] = useState<CollectionVisibility>(EVERYONE);
   const [isPending, startTransition] = useTransition();
 
   function onSubmit() {
-    if (!name.trim()) return;
+    if (!name.trim() || !isVisibilityValid(visibility)) return;
     startTransition(async () => {
       const res = await createCollection({
         name,
         description: description || null,
+        visibleToRoles: rolesPayload(visibility),
       });
       if (!res.success) {
         toast.error(res.message ?? tCommon("errorGeneric"));
@@ -39,6 +48,7 @@ export function CollectionCreateDialog() {
       toast.success(t("collectionCreated"));
       setName("");
       setDescription("");
+      setVisibility(EVERYONE);
       setOpen(false);
     });
   }
@@ -83,6 +93,11 @@ export function CollectionCreateDialog() {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+          <CollectionVisibilityField
+            idPrefix="collection-visibility"
+            value={visibility}
+            onChange={setVisibility}
+          />
         </div>
         <DialogFooter>
           <Button
@@ -92,7 +107,12 @@ export function CollectionCreateDialog() {
           >
             {tCommon("cancel")}
           </Button>
-          <Button onClick={onSubmit} disabled={!name.trim() || isPending}>
+          <Button
+            onClick={onSubmit}
+            disabled={
+              !name.trim() || !isVisibilityValid(visibility) || isPending
+            }
+          >
             {isPending && <Loader2 className="size-4 animate-spin" />}
             {tCommon("save")}
           </Button>

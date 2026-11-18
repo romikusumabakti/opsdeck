@@ -45,7 +45,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useRouter } from "@/i18n/navigation";
-import type { KnowledgeCollection, KnowledgeDocument } from "@/lib/db/schema";
+import type {
+  KnowledgeCollectionView,
+  KnowledgeDocument,
+} from "@/lib/db/schema";
 import type { Serialized } from "@/web/api/client";
 import {
   createDocument,
@@ -72,7 +75,7 @@ export function DocumentForm({
   toolbarStart,
 }: {
   mode: Mode;
-  collections: Serialized<KnowledgeCollection>[];
+  collections: Serialized<KnowledgeCollectionView>[];
   linkableDocs?: LinkableDoc[];
   toolbarStart?: ReactNode;
 }) {

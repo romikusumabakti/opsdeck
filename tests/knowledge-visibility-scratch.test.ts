@@ -258,6 +258,22 @@ describe.skipIf(!enabled)("knowledge collection visibility on Postgres", () => {
     expect(await names(admin)).toEqual(["Guides", "Infrastructure", "Typo"]);
   });
 
+  it("tells only managers which roles a collection is limited to", async () => {
+    const { loadCollections } = await import("@/lib/knowledge");
+    const infraView = (await loadCollections(infra)).find(
+      (c) => c.name === "Infrastructure"
+    );
+    expect(infraView?.restricted).toBe(true);
+    expect(infraView).not.toHaveProperty("visibleToRoles");
+    const adminView = (await loadCollections(admin)).find(
+      (c) => c.name === "Infrastructure"
+    );
+    expect(adminView?.restricted).toBe(true);
+    expect(adminView?.visibleToRoles).toContain("infra");
+    const open = (await loadCollections(qa)).find((c) => c.name === "Guides");
+    expect(open?.restricted).toBe(false);
+  });
+
   it("keeps hidden collections out of the tree", async () => {
     const { loadTreeNodes } = await import("@/lib/knowledge");
     const slugs = async (v: KnowledgeViewer, collectionId?: string) =>

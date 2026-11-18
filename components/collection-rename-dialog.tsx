@@ -2,6 +2,12 @@ import { Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
+import {
+  CollectionVisibilityField,
+  isVisibilityValid,
+  rolesPayload,
+  visibilityOf,
+} from "@/components/collection-visibility-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,30 +20,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateCollection } from "@/web/api/knowledge";
 
-// Mount it per rename (`key` by collection id) so the field starts from the
-// current name; `onClose` fires after a save or a dismiss.
+// Edits a collection's name and visibility. Mount it per edit (`key` by
+// collection id) so the fields start from the current values; `onClose` fires after a save or a dismiss.
 export function CollectionRenameDialog({
   collection,
   onClose,
 }: {
-  collection: { id: string; name: string };
+  collection: { id: string; name: string; visibleToRoles: string[] };
   onClose: () => void;
 }) {
   const t = useTranslations("knowledge");
   const tCommon = useTranslations("common");
   const [name, setName] = useState(collection.name);
+  const [visibility, setVisibility] = useState(
+    visibilityOf(collection.visibleToRoles)
+  );
   const [isPending, startTransition] = useTransition();
-  const canSave = name.trim().length > 0 && name !== collection.name;
+  const roles = rolesPayload(visibility);
+  const changed =
+    name !== collection.name ||
+    roles.join() !==
+      rolesPayload(visibilityOf(collection.visibleToRoles)).join();
+  const canSave =
+    name.trim().length > 0 && isVisibilityValid(visibility) && changed;
 
   function onSubmit() {
     if (!canSave) return;
     startTransition(async () => {
-      const res = await updateCollection(collection.id, { name });
+      const res = await updateCollection(collection.id, {
+        name,
+        visibleToRoles: roles,
+      });
       if (!res.success) {
         toast.error(res.message ?? tCommon("errorGeneric"));
         return;
       }
-      toast.success(t("collectionRenamed"));
+      toast.success(t("collectionUpdated"));
       onClose();
     });
   }
@@ -53,7 +71,7 @@ export function CollectionRenameDialog({
           className="flex flex-col gap-4"
         >
           <DialogHeader>
-            <DialogTitle>{t("renameCollection")}</DialogTitle>
+            <DialogTitle>{t("editCollection")}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="collection-rename-name">
@@ -66,6 +84,11 @@ export function CollectionRenameDialog({
               autoFocus
             />
           </div>
+          <CollectionVisibilityField
+            idPrefix="collection-edit-visibility"
+            value={visibility}
+            onChange={setVisibility}
+          />
           <DialogFooter>
             <Button
               type="button"

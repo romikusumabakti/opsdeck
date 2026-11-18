@@ -13,7 +13,7 @@ import { generateKeyBetween } from "fractional-indexing";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
 import {
-  type KnowledgeCollection,
+  type KnowledgeCollectionView,
   type KnowledgeDocumentWithMeta,
   type KnowledgeRevision,
   type KnowledgeTreeNode,
@@ -173,13 +173,20 @@ export {
 export async function loadCollections(
   // Session-free callers pass the viewer explicitly.
   viewerOverride?: KnowledgeViewer
-): Promise<KnowledgeCollection[]> {
+): Promise<KnowledgeCollectionView[]> {
   const viewer = viewerOverride ?? (await currentViewer());
-  return db
+  const rows = await db
     .select()
     .from(knowledgeCollections)
     .where(visibleCollections(viewer))
     .orderBy(asc(knowledgeCollections.rank), asc(knowledgeCollections.name));
+  // Only a manager learns which roles a collection is limited to; everyone
+  // else gets the lock flag.
+  return rows.map(({ visibleToRoles, ...collection }) => ({
+    ...collection,
+    restricted: visibleToRoles.length > 0,
+    ...(viewer.canManage ? { visibleToRoles } : {}),
+  }));
 }
 
 /**

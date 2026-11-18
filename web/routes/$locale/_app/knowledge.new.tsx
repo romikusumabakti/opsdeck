@@ -5,7 +5,10 @@ import { z } from "zod";
 import { DocumentForm } from "@/components/document-form";
 import { KnowledgeBreadcrumb } from "@/components/knowledge-breadcrumb";
 import { redirect } from "@/i18n/navigation";
-import type { KnowledgeCollection, KnowledgeTreeNode } from "@/lib/db/schema";
+import type {
+  KnowledgeCollectionView,
+  KnowledgeTreeNode,
+} from "@/lib/db/schema";
 import type { Serialized } from "@/web/api/client";
 import { listCollectionsQuery, listTreeNodesQuery } from "@/web/api/knowledge";
 import { requireOrgRole } from "@/web/project-guard";
@@ -48,7 +51,7 @@ export function NewDocumentView({
   nodes,
   requestedCollectionId,
 }: {
-  collections: Serialized<KnowledgeCollection>[];
+  collections: Serialized<KnowledgeCollectionView>[];
   nodes: Serialized<KnowledgeTreeNode>[];
   requestedCollectionId?: string;
 }) {
