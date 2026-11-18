@@ -135,6 +135,27 @@ describe("buildSourceNote", () => {
   });
 });
 
+describe("answer format and language", () => {
+  const text = buildSystemPrompt({
+    userName: "Widya",
+    preferredName: null,
+    orgContext: null,
+  });
+
+  it("answers in the question's language and drops the forced two-part structure", () => {
+    expect(text).not.toContain("Yang dilakukan kode");
+    expect(text).not.toContain("Write your answers in Indonesian");
+    expect(text).toContain("language the user writes");
+    expect(text).toContain("Lead with the direct answer");
+  });
+
+  it("keeps Drafts in Indonesian with explicit assumptions", () => {
+    const drafts = text.slice(text.indexOf("# Drafts"));
+    expect(drafts).toContain("in Indonesian");
+    expect(drafts).toContain("assumption");
+  });
+});
+
 describe("questionContextLabel", () => {
   it("labels each replayed question with its context", () => {
     expect(questionContextLabel({ kind: "auto" })).toBe("(Context: automatic)");

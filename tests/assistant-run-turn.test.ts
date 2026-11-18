@@ -2016,10 +2016,9 @@ describe("buildSystemPrompt", () => {
     expect(text).toContain('"Environment: <name>"');
     expect(text).not.toContain("Components and the source you can read");
     expect(text).not.toContain("Today's date");
-    expect(text).toContain("tidak ditemukan di kode");
-    expect(text).toContain("Yang dilakukan kode");
-    expect(text).toContain("Asumsi");
-    expect(text).toContain("Indonesian");
+    expect(text).toContain("not found in the code");
+    expect(text).not.toContain("Yang dilakukan kode");
+    expect(text).toContain("language the user writes");
     expect(text).toContain("component/path:line");
   });
 
