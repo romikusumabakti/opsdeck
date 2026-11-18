@@ -15,6 +15,32 @@ import {
 const EMPTY_NOTICE_MS = 1500;
 
 /**
+ * Replace the mention's `@query` in the box the way typing would, so the
+ * browser's undo (Ctrl+Z) takes the pick back: setting the value from
+ * script empties the box's undo history. `insertText` is deprecated but
+ * still the only edit that keeps that history, and fires the input event
+ * the box's onChange reads. False where it is unsupported or refused: the
+ * caller then sets the text itself.
+ */
+function insertNatively(
+  box: HTMLTextAreaElement | null,
+  mention: { start: number; query: string },
+  label: string
+): boolean {
+  if (!box || typeof document.execCommand !== "function") return false;
+  box.focus();
+  box.setSelectionRange(
+    mention.start,
+    mention.start + 1 + mention.query.length
+  );
+  try {
+    return document.execCommand("insertText", false, `@${label} `);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * `@` mentions for a question box, shared by the composer and the Home box.
  * While the caret is in an `@word` (see `activeMention`), a list under the
  * box offers the projects, then the environments, matching it; ↑/↓ move,
@@ -87,7 +113,9 @@ export function useMentions({
     if (!mention) return;
     const next = applyMention(text, mention, match.label);
     pendingCaret.current = next.caret;
-    onTextChange(next.text);
+    if (!insertNatively(textareaRef.current, mention, match.label)) {
+      onTextChange(next.text);
+    }
     onPick(match.context);
   };
 

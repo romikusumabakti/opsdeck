@@ -1965,6 +1965,51 @@ describe("context picker", () => {
       expect(api.sendMessage).not.toHaveBeenCalled();
     });
 
+    it("a pick is typed into the box natively, so Ctrl+Z can undo it", async () => {
+      await renderWorkspace();
+      const box = await type("Is @her");
+      await settle();
+      // The browser's insertText edits the selection and fires input, like
+      // typing; happy-dom has no execCommand, so it is stood in for here.
+      const calls: Array<[string, string, number, number]> = [];
+      const exec = vi.fn((command: string, _ui?: boolean, value?: string) => {
+        calls.push([
+          command,
+          value ?? "",
+          box.selectionStart,
+          box.selectionEnd,
+        ]);
+        const { selectionStart: from, selectionEnd: to } = box;
+        const next =
+          box.value.slice(0, from) + (value ?? "") + box.value.slice(to);
+        // The prototype setter, as the browser's own edit: React sees a change.
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set?.call(box, next);
+        box.setSelectionRange(
+          from + (value ?? "").length,
+          from + (value ?? "").length
+        );
+        box.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
+      });
+      Object.defineProperty(document, "execCommand", {
+        configurable: true,
+        value: exec,
+      });
+      try {
+        await press(box, "Enter");
+      } finally {
+        Reflect.deleteProperty(document, "execCommand");
+      }
+      expect(calls).toEqual([["insertText", "@Heron Membership ", 3, 7]]);
+      expect(box.value).toBe("Is @Heron Membership ");
+      expect(box.selectionStart).toBe("Is @Heron Membership ".length);
+      expect(chip()?.textContent).toBe("Heron Membership");
+      expect(options()).toEqual([]);
+    });
+
     it("arrows move the highlight and Tab picks; the last pick wins", async () => {
       api.createConversation.mockResolvedValue({ id: CONV_ID });
       api.sendMessage.mockResolvedValue({});
