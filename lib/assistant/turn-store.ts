@@ -32,6 +32,8 @@ export type TurnContext = {
   conversationId: string;
   userId: string;
   userName: string;
+  /** What the user asked to be called, or null (buildSystemPrompt). */
+  preferredName: string | null;
   /**
    * The context of the question this turn answers, from its user message
    * as stored: not yet checked against the user's current access (runTurn
@@ -55,6 +57,7 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       conversationId: assistantMessages.conversationId,
       userId: assistantConversations.userId,
       userName: users.name,
+      preferredName: users.preferredName,
     })
     .from(assistantMessages)
     .innerJoin(
@@ -97,6 +100,7 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
     conversationId: row.conversationId,
     userId: row.userId,
     userName: row.userName,
+    preferredName: row.preferredName,
     context: lastUser ? contextFromRow(lastUser) : { kind: "auto" },
     history: earlier.map((m) => ({
       role: m.role,

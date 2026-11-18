@@ -1539,6 +1539,9 @@ export const users = pgTable(
     // --- Profile (self-managed; see actions/profile.ts) ---
     title: text("title"),
     bio: text("bio"),
+    // What the greeting and the assistant call the user; null = the full
+    // name (lib/user-display callName).
+    preferredName: text("preferred_name"),
     // IANA zone; null = APP_TIMEZONE (lib/timezone effectiveTimeZone).
     timezone: text("timezone"),
     workingHours: jsonb("working_hours").$type<WorkingHours>(),
@@ -2857,6 +2860,38 @@ export const assistantDrafts = pgTable(
   (t) => [index("assistant_drafts_conversation_idx").on(t.conversationId)]
 );
 
+// A file the user uploaded to the assistant. Its bytes live in storage under
+// `storageKey`; the chat and message are null until the question is sent.
+export const assistantFiles = pgTable(
+  "assistant_files",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, {
+        name: "assistant_files_user_id_users_id_fk",
+        onDelete: "cascade",
+      }),
+    conversationId: uuid("conversation_id").references(
+      () => assistantConversations.id,
+      {
+        name: "assistant_files_conversation_id_assistant_conversations_id_fk",
+        onDelete: "cascade",
+      }
+    ),
+    messageId: uuid("message_id").references(() => assistantMessages.id, {
+      name: "assistant_files_message_id_assistant_messages_id_fk",
+      onDelete: "cascade",
+    }),
+    storageKey: text("storage_key").notNull(),
+    filename: text("filename").notNull(),
+    mediaType: text("media_type").notNull(),
+    size: integer("size").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("assistant_files_user_created_idx").on(t.userId, t.createdAt)]
+);
+
 export type AssistantConversation = InferSelectModel<
   typeof assistantConversations
 >;
@@ -2864,3 +2899,4 @@ export type AssistantMessage = InferSelectModel<typeof assistantMessages>;
 export type AssistantToolCall = InferSelectModel<typeof assistantToolCalls>;
 export type AssistantUsage = InferSelectModel<typeof assistantUsage>;
 export type AssistantDraft = InferSelectModel<typeof assistantDrafts>;
+export type AssistantFile = InferSelectModel<typeof assistantFiles>;

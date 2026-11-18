@@ -352,6 +352,7 @@ function baseTurn(): TurnContext {
     conversationId: "conv-1",
     userId: USER_ID,
     userName: "Widya",
+    preferredName: null,
     context: envContext("Dev 1", "env-1"),
     history: [
       {
@@ -1722,6 +1723,7 @@ describe("buildSystemPrompt", () => {
   const prompt = (orgContext: string | null = null) =>
     buildSystemPrompt({
       userName: "Widya",
+      preferredName: null,
       orgContext,
     });
 

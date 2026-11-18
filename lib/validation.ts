@@ -775,6 +775,7 @@ export type MailDeleteTarget = z.infer<typeof mailDeleteTargetSchema>;
 
 export const PROFILE_LIMITS = {
   name: 100,
+  preferredName: 40,
   title: 80,
   bio: 280,
   statusText: 80,
@@ -839,6 +840,7 @@ export const profileInputSchema = z.object({
     .overwrite(normalizeDisplayName)
     .min(1)
     .max(PROFILE_LIMITS.name),
+  preferredName: optionalText(PROFILE_LIMITS.preferredName),
   title: optionalText(PROFILE_LIMITS.title),
   bio: optionalText(PROFILE_LIMITS.bio),
   timezone: timeZoneSchema.nullable(),

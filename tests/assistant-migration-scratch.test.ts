@@ -68,7 +68,7 @@ const globalSql = readFileSync(
 );
 
 describe("global assistant migration, as text", () => {
-  it("follows the migrator rules and sorts last, after the providers migration", () => {
+  it("follows the migrator rules and sorts right after the providers migration", () => {
     expect(globalSql).not.toMatch(/\b(BEGIN|COMMIT)\b/);
     expect(
       globalSql.startsWith(
@@ -77,7 +77,6 @@ describe("global assistant migration, as text", () => {
     ).toBe(true);
     const folders = readdirSync("drizzle").sort();
     expect(folders.indexOf(GLOBAL)).toBe(folders.indexOf(MIGRATION) + 1);
-    expect(folders.at(-1)).toBe(GLOBAL);
   });
 
   it("is expand only: relaxes the conversation's project, adds nullable columns", () => {

@@ -2001,7 +2001,6 @@
     },
     "askRecent": "Recent conversations",
     "title": "Home",
-    "subtitle": "Your work and what needs attention.",
     "greeting": {
       "morning": "Good morning, {name}",
       "midday": "Good afternoon, {name}",
@@ -2584,6 +2583,8 @@
   },
   "profile": {
     "name": "Display name",
+    "preferredName": "Preferred name",
+    "preferredNameHint": "What should the assistant call you?",
     "jobTitle": "Job title",
     "jobTitlePlaceholder": "e.g. QA Engineer",
     "bio": "Short bio",

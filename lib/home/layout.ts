@@ -50,10 +50,6 @@ export function hourIn(timeZone: string, date: Date): number {
   );
 }
 
-export function firstName(name: string): string {
-  return name.trim().split(/\s+/)[0] ?? "";
-}
-
 /** Where "New issue" points by default: the last-opened writable environment. */
 export function defaultIssueTarget(
   recent: { id: string; projectId: string }[],

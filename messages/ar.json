@@ -2001,7 +2001,6 @@
     },
     "askRecent": "المحادثات الأخيرة",
     "title": "الرئيسية",
-    "subtitle": "عملك وما يحتاج إلى انتباه.",
     "greeting": {
       "morning": "صباح الخير، {name}",
       "midday": "طاب يومك، {name}",
@@ -2584,6 +2583,8 @@
   },
   "profile": {
     "name": "الاسم المعروض",
+    "preferredName": "الاسم المفضّل",
+    "preferredNameHint": "بماذا تريد أن يناديك المساعد؟",
     "jobTitle": "المسمى الوظيفي",
     "jobTitlePlaceholder": "مثال: مهندس ضمان الجودة",
     "bio": "نبذة قصيرة",

@@ -2001,7 +2001,6 @@
     },
     "askRecent": "Percakapan terbaru",
     "title": "Beranda",
-    "subtitle": "Pekerjaan Anda dan yang perlu perhatian.",
     "greeting": {
       "morning": "Selamat pagi, {name}",
       "midday": "Selamat siang, {name}",
@@ -2584,6 +2583,8 @@
   },
   "profile": {
     "name": "Nama tampilan",
+    "preferredName": "Nama panggilan",
+    "preferredNameHint": "Ingin dipanggil apa oleh Asisten?",
     "jobTitle": "Jabatan",
     "jobTitlePlaceholder": "mis. QA Engineer",
     "bio": "Bio singkat",

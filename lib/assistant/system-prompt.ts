@@ -1,5 +1,6 @@
 import { APP_NAME } from "@/lib/branding";
 import { APP_TIMEZONE } from "@/lib/timezone";
+import { callName } from "@/lib/user-display";
 import type { StoredQuestionContext } from "./context";
 import type { AssistantSource } from "./sources";
 
@@ -13,7 +14,10 @@ export type PromptSource = AssistantSource & {
 };
 
 export type SystemPromptContext = {
+  /** The user's full display name. */
   userName: string;
+  /** What the user asked to be called (Account page), or null. */
+  preferredName: string | null;
   /** The admin's organisation context (Admin → Assistant), or null. */
   orgContext: string | null;
 };
@@ -98,6 +102,17 @@ function componentLine(source: PromptSource, question: QuestionSource): string {
   return `- ${source.componentKey}: repo ${source.repoFullName}, ${commit}, ${describeSourceState(source, question)}`;
 }
 
+/** Who the model talks with, and what to call them when that differs. */
+function talkingWith(ctx: SystemPromptContext): string {
+  const call = callName({
+    name: ctx.userName,
+    preferredName: ctx.preferredName,
+  });
+  return call === ctx.userName
+    ? `You are talking with ${ctx.userName}.`
+    : `You are talking with ${ctx.userName}. Address them as ${call}.`;
+}
+
 /**
  * The stable part of the system prompt. It depends only on the user and on
  * the instance's organisation context — never on the context (project,
@@ -119,7 +134,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
 
 ${DOMAIN_GLOSSARY}
 
-You are talking with ${ctx.userName}.
+${talkingWith(ctx)}
 
 # Context
 Each question has its own context, chosen by the user. The question you are answering starts with a "# Context of this question" note naming it; only that latest note applies. Earlier questions start with a short "(Context: …)" line instead: their answers may cite other projects or commits than the ones you can read now.

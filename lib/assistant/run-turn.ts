@@ -770,6 +770,7 @@ async function runClaimedTurn(
       role: "system",
       content: buildSystemPrompt({
         userName: turn.userName,
+        preferredName: turn.preferredName,
         orgContext: runtime.orgContext,
       }),
       ...(cache ? { providerOptions: cache } : {}),

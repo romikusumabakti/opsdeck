@@ -14,7 +14,11 @@ const project = (n: number, client: string | null = null) => ({
 
 describe("buildSystemPrompt", () => {
   it("names no project: the cached part depends only on the user and the organisation", () => {
-    const text = buildSystemPrompt({ userName: "Widya", orgContext: null });
+    const text = buildSystemPrompt({
+      userName: "Widya",
+      preferredName: null,
+      orgContext: null,
+    });
     expect(text).not.toMatch(/^Project:/m);
     expect(text).toContain("You are talking with Widya.");
     // All three contexts are explained; which one applies is in the note.
@@ -24,6 +28,29 @@ describe("buildSystemPrompt", () => {
     expect(text).toContain("# Context of this question");
     expect(text).toContain('"(Context: …)"');
     expect(text).toContain("list_projects");
+  });
+
+  it("addresses the user by the preferred name, and still knows the full one", () => {
+    const text = buildSystemPrompt({
+      userName: "Romi Kusuma Bakti",
+      preferredName: " Romi ",
+      orgContext: null,
+    });
+    expect(text).toContain(
+      "You are talking with Romi Kusuma Bakti. Address them as Romi."
+    );
+  });
+
+  it("uses the full name when the preferred name is blank or the same", () => {
+    for (const preferredName of ["  ", "Ana Maria"]) {
+      const text = buildSystemPrompt({
+        userName: "Ana Maria",
+        preferredName,
+        orgContext: null,
+      });
+      expect(text).toContain("You are talking with Ana Maria.\n");
+      expect(text).not.toContain("Address them as");
+    }
   });
 });
 

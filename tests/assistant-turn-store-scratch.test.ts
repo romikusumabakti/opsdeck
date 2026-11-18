@@ -104,7 +104,8 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
         .insert(schema.users)
         .values({
           id: "00000000-0000-7000-8000-00000000b001",
-          name: "Widya",
+          name: "Widya Astuti",
+          preferredName: "Widya",
           email: "ba@example.com",
           role: "qa",
         })
@@ -174,7 +175,8 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     expect(turn).toMatchObject({
       status: "queued",
       userId: user.id,
-      userName: "Widya",
+      userName: "Widya Astuti",
+      preferredName: "Widya",
       // The context of the question this turn answers (Q2), not Q1's.
       context: {
         kind: "environment",

@@ -18,6 +18,7 @@ import { updateProfile } from "@/web/api/profile";
 type ProfileUser = {
   id: string;
   name: string;
+  preferredName: string | null;
   email: string;
   image: string | null;
   title: string | null;
@@ -47,6 +48,7 @@ export function ProfileForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(user.name);
+  const [preferredName, setPreferredName] = useState(user.preferredName ?? "");
   const [title, setTitle] = useState(user.title ?? "");
   const [bio, setBio] = useState(user.bio ?? "");
   const [timezone, setTimezone] = useState(user.timezone);
@@ -118,6 +120,7 @@ export function ProfileForm({
       try {
         const res = await updateProfile({
           name,
+          preferredName,
           title,
           bio,
           timezone,
@@ -198,6 +201,22 @@ export function ProfileForm({
           required
           onChange={(e) => setName(e.target.value)}
         />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="pf-preferred-name">{t("preferredName")}</Label>
+        <Input
+          id="pf-preferred-name"
+          value={preferredName}
+          maxLength={PROFILE_LIMITS.preferredName}
+          aria-describedby="pf-preferred-name-hint"
+          onChange={(e) => setPreferredName(e.target.value)}
+        />
+        <p
+          id="pf-preferred-name-hint"
+          className="text-xs text-muted-foreground"
+        >
+          {t("preferredNameHint")}
+        </p>
       </div>
       <div className="grid gap-2">
         <Label htmlFor="pf-title">{t("jobTitle")}</Label>

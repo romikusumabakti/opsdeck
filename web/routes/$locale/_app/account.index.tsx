@@ -85,6 +85,7 @@ function AccountPage() {
                 user={{
                   id: user.id,
                   name: user.name,
+                  preferredName: user.preferredName ?? null,
                   email: user.email,
                   image: user.image ?? null,
                   title: user.title ?? null,

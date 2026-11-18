@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultIssueTarget,
-  firstName,
   greetingKey,
   hourIn,
   sectionOrder,
@@ -86,18 +85,6 @@ describe("hourIn", () => {
   });
   it("returns 0, not 24, at midnight", () => {
     expect(hourIn("UTC", new Date("2026-10-03T00:15:00Z"))).toBe(0);
-  });
-});
-
-describe("firstName", () => {
-  it("takes the first word", () => {
-    expect(firstName("Romi Kusuma Bakti")).toBe("Romi");
-  });
-  it("trims and handles single names", () => {
-    expect(firstName("  Irma ")).toBe("Irma");
-  });
-  it("keeps an empty name empty", () => {
-    expect(firstName("")).toBe("");
   });
 });
 

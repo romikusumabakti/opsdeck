@@ -1,14 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useTranslations } from "use-intl";
-import { PageHeader } from "@/components/page-header";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
-import {
-  defaultIssueTarget,
-  firstName,
-  greetingKey,
-  hourIn,
-} from "@/lib/home/layout";
+import { defaultIssueTarget } from "@/lib/home/layout";
 import {
   getAttentionGroupsQuery,
   getHomeAccessQuery,
@@ -16,7 +9,7 @@ import {
   listMyOpenIssuesQuery,
   listRecentEnvironmentsQuery,
 } from "@/web/api/home";
-import { useBootstrap, useMe } from "@/web/api/session";
+import { HomeHeader } from "./-components/home/home-header";
 import { HomeIssueDialogProvider } from "./-components/home/home-issue-dialog";
 import { MainColumn } from "./-components/home/main-column";
 import { NewIssueButton } from "./-components/home/new-issue-button";
@@ -50,9 +43,6 @@ export const Route = createFileRoute("/$locale/_app/")({
 // Main column: what needs the user (failures, their issues) — streamed, and
 // ordered by what it contains. Rail: context (live runs, recent environments).
 function HomePage() {
-  const t = useTranslations("homePage");
-  const me = useMe();
-  const { appTimeZone } = useBootstrap();
   const issueProjects = useQuery({
     ...listIssueProjectsQuery(),
     retryOnMount: false,
@@ -66,18 +56,9 @@ function HomePage() {
     recent ?? [],
     new Set(projects.map((p) => p.id))
   );
-  const greeting = t(
-    `greeting.${greetingKey(hourIn(me?.timeZone ?? appTimeZone, new Date()))}`,
-    { name: firstName(me?.user.name ?? "") }
-  );
-
   return (
     <HomeIssueDialogProvider projects={projects} defaultTarget={target}>
-      <PageHeader
-        title={greeting}
-        subtitle={t("subtitle")}
-        action={<NewIssueButton />}
-      />
+      <HomeHeader action={<NewIssueButton />} />
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex min-w-0 flex-col gap-4">
           <MainColumn />
@@ -94,7 +75,7 @@ function HomePage() {
 function HomePending() {
   return (
     <>
-      <PageHeaderSkeleton withAction />
+      <PageHeaderSkeleton withAction withSubtitle={false} />
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex min-w-0 flex-col gap-4">
           <MainColumnSkeleton />

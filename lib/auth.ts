@@ -133,6 +133,7 @@ export const auth = betterAuth({
     // never through /update-user, hence input: false.
     additionalFields: {
       title: { type: "string", required: false, input: false },
+      preferredName: { type: "string", required: false, input: false },
       bio: { type: "string", required: false, input: false },
       timezone: { type: "string", required: false, input: false },
       workingHours: { type: "json", required: false, input: false },

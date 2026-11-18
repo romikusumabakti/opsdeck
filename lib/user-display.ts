@@ -15,6 +15,18 @@ type StatusFields = {
   statusExpiresAt?: Date | string | null;
 };
 
+/**
+ * What the greeting and the assistant call a user: the preferred name, else
+ * the full display name. Never a guessed first word: some given names are
+ * several words.
+ */
+export function callName(user: {
+  name: string;
+  preferredName: string | null;
+}): string {
+  return user.preferredName?.trim() || user.name;
+}
+
 /** Up to two initials, grapheme-safe (Array.from splits by code point). */
 export function getInitials(name: string, fallback = ""): string {
   const source = name.trim() || fallback.trim();

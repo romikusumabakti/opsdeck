@@ -2001,7 +2001,6 @@
     },
     "askRecent": "最近的对话",
     "title": "主页",
-    "subtitle": "你的工作与需要关注的事项。",
     "greeting": {
       "morning": "早上好，{name}",
       "midday": "中午好，{name}",
@@ -2584,6 +2583,8 @@
   },
   "profile": {
     "name": "显示名称",
+    "preferredName": "称呼",
+    "preferredNameHint": "希望助手怎么称呼你？",
     "jobTitle": "职位",
     "jobTitlePlaceholder": "例如：QA 工程师",
     "bio": "简短简介",

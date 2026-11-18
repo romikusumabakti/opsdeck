@@ -2001,7 +2001,6 @@
     },
     "askRecent": "Conversaciones recientes",
     "title": "Inicio",
-    "subtitle": "Tu trabajo y lo que necesita atención.",
     "greeting": {
       "morning": "Buenos días, {name}",
       "midday": "Buenas tardes, {name}",
@@ -2584,6 +2583,8 @@
   },
   "profile": {
     "name": "Nombre visible",
+    "preferredName": "Nombre preferido",
+    "preferredNameHint": "¿Cómo quieres que te llame el asistente?",
     "jobTitle": "Cargo",
     "jobTitlePlaceholder": "p. ej. Ingeniero de QA",
     "bio": "Biografía breve",

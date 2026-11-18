@@ -1,0 +1,413 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "28b8a224-aad7-4375-be22-735c1438d81b",
+  "prevIds": [
+    "1d635c00-e223-41b0-a6ed-8bbeed54e1d8"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "assistant_files"
+      ],
+      "writes": [
+        "s|tbl|public.assistant_files",
+        "n|tbl|public.assistant_files",
+        "e|tbl|public.assistant_files",
+        "n|rel|public.assistant_files",
+        "n|type|public.assistant_files",
+        "n|rel|public.assistant_files_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "users",
+        "preferred_name"
+      ],
+      "writes": [
+        "s|col|public.users.preferred_name",
+        "n|col|public.users.preferred_name",
+        "e|col|public.users.preferred_name"
+      ],
+      "reads": [
+        "n|tbl|public.users",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "assistant_files",
+        "assistant_files_user_created_idx"
+      ],
+      "writes": [
+        "s|idx|public.assistant_files_user_created_idx",
+        "n|idx|public.assistant_files_user_created_idx",
+        "e|idx|public.assistant_files_user_created_idx",
+        "n|rel|public.assistant_files_user_created_idx"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_files",
+        "n|sch|public",
+        "n|col|public.assistant_files.user_id",
+        "n|col|public.assistant_files.created_at"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "assistant_files"
+      ],
+      "writes": [
+        "s|fk|public.assistant_files.assistant_files_user_id_users_id_fk",
+        "n|fk|public.assistant_files.assistant_files_user_id_users_id_fk",
+        "e|fk|public.assistant_files.assistant_files_user_id_users_id_fk",
+        "n|con|public.assistant_files.assistant_files_user_id_users_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_files",
+        "n|sch|public",
+        "n|tbl|public.users",
+        "n|sch|public",
+        "n|col|public.assistant_files.user_id",
+        "n|col|public.users.id",
+        "e|uniqueness|public.users.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "assistant_files"
+      ],
+      "writes": [
+        "s|fk|public.assistant_files.assistant_files_conversation_id_assistant_conversations_id_fk",
+        "n|fk|public.assistant_files.assistant_files_conversation_id_assistant_conversations_id_fk",
+        "e|fk|public.assistant_files.assistant_files_conversation_id_assistant_conversations_id_fk",
+        "n|con|public.assistant_files.assistant_files_conversation_id_assistant_conversations_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_files",
+        "n|sch|public",
+        "n|tbl|public.assistant_conversations",
+        "n|sch|public",
+        "n|col|public.assistant_files.conversation_id",
+        "n|col|public.assistant_conversations.id",
+        "e|uniqueness|public.assistant_conversations.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "assistant_files"
+      ],
+      "writes": [
+        "s|fk|public.assistant_files.assistant_files_message_id_assistant_messages_id_fk",
+        "n|fk|public.assistant_files.assistant_files_message_id_assistant_messages_id_fk",
+        "e|fk|public.assistant_files.assistant_files_message_id_assistant_messages_id_fk",
+        "n|con|public.assistant_files.assistant_files_message_id_assistant_messages_id_fk"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_files",
+        "n|sch|public",
+        "n|tbl|public.assistant_messages",
+        "n|sch|public",
+        "n|col|public.assistant_files.message_id",
+        "n|col|public.assistant_messages.id",
+        "e|uniqueness|public.assistant_messages.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "assistant_files",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "uuidv7()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "user_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "conversation_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "message_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "storage_key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "filename",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "media_type",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "size",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "users",
+        "name": "preferred_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "assistant_files_user_created_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "user_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "created_at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "assistant_files_user_id_users_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "user_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "users",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "assistant_files_conversation_id_assistant_conversations_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "conversation_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "assistant_conversations",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "assistant_files_message_id_assistant_messages_id_fk",
+        "nameExplicit": true,
+        "columns": [
+          "message_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "assistant_messages",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_files",
+        "name": "assistant_files_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}
