@@ -12,6 +12,10 @@ import { assertNotLastAdmin } from "@/lib/access";
 import { recordActivity } from "@/lib/activity";
 import { listActiveAdminIds } from "@/lib/admins";
 import { assignableUsersWhere, ORG_WIDE_ASSIGNEE_ROLES } from "@/lib/assignees";
+import {
+  removeStoredUpload,
+  uploadStorageKeysOfUser,
+} from "@/lib/assistant/file-store";
 import { ALLOWED_EMAIL_DOMAIN, auth, isAllowedEmail } from "@/lib/auth";
 import { requireSession } from "@/lib/auth-session";
 import {
@@ -454,6 +458,21 @@ export async function resetTwoFactor(userId: string): Promise<void> {
   });
 }
 
+/**
+ * Deletes the user; their assistant uploads' rows go with them (ON DELETE
+ * CASCADE), so the stored objects' keys are read first and the objects
+ * removed after the delete. One that cannot be removed is logged, never
+ * failing the delete (removeStoredUpload).
+ */
+async function deleteUserWithUploads(
+  ctx: Awaited<typeof auth.$context>,
+  userId: string
+): Promise<void> {
+  const keys = await uploadStorageKeysOfUser(userId);
+  await ctx.internalAdapter.deleteUser(userId);
+  await Promise.all(keys.map(removeStoredUpload));
+}
+
 export async function deleteUser(userId: string): Promise<ActionResponse> {
   const session = await requireOrgPermission({ user: ["delete"] });
   const t = await getServerTranslator("actionErrors");
@@ -470,7 +489,7 @@ export async function deleteUser(userId: string): Promise<ActionResponse> {
     .limit(1);
 
   const ctx = await auth.$context;
-  await ctx.internalAdapter.deleteUser(userId);
+  await deleteUserWithUploads(ctx, userId);
 
   if (target) {
     await recordActivity({
@@ -614,7 +633,7 @@ export async function bulkDeleteUsers(ids: string[]): Promise<BulkUsersResult> {
   const failed: { id: string; message: string }[] = [];
   for (const id of targets) {
     try {
-      await ctx.internalAdapter.deleteUser(id);
+      await deleteUserWithUploads(ctx, id);
       deleted += 1;
       const target = names.get(id);
       if (target) {

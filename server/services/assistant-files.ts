@@ -58,6 +58,14 @@ export async function fileTooLarge(limit = MAX_UPLOAD_BYTES) {
   return refusal(413, "assistant.file_too_large", { limitMb: limitMb(limit) });
 }
 
+async function requireUnsentRoom(userId: string): Promise<void> {
+  if ((await countUnsentUploads(userId)) >= MAX_UNSENT_UPLOADS) {
+    throw await refusal(409, "assistant.too_many_files", {
+      max: MAX_UPLOADS_PER_QUESTION,
+    });
+  }
+}
+
 /**
  * Stores one uploaded file for the caller. `readFile` parses the request
  * body; it runs only once the gate passed. Refused when the file is larger
@@ -69,16 +77,15 @@ export async function uploadFile(
 ): Promise<UploadSummary> {
   const session = await requireAssistantGate();
   const userId = session.user.id;
+  // Before the body is read, so a refused upload is never buffered, and
+  // again after it: uploads read in parallel all pass the first check.
+  await requireUnsentRoom(userId);
   const file = await readFile();
   if (!file) throw new HTTPException(400, { message: "Invalid request" });
   if (file.size > MAX_UPLOAD_BYTES) throw await fileTooLarge();
   if (file.size === 0)
     throw await refusal(415, "assistant.file_type_unsupported");
-  if ((await countUnsentUploads(userId)) >= MAX_UNSENT_UPLOADS) {
-    throw await refusal(409, "assistant.too_many_files", {
-      max: MAX_UPLOADS_PER_QUESTION,
-    });
-  }
+  await requireUnsentRoom(userId);
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   const filename = uploadFilename(file.name);

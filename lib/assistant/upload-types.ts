@@ -211,18 +211,26 @@ export function kindOfMediaType(mediaType: string): UploadKind {
   return "text";
 }
 
+/** Characters an upload's name keeps at most. */
+const MAX_FILENAME_CHARS = 200;
+
 /**
  * The name shown in the chat and listed to the model: the basename, letters,
  * digits, `_ . - ` and spaces only (no line breaks or quotes to forge prompt
- * text with), at most 200 characters. The stored object key never uses it.
+ * text with), at most 200 characters, a longer name trimmed before its
+ * extension. The stored object key never uses it.
  */
+
 export function uploadFilename(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? "";
   const clean = base
     .replace(/[^\p{L}\p{M}\p{N}_.\- ]+/gu, "_")
     .replace(/\s+/g, " ")
     .trim();
-  return Array.from(clean || "file")
-    .slice(0, 200)
-    .join("");
+  const chars = Array.from(clean || "file");
+  if (chars.length <= MAX_FILENAME_CHARS) return chars.join("");
+  // Trimmed before the extension, which names the type and is kept.
+  const dot = chars.lastIndexOf(".");
+  const ext = dot > 0 && chars.length - dot <= 16 ? chars.slice(dot) : [];
+  return [...chars.slice(0, MAX_FILENAME_CHARS - ext.length), ...ext].join("");
 }

@@ -328,6 +328,11 @@ describe("POST /upload", () => {
       code: "assistant.too_many_files",
       params: { max: 10 },
     });
+    // Refused before the body is read: the file is never buffered.
+    const { uploadFile } = await import("@/server/services/assistant-files");
+    const readFile = vi.fn(async () => new File([text], "late.txt"));
+    await expect(uploadFile(readFile)).rejects.toMatchObject({ status: 409 });
+    expect(readFile).not.toHaveBeenCalled();
   });
 
   it("is behind the assistant's gate, checked before the body limit", async () => {

@@ -40,11 +40,34 @@ const PDF_WORKER_URL = new URL(
 
 export type ExtractedText = { text: string; truncated: boolean };
 
-function cap(text: string, maxChars: number): ExtractedText {
-  // Code points, so a cut never splits a surrogate pair.
-  const chars = Array.from(text);
-  if (chars.length <= maxChars) return { text, truncated: false };
-  return { text: chars.slice(0, maxChars).join(""), truncated: true };
+/**
+ * The first `maxChars` code points (a cut never splits a surrogate pair),
+ * walked with the string iterator so a long text is never copied whole.
+ */
+export function cap(text: string, maxChars: number): ExtractedText {
+  let chars = 0;
+  let end = 0;
+  for (const char of text) {
+    if (chars === maxChars)
+      return { text: text.slice(0, end), truncated: true };
+    chars += 1;
+    end += char.length;
+  }
+  return { text, truncated: false };
+}
+
+/**
+ * UTF-8 text capped at `maxChars`: only the first `maxChars * 4` bytes are
+ * decoded (a character is at most 4 bytes, so they always hold `maxChars`
+ * whole characters when the file is longer).
+ */
+function capUtf8(bytes: Uint8Array, maxChars: number): ExtractedText {
+  const head = bytes.subarray(0, maxChars * 4);
+  const capped = cap(new TextDecoder("utf-8").decode(head), maxChars);
+  return {
+    text: capped.text,
+    truncated: capped.truncated || head.byteLength < bytes.byteLength,
+  };
 }
 
 function view(bytes: Uint8Array): Buffer {
@@ -135,6 +158,6 @@ export async function extractUploadText(
       };
     }
     case "text":
-      return cap(new TextDecoder("utf-8").decode(bytes), maxChars);
+      return capUtf8(bytes, maxChars);
   }
 }

@@ -7,10 +7,13 @@ import { PROFILE_LIMITS, profileInputSchema } from "@/lib/validation";
 
 describe("callName", () => {
   it.each([
-    [{ name: "Romi Kusuma Bakti", preferredName: "Romi" }, "Romi"],
-    [{ name: "Romi Kusuma Bakti", preferredName: "  Romi  " }, "Romi"],
-    [{ name: "Romi Kusuma Bakti", preferredName: "   " }, "Romi Kusuma Bakti"],
-    [{ name: "Romi Kusuma Bakti", preferredName: null }, "Romi Kusuma Bakti"],
+    [{ name: "Dana Putri Lestari", preferredName: "Dana" }, "Dana"],
+    [{ name: "Dana Putri Lestari", preferredName: "  Dana  " }, "Dana"],
+    [
+      { name: "Dana Putri Lestari", preferredName: "   " },
+      "Dana Putri Lestari",
+    ],
+    [{ name: "Dana Putri Lestari", preferredName: null }, "Dana Putri Lestari"],
     // Some given names are several words: kept whole.
     [{ name: "Ana Maria Lopez", preferredName: "Ana Maria" }, "Ana Maria"],
     [{ name: "Ana Maria Lopez", preferredName: null }, "Ana Maria Lopez"],
@@ -32,7 +35,7 @@ describe("profileInputSchema preferredName", () => {
     expect(PROFILE_LIMITS.preferredName).toBe(40);
     const parse = (preferredName: string | null) =>
       profileInputSchema.safeParse({ ...base, preferredName });
-    expect(parse("  Romi ").data?.preferredName).toBe("Romi");
+    expect(parse("  Dana ").data?.preferredName).toBe("Dana");
     expect(parse("   ").data?.preferredName).toBeNull();
     expect(parse(null).data?.preferredName).toBeNull();
     expect(parse("x".repeat(40)).success).toBe(true);
@@ -81,11 +84,11 @@ beforeEach(() => {
 
 describe("POST /api/profile/update-profile", () => {
   it("saves a trimmed preferred name", async () => {
-    const res = await post("  Romi ");
+    const res = await post("  Dana ");
     expect(res.status).toBe(200);
     expect((await res.json()).success).toBe(true);
     expect(state.sets).toEqual([
-      expect.objectContaining({ name: "Engineer", preferredName: "Romi" }),
+      expect.objectContaining({ name: "Engineer", preferredName: "Dana" }),
     ]);
   });
 

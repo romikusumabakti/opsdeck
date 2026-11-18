@@ -9,7 +9,7 @@ COPY package.json bun.lock ./
 # so an image can never be built from an out-of-date dependency graph.
 RUN bun install --frozen-lockfile
 
-# Build the SPA and both server bundles.
+# Build the SPA and the three server-side bundles.
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -20,8 +20,9 @@ COPY . .
 #   dist/server/index.js  the Hono API + static server
 #   dist/server/pdf-text-worker.js  the PDF text worker it starts
 #   dist/terminal-server.js  the WebSocket terminal sidecar
-# Both server bundles are self-contained, including ssh2's native .node file,
-# so the runtime image needs no node_modules.
+# The three bundles (server, PDF worker, terminal) are self-contained,
+# including ssh2's native .node file, so the runtime image needs no
+# node_modules.
 RUN bun run build
 
 # Production image: only the build output and the static public files.

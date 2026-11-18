@@ -84,6 +84,21 @@ export async function deleteStaleUnsentUploads(): Promise<string[]> {
   return rows.map((r) => r.storageKey);
 }
 
+/**
+ * The storage keys of every upload of the user, sent or not: read before
+ * the user is deleted (the rows go with them, ON DELETE CASCADE) so the
+ * objects can be removed after.
+ */
+export async function uploadStorageKeysOfUser(
+  userId: string
+): Promise<string[]> {
+  const rows = await db
+    .select({ storageKey: assistantFiles.storageKey })
+    .from(assistantFiles)
+    .where(eq(assistantFiles.userId, userId));
+  return rows.map((r) => r.storageKey);
+}
+
 /** The row is gone already: an object that cannot be removed is logged. */
 export async function removeStoredUpload(storageKey: string): Promise<void> {
   try {

@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  cap,
   ExtractionLimitError,
   extractUploadText,
   pdfToText,
@@ -111,6 +112,16 @@ describe("uploadFilename", () => {
       200
     );
   });
+
+  it("trims a long name before its extension", () => {
+    const name = uploadFilename(`${"é".repeat(300)}.csv`);
+    expect(Array.from(name)).toHaveLength(200);
+    expect(name.endsWith("é.csv")).toBe(true);
+    expect(sniffUpload(utf8("a,b"), name)?.kind).toBe("text");
+    // No extension, or a dot that is no extension: a plain cut.
+    expect(Array.from(uploadFilename("a".repeat(300)))).toHaveLength(200);
+    expect(uploadFilename(`.${"a".repeat(300)}`)).toBe(`.${"a".repeat(199)}`);
+  });
 });
 
 describe("extractUploadText", () => {
@@ -152,6 +163,41 @@ describe("extractUploadText", () => {
     expect(Array.from(text)).toHaveLength(MAX_UPLOAD_TEXT_CHARS);
     const short = await extractUploadText(utf8("hello"), "text");
     expect(short).toEqual({ text: "hello", truncated: false });
+  });
+
+  it("decodes only a bounded head of a large text file", async () => {
+    const decode = vi.spyOn(TextDecoder.prototype, "decode");
+    try {
+      const big = new Uint8Array(8 * 1024 * 1024).fill(0x61);
+      const { text, truncated } = await extractUploadText(big, "text", 10);
+      expect(text).toBe("a".repeat(10));
+      expect(truncated).toBe(true);
+      for (const [input] of decode.mock.calls) {
+        expect((input as Uint8Array).byteLength).toBeLessThanOrEqual(40);
+      }
+      // A head that ends mid-character still yields whole characters.
+      const emoji = utf8("😀".repeat(20));
+      const capped = await extractUploadText(emoji, "text", 3);
+      expect(capped).toEqual({ text: "😀😀😀", truncated: true });
+      expect(await extractUploadText(utf8("😀😀"), "text", 2)).toEqual({
+        text: "😀😀",
+        truncated: false,
+      });
+    } finally {
+      decode.mockRestore();
+    }
+  });
+
+  it("caps a long string without copying it whole", () => {
+    const from = vi.spyOn(Array, "from");
+    try {
+      const long = `${"😀".repeat(5)}${"x".repeat(1_000_000)}`;
+      expect(cap(long, 6)).toEqual({ text: "😀😀😀😀😀x", truncated: true });
+      expect(from).not.toHaveBeenCalled();
+      expect(cap("ab", 2)).toEqual({ text: "ab", truncated: false });
+    } finally {
+      from.mockRestore();
+    }
   });
 
   it("throws for bytes that are not the kind", async () => {

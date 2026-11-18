@@ -13,7 +13,10 @@ const messages = applyBranding(enMessages, {
 
 const session = vi.hoisted(() => ({
   me: {
-    user: { name: "Romi Kusuma Bakti", preferredName: "Romi" as string | null },
+    user: {
+      name: "Dana Putri Lestari",
+      preferredName: "Dana" as string | null,
+    },
     timeZone: "UTC",
   },
 }));
@@ -52,7 +55,7 @@ describe("HomeHeader", () => {
   it("greets by the preferred name after the assistant icon, calmly", () => {
     render();
     const h1 = container.querySelector("h1");
-    expect(h1?.textContent).toBe("Good morning, Romi");
+    expect(h1?.textContent).toBe("Good morning, Dana");
     expect(h1?.textContent).not.toContain("!");
     const icon = container.querySelector("svg");
     expect(icon?.getAttribute("aria-hidden")).toBe("true");
@@ -74,7 +77,7 @@ describe("HomeHeader", () => {
     session.me.user.preferredName = null;
     render();
     expect(container.querySelector("h1")?.textContent).toBe(
-      "Good morning, Romi Kusuma Bakti"
+      "Good morning, Dana Putri Lestari"
     );
   });
 });

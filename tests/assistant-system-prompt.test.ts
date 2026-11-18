@@ -59,12 +59,12 @@ describe("buildSystemPrompt", () => {
 
   it("addresses the user by the preferred name, and still knows the full one", () => {
     const text = buildSystemPrompt({
-      userName: "Romi Kusuma Bakti",
-      preferredName: " Romi ",
+      userName: "Dana Putri Lestari",
+      preferredName: " Dana ",
       orgContext: null,
     });
     expect(text).toContain(
-      "You are talking with Romi Kusuma Bakti. Address them as Romi."
+      "You are talking with Dana Putri Lestari. Address them as Dana."
     );
   });
 
