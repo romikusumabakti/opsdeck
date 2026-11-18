@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import type { QuestionContextInput } from "@/lib/assistant/context";
 import {
@@ -8,7 +7,7 @@ import {
   uploadLimit,
 } from "@/lib/assistant/upload-types";
 import { deleteUpload, uploadFile } from "@/web/api/assistant";
-import { meQuery } from "@/web/api/session";
+import { useMe } from "@/web/api/session";
 import type { PickedAttachment } from "./attachment-picker";
 
 /**
@@ -263,10 +262,10 @@ export const composerDrafts = createDrafts();
  * The signed-in user's id (null until the session is cached) and the one
  * effect that makes them the store's owner, dropping the previous user's
  * drafts. Reads for any other id stay empty until it has run, so render
- * stays pure. Read from the cache only: inside the app shell it is filled.
+ * stays pure. Inside the app shell the session is cached, so it never suspends.
  */
 export function useDraftUser(): string | null {
-  const id = useQuery({ ...meQuery(), enabled: false }).data?.user.id ?? null;
+  const id = useMe()?.user.id ?? null;
   React.useEffect(() => {
     if (id) composerDrafts.forUser(id);
   }, [id]);
