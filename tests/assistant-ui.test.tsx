@@ -25,6 +25,8 @@ const api = vi.hoisted(() => ({
   deleteConversation: vi.fn(),
   uploadFile: vi.fn(),
   deleteUpload: vi.fn(),
+  stopAnswer: vi.fn(),
+  retryAnswer: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 // A test's own get-conversation result (e.g. a 404); default: never settles.
@@ -88,7 +90,10 @@ vi.mock("@/web/api/environments", () => ({
 
 import type { QuestionContextInput } from "@/lib/assistant/context";
 import { ApiError } from "@/web/api/client";
-import { AllowanceBadge } from "@/web/components/assistant/allowance-badge";
+import {
+  AllowanceBadge,
+  showMeter,
+} from "@/web/components/assistant/allowance-badge";
 import { ASSISTANT_COMPOSER_ID } from "@/web/components/assistant/assistant-shortcut";
 import { AssistantWorkspace } from "@/web/components/assistant/assistant-workspace";
 import { AttachmentPicker } from "@/web/components/assistant/attachment-picker";
@@ -1552,14 +1557,18 @@ describe("drafts panel in the workspace", () => {
 
   it("is closed initially and the Drafts button toggles it", async () => {
     await renderWorkspace();
+    queryClient.setQueryData(conversationKey, {
+      ...conversation,
+      drafts: [draft("d1")],
+    });
     const item = [...document.querySelectorAll("nav button")].find((b) =>
       b.textContent?.includes("Iuran")
     ) as HTMLButtonElement | undefined;
     await act(async () => item?.click());
     expect(panel()).toBeNull();
-    await act(async () => toggle(0)?.click());
+    await act(async () => toggle(1)?.click());
     expect(panel()).not.toBeNull();
-    await act(async () => toggle(0)?.click());
+    await act(async () => toggle(1)?.click());
     expect(panel()).toBeNull();
   });
 
@@ -1584,14 +1593,18 @@ describe("drafts panel in the workspace", () => {
 
   it("titles the panel plain Drafts; only the toggle shows the count", async () => {
     await renderWorkspace();
+    queryClient.setQueryData(conversationKey, {
+      ...conversation,
+      drafts: [draft("d1")],
+    });
     const item = [...document.querySelectorAll("nav button")].find((b) =>
       b.textContent?.includes("Iuran")
     ) as HTMLButtonElement | undefined;
     await act(async () => item?.click());
-    await act(async () => toggle(0)?.click());
+    await act(async () => toggle(1)?.click());
     expect(panel()?.querySelector("h2")?.textContent).toBe(t.draftsTitle);
     expect(t.draftsTitle).toBe("Drafts");
-    expect(toggle(0)?.textContent).toContain("(0)");
+    expect(toggle(1)?.textContent).toContain("(1)");
   });
   it("does not open when switching to a conversation that already has drafts", async () => {
     await renderWorkspace();
@@ -2357,7 +2370,7 @@ describe("context picker", () => {
       userMessage("u1", contextOf("user", null, null)),
       answer,
     ]);
-    expect(button(t.newDraft)).toBeDefined();
+    expect(button(t.moreActions)).toBeDefined();
     await openChatMenu("Iuran");
     await act(async () => menuItem(t.deleteChat)?.click());
     await settle();
@@ -2372,7 +2385,7 @@ describe("context picker", () => {
     await settle();
     expect(api.deleteConversation).toHaveBeenCalledWith(CONV_ID);
     expect(onConversationChange).toHaveBeenLastCalledWith(null);
-    expect(button(t.newDraft)).toBeUndefined();
+    expect(button(t.moreActions)).toBeUndefined();
     expect(text()).toContain(t.emptyThreadTitle);
     expect(
       queryClient.getQueryData(["assistant", "getConversation", [CONV_ID]])
@@ -2412,10 +2425,10 @@ describe("context picker", () => {
     await settle();
     expect(api.deleteConversation).toHaveBeenCalledWith("c2");
     expect(onConversationChange).not.toHaveBeenCalled();
-    expect(button(t.newDraft)).toBeDefined();
+    expect(button(t.moreActions)).toBeDefined();
   });
 
-  it("the conversation list shows each conversation's last context", async () => {
+  it("chat rows show the title and time, not the project", async () => {
     await renderWorkspace(
       {},
       [],
@@ -2434,22 +2447,153 @@ describe("context picker", () => {
           lastContextLabel: null,
           lastContextDeleted: false,
         },
-        {
-          id: "c3",
-          title: "Klaim",
-          updatedAt: "2026-11-15T00:00:00Z",
-          lastContextLabel: "Initech Payroll",
-          lastContextDeleted: true,
-        },
       ]
     );
-    const rows = [...document.querySelectorAll("nav li")].map(
-      (li) => li.textContent ?? ""
+    const rows = [...document.querySelectorAll("nav li")];
+    expect(rows[0]?.querySelector("time")).not.toBeNull();
+    expect(rows[0]?.textContent).toContain("Iuran");
+    for (const row of rows) {
+      expect(row.textContent).not.toContain("Heron Membership");
+      expect(row.textContent).not.toContain(t.contextAuto);
+    }
+  });
+
+  it("no page heading is visible; an sr-only h1 names the page", async () => {
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", contextOf("user", null, null)),
+      answer,
+    ]);
+    const headings = [...document.querySelectorAll("h1")];
+    expect(headings).toHaveLength(1);
+    expect(headings[0]?.textContent).toBe(t.title);
+    expect(headings[0]?.className).toContain("sr-only");
+    expect(text()).not.toContain("Ask about your projects");
+  });
+
+  it("the meter is hidden below 80% and shown from 80% and at the cap", async () => {
+    const seed = async (usedFraction: number, capReached = false) => {
+      queryClient.setQueryData(["assistant", "getAllowance"], {
+        enabled: true,
+        usedFraction,
+        capReached,
+        resetsAt: "2026-11-16T17:00:00.000Z",
+        readsImages: true,
+      });
+      // React Query notifies observers on a zero-delay timer.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", contextOf("user", null, null)),
+      answer,
+    ]);
+    expect(container.querySelector("[role=progressbar]")).toBeNull();
+    await act(async () => seed(0.8));
+    expect(container.querySelector("[role=progressbar]")).not.toBeNull();
+    await act(async () => seed(0.5));
+    expect(container.querySelector("[role=progressbar]")).toBeNull();
+    await act(async () => seed(1, true));
+    expect(container.querySelector("[role=progressbar]")).not.toBeNull();
+    const base = {
+      enabled: true,
+      usedFraction: 0,
+      capReached: false,
+      resetsAt: "x",
+      readsImages: true,
+    };
+    expect(showMeter({ ...base, usedFraction: 0.79 })).toBe(false);
+    expect(showMeter({ ...base, usedFraction: 0.8 })).toBe(true);
+    expect(showMeter({ ...base, enabled: false, usedFraction: 1 })).toBe(false);
+  });
+
+  it("the Drafts toggle shows only when the chat has drafts; New draft lives in the More menu", async () => {
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", contextOf("user", null, null)),
+      answer,
+    ]);
+    expect(button(t.newDraft)).toBeUndefined();
+    expect(button(t.drafts.replace("{count}", "0"))).toBeUndefined();
+    await act(async () => button(t.moreActions)?.click());
+    await settle();
+    expect(menuItem(t.newDraftBrd)).toBeDefined();
+    expect(menuItem(t.newDraftIssue)).toBeDefined();
+    await act(async () => {
+      queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
+        id: CONV_ID,
+        title: "Iuran",
+        drafts: [
+          {
+            id: "d1",
+            kind: "brd",
+            content: { title: "BRD", sections: [] },
+            issueId: null,
+            jiraKey: null,
+            issueNumber: null,
+            createdAt: "2026-11-16T01:00:00Z",
+            updatedAt: "2026-11-16T01:00:00Z",
+          },
+        ],
+        messages: [userMessage("u1", contextOf("user", null, null)), answer],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(button(t.drafts.replace("{count}", "1"))).toBeDefined();
+  });
+
+  it("Stop calls stop-answer for the open chat", async () => {
+    api.stopAnswer.mockResolvedValue({});
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", contextOf("user", null, null)),
+      { ...answer, status: "streaming" },
+    ]);
+    await act(async () => button(t.stop)?.click());
+    await settle();
+    expect(api.stopAnswer).toHaveBeenCalledWith(CONV_ID);
+  });
+
+  it("Stop is disabled until its request settles", async () => {
+    let release: () => void = () => {};
+    api.stopAnswer.mockReturnValue(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      })
     );
-    expect(rows[0]).toContain("Heron Membership");
-    expect(rows[0]).not.toContain(t.contextDeleted);
-    expect(rows[1]).toContain(t.contextAuto);
-    expect(rows[2]).toContain(`Initech Payroll ${t.contextDeleted}`);
+    const running = {
+      id: CONV_ID,
+      title: "Iuran",
+      drafts: [],
+      messages: [
+        userMessage("u1", contextOf("user", null, null)),
+        { ...answer, status: "streaming" },
+      ],
+    };
+    // The refetch after Stop settles.
+    conversationFetch.set(CONV_ID, async () => running);
+    await renderWorkspace({ conversationId: CONV_ID }, running.messages);
+    await act(async () => button(t.stop)?.click());
+    expect(button(t.stop)?.disabled).toBe(true);
+    await act(async () => button(t.stop)?.click());
+    expect(api.stopAnswer).toHaveBeenCalledTimes(1);
+    await act(async () => release());
+    await settle();
+    expect(button(t.stop)?.disabled).toBe(false);
+  });
+
+  it("Retry calls retry-answer and refetches", async () => {
+    api.retryAnswer.mockResolvedValue({});
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", contextOf("user", null, null)),
+      answer,
+    ]);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const retry = [...document.querySelectorAll("button")].find(
+      (b) => b.getAttribute("aria-label") === t.retry
+    );
+    await act(async () => retry?.click());
+    await settle();
+    expect(api.retryAnswer).toHaveBeenCalledWith(CONV_ID);
+    const keys = invalidate.mock.calls.map((c) => c[0]?.queryKey);
+    expect(keys).toContainEqual(["assistant", "getConversation", [CONV_ID]]);
+    expect(keys).toContainEqual(["assistant", "getAllowance"]);
   });
 
   it("reports the selected conversation for the URL", async () => {
@@ -2479,7 +2623,7 @@ describe("context picker", () => {
     await renderWorkspace({ conversationId: missing, onConversationChange });
     await settle();
     expect(onConversationChange).toHaveBeenLastCalledWith(null);
-    expect(button(t.newDraft)).toBeUndefined();
+    expect(button(t.moreActions)).toBeUndefined();
   });
 
   it("does not show an old draft error again after the panel is reopened", async () => {
@@ -2488,7 +2632,29 @@ describe("context picker", () => {
       userMessage("u1", contextOf("user", null, null)),
       answer,
     ]);
-    await act(async () => button(t.newDraft)?.click());
+    // A chat with a draft keeps the Drafts toggle while the panel is closed.
+    await act(async () => {
+      queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
+        id: CONV_ID,
+        title: "Iuran",
+        drafts: [
+          {
+            id: "d1",
+            kind: "brd",
+            content: { title: "BRD", sections: [] },
+            issueId: null,
+            jiraKey: null,
+            issueNumber: null,
+            createdAt: "2026-11-16T01:00:00Z",
+            updatedAt: "2026-11-16T01:00:00Z",
+          },
+        ],
+        messages: [userMessage("u1", contextOf("user", null, null)), answer],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => button(t.drafts.replace("{count}", "1"))?.click());
+    await act(async () => button(t.moreActions)?.click());
     await settle();
     const brd = [
       ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
@@ -2496,7 +2662,7 @@ describe("context picker", () => {
     await act(async () => brd?.click());
     await settle();
     expect(text()).toContain(messages.assistantErrors.failed);
-    const toggle = () => button(t.drafts.replace("{count}", "0"));
+    const toggle = () => button(t.drafts.replace("{count}", "1"));
     await act(async () => toggle()?.click());
     await act(async () => toggle()?.click());
     await settle();
@@ -2513,7 +2679,7 @@ describe("context picker", () => {
       answer,
     ]);
     expect(document.querySelector('section[aria-label="Drafts"]')).toBeNull();
-    await act(async () => button(t.newDraft)?.click());
+    await act(async () => button(t.moreActions)?.click());
     await settle();
     const issue = [
       ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
@@ -2917,6 +3083,24 @@ describe("composer container", () => {
     expect(stop?.disabled).toBe(false);
     await act(async () => stop?.click());
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("Stop is disabled while a stop request is in flight", async () => {
+    await render(
+      <Composer {...props} disabled running stopping onStop={vi.fn()} />
+    );
+    expect(button(t.stop)?.disabled).toBe(true);
+  });
+
+  it("a click on empty toolbar space focuses the textarea, not the file input", async () => {
+    await render(
+      <Composer {...props} disabled={false} running={false} onStop={() => {}} />
+    );
+    const addon = container.querySelector<HTMLElement>(
+      '[data-align="block-end"]'
+    );
+    await act(async () => addon?.click());
+    expect(document.activeElement).toBe(container.querySelector("textarea"));
   });
 
   it("has no send hint and shows the disclaimer once under the group", async () => {

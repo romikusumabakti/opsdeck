@@ -36,8 +36,8 @@ import {
 const TITLE_MAX_CHARS = 80;
 
 /**
- * The caller's chats (all projects), newest first, each with what its last
- * question was about and when it changed, and a ⋯ menu to rename it (in
+ * The caller's chats (all projects), newest first, each with its title and
+ * when it changed, and a ⋯ menu to rename it (in
  * place: Enter or leaving the field saves, Escape cancels) or delete it
  * (after a confirmation). The list scrolls on its own below the pinned "New
  * chat" button.
@@ -179,17 +179,10 @@ export function ConversationList({
                   <span className="line-clamp-2 break-words">
                     {c.title || t("untitled")}
                   </span>
-                  <span className="flex w-full min-w-0 items-baseline gap-1.5 text-xs font-normal text-muted-foreground">
-                    <span className="truncate">
-                      {c.lastContextLabel === null
-                        ? t("contextAuto")
-                        : c.lastContextDeleted
-                          ? `${c.lastContextLabel} ${t("contextDeleted")}`
-                          : c.lastContextLabel}
-                    </span>
-                    <span aria-hidden>·</span>
-                    <RelativeTime date={c.updatedAt} className="shrink-0" />
-                  </span>
+                  <RelativeTime
+                    date={c.updatedAt}
+                    className="text-xs font-normal text-muted-foreground"
+                  />
                 </button>
               )}
               <DropdownMenu>

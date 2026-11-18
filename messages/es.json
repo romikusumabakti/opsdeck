@@ -3679,7 +3679,6 @@
   },
   "assistant": {
     "title": "Asistente",
-    "subtitle": "Pregunta sobre tus proyectos: código, incidencias, entornos y despliegues.",
     "usageUsed": "{percent}% del límite de hoy usado",
     "usageResets": "Se restablece a las {time, time, short}",
     "usageCapReached": "Has alcanzado el límite de hoy. Se restablece a las {time, time, short}.",
@@ -3703,6 +3702,7 @@
     "send": "Enviar",
     "sendTooltip": "Enviar (Enter)",
     "stop": "Detener",
+    "moreActions": "Más",
     "removeAttachment": "Quitar el adjunto {name}",
     "attachedCount": "{count, plural, one {# adjunto} other {# adjuntos}}",
     "attachmentWarning": "Los adjuntos de las incidencias pueden contener datos de participantes (NIK, nombres, cuentas bancarias). Su contenido se envía al proveedor de IA configurado. Marca solo los adjuntos que de verdad necesites.",

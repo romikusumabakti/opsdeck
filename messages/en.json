@@ -3679,7 +3679,6 @@
   },
   "assistant": {
     "title": "Assistant",
-    "subtitle": "Ask about your projects: code, issues, environments and deploys.",
     "usageUsed": "{percent}% of today's limit used",
     "usageResets": "Resets {time, time, short}",
     "usageCapReached": "You've reached today's limit. It resets at {time, time, short}.",
@@ -3703,6 +3702,7 @@
     "send": "Send",
     "sendTooltip": "Send (Enter)",
     "stop": "Stop",
+    "moreActions": "More",
     "removeAttachment": "Remove attachment {name}",
     "attachedCount": "{count, plural, one {# attachment} other {# attachments}}",
     "attachmentWarning": "Issue attachments can contain participant data (NIK, names, bank accounts). Their content is sent to the configured AI provider. Tick only the attachments you really need.",

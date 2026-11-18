@@ -9,6 +9,11 @@ export const capReached = (allowance: Allowance) => allowance.capReached;
 /** Used share from which the meter warns. */
 const WARN_AT = 0.8;
 
+/** Whether the meter is worth showing: from the warning share, or at the cap. */
+export const showMeter = (allowance: Allowance) =>
+  allowance.enabled &&
+  (allowance.capReached || allowance.usedFraction >= WARN_AT);
+
 /**
  * A compact meter of today's limit: the share used and when it resets (in the
  * reader's zone, via the intl time format), amber from 80%, destructive once

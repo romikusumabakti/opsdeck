@@ -109,7 +109,10 @@ export function ChatThread({
           description={t("emptyThreadDescription")}
         />
       ) : (
-        <div ref={observeList} className="flex flex-col gap-6">
+        <div
+          ref={observeList}
+          className="mx-auto flex w-full max-w-3xl flex-col gap-6"
+        >
           {messages.map((message, index) => (
             <MessageView
               key={message.id}

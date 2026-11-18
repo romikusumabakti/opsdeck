@@ -3679,7 +3679,6 @@
   },
   "assistant": {
     "title": "المساعد",
-    "subtitle": "اسأل عن مشاريعك: الشيفرة والمشكلات والبيئات وعمليات النشر.",
     "usageUsed": "تم استخدام {percent}٪ من حد اليوم",
     "usageResets": "يُعاد التعيين عند {time, time, short}",
     "usageCapReached": "لقد بلغت حد اليوم. يُعاد التعيين عند {time, time, short}.",
@@ -3703,6 +3702,7 @@
     "send": "إرسال",
     "sendTooltip": "إرسال (Enter)",
     "stop": "إيقاف",
+    "moreActions": "المزيد",
     "removeAttachment": "إزالة المرفق {name}",
     "attachedCount": "{count, plural, zero {لا مرفقات} one {مرفق واحد} two {مرفقان} few {# مرفقات} many {# مرفقًا} other {# مرفق}}",
     "attachmentWarning": "قد تحتوي مرفقات المشكلات على بيانات المشاركين (NIK والأسماء والحسابات المصرفية). يُرسل محتواها إلى مزوّد الذكاء الاصطناعي المُعدّ. حدّد فقط المرفقات التي تحتاجها فعلًا.",

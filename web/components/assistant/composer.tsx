@@ -15,11 +15,7 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipHint } from "@/components/ui/tooltip";
 import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import type { QuestionContextInput } from "@/lib/assistant/context";
 import { UPLOAD_ACCEPT } from "@/lib/assistant/upload-types";
@@ -52,6 +48,7 @@ const MAX_ATTACHMENTS = 10;
 export function Composer({
   disabled,
   running,
+  stopping = false,
   onStop,
   onSend,
   focusKey,
@@ -64,6 +61,8 @@ export function Composer({
   disabled: boolean;
   /** An answer is running: the send button becomes Stop. */
   running: boolean;
+  /** A stop request is in flight: Stop is disabled until it settles. */
+  stopping?: boolean;
   /** Stops the running answer. */
   onStop: () => void;
   onSend: (
@@ -227,25 +226,24 @@ export function Composer({
           rows={2}
           className="field-sizing-content max-h-60"
         />
-        <InputGroupAddon align="block-end">
+        <InputGroupAddon
+          align="block-end"
+          // The addon focuses its first `input` on a click, which here is the
+          // hidden file input; empty space in the toolbar focuses the text.
+          onClick={(e) => {
+            if (e.target === e.currentTarget) textareaRef.current?.focus();
+          }}
+        >
           <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger
+            <TooltipHint label={t("attach")}>
+              <DropdownMenuTrigger
                 render={
-                  <DropdownMenuTrigger
-                    render={
-                      <InputGroupButton
-                        size="icon-sm"
-                        aria-label={t("attach")}
-                      />
-                    }
-                  />
+                  <InputGroupButton size="icon-sm" aria-label={t("attach")} />
                 }
               >
                 <Paperclip />
-              </TooltipTrigger>
-              <TooltipContent>{t("attach")}</TooltipContent>
-            </Tooltip>
+              </DropdownMenuTrigger>
+            </TooltipHint>
             <DropdownMenuContent align="start">
               <DropdownMenuItem
                 disabled={uploads.full}
@@ -281,33 +279,31 @@ export function Composer({
             disabled={disabled}
           />
           {running ? (
-            <InputGroupButton
-              variant="default"
-              size="icon-sm"
-              className="ms-auto rounded-full"
-              aria-label={t("stop")}
-              onClick={onStop}
-            >
-              <Square className="fill-current" />
-            </InputGroupButton>
+            <TooltipHint label={t("stop")}>
+              <InputGroupButton
+                variant="default"
+                size="icon-sm"
+                className="ms-auto rounded-full"
+                aria-label={t("stop")}
+                onClick={onStop}
+                disabled={stopping}
+              >
+                <Square className="fill-current" />
+              </InputGroupButton>
+            </TooltipHint>
           ) : (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <InputGroupButton
-                    variant="default"
-                    size="icon-sm"
-                    className="ms-auto rounded-full"
-                    aria-label={t("send")}
-                    onClick={() => void send()}
-                    disabled={!canSend}
-                  />
-                }
+            <TooltipHint label={t("sendTooltip")}>
+              <InputGroupButton
+                variant="default"
+                size="icon-sm"
+                className="ms-auto rounded-full"
+                aria-label={t("send")}
+                onClick={() => void send()}
+                disabled={!canSend}
               >
                 <ArrowUp />
-              </TooltipTrigger>
-              <TooltipContent>{t("sendTooltip")}</TooltipContent>
-            </Tooltip>
+              </InputGroupButton>
+            </TooltipHint>
           )}
         </InputGroupAddon>
       </InputGroup>

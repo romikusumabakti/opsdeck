@@ -3679,7 +3679,6 @@
   },
   "assistant": {
     "title": "助手",
-    "subtitle": "询问你的项目：代码、问题、环境和部署。",
     "usageUsed": "今日额度已用 {percent}%",
     "usageResets": "{time, time, short} 重置",
     "usageCapReached": "你已达到今天的使用上限，将于 {time, time, short} 重置。",
@@ -3703,6 +3702,7 @@
     "send": "发送",
     "sendTooltip": "发送（Enter）",
     "stop": "停止",
+    "moreActions": "更多",
     "removeAttachment": "移除附件 {name}",
     "attachedCount": "{count, plural, other {# 个附件}}",
     "attachmentWarning": "问题附件可能包含参与者数据（NIK、姓名、银行账户）。其内容会发送给已配置的 AI 提供商。只勾选确实需要的附件。",

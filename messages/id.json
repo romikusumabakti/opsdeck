@@ -3679,7 +3679,6 @@
   },
   "assistant": {
     "title": "Asisten",
-    "subtitle": "Tanyakan tentang project Anda: kode, issue, environment, dan deploy.",
     "usageUsed": "{percent}% dari batas hari ini terpakai",
     "usageResets": "Direset {time, time, short}",
     "usageCapReached": "Batas hari ini sudah tercapai. Direset pukul {time, time, short}.",
@@ -3703,6 +3702,7 @@
     "send": "Kirim",
     "sendTooltip": "Kirim (Enter)",
     "stop": "Hentikan",
+    "moreActions": "Lainnya",
     "removeAttachment": "Hapus lampiran {name}",
     "attachedCount": "{count, plural, other {# lampiran}}",
     "attachmentWarning": "Lampiran issue bisa berisi data peserta (NIK, nama, rekening). Isinya dikirim ke penyedia AI yang dikonfigurasi. Centang hanya lampiran yang benar-benar diperlukan.",

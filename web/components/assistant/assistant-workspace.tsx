@@ -5,16 +5,14 @@ import {
 } from "@tanstack/react-query";
 import {
   Bot,
-  ChevronDown,
-  FilePlus2,
   FileText,
   MessagesSquare,
+  MoreHorizontal,
   Ticket,
 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
-import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -24,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { TooltipHint } from "@/components/ui/tooltip";
 import { useModKey } from "@/hooks/use-is-mac";
 import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import type { QuestionContextInput } from "@/lib/assistant/context";
@@ -34,11 +33,12 @@ import {
   getAllowanceQuery,
   getConversationQuery,
   type MessageContext,
+  retryAnswer,
   sendMessage,
   stopAnswer,
 } from "@/web/api/assistant";
 import { ApiError } from "@/web/api/client";
-import { AllowanceBadge, capReached } from "./allowance-badge";
+import { AllowanceBadge, capReached, showMeter } from "./allowance-badge";
 import { assistantShortcutLabel } from "./assistant-shortcut";
 import { ChatThread, pendingAnswer } from "./chat-thread";
 import { Composer } from "./composer";
@@ -213,8 +213,11 @@ export function AssistantWorkspace({
   const busy = pendingAnswer(conversation) !== null;
   const queryClient = useQueryClient();
   const { errorText } = useAssistantErrorText();
+  // Stop is disabled from the click until its request settles.
+  const [stopping, setStopping] = React.useState(false);
   const stop = async () => {
-    if (!selectedId) return;
+    if (!selectedId || stopping) return;
+    setStopping(true);
     try {
       await stopAnswer(selectedId);
       await queryClient.invalidateQueries({
@@ -222,9 +225,27 @@ export function AssistantWorkspace({
       });
     } catch (e) {
       toast.error(errorText(e));
+    } finally {
+      setStopping(false);
     }
   };
   const capped = capReached(allowance);
+  const retry = async () => {
+    if (!selectedId) return;
+    try {
+      await retryAnswer(selectedId);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: getConversationQuery(selectedId).queryKey,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: getAllowanceQuery().queryKey,
+        }),
+      ]);
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  };
 
   // The conversation made for a first question whose send then failed: the
   // retry sends into it rather than leaving another empty one behind.
@@ -272,18 +293,12 @@ export function AssistantWorkspace({
     drafts.generate(kind);
   };
 
-  const header = (
-    <PageHeader
-      title={t("title")}
-      subtitle={t("subtitle")}
-      action={allowance.enabled && <AllowanceBadge allowance={allowance} />}
-    />
-  );
+  const heading = <h1 className="sr-only">{t("title")}</h1>;
 
   if (!allowance.enabled) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto">
-        {header}
+        {heading}
         <EmptyState
           icon={Bot}
           title={t("notEnabledTitle")}
@@ -296,7 +311,7 @@ export function AssistantWorkspace({
   if (contextOptions.loaded && contextOptions.projects.length === 0) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto">
-        {header}
+        {heading}
         <EmptyState
           icon={Bot}
           title={t("noProjectsTitle")}
@@ -305,6 +320,57 @@ export function AssistantWorkspace({
       </div>
     );
   }
+
+  const chatOpen = selectedId !== null && !foreign;
+  const toolbar = (showMeter(allowance) || chatOpen) && (
+    <div className="mx-auto flex h-8 w-full max-w-3xl shrink-0 items-center justify-end gap-2">
+      {showMeter(allowance) && <AllowanceBadge allowance={allowance} />}
+      {chatOpen && (draftCount > 0 || draftsOpen) && (
+        <Button
+          variant="outline"
+          size="sm"
+          aria-expanded={draftsOpen}
+          onClick={() => setDraftsOpen((open) => !open)}
+        >
+          <FileText data-icon="inline-start" />
+          {t("drafts", { count: draftCount })}
+        </Button>
+      )}
+      {chatOpen && (
+        <DropdownMenu>
+          <TooltipHint label={t("moreActions")}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("moreActions")}
+                  disabled={
+                    busy ||
+                    capped ||
+                    !canDraftFrom(conversation) ||
+                    drafts.generating !== null
+                  }
+                />
+              }
+            >
+              <MoreHorizontal />
+            </DropdownMenuTrigger>
+          </TooltipHint>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => newDraft("brd")}>
+              <FileText />
+              {t("newDraftBrd")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => newDraft("jira")}>
+              <Ticket />
+              {t("newDraftIssue")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
 
   const draftPanel = selectedId && !foreign && (
     <DraftPanel
@@ -315,11 +381,11 @@ export function AssistantWorkspace({
   );
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-6">
-      {header}
+    <div className="h-full min-h-0">
+      {heading}
       <div
         className={cn(
-          "flex min-h-0 flex-col gap-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]",
+          "flex h-full min-h-0 flex-col gap-6 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]",
           draftsOpen && selectedId && "lg:grid-cols-[14rem_minmax(0,1fr)_24rem]"
         )}
       >
@@ -342,51 +408,14 @@ export function AssistantWorkspace({
           />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+          {toolbar}
           {selectedId && !foreign ? (
-            <>
-              <div className="flex shrink-0 justify-end gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={
-                          busy ||
-                          capped ||
-                          !canDraftFrom(conversation) ||
-                          drafts.generating !== null
-                        }
-                      />
-                    }
-                  >
-                    <FilePlus2 data-icon="inline-start" />
-                    {t("newDraft")}
-                    <ChevronDown data-icon="inline-end" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => newDraft("brd")}>
-                      <FileText />
-                      {t("newDraftBrd")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => newDraft("jira")}>
-                      <Ticket />
-                      {t("newDraftIssue")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-expanded={draftsOpen}
-                  onClick={() => setDraftsOpen((open) => !open)}
-                >
-                  <FileText data-icon="inline-start" />
-                  {t("drafts", { count: draftCount })}
-                </Button>
-              </div>
-              <ChatThread key={selectedId} conversationId={selectedId} />
-            </>
+            <ChatThread
+              key={selectedId}
+              conversationId={selectedId}
+              onRetry={() => void retry()}
+              retryDisabled={busy || capped}
+            />
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">
               <EmptyState
@@ -401,10 +430,11 @@ export function AssistantWorkspace({
               </p>
             </div>
           )}
-          <div className="shrink-0">
+          <div className="mx-auto w-full max-w-3xl shrink-0">
             <Composer
               disabled={busy || capped}
               running={busy}
+              stopping={stopping}
               onStop={() => void stop()}
               capResetsAt={capped ? allowance.resetsAt : null}
               readsImages={allowance.readsImages}
