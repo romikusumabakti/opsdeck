@@ -58,7 +58,7 @@ export function AskAssistantCard() {
   const [text, setText] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInput = React.useRef<HTMLInputElement>(null);
-  const uploads = useFileUploads();
+  const uploads = useFileUploads("current-user", "home");
   const drop = useFileDrop(uploads.add, false);
 
   // The conversation made for a send that then failed: a retry reuses it

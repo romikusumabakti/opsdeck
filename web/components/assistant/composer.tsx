@@ -21,6 +21,7 @@ import type { QuestionContextInput } from "@/lib/assistant/context";
 import { UPLOAD_ACCEPT } from "@/lib/assistant/upload-types";
 import { ASSISTANT_COMPOSER_ID } from "./assistant-shortcut";
 import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
+import { NEW_CHAT } from "./composer-drafts";
 import { shouldSend } from "./composer-keys";
 import { ContextPicker } from "./context-picker";
 import { useAssistantErrorText } from "./error-text";
@@ -95,7 +96,7 @@ export function Composer({
     if (e.target === e.currentTarget) textareaRef.current?.focus();
   };
   const fileInput = React.useRef<HTMLInputElement>(null);
-  const uploads = useFileUploads();
+  const uploads = useFileUploads("current-user", NEW_CHAT);
   // Files can be added while an answer runs, for the next question; past
   // the limit, add() says so.
   const drop = useFileDrop(uploads.add, false);

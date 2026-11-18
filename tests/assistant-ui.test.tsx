@@ -99,6 +99,7 @@ import { AssistantWorkspace } from "@/web/components/assistant/assistant-workspa
 import { AttachmentPicker } from "@/web/components/assistant/attachment-picker";
 import { ChatThread } from "@/web/components/assistant/chat-thread";
 import { Composer } from "@/web/components/assistant/composer";
+import { composerDrafts } from "@/web/components/assistant/composer-drafts";
 import { DraftPanel } from "@/web/components/assistant/draft-panel";
 import { JiraDraftForm } from "@/web/components/assistant/jira-draft-form";
 import {
@@ -184,6 +185,7 @@ let root: ReturnType<typeof createRoot>;
 let queryClient: QueryClient;
 
 beforeEach(() => {
+  composerDrafts.resetForTests();
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });

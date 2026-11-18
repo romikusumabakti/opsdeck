@@ -2,14 +2,14 @@ import { FileText, ImageIcon, Loader2, X } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { Progress } from "@/components/ui/progress";
-import {
-  claimedKind,
-  MAX_UPLOADS_PER_QUESTION,
-  MiB,
-  uploadLimit,
-} from "@/lib/assistant/upload-types";
+import { MAX_UPLOADS_PER_QUESTION } from "@/lib/assistant/upload-types";
 import { cn, formatBytes } from "@/lib/utils";
-import { deleteUpload, uploadFile } from "@/web/api/assistant";
+import {
+  composerDrafts,
+  type DraftKey,
+  type PendingFile,
+  useComposerDraft,
+} from "./composer-drafts";
 import { useAssistantErrorText } from "./error-text";
 
 /**
@@ -20,127 +20,36 @@ import { useAssistantErrorText } from "./error-text";
  * as a chip with the reason until removed; it is never sent.
  */
 
-export type PendingFile = {
-  key: string;
-  name: string;
-  size: number;
-  image: boolean;
-  status: "uploading" | "ready" | "failed";
-  /** 0..1 while uploading. */
-  progress: number;
-  /** The upload's id once stored. */
-  id?: string;
-  error?: string;
-};
+export type { PendingFile };
 
-let nextKey = 0;
-
-export function useFileUploads() {
+export function useFileUploads(userId: string, key: DraftKey) {
   const tErrors = useTranslations("assistantErrors");
   const { errorText } = useAssistantErrorText();
-  const [files, setFiles] = React.useState<PendingFile[]>([]);
-  const [notice, setNotice] = React.useState<string | null>(null);
-  const controllers = React.useRef(new Map<string, AbortController>());
-  // The list as of the last change, for add() calls in one event.
-  const current = React.useRef(files);
-  current.current = files;
-
-  const patch = React.useCallback(
-    (key: string, change: Partial<PendingFile>) =>
-      setFiles((prev) =>
-        prev.map((f) => (f.key === key ? { ...f, ...change } : f))
-      ),
-    []
-  );
-
-  const start = React.useCallback(
-    (key: string, file: File) => {
-      const controller = new AbortController();
-      controllers.current.set(key, controller);
-      uploadFile(file, {
-        signal: controller.signal,
-        onProgress: (progress) => patch(key, { progress }),
-      })
-        .then((uploaded) =>
-          patch(key, { status: "ready", progress: 1, id: uploaded.id })
-        )
-        .catch((error: unknown) => {
-          if ((error as Error)?.name === "AbortError") return;
-          patch(key, { status: "failed", error: errorText(error) });
-        })
-        .finally(() => controllers.current.delete(key));
-    },
-    [patch, errorText]
-  );
+  const [draft] = useComposerDraft(userId, key);
+  const { files, notice } = draft;
 
   const add = React.useCallback(
-    (list: readonly File[]) => {
-      if (list.length === 0) return;
-      const room =
-        MAX_UPLOADS_PER_QUESTION -
-        current.current.filter((f) => f.status !== "failed").length;
-      const taken = list.slice(0, Math.max(0, room));
-      setNotice(
-        taken.length < list.length
-          ? tErrors("tooManyFiles", { max: MAX_UPLOADS_PER_QUESTION })
-          : null
-      );
-      const added: PendingFile[] = [];
-      const uploads: Array<[string, File]> = [];
-      for (const file of taken) {
-        const key = `f${++nextKey}`;
-        const kind = claimedKind(file.name);
-        const base = {
-          key,
-          name: file.name,
-          size: file.size,
-          image: kind === "image",
-          progress: 0,
-        };
-        // The server's checks, done here first so a refused file is not
-        // sent at all; the server decides by the bytes.
-        if (!kind) {
-          added.push({
-            ...base,
-            status: "failed",
-            error: tErrors("fileTypeUnsupported"),
-          });
-        } else if (file.size > uploadLimit(kind)) {
-          added.push({
-            ...base,
-            status: "failed",
-            error: tErrors("fileTooLarge", {
-              limitMb: Math.round(uploadLimit(kind) / MiB),
-            }),
-          });
-        } else {
-          added.push({ ...base, status: "uploading" });
-          uploads.push([key, file]);
-        }
-      }
-      current.current = [...current.current, ...added];
-      setFiles((prev) => [...prev, ...added]);
-      // After the chips exist, so their first progress has one to update.
-      for (const [key, file] of uploads) start(key, file);
-    },
-    [start, tErrors]
+    (list: readonly File[]) =>
+      composerDrafts.addFiles(key, list, {
+        tooMany: tErrors("tooManyFiles", { max: MAX_UPLOADS_PER_QUESTION }),
+        unsupported: tErrors("fileTypeUnsupported"),
+        tooLarge: (limitMb) => tErrors("fileTooLarge", { limitMb }),
+        failed: errorText,
+      }),
+    [key, tErrors, errorText]
   );
 
-  const remove = React.useCallback((key: string) => {
-    const file = current.current.find((f) => f.key === key);
-    controllers.current.get(key)?.abort();
-    // Unsent, so the server removes it; one that cannot be removed now is
-    // left to the daily prune.
-    if (file?.id) deleteUpload(file.id).catch(() => {});
-    setNotice(null);
-    setFiles((prev) => prev.filter((f) => f.key !== key));
-  }, []);
+  const remove = React.useCallback(
+    (fileKey: string) => composerDrafts.removeFile(key, fileKey),
+    [key]
+  );
 
   /** After a send: the files now belong to the question. */
-  const clear = React.useCallback(() => {
-    setNotice(null);
-    setFiles([]);
-  }, []);
+  const clear = React.useCallback(
+    () =>
+      composerDrafts.update(key, (d) => ({ ...d, notice: null, files: [] })),
+    [key]
+  );
 
   const ready = files.flatMap((f) =>
     f.status === "ready" && f.id ? [f.id] : []
