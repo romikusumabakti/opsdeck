@@ -1321,6 +1321,15 @@ describe("runTurn", () => {
           getServiceStatuses,
           getEnvironmentRunning: async () => ({ items: [] }),
           getDeployLockState: async () => ({ lock: null, heldCount: 0 }),
+          getEnvironmentKpis: async () => ({
+            lastBackup: null,
+            lastRestore: null,
+            lastMock: null,
+            totalRuns7d: 0,
+            successRate7d: null,
+            prevTotalRuns7d: 0,
+            dailyRuns: [],
+          }),
         },
       })
     );

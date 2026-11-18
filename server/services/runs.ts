@@ -3,6 +3,7 @@ import {
   type AccessScope,
   accessScopeFromSession,
   projectRoleIn,
+  requireProjectPermissionIn,
 } from "@/lib/access-scope";
 import { requireSession } from "@/lib/auth-session";
 import { projectIdsWhere, projectScope, requireProjectPage } from "@/lib/authz";
@@ -254,7 +255,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export async function getEnvironmentKpis(
   environmentId: string
 ): Promise<EnvironmentKpis> {
-  await requireProjectPage({ environmentId });
+  return getEnvironmentKpisFor(await accessScopeFromSession(), environmentId);
+}
+
+/** getEnvironmentKpis for an explicit scope (the assistant worker has no session). */
+export async function getEnvironmentKpisFor(
+  scope: AccessScope,
+  environmentId: string
+): Promise<EnvironmentKpis> {
+  await requireProjectPermissionIn(
+    scope,
+    { environmentId },
+    { project: ["read"] }
+  );
   // Pull 14 days so we can compute both the current 7d window (for the
   // existing total/success metrics + sparkline) and the prior 7d window
   // (for the delta indicator) in a single round-trip.

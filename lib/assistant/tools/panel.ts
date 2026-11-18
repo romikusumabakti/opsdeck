@@ -19,7 +19,11 @@ import {
   listEnvironmentsFor,
 } from "@/server/services/environments";
 import { getIssueDetailFor, listAllIssuesFor } from "@/server/services/issues";
-import { getRunSnapshotFor } from "@/server/services/runs";
+import {
+  getEnvironmentKpisFor,
+  getRunSnapshotFor,
+  type KpiEntry,
+} from "@/server/services/runs";
 import { getServerFor, getServersFor } from "@/server/services/servers";
 import { getAllServiceStatusesFor } from "@/server/services/services";
 import { REDACTED_LINE, redactSecretLines } from "../secret-filter";
@@ -44,6 +48,8 @@ export const STATUS_PROBE_TIMEOUT_MS = 30_000;
 export const PANEL_LIST_LIMIT = 20;
 export const DEFAULT_LIST_LIMIT = 10;
 export const MAX_ENVIRONMENTS = 100;
+/** Environments whose deploy state list_environments reads at once. */
+const ENVIRONMENT_STATE_CONCURRENCY = 5;
 export const MAX_PEOPLE = 200;
 export const MAX_SERVERS = 100;
 export const ACTIVITY_LIMIT = 50;
@@ -61,6 +67,7 @@ export type PanelCores = {
   getEnvironmentRunning: typeof getEnvironmentRunningFor;
   getServiceStatuses: typeof getAllServiceStatusesFor;
   getDeployLockState: typeof getDeployLockStateFor;
+  getEnvironmentKpis: typeof getEnvironmentKpisFor;
   listDeployTargets: typeof listDeployTargetsFor;
   getDeployment: typeof getDeploymentFor;
   getRunSnapshot: typeof getRunSnapshotFor;
@@ -89,6 +96,7 @@ export const PANEL_CORES: PanelCores = {
   getEnvironmentRunning: getEnvironmentRunningFor,
   getServiceStatuses: getAllServiceStatusesFor,
   getDeployLockState: getDeployLockStateFor,
+  getEnvironmentKpis: getEnvironmentKpisFor,
   listDeployTargets: listDeployTargetsFor,
   getDeployment: getDeploymentFor,
   getRunSnapshot: getRunSnapshotFor,
@@ -114,6 +122,9 @@ export type EnvironmentStatus = {
   running?: Record<string, unknown>[];
   lock?: Record<string, unknown>;
   heldDeploys?: number;
+  lastBackup?: { at: string | null; status: string };
+  lastRestore?: { at: string | null; status: string };
+  lastMockTime?: { at: string | null; status: string };
 };
 
 /**
@@ -185,7 +196,7 @@ export function createPanelTurn(
           results.map((r) => ({
             role: r.role,
             state: r.state,
-            ...(r.error ? { error: r.error } : {}),
+            ...(r.error ? { error: safeText(r.error).text ?? "" } : {}),
           })),
         (error) => {
           // A refusal is not a probe failure: the caller reports it.
@@ -214,7 +225,7 @@ const environmentArg = str(
 /** Tools every viewer gets, in order. */
 const ALWAYS = {
   list_environments: {
-    description: `List the Panel environments the user can see (at most ${MAX_ENVIRONMENTS}): reference ("PROJECTKEY/slug"), name, kind, URL, owner. Database data only; use get_environment_status for live service state and running versions.`,
+    description: `List the Panel environments the user can see (at most ${MAX_ENVIRONMENTS}): reference ("PROJECTKEY/slug"), name, kind, URL, owner. With a project, each environment also has its last deploy (status, time, tag) and whether deploys are locked; without one these are left out, so pass a project or use get_environment_status. Database data only; use get_environment_status for live service state and running versions.`,
     inputSchema: z.strictObject({
       project: nullable(
         z.string(),
@@ -223,11 +234,11 @@ const ALWAYS = {
     }),
   },
   get_environment_status: {
-    description: `Live state of one environment, as its dashboard shows it: each service running/stopped/not-found/unknown (live check), the version each component runs, and an active deploy lock. At most ${STATUS_PROBES_PER_TURN} environments are checked live per answer; beyond that "checked" is false (reason "limit"). "unknown" means the check failed.`,
+    description: `Live state of one environment, as its dashboard shows it: each service running/stopped/not-found/unknown (live check), the version each component runs, an active deploy lock, and the last backup, restore and mock-time runs. At most ${STATUS_PROBES_PER_TURN} environments are checked live per answer; beyond that "checked" is false (reason "limit"). "unknown" means the check failed.`,
     inputSchema: z.strictObject({ environment: environmentArg }),
   },
   list_deploys: {
-    description: `Deploy history of one environment, newest first (at most ${PANEL_LIST_LIMIT}): component, tag, status, trigger, who, when, duration, branch and commit; plus each component's current and previous tag.`,
+    description: `Deploy history of one environment, newest first, up to ${PANEL_LIST_LIMIT} (as many as the Deploys page keeps): component, tag, status, trigger, who, when, duration, branch and commit; plus each component's current and previous tag.`,
     inputSchema: z.strictObject({
       environment: environmentArg,
       limit: nullable(
@@ -511,7 +522,9 @@ async function listEnvironmentsTool(
 ) {
   let envs = await ctx.panel.environments();
   let meta: ToolMeta = {};
+  let oneProject = false;
   if (project) {
+    oneProject = true;
     const found = await projectByKey(ctx, project);
     if (typeof found === "string") {
       return fail(unknownProjectError(found, ctx.mode), { project: found });
@@ -529,16 +542,25 @@ async function listEnvironmentsTool(
   const projects = (await ctx.panel.projects())
     .filter((p) => shown.some((e) => e.projectId === p.id))
     .map((p) => ({ key: p.key, name: p.name }));
+  // One project's environments are few: each gets its last deploy and lock
+  // from the Deploys page's cores. Across every project that would be a
+  // query per environment, so the description points to a project instead.
+  const deployState = oneProject
+    ? await mapLimit(shown, ENVIRONMENT_STATE_CONCURRENCY, (e) =>
+        environmentDeployState(ctx, e)
+      )
+    : [];
   return ok(
     compact({
       projects,
-      environments: shown.map((e) =>
+      environments: shown.map((e, i) =>
         compact({
           ref: envRef(e),
           name: e.name,
           kind: e.kind,
           url: e.url,
           owner: e.ownerId ? (owners.get(e.ownerId) ?? null) : null,
+          ...deployState[i],
         })
       ),
       more: sorted.length > shown.length ? sorted.length - shown.length : null,
@@ -547,17 +569,80 @@ async function listEnvironmentsTool(
   );
 }
 
+async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i] as T);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker)
+  );
+  return results;
+}
+
+/** An environment's newest deploy (any component) and its deploy lock. */
+async function environmentDeployState(
+  ctx: PanelContext,
+  env: EnvironmentListItem
+): Promise<{
+  lastDeploy?: Record<string, unknown>;
+  lock?: Record<string, unknown>;
+}> {
+  const { scope } = ctx.viewer;
+  try {
+    const [targets, lock] = await Promise.all([
+      ctx.panel.cores.listDeployTargets(scope, env.id),
+      ctx.panel.cores.getDeployLockState(scope, env.id),
+    ]);
+    const last = targets
+      .flatMap((t) => t.recentDeployments)
+      .sort(
+        (a, b) =>
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          b.id.localeCompare(a.id)
+      )[0];
+    return {
+      ...(last
+        ? {
+            lastDeploy: compact({
+              status: last.status,
+              at: iso(last.createdAt),
+              tag: last.tag,
+            }),
+          }
+        : {}),
+      lock: lock.lock
+        ? compact({ locked: true, reason: safeText(lock.lock.reason).text })
+        : { locked: false },
+    };
+  } catch (error) {
+    if (isRefusal(error)) return {};
+    throw error;
+  }
+}
+
 async function environmentStatusTool(ctx: PanelContext, given: string) {
   const env = await environmentByRef(ctx, given);
   if (!env) return fail(unknownEnvironment(given.trim()));
   const meta = envMeta(env);
   const { scope } = ctx.viewer;
   try {
-    const [services, running, lock] = await Promise.all([
+    const [services, running, lock, kpis] = await Promise.all([
       ctx.panel.probe(env),
       ctx.panel.cores.getEnvironmentRunning(scope, env.id),
       ctx.panel.cores.getDeployLockState(scope, env.id),
+      ctx.panel.cores.getEnvironmentKpis(scope, env.id),
     ]);
+    const lastRun = (entry: KpiEntry) =>
+      entry ? { at: iso(entry.runAt), status: entry.status } : undefined;
     const data: EnvironmentStatus = {
       environment: envRef(env),
       name: env.name,
@@ -582,6 +667,9 @@ async function environmentStatusTool(ctx: PanelContext, given: string) {
           }
         : {}),
       ...(lock.heldCount > 0 ? { heldDeploys: lock.heldCount } : {}),
+      lastBackup: lastRun(kpis.lastBackup),
+      lastRestore: lastRun(kpis.lastRestore),
+      lastMockTime: lastRun(kpis.lastMock),
     };
     return ok(compact(data), { ...meta, checked: data.checked });
   } catch (error) {
@@ -975,8 +1063,11 @@ async function recentActivityTool(
   const entries = rows.slice(0, ACTIVITY_LIMIT).map((r) => {
     const details = Object.fromEntries(
       Object.entries(r.data ?? {}).map(([k, v]) => {
-        if (typeof v !== "string") return [k, v];
-        const safe = safeText(v);
+        if (typeof v === "number" || typeof v === "boolean" || v === null) {
+          return [k, v];
+        }
+        // Nested values are sent as JSON text, filtered and capped too.
+        const safe = safeText(typeof v === "string" ? v : JSON.stringify(v));
         withheld += safe.redacted;
         return [k, safe.text];
       })

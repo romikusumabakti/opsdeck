@@ -80,6 +80,15 @@ function fakeCores(envs: EnvironmentListItem[]): Fakes {
       { role: "backend", state: "running", raw: "Up 3 days" },
     ]),
     getDeployLockState: vi.fn(async () => ({ lock: null, heldCount: 0 })),
+    getEnvironmentKpis: vi.fn(async () => ({
+      lastBackup: null,
+      lastRestore: null,
+      lastMock: null,
+      totalRuns7d: 0,
+      successRate7d: null,
+      prevTotalRuns7d: 0,
+      dailyRuns: [0, 0, 0, 0, 0, 0, 0],
+    })),
     listDeployTargets: vi.fn(async () => []),
     getDeployment: vi.fn(),
     getRunSnapshot: vi.fn(async () => null),
@@ -209,7 +218,7 @@ describe("list_environments", () => {
     });
   });
 
-  it("keeps 30 environments under 8 KB", async () => {
+  it("keeps 30 environments under 8 KB, 12 KB with one project's deploy state", async () => {
     const envs = Array.from({ length: 30 }, (_, i) =>
       env(i, {
         name: `Customer acceptance ${i}`,
@@ -223,14 +232,128 @@ describe("list_environments", () => {
     cores.ownerNames.mockResolvedValue(
       new Map(envs.map((_, i) => [`owner-${i}`, `Owner Number ${i}`]))
     );
+    cores.listDeployTargets.mockResolvedValue([
+      {
+        componentKey: "acme-backend",
+        recentDeployments: [
+          deployEntry("d1", "2026-11-17T00:00:00Z", { tag: "v1.20.3-abc1234" }),
+        ],
+      },
+    ]);
+    cores.getDeployLockState.mockResolvedValue({
+      lock: {
+        lockedBy: { id: "u2", name: "Sari" },
+        reason: "Customer UAT until Friday",
+        expiresAt: new Date("2026-11-20T10:00:00Z"),
+      },
+      heldCount: 0,
+    });
+    for (const [project, budget] of [
+      [null, 8 * 1024],
+      ["ACME", 12 * 1024],
+    ] as const) {
+      const result = await executeTool(
+        "list_environments",
+        { project },
+        contextFor(engineer, cores)
+      );
+      expect(result.ok).toBe(true);
+      const size = JSON.stringify(result.ok && result.data).length;
+      expect(size, String(project)).toBeLessThan(budget);
+    }
+  });
+
+  it("adds each environment's last deploy and lock only for one project", async () => {
+    const cores = fakeCores([
+      env(1, { slug: "dev", name: "Dev" }),
+      env(2, { slug: "uat", name: "UAT" }),
+      env(3, { projectId: BETA_ID, key: "BETA", slug: "qa", name: "QA" }),
+    ]);
+    cores.listDeployTargets.mockImplementation(
+      async (_scope: unknown, id: string) =>
+        id === envId(1)
+          ? [
+              {
+                componentKey: "backend",
+                recentDeployments: [
+                  deployEntry("d1", "2026-11-10T00:00:00Z", { tag: "v1" }),
+                ],
+              },
+              {
+                componentKey: "frontend",
+                recentDeployments: [
+                  deployEntry("d2", "2026-11-12T00:00:00Z", {
+                    tag: "v2",
+                    status: "failed",
+                  }),
+                ],
+              },
+            ]
+          : []
+    );
+    cores.getDeployLockState.mockImplementation(
+      async (_scope: unknown, id: string) => ({
+        lock:
+          id === envId(2)
+            ? {
+                lockedBy: null,
+                reason: "UAT in progress",
+                expiresAt: new Date("2026-11-20T00:00:00Z"),
+              }
+            : null,
+        heldCount: 0,
+      })
+    );
+    const ctx = contextFor(engineer, cores);
     const result = await executeTool(
       "list_environments",
-      { project: null },
-      contextFor(engineer, cores)
+      { project: "acme" },
+      ctx
     );
-    expect(result.ok).toBe(true);
-    const size = JSON.stringify(result.ok && result.data).length;
-    expect(size).toBeLessThan(8 * 1024);
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        environments: [
+          {
+            ref: "ACME/dev",
+            lastDeploy: {
+              status: "failed",
+              at: "2026-11-12T00:00:00Z",
+              tag: "v2",
+            },
+            lock: { locked: false },
+          },
+          {
+            ref: "ACME/uat",
+            lock: { locked: true, reason: "UAT in progress" },
+          },
+        ],
+      },
+    });
+    const envs = (result as { data: { environments: object[] } }).data
+      .environments;
+    expect(envs[1]).not.toHaveProperty("lastDeploy");
+    // Only that project's environments, with the viewer's scope.
+    expect(cores.listDeployTargets).toHaveBeenCalledTimes(2);
+    expect(cores.getDeployLockState).toHaveBeenCalledWith(
+      engineer.scope,
+      envId(2)
+    );
+    expect(cores.listDeployTargets).not.toHaveBeenCalledWith(
+      engineer.scope,
+      envId(3)
+    );
+
+    cores.listDeployTargets.mockClear();
+    cores.getDeployLockState.mockClear();
+    const all = await executeTool("list_environments", { project: null }, ctx);
+    expect(cores.listDeployTargets).not.toHaveBeenCalled();
+    expect(cores.getDeployLockState).not.toHaveBeenCalled();
+    for (const e of (all as { data: { environments: object[] } }).data
+      .environments) {
+      expect(e).not.toHaveProperty("lastDeploy");
+      expect(e).not.toHaveProperty("lock");
+    }
   });
 });
 
@@ -310,6 +433,62 @@ describe("get_environment_status", () => {
       });
     }
     spy.mockRestore();
+  });
+
+  it("adds the last backup, restore and mock-time runs from the dashboard KPIs", async () => {
+    const cores = fakeCores([env(1)]);
+    cores.getEnvironmentKpis.mockResolvedValue({
+      lastBackup: {
+        runAt: new Date("2026-11-17T01:00:00Z"),
+        status: "success",
+      },
+      lastRestore: null,
+      lastMock: { runAt: new Date("2026-11-16T02:00:00Z"), status: "failed" },
+      totalRuns7d: 3,
+      successRate7d: 66,
+      prevTotalRuns7d: 1,
+      dailyRuns: [0, 0, 0, 1, 1, 1, 0],
+    });
+    const result = await executeTool(
+      "get_environment_status",
+      { environment: "ACME/env-1" },
+      contextFor(engineer, cores)
+    );
+    expect(cores.getEnvironmentKpis).toHaveBeenCalledWith(
+      engineer.scope,
+      envId(1)
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        lastBackup: { at: "2026-11-17T01:00:00Z", status: "success" },
+        lastMockTime: { at: "2026-11-16T02:00:00Z", status: "failed" },
+      },
+    });
+    expect(result.ok && result.data).not.toHaveProperty("lastRestore");
+  });
+
+  it("passes a probe's error text through the secret filter, capped", async () => {
+    const cores = fakeCores([env(1)]);
+    cores.getServiceStatuses.mockResolvedValue([
+      {
+        role: "backend",
+        state: "unknown",
+        raw: "",
+        error: `password=hunter2 ${"x".repeat(1000)}`,
+      },
+      { role: "db", state: "unknown", raw: "", error: "y".repeat(1000) },
+    ]);
+    const result = await executeTool(
+      "get_environment_status",
+      { environment: "ACME/env-1" },
+      contextFor(engineer, cores)
+    );
+    const services = (
+      result as { data: { services: Array<{ error: string }> } }
+    ).data.services;
+    expect(services[0]?.error).toBe(REDACTED_LINE);
+    expect(services[1]?.error.length).toBeLessThan(250);
   });
 
   it("adds running versions and an active lock from their cores", async () => {
@@ -897,7 +1076,11 @@ describe("servers and activity", () => {
       {
         id: "a1",
         action: "deploy.requested",
-        data: { tag: "v1", note: "token=abcdefghijklmnopqrstuvwxyz0123456789" },
+        data: {
+          tag: "v1",
+          note: "token=abcdefghijklmnopqrstuvwxyz0123456789",
+          nested: { password: "hunter2", list: "z".repeat(1000) },
+        },
         actorId: "u1",
         actorName: "Budi",
         actorImage: null,
@@ -926,6 +1109,10 @@ describe("servers and activity", () => {
       }
     ).data.entries[0]?.details;
     expect(String(details?.note)).not.toContain("abcdefghijklmnop");
+    // Nested values: JSON text, filtered and capped like the rest.
+    expect(typeof details?.nested).toBe("string");
+    expect(String(details?.nested).length).toBeLessThan(250);
+    expect(String(details?.nested)).not.toContain("hunter2");
     await executeTool("recent_activity", { limit: null }, ctx);
     expect(cores.listActivity).toHaveBeenLastCalledWith(admin.scope, 20);
   });

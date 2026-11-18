@@ -26,7 +26,6 @@ const SCOPED_READS: Record<string, string[]> = {
     "getEnvironmentsLastActivity",
     "getActiveRuns",
     "getEnvironmentRuns",
-    "getEnvironmentKpis",
   ],
   // notifications are deliberately absent: they're per-user rows with no
   // project column, written only to their recipient; a link into a project the
@@ -95,6 +94,11 @@ const SCOPE_CORES: Record<
     getRunSnapshotFor: {
       check: /projectRoleIn\(scope, \{ environmentId: row\.environmentId \}\)/,
       wrapper: "getRunSnapshot",
+    },
+    getEnvironmentKpisFor: {
+      check:
+        /requireProjectPermissionIn\(\s*scope,\s*\{ environmentId \},\s*\{ project: \["read"\] \}/,
+      wrapper: "getEnvironmentKpis",
     },
   },
   "server/services/deploys.ts": {
