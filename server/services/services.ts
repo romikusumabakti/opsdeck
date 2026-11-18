@@ -1,8 +1,9 @@
 import {
-  orgGrantRole,
-  requireAnyProjectPermission,
-  requireProjectPermission,
-} from "@/lib/authz";
+  type AccessScope,
+  accessScopeFromSession,
+  requireProjectPermissionIn,
+} from "@/lib/access-scope";
+import { orgGrantRole, requireAnyProjectPermission } from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
@@ -64,7 +65,23 @@ async function probeServiceStatus(
 export async function getAllServiceStatuses(
   environmentId: string
 ): Promise<ServiceStatusResult[]> {
-  await requireProjectPermission({ environmentId }, { project: ["read"] });
+  return getAllServiceStatusesFor(
+    await accessScopeFromSession(),
+    environmentId
+  );
+}
+
+// getAllServiceStatuses for an explicit scope: the live probes run only after
+// the permission passed.
+export async function getAllServiceStatusesFor(
+  scope: AccessScope,
+  environmentId: string
+): Promise<ServiceStatusResult[]> {
+  await requireProjectPermissionIn(
+    scope,
+    { environmentId },
+    { project: ["read"] }
+  );
   if (!uuidSchema.safeParse(environmentId).success) {
     return [];
   }

@@ -1,10 +1,16 @@
 import { z } from "zod";
+import {
+  type AccessScope,
+  requireProjectPermissionIn,
+} from "@/lib/access-scope";
 import { getComponent } from "@/lib/apps";
 import { parsePipelineNumber } from "@/lib/ci/woodpecker";
+import type { Build } from "@/lib/db/schema";
 import {
   findAutoTargets,
   findNextBuildTargets,
   insertBuildIfNew,
+  listProjectBuilds,
 } from "@/lib/deploy/repository";
 import {
   branchSchema,
@@ -176,4 +182,26 @@ export async function recordBuild(n: BuildNotification): Promise<{
     }
   }
   return { buildId: build.id, created, deploymentIds };
+}
+
+/** The most builds listProjectBuildsFor returns. */
+export const PROJECT_BUILDS_LIMIT = 20;
+
+/**
+ * A project's recent builds, as its Deploys pages list them (the builds of
+ * each target's component and branch), newest first, at most `limit` (capped
+ * at PROJECT_BUILDS_LIMIT). Same gate as the Deploys page: `deploy: view`,
+ * 404 when the project is invisible.
+ */
+export async function listProjectBuildsFor(
+  scope: AccessScope,
+  projectId: string,
+  limit: number
+): Promise<Build[]> {
+  await requireProjectPermissionIn(scope, { projectId }, { deploy: ["view"] });
+  const capped = Math.min(
+    Math.max(1, Math.trunc(limit) || 1),
+    PROJECT_BUILDS_LIMIT
+  );
+  return listProjectBuilds(projectId, capped);
 }

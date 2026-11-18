@@ -118,12 +118,24 @@ const qa: AssistantViewer = {
   orgRole: "qa",
   projectIds: [KMEM],
   canManageKnowledge: false,
+  scope: {
+    userId: "user-qa",
+    orgRole: "qa",
+    projectRoles: { [KMEM]: "qa" },
+    seesAllProjects: false,
+  },
 };
 const admin: AssistantViewer = {
   userId: "user-admin",
   orgRole: "admin",
   projectIds: "all",
   canManageKnowledge: true,
+  scope: {
+    userId: "user-admin",
+    orgRole: "admin",
+    projectRoles: { [KMEM]: "engineer", [HMEM]: "engineer" },
+    seesAllProjects: true,
+  },
 };
 
 type Attachment = {

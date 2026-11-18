@@ -34,6 +34,12 @@ const viewer: AssistantViewer = {
   orgRole: "qa",
   projectIds: [],
   canManageKnowledge: false,
+  scope: {
+    userId: "u",
+    orgRole: "qa",
+    projectRoles: {},
+    seesAllProjects: false,
+  },
 };
 const ticked = [{ issueKey: "KST-1", attachmentId: "900" }];
 const ctx = { mode: "pinned" as const, snaps: [], viewer, attachments: ticked };

@@ -9,9 +9,16 @@ import {
   sql,
 } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
+import {
+  type AccessScope,
+  accessScopeFromSession,
+  projectRoleIn,
+  requireProjectPermissionIn,
+  scopedProjectFilter,
+} from "@/lib/access-scope";
 import { recordActivity } from "@/lib/activity";
 import { assignableUsersWhere } from "@/lib/assignees";
-import { getServerSession, requireSession } from "@/lib/auth-session";
+import { getServerSession } from "@/lib/auth-session";
 import {
   ForbiddenError,
   getProjectRole,
@@ -205,7 +212,13 @@ function frontendServicePatch(d: EnvironmentUpdate) {
  * picker, sidebar, etc. where only id+name matters).
  */
 export async function listEnvironments(): Promise<EnvironmentListItem[]> {
-  const session = await requireSession();
+  return listEnvironmentsFor(await accessScopeFromSession());
+}
+
+/** listEnvironments for an explicit scope (the assistant worker has no session). */
+export async function listEnvironmentsFor(
+  scope: AccessScope
+): Promise<EnvironmentListItem[]> {
   try {
     // Order by the caller's recency (most-recently-opened first), falling back
     // to name for environments they've never opened. `nulls last` keeps unvisited
@@ -247,10 +260,10 @@ export async function listEnvironments(): Promise<EnvironmentListItem[]> {
         environmentAccess,
         and(
           eq(environmentAccess.environmentId, environments.id),
-          eq(environmentAccess.userId, session.user.id)
+          eq(environmentAccess.userId, scope.userId)
         )
       )
-      .where(await projectScope(environments.projectId))
+      .where(scopedProjectFilter(scope, environments.projectId))
       .orderBy(
         sql`${environmentAccess.lastAccessedAt} desc nulls last`,
         asc(environments.name)
@@ -332,8 +345,15 @@ export async function getEnvironmentsLastOpened(): Promise<
 export async function getEnvironmentById(
   id: string
 ): Promise<SafeEnvironmentWithServers | undefined> {
-  await requireSession();
-  if (!(await getProjectRole({ environmentId: id }))) return undefined;
+  return getEnvironmentByIdFor(await accessScopeFromSession(), id);
+}
+
+/** getEnvironmentById for an explicit scope; undefined when invisible. */
+export async function getEnvironmentByIdFor(
+  scope: AccessScope,
+  id: string
+): Promise<SafeEnvironmentWithServers | undefined> {
+  if (!(await projectRoleIn(scope, { environmentId: id }))) return undefined;
   try {
     return (await loadSafeEnvironment(id)) ?? undefined;
   } catch (error) {
@@ -353,7 +373,22 @@ export type EnvironmentRunningItem = Omit<RunningSource, "ciConnectionId">;
 export async function getEnvironmentRunning(
   environmentId: string
 ): Promise<{ items: EnvironmentRunningItem[] }> {
-  await requireProjectPermission({ environmentId }, { project: ["read"] });
+  return getEnvironmentRunningFor(
+    await accessScopeFromSession(),
+    environmentId
+  );
+}
+
+/** getEnvironmentRunning for an explicit scope. */
+export async function getEnvironmentRunningFor(
+  scope: AccessScope,
+  environmentId: string
+): Promise<{ items: EnvironmentRunningItem[] }> {
+  await requireProjectPermissionIn(
+    scope,
+    { environmentId },
+    { project: ["read"] }
+  );
   const sources = await resolveRunningSources(environmentId);
   return {
     items: sources.map(({ ciConnectionId: _ci, ...item }) => item),

@@ -1,5 +1,9 @@
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import {
+  type AccessScope,
+  requireProjectPermissionIn,
+} from "@/lib/access-scope";
 import { recordActivity } from "@/lib/activity";
 import { assertTargetMatchesEnvironmentApp, getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
@@ -12,9 +16,11 @@ import {
 } from "@/lib/db/schema";
 import { TAG_VARIABLE_IS_VARIABLE_MESSAGE } from "@/lib/deploy/errors";
 import {
+  type DeploymentEntry,
   deleteTarget,
   environmentUsesServer,
   findBuild,
+  getDeploymentEntry,
   getEnvironmentForLock,
   getTagState,
   getTarget,
@@ -42,7 +48,7 @@ import { recordTargetSourceIn } from "@/lib/project-sources";
 import { tearingDownIn } from "@/lib/teardown/guard";
 import { uuidSchema } from "@/lib/validation";
 import { getVariable } from "@/lib/variables/repository";
-import { CodedHTTPException } from "@/server/errors";
+import { CodedHTTPException, notFound } from "@/server/errors";
 import {
   ensureComponentBranchFor,
   type PipelineFileFailure,
@@ -360,11 +366,48 @@ async function commitTargetBranch(
   }
 }
 
+// The session guard here, not listDeployTargetsFor(accessScopeFromSession()):
+// lib/authz#requireProjectPermission is the same rule on the session's scope,
+// and route tests stub it to drive this read.
 export async function listDeployTargets(
   environmentId: string
 ): Promise<TargetState[]> {
   await requireProjectPermission({ environmentId }, { deploy: ["view"] });
   return listTargetsForEnvironment(environmentId);
+}
+
+/** The Deploys page's targets with their deploy history, for an explicit scope. */
+export async function listDeployTargetsFor(
+  scope: AccessScope,
+  environmentId: string
+): Promise<TargetState[]> {
+  await requireProjectPermissionIn(
+    scope,
+    { environmentId },
+    { deploy: ["view"] }
+  );
+  return listTargetsForEnvironment(environmentId);
+}
+
+/**
+ * One deployment as the Deploys page lists it, plus its component. Same gate
+ * as the page (`deploy: view` on its environment); a missing or invisible
+ * deployment, or a non-uuid id, is a 404. Its log is its run's output
+ * (server/services/runs#getRunSnapshotFor).
+ */
+export async function getDeploymentFor(
+  scope: AccessScope,
+  deploymentId: string
+): Promise<DeploymentEntry & { componentKey: string }> {
+  if (!uuidSchema.safeParse(deploymentId).success) notFound();
+  const deployment = await getDeploymentEntry(deploymentId);
+  if (!deployment) notFound();
+  await requireProjectPermissionIn(
+    scope,
+    { environmentId: deployment.environmentId },
+    { deploy: ["view"] }
+  );
+  return deployment;
 }
 
 export async function createDeployTarget(

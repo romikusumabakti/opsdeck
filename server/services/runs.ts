@@ -1,11 +1,11 @@
 import { and, desc, eq, gte, inArray, like } from "drizzle-orm";
-import { requireSession } from "@/lib/auth-session";
 import {
-  getProjectRole,
-  projectIdsWhere,
-  projectScope,
-  requireProjectPage,
-} from "@/lib/authz";
+  type AccessScope,
+  accessScopeFromSession,
+  projectRoleIn,
+} from "@/lib/access-scope";
+import { requireSession } from "@/lib/auth-session";
+import { projectIdsWhere, projectScope, requireProjectPage } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { environments, type Run, runs, users } from "@/lib/db/schema";
 import {
@@ -163,7 +163,17 @@ export type RunSnapshot = Pick<
 export async function getRunSnapshot(
   runId: string
 ): Promise<RunSnapshot | null> {
-  await requireSession();
+  return getRunSnapshotFor(await accessScopeFromSession(), runId);
+}
+
+/**
+ * getRunSnapshot for an explicit scope: the run (its log in `output`) when
+ * the scope holds any role on the run's project, else null.
+ */
+export async function getRunSnapshotFor(
+  scope: AccessScope,
+  runId: string
+): Promise<RunSnapshot | null> {
   // Ids come from the client; a non-uuid is "not found", not a Postgres error.
   if (!uuidSchema.safeParse(runId).success) return null;
   const row = await db.query.runs.findFirst({
@@ -179,7 +189,10 @@ export async function getRunSnapshot(
       completedAt: true,
     },
   });
-  if (!row || !(await getProjectRole({ environmentId: row.environmentId }))) {
+  if (
+    !row ||
+    !(await projectRoleIn(scope, { environmentId: row.environmentId }))
+  ) {
     return null;
   }
   return row;

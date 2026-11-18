@@ -60,6 +60,12 @@ describe("loadAssistantViewer", () => {
       orgRole: "qa",
       projectIds: ["p2"],
       canManageKnowledge: false,
+      scope: {
+        userId: "qa",
+        orgRole: "qa",
+        projectRoles: { p2: "qa" },
+        seesAllProjects: false,
+      },
     });
   });
 

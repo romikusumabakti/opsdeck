@@ -16,11 +16,9 @@ const SCOPED_READS: Record<string, string[]> = {
     "getProjectWithEnvironments",
     "getProjectByKeyWithEnvironments",
   ],
-  "server/services/environments.ts": [
-    "listEnvironments",
-    "getEnvironmentsLastOpened",
-    "getEnvironmentById",
-  ],
+  // listEnvironments and getEnvironmentById are session wrappers of scope
+  // cores (SCOPE_CORES below).
+  "server/services/environments.ts": ["getEnvironmentsLastOpened"],
   "server/services/issues.ts": [
     "getOpenIssueCounts",
     "getAssignedIssueCounts",
@@ -32,7 +30,6 @@ const SCOPED_READS: Record<string, string[]> = {
     "getEnvironmentsLastActivity",
     "getActiveRuns",
     "getEnvironmentRuns",
-    "getRunSnapshot",
     "getEnvironmentKpis",
   ],
   // notifications are deliberately absent: they're per-user rows with no
@@ -68,6 +65,62 @@ const SCOPED_READS: Record<string, string[]> = {
 const SCOPE_HELPERS =
   /projectScope|projectIdsWhere|requireProjectPage|requireProjectPermission|getProjectRole|getProjectAccess/;
 
+// Reads with an explicit access scope (lib/access-scope), for callers with no
+// request session (the assistant worker). Each core takes the scope as its
+// first parameter and checks it (pattern); its session wrapper only resolves
+// the caller's scope and delegates, so page and worker share one rule.
+const SCOPE_CORES: Record<
+  string,
+  Record<string, { check: RegExp; wrapper?: string }>
+> = {
+  "server/services/environments.ts": {
+    listEnvironmentsFor: {
+      check: /scopedProjectFilter\(scope, environments\.projectId\)/,
+      wrapper: "listEnvironments",
+    },
+    getEnvironmentByIdFor: {
+      check: /projectRoleIn\(scope, \{ environmentId: id \}\)/,
+      wrapper: "getEnvironmentById",
+    },
+    getEnvironmentRunningFor: {
+      check:
+        /requireProjectPermissionIn\(\s*scope,\s*\{ environmentId \},\s*\{ project: \["read"\] \}/,
+      wrapper: "getEnvironmentRunning",
+    },
+  },
+  "server/services/services.ts": {
+    getAllServiceStatusesFor: {
+      check:
+        /requireProjectPermissionIn\(\s*scope,\s*\{ environmentId \},\s*\{ project: \["read"\] \}/,
+      wrapper: "getAllServiceStatuses",
+    },
+  },
+  "server/services/runs.ts": {
+    getRunSnapshotFor: {
+      check: /projectRoleIn\(scope, \{ environmentId: row\.environmentId \}\)/,
+      wrapper: "getRunSnapshot",
+    },
+  },
+  // listDeployTargets keeps the session guard (SCOPED_WRITES): the same rule
+  // on the session's scope, which route tests stub.
+  "server/services/deploys.ts": {
+    listDeployTargetsFor: {
+      check:
+        /requireProjectPermissionIn\(\s*scope,\s*\{ environmentId \},\s*\{ deploy: \["view"\] \}/,
+    },
+    getDeploymentFor: {
+      check:
+        /requireProjectPermissionIn\(\s*scope,\s*\{ environmentId: deployment\.environmentId \},\s*\{ deploy: \["view"\] \}/,
+    },
+  },
+  "server/services/deploy-builds.ts": {
+    listProjectBuildsFor: {
+      check:
+        /requireProjectPermissionIn\(scope, \{ projectId \}, \{ deploy: \["view"\] \}\)/,
+    },
+  },
+};
+
 function body(source: string, name: string): string {
   const start = source.search(
     new RegExp(`export (async )?function ${name}\\b`)
@@ -76,6 +129,50 @@ function body(source: string, name: string): string {
   const next = source.slice(start + 1).search(/\nexport /);
   return next < 0 ? source.slice(start) : source.slice(start, start + 1 + next);
 }
+
+describe("scope cores take a scope and check it", () => {
+  for (const [file, cores] of Object.entries(SCOPE_CORES)) {
+    const source = readFileSync(file, "utf8");
+    for (const [core, { check, wrapper }] of Object.entries(cores)) {
+      it(`${file} ${core}`, () => {
+        const fn = body(source, core);
+        expect(fn).toMatch(
+          new RegExp(`function ${core}\\(\\s*scope: AccessScope[,)\\s]`)
+        );
+        expect(fn).toMatch(check);
+        // The core never reads the request's session.
+        expect(fn).not.toMatch(
+          /requireSession|getServerSession|accessScopeFromSession|getProjectAccess/
+        );
+      });
+      if (wrapper) {
+        it(`${file} ${wrapper} delegates with the session's scope`, () => {
+          expect(body(source, wrapper)).toMatch(
+            new RegExp(
+              `return ${core}\\(\\s*await accessScopeFromSession\\(\\)[,)]`
+            )
+          );
+        });
+      }
+    }
+  }
+  it("accessScopeFromSession resolves the session", () => {
+    const fn = body(
+      readFileSync("lib/access-scope.ts", "utf8"),
+      "accessScopeFromSession"
+    );
+    expect(fn).toMatch(/requireSession\(\)[\s\S]*getProjectAccess\(\)/);
+  });
+  it("the assistant viewer carries the scope accessScopeForUser built", () => {
+    const fn = body(
+      readFileSync("lib/assistant/viewer.ts", "utf8"),
+      "loadAssistantViewer"
+    );
+    expect(fn).toMatch(
+      /buildAssistantViewer\(await accessScopeForUser\(userId\)\)/
+    );
+  });
+});
 
 describe("cross-project reads are scoped", () => {
   for (const [file, fns] of Object.entries(SCOPED_READS)) {
@@ -118,7 +215,6 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     recordTestRun: /issue: \["write"\]/,
   },
   "server/services/services.ts": {
-    getAllServiceStatuses: /project: \["read"\]/,
     controlService: /service: \["control"\]/,
   },
   "server/services/deploys.ts": {
@@ -152,7 +248,6 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     createEnvironment: /validateNewEnvironment\(/,
     updateEnvironment: /environment: \["update"\]/,
     deleteEnvironment: /environment: \["delete"\][\s\S]*server: \["manage"\]/,
-    getEnvironmentRunning: /project: \["read"\]/,
   },
   "server/services/environment-teardown.ts": {
     startTeardown: /environment: \["delete"\]/,
@@ -337,10 +432,10 @@ describe("lookups by client-supplied id check the caller first", () => {
     expect(fn).toMatch(/getProjectRole\(\{ environmentId \}\)/);
     expect(fn.indexOf("getProjectRole(")).toBeLessThan(fn.indexOf(".insert("));
   });
-  it("getRunSnapshot rejects a non-uuid run id before querying", () => {
+  it("getRunSnapshotFor rejects a non-uuid run id before querying", () => {
     const fn = body(
       readFileSync("server/services/runs.ts", "utf8"),
-      "getRunSnapshot"
+      "getRunSnapshotFor"
     );
     expect(fn).toMatch(/uuidSchema\.safeParse\(runId\)/);
     expect(fn.indexOf("uuidSchema.safeParse(runId)")).toBeLessThan(

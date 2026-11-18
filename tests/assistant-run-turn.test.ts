@@ -426,6 +426,12 @@ function deps(
       orgRole: "qa",
       projectIds: ["project-1", "project-2"],
       canManageKnowledge: false,
+      scope: {
+        userId: USER_ID,
+        orgRole: "qa",
+        projectRoles: { "project-1": "qa", "project-2": "qa" },
+        seesAllProjects: false,
+      },
     }),
     spentToday: async () => 0,
     resolveSources: async () => [SOURCE],
@@ -1229,6 +1235,12 @@ describe("runTurn", () => {
             orgRole: "qa",
             projectIds: ["another-project"],
             canManageKnowledge: false,
+            scope: {
+              userId: USER_ID,
+              orgRole: "qa",
+              projectRoles: { "another-project": "qa" },
+              seesAllProjects: false,
+            },
           }),
         })
       );
@@ -1401,6 +1413,12 @@ describe("runTurn", () => {
           orgRole: "admin",
           projectIds: "all",
           canManageKnowledge: true,
+          scope: {
+            userId: USER_ID,
+            orgRole: "admin",
+            projectRoles: {},
+            seesAllProjects: true,
+          },
         }),
         executeTool: undefined,
       })
