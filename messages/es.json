@@ -3677,7 +3677,7 @@
   },
   "assistant": {
     "title": "Asistente",
-    "subtitle": "Pregunta sobre el código y las incidencias de tus proyectos.",
+    "subtitle": "Pregunta sobre tus proyectos: código, incidencias, entornos y despliegues.",
     "usageUsed": "{percent}% del límite de hoy usado",
     "usageResets": "Se restablece a las {time, time, short}",
     "usageCapReached": "Has alcanzado el límite de hoy. Se restablece a las {time, time, short}.",

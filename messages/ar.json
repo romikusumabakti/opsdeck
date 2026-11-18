@@ -3677,7 +3677,7 @@
   },
   "assistant": {
     "title": "المساعد",
-    "subtitle": "اسأل عن الشيفرة والمشكلات في مشاريعك.",
+    "subtitle": "اسأل عن مشاريعك: الشيفرة والمشكلات والبيئات وعمليات النشر.",
     "usageUsed": "تم استخدام {percent}٪ من حد اليوم",
     "usageResets": "يُعاد التعيين عند {time, time, short}",
     "usageCapReached": "لقد بلغت حد اليوم. يُعاد التعيين عند {time, time, short}.",

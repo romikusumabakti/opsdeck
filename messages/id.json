@@ -3677,7 +3677,7 @@
   },
   "assistant": {
     "title": "Asisten",
-    "subtitle": "Tanyakan tentang kode dan issue di project Anda.",
+    "subtitle": "Tanyakan tentang project Anda: kode, issue, environment, dan deploy.",
     "usageUsed": "{percent}% dari batas hari ini terpakai",
     "usageResets": "Direset {time, time, short}",
     "usageCapReached": "Batas hari ini sudah tercapai. Direset pukul {time, time, short}.",

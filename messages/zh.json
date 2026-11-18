@@ -3677,7 +3677,7 @@
   },
   "assistant": {
     "title": "助手",
-    "subtitle": "询问你的项目的代码和问题。",
+    "subtitle": "询问你的项目：代码、问题、环境和部署。",
     "usageUsed": "今日额度已用 {percent}%",
     "usageResets": "{time, time, short} 重置",
     "usageCapReached": "你已达到今天的使用上限，将于 {time, time, short} 重置。",
