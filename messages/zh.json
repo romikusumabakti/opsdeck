@@ -3762,6 +3762,8 @@
     "contextProjects": "项目",
     "contextEnvironmentLabel": "{name}，{project} 的环境",
     "contextDeleted": "（已删除）",
+    "mentionEmpty": "没有匹配的项目或环境",
+    "mentionList": "项目和环境",
     "shortcutHint": "在任意位置按 {shortcut} 打开助手。",
     "noProjectsTitle": "暂时没有可询问的内容",
     "noProjectsDescription": "你还看不到任何项目。请让管理员将你加入某个项目后再使用助手。"

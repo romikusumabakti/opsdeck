@@ -3762,6 +3762,8 @@
     "contextProjects": "Project",
     "contextEnvironmentLabel": "{name}, environment dari {project}",
     "contextDeleted": "(dihapus)",
+    "mentionEmpty": "Tidak ada proyek atau environment yang cocok",
+    "mentionList": "Proyek dan environment",
     "shortcutHint": "Tekan {shortcut} di mana saja untuk membuka asisten.",
     "noProjectsTitle": "Belum ada yang bisa ditanyakan",
     "noProjectsDescription": "Anda belum melihat project apa pun. Minta admin menambahkan Anda ke sebuah project untuk memakai asisten."

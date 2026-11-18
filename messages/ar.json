@@ -3762,6 +3762,8 @@
     "contextProjects": "المشاريع",
     "contextEnvironmentLabel": "{name}، بيئة في {project}",
     "contextDeleted": "(محذوف)",
+    "mentionEmpty": "لا يوجد مشروع أو بيئة مطابقة",
+    "mentionList": "المشاريع والبيئات",
     "shortcutHint": "اضغط {shortcut} في أي مكان لفتح المساعد.",
     "noProjectsTitle": "لا يوجد ما تسأل عنه بعد",
     "noProjectsDescription": "لا ترى أي مشروع بعد. اطلب من المسؤول إضافتك إلى مشروع لاستخدام المساعد."

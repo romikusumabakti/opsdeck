@@ -9,9 +9,10 @@ import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import type { QuestionContextInput } from "@/lib/assistant/context";
 import { ASSISTANT_COMPOSER_ID } from "./assistant-shortcut";
 import { AttachmentPicker, type PickedAttachment } from "./attachment-picker";
-import { opensContextPicker, shouldSend } from "./composer-keys";
+import { shouldSend } from "./composer-keys";
 import { ContextPicker } from "./context-picker";
 import { useAssistantErrorText } from "./error-text";
+import { useMentions } from "./mention-popover";
 
 // Mirrors the API's limits (server/services/assistant.ts).
 const MAX_MESSAGE_CHARS = 8000;
@@ -19,8 +20,8 @@ const MAX_ATTACHMENTS = 10;
 
 /**
  * The question box: text, the ticked Jira attachments, the context chip and
- * the send. Typing `@` into the empty box opens the chip's picker instead of
- * inserting it. A refused send (daily cap, busy, not
+ * the send. An `@` mention anywhere in the text sets the chip too (see
+ * `useMentions`). A refused send (daily cap, busy, not
  * configured) is shown above the box, worded from its code; the text is kept
  * so it can be sent again.
  */
@@ -48,11 +49,17 @@ export function Composer({
   const [text, setText] = React.useState("");
   const [attachments, setAttachments] = React.useState<PickedAttachment[]>([]);
   const [pickerOpen, setPickerOpen] = React.useState(false);
-  const [contextOpen, setContextOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const mentions = useMentions({
+    text,
+    onTextChange: setText,
+    onPick: onContextChange,
+    textareaRef,
+    disabled,
+  });
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: focusKey is the trigger.
   React.useEffect(() => {
@@ -136,15 +143,11 @@ export function Composer({
         ref={textareaRef}
         id={ASSISTANT_COMPOSER_ID}
         value={text}
-        onChange={(e) => {
-          const next = e.target.value;
-          if (!disabled && opensContextPicker(text, next)) {
-            setContextOpen(true);
-            return;
-          }
-          setText(next);
-        }}
+        {...mentions.inputProps}
+        onChange={mentions.onChange}
+        onSelect={mentions.onSelect}
         onKeyDown={(e) => {
+          if (mentions.onKeyDown(e)) return;
           if (
             shouldSend({
               key: e.key,
@@ -178,8 +181,6 @@ export function Composer({
             value={context}
             onChange={onContextChange}
             disabled={disabled}
-            open={contextOpen}
-            onOpenChange={setContextOpen}
           />
         </div>
         <div className="flex items-center gap-3">
@@ -192,6 +193,7 @@ export function Composer({
           </Button>
         </div>
       </div>
+      {mentions.popover}
       <AttachmentPicker
         open={pickerOpen}
         onOpenChange={setPickerOpen}

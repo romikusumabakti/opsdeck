@@ -3762,6 +3762,8 @@
     "contextProjects": "Proyectos",
     "contextEnvironmentLabel": "{name}, entorno de {project}",
     "contextDeleted": "(eliminado)",
+    "mentionEmpty": "Ningún proyecto ni entorno coincide",
+    "mentionList": "Proyectos y entornos",
     "shortcutHint": "Pulsa {shortcut} en cualquier lugar para abrir el asistente.",
     "noProjectsTitle": "Aún no hay nada que preguntar",
     "noProjectsDescription": "Todavía no ves ningún proyecto. Pide a un administrador que te añada a un proyecto para usar el asistente."

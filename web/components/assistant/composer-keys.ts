@@ -13,12 +13,3 @@ export function shouldSend(e: {
     e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229
   );
 }
-
-/**
- * Whether an edit of the question box is an `@` typed into the empty box,
- * which opens the context picker instead. Anywhere in a question an `@`
- * stays text (`@Transactional`, `@scope/pkg`, an e-mail address).
- */
-export function opensContextPicker(prev: string, next: string): boolean {
-  return prev === "" && next === "@";
-}

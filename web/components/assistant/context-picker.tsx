@@ -127,21 +127,17 @@ type EntryGroup = { value: string; items: Entry[] };
  * (the assistant picks the projects to read), a project (its branches), or an
  * environment (its running commits). Opens a searchable list: Automatic
  * first, then each project with its environments indented under it; a
- * project's name or key also finds its environments. `open` and
- * `onOpenChange` let the composer open it when `@` is typed.
+ * project's name or key also finds its environments. Typing `@` in the box
+ * sets the same state (see `useMentions`).
  */
 export function ContextPicker({
   value,
   onChange,
   disabled,
-  open,
-  onOpenChange,
 }: {
   value: QuestionContextInput;
   onChange: (value: QuestionContextInput) => void;
   disabled?: boolean;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
 }) {
   const t = useTranslations("assistant");
   const tCommon = useTranslations("common");
@@ -190,8 +186,6 @@ export function ContextPicker({
       }}
       isItemEqualToValue={(a: Entry, b: Entry) => a.item === b.item}
       itemToStringLabel={(entry: Entry) => entry.search}
-      open={open}
-      onOpenChange={onOpenChange}
       disabled={disabled}
     >
       <ComboboxTrigger

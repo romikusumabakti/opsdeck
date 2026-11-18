@@ -1662,28 +1662,190 @@ describe("context picker", () => {
     });
   });
 
-  it("@ in an empty box opens the picker and leaves no @", async () => {
-    await renderWorkspace();
-    const box = await type("@");
-    await settle();
-    expect(box.value).toBe("");
-    expect(items()).toContain("Heron Membership");
-    await act(async () => item("Heron Membership")?.click());
-    await settle();
-    expect(chip()?.textContent).toBe("Heron Membership");
-  });
+  describe("@ mentions", () => {
+    const options = () =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          '[data-slot="mention-list"] [role="option"]'
+        ),
+      ].map((el) => el.textContent);
+    const press = async (
+      box: HTMLTextAreaElement,
+      key: string,
+      init: KeyboardEventInit = {}
+    ) => {
+      const ev = new KeyboardEvent("keydown", {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      });
+      await act(async () => {
+        box.dispatchEvent(ev);
+      });
+      await settle();
+      return ev;
+    };
 
-  it("@ inside a question stays text and leaves the picker closed", async () => {
-    await renderWorkspace();
-    await type("use ");
-    const box = await type("use @");
-    await settle();
-    expect(box.value).toBe("use @");
-    expect(items()).toEqual([]);
-    await type("use @Transactional");
-    await settle();
-    expect(box.value).toBe("use @Transactional");
-    expect(items()).toEqual([]);
+    it("lists matching projects, then environments, under the box", async () => {
+      await renderWorkspace();
+      await type("ask @her");
+      await settle();
+      expect(options()).toEqual([
+        "Heron Membership",
+        "Heron Membership · Dev 1",
+        "Heron Membership · UAT",
+      ]);
+      // No Automatic entry: that stays on the chip.
+      await type("@");
+      await settle();
+      expect(options()).not.toContain(t.contextAuto);
+      expect(options()).toHaveLength(5);
+    });
+
+    it("Enter picks the highlighted match: it fills the box and sets the chip", async () => {
+      await renderWorkspace();
+      const box = await type("@her");
+      await settle();
+      const ev = await press(box, "Enter");
+      expect(ev.defaultPrevented).toBe(true);
+      expect(box.value).toBe("@Heron Membership ");
+      expect(box.selectionStart).toBe("@Heron Membership ".length);
+      expect(chip()?.textContent).toBe("Heron Membership");
+      expect(options()).toEqual([]);
+      expect(api.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("arrows move the highlight and Tab picks; the last pick wins", async () => {
+      api.createConversation.mockResolvedValue({ id: CONV_ID });
+      api.sendMessage.mockResolvedValue({});
+      await renderWorkspace();
+      let box = await type("@gbil");
+      await settle();
+      await press(box, "Enter");
+      expect(chip()?.textContent).toBe("Globex Billing");
+      box = await type("@Globex Billing about @her");
+      await settle();
+      await press(box, "ArrowDown");
+      await press(box, "ArrowDown");
+      await press(box, "ArrowUp");
+      await press(box, "Tab");
+      expect(box.value).toBe(
+        "@Globex Billing about @Heron Membership · Dev 1 "
+      );
+      expect(chip()?.textContent).toBe("Heron Membership · Dev 1");
+      await press(box, "Enter");
+      expect(api.sendMessage).toHaveBeenCalledWith({
+        conversationId: CONV_ID,
+        text: "@Globex Billing about @Heron Membership · Dev 1",
+        context: { kind: "environment", environmentId: ENV_ID },
+      });
+    });
+
+    it("a click on a match picks it", async () => {
+      await renderWorkspace();
+      await type("@ua");
+      await settle();
+      const option = document.querySelector<HTMLElement>(
+        '[data-slot="mention-list"] [role="option"]'
+      );
+      await act(async () => option?.click());
+      await settle();
+      expect(chip()?.textContent).toBe("Heron Membership · UAT");
+    });
+
+    it("Esc closes the list and leaves the text", async () => {
+      await renderWorkspace();
+      const box = await type("@her");
+      await settle();
+      await press(box, "Escape");
+      expect(options()).toEqual([]);
+      expect(box.value).toBe("@her");
+      expect(chip()?.textContent).toBe(t.contextAuto);
+    });
+
+    it("is announced as the box's autocomplete list", async () => {
+      await renderWorkspace();
+      const box = await type("@her");
+      await settle();
+      expect(box.getAttribute("aria-autocomplete")).toBe("list");
+      const list = document.querySelector('[data-slot="mention-list"]');
+      expect(list?.getAttribute("role")).toBe("listbox");
+      expect(box.getAttribute("aria-controls")).toBe(list?.id);
+      const first = list?.querySelector('[role="option"]');
+      expect(box.getAttribute("aria-activedescendant")).toBe(first?.id);
+      expect(first?.getAttribute("aria-selected")).toBe("true");
+      await press(box, "Escape");
+      expect(box.hasAttribute("aria-controls")).toBe(false);
+      expect(box.hasAttribute("aria-activedescendant")).toBe(false);
+    });
+
+    it("@ inside words and code stays text and leaves the context alone", async () => {
+      await renderWorkspace();
+      const box = await type("use @Transactional please");
+      await settle();
+      expect(box.value).toBe("use @Transactional please");
+      expect(options()).toEqual([]);
+      await type("mail user@example.invalid");
+      await settle();
+      expect(options()).toEqual([]);
+      expect(chip()?.textContent).toBe(t.contextAuto);
+    });
+
+    it("with no match says so briefly and Enter still sends", async () => {
+      api.createConversation.mockResolvedValue({ id: CONV_ID });
+      api.sendMessage.mockResolvedValue({});
+      await renderWorkspace();
+      const box = await type("use @Transactional");
+      await settle();
+      expect(options()).toEqual([]);
+      expect(text()).toContain(t.mentionEmpty);
+      await settle();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1600));
+      });
+      expect(text()).not.toContain(t.mentionEmpty);
+      await press(box, "Enter");
+      expect(api.sendMessage).toHaveBeenCalledWith({
+        conversationId: CONV_ID,
+        text: "use @Transactional",
+        context: { kind: "auto" },
+      });
+    });
+
+    it("an IME composition never picks or sends", async () => {
+      await renderWorkspace();
+      const box = await type("@her");
+      await settle();
+      const ev = await press(box, "Enter", { isComposing: true });
+      expect(ev.defaultPrevented).toBe(false);
+      expect(box.value).toBe("@her");
+      expect(chip()?.textContent).toBe(t.contextAuto);
+      await press(box, "Escape", { isComposing: true });
+      expect(options()).toHaveLength(3);
+    });
+
+    it("leaves the context of earlier questions as they were", async () => {
+      api.sendMessage.mockResolvedValue({});
+      await renderWorkspace({ conversationId: CONV_ID }, [
+        userMessage("u1", {
+          kind: "project",
+          label: "Globex Billing",
+          deleted: false,
+          projectId: "p2",
+          environmentId: null,
+        }),
+        answer,
+      ]);
+      const bubble = () =>
+        container.querySelector("[data-question-context]")?.textContent;
+      expect(bubble()).toContain("Globex Billing");
+      const box = await type("@her");
+      await settle();
+      await press(box, "Enter");
+      expect(chip()?.textContent).toBe("Heron Membership");
+      expect(bubble()).toContain("Globex Billing");
+    });
   });
 
   it("with no visible project shows the not-available state, not the workspace", async () => {

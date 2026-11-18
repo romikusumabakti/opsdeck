@@ -14,16 +14,14 @@ import {
   sendMessage,
 } from "@/web/api/assistant";
 import { listProjectsQuery } from "@/web/api/project-catalog";
-import {
-  opensContextPicker,
-  shouldSend,
-} from "@/web/components/assistant/composer-keys";
+import { shouldSend } from "@/web/components/assistant/composer-keys";
 import {
   ContextPicker,
   useContextOptions,
   visibleContext,
 } from "@/web/components/assistant/context-picker";
 import { useAssistantErrorText } from "@/web/components/assistant/error-text";
+import { useMentions } from "@/web/components/assistant/mention-popover";
 
 const AUTO: QuestionContextInput = { kind: "auto" };
 const EXAMPLE_KEYS = ["first", "second", "third"] as const;
@@ -31,7 +29,7 @@ const MAX_RECENTS = 3;
 
 /**
  * Starts a conversation from Home: type a question, pick what it is about
- * (Automatic by default), Enter. The answer is followed on /assistant, which
+ * (Automatic by default; the chip or an `@` mention in the text), Enter. The answer is followed on /assistant, which
  * the send navigates to. Below the box: the latest conversations, or example
  * questions that fill the box. Hidden unless the assistant is on and the
  * user sees a project.
@@ -49,7 +47,6 @@ export function AskAssistantCard() {
   }).data;
   const options = useContextOptions();
   const [picked, setPicked] = React.useState<QuestionContextInput>(AUTO);
-  const [pickerOpen, setPickerOpen] = React.useState(false);
   const [text, setText] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -77,6 +74,14 @@ export function AskAssistantCard() {
     },
     onSuccess: (conversationId) =>
       router.push(`/assistant?c=${conversationId}`),
+  });
+
+  const mentions = useMentions({
+    text,
+    onTextChange: setText,
+    onPick: setPicked,
+    textareaRef,
+    disabled: allowance?.capReached === true || ask.isPending,
   });
 
   if (!allowance?.enabled || !projects || projects.length === 0) return null;
@@ -107,15 +112,11 @@ export function AskAssistantCard() {
           ref={textareaRef}
           rows={2}
           value={text}
-          onChange={(e) => {
-            const next = e.target.value;
-            if (!locked && opensContextPicker(text, next)) {
-              setPickerOpen(true);
-              return;
-            }
-            setText(next);
-          }}
+          {...mentions.inputProps}
+          onChange={mentions.onChange}
+          onSelect={mentions.onSelect}
           onKeyDown={(e) => {
+            if (mentions.onKeyDown(e)) return;
             if (
               shouldSend({
                 key: e.key,
@@ -141,8 +142,6 @@ export function AskAssistantCard() {
               textareaRef.current?.focus();
             }}
             disabled={locked}
-            open={pickerOpen}
-            onOpenChange={setPickerOpen}
           />
           <Button
             size="icon"
@@ -154,6 +153,7 @@ export function AskAssistantCard() {
             <SendHorizontal />
           </Button>
         </div>
+        {mentions.popover}
       </div>
       {message ? (
         <p

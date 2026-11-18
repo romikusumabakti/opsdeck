@@ -3762,6 +3762,8 @@
     "contextProjects": "Projects",
     "contextEnvironmentLabel": "{name}, environment of {project}",
     "contextDeleted": "(deleted)",
+    "mentionEmpty": "No matching project or environment",
+    "mentionList": "Projects and environments",
     "shortcutHint": "Press {shortcut} anywhere to open the assistant.",
     "noProjectsTitle": "Nothing to ask about yet",
     "noProjectsDescription": "You do not see any project yet. Ask an admin to add you to a project to use the assistant."

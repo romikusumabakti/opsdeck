@@ -158,22 +158,32 @@ async function type(text: string) {
       HTMLTextAreaElement.prototype,
       "value"
     )?.set?.call(box(), text);
+    box().setSelectionRange(text.length, text.length);
     box().dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
 
-async function pressEnter() {
-  await act(async () => {
-    box().dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "Enter",
-        shiftKey: false,
-        bubbles: true,
-        cancelable: true,
-      })
-    );
+async function press(key: string) {
+  const ev = new KeyboardEvent("keydown", {
+    key,
+    shiftKey: false,
+    bubbles: true,
+    cancelable: true,
   });
+  await act(async () => {
+    box().dispatchEvent(ev);
+  });
+  return ev;
 }
+
+const pressEnter = () => press("Enter");
+
+const mentionOptions = () =>
+  [
+    ...document.querySelectorAll<HTMLElement>(
+      '[data-slot="mention-list"] [role="option"]'
+    ),
+  ].map((o) => o.textContent);
 
 describe("home ask-the-assistant card", () => {
   it("is hidden when the assistant is not enabled", async () => {
@@ -378,6 +388,45 @@ describe("home ask-the-assistant card", () => {
     await pressEnter();
     expect(api.createConversation).toHaveBeenCalledTimes(1);
     expect(api.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("@ mentions a project anywhere in the box and sets the chip", async () => {
+    await renderCard({});
+    await type("Where is login in @acm");
+    expect(mentionOptions()).toEqual(["Acme Shop"]);
+    const ev = await pressEnter();
+    expect(ev.defaultPrevented).toBe(true);
+    expect(box().value).toBe("Where is login in @Acme Shop ");
+    expect(
+      container.querySelector('[aria-label="Context: Acme Shop"]')
+    ).not.toBeNull();
+    expect(api.createConversation).not.toHaveBeenCalled();
+  });
+
+  it("Esc closes the mention list and leaves the text", async () => {
+    await renderCard({});
+    await type("@glo");
+    expect(mentionOptions()).toEqual(["Globex"]);
+    await press("Escape");
+    expect(mentionOptions()).toEqual([]);
+    expect(box().value).toBe("@glo");
+    expect(
+      container.querySelector('[aria-label="Context: Automatic"]')
+    ).not.toBeNull();
+  });
+
+  it("@ in code or an address stays text and Enter sends", async () => {
+    api.createConversation.mockResolvedValue({ id: "c1" });
+    api.sendMessage.mockResolvedValue({});
+    await renderCard({});
+    await type("use @Transactional please");
+    expect(mentionOptions()).toEqual([]);
+    await pressEnter();
+    expect(api.sendMessage).toHaveBeenCalledWith({
+      conversationId: "c1",
+      text: "use @Transactional please",
+      context: { kind: "auto" },
+    });
   });
 
   it("styles the limit message as a notice, not an error", async () => {
