@@ -187,7 +187,7 @@ function chunksOf(step: Step): LanguageModelV4StreamPart[] {
   const chunks: LanguageModelV4StreamPart[] = [
     { type: "response-metadata", modelId: "served-model-1" },
   ];
-  if (step.reasoning?.length) {
+  if ("reasoning" in step && step.reasoning?.length) {
     chunks.push({ type: "reasoning-start", id: "r" });
     for (const delta of step.reasoning)
       chunks.push({ type: "reasoning-delta", id: "r", delta });

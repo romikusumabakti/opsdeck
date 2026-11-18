@@ -1083,11 +1083,7 @@ describe("retry-answer", () => {
       { environmentId: null, environmentName: "Dev 1", projectId: null },
       "assistant.environment_gone",
     ],
-    [
-      "project",
-      { projectId: null },
-      "assistant.context_gone",
-    ],
+    ["project", { projectId: null }, "assistant.context_gone"],
   ])(
     "refuses when the question's pinned %s was deleted and keeps the answer",
     async (_kind, gone, code) => {

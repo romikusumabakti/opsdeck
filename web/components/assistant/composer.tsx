@@ -235,10 +235,7 @@ export function Composer({
           rows={2}
           className="field-sizing-content max-h-60"
         />
-        <InputGroupAddon
-          align="block-end"
-          onClick={focusTextOnBlank}
-        >
+        <InputGroupAddon align="block-end" onClick={focusTextOnBlank}>
           <DropdownMenu>
             <TooltipHint label={t("attach")}>
               <DropdownMenuTrigger
