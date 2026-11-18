@@ -1551,6 +1551,7 @@ describe("drafts panel in the workspace", () => {
 
   it("has no drafts toggle until a conversation is selected", async () => {
     await renderWorkspace();
+    expect(button(t.moreActions)).toBeUndefined();
     expect(toggle(0)).toBeUndefined();
     expect(panel()).toBeNull();
   });
@@ -2510,7 +2511,6 @@ describe("context picker", () => {
       userMessage("u1", contextOf("user", null, null)),
       answer,
     ]);
-    expect(button(t.newDraft)).toBeUndefined();
     expect(button(t.drafts.replace("{count}", "0"))).toBeUndefined();
     await act(async () => button(t.moreActions)?.click());
     await settle();
@@ -2594,6 +2594,36 @@ describe("context picker", () => {
     const keys = invalidate.mock.calls.map((c) => c[0]?.queryKey);
     expect(keys).toContainEqual(["assistant", "getConversation", [CONV_ID]]);
     expect(keys).toContainEqual(["assistant", "getAllowance"]);
+  });
+
+  it("Retry is disabled until its request settles", async () => {
+    let release: () => void = () => {};
+    api.retryAnswer.mockReturnValue(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      })
+    );
+    const done = {
+      id: CONV_ID,
+      title: "Iuran",
+      drafts: [],
+      messages: [userMessage("u1", contextOf("user", null, null)), answer],
+    };
+    conversationFetch.set(CONV_ID, async () => done);
+    await renderWorkspace({ conversationId: CONV_ID }, done.messages);
+    // The allowance query never resolves in this suite's API mock.
+    vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
+    const retry = () =>
+      [...document.querySelectorAll("button")].find(
+        (b) => b.getAttribute("aria-label") === t.retry
+      );
+    await act(async () => retry()?.click());
+    expect(retry()?.disabled).toBe(true);
+    await act(async () => retry()?.click());
+    expect(api.retryAnswer).toHaveBeenCalledTimes(1);
+    await act(async () => release());
+    await settle();
+    expect(retry()?.disabled).toBe(false);
   });
 
   it("reports the selected conversation for the URL", async () => {

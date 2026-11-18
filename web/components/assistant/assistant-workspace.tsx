@@ -230,8 +230,12 @@ export function AssistantWorkspace({
     }
   };
   const capped = capReached(allowance);
+  // Retry is disabled from the click until its request settles, so a double
+  // click cannot hit assistant.busy.
+  const [retrying, setRetrying] = React.useState(false);
   const retry = async () => {
-    if (!selectedId) return;
+    if (!selectedId || retrying) return;
+    setRetrying(true);
     try {
       await retryAnswer(selectedId);
       await Promise.all([
@@ -244,6 +248,8 @@ export function AssistantWorkspace({
       ]);
     } catch (e) {
       toast.error(errorText(e));
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -414,7 +420,7 @@ export function AssistantWorkspace({
               key={selectedId}
               conversationId={selectedId}
               onRetry={() => void retry()}
-              retryDisabled={busy || capped}
+              retryDisabled={busy || capped || retrying}
             />
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">

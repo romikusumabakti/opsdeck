@@ -3773,7 +3773,6 @@
     "jiraCreated": "已创建问题 {jiraKey}。",
     "jiraCreatedAs": "已创建为 {jiraKey}。",
     "openPanelIssue": "在面板中打开问题",
-    "newDraft": "新建草稿",
     "newDraftBrd": "BRD",
     "newDraftIssue": "问题",
     "contextAuto": "自动",

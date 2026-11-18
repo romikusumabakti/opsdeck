@@ -3773,7 +3773,6 @@
     "jiraCreated": "Issue {jiraKey} created.",
     "jiraCreatedAs": "Created as {jiraKey}.",
     "openPanelIssue": "Open the issue in the Panel",
-    "newDraft": "New draft",
     "newDraftBrd": "BRD",
     "newDraftIssue": "Issue",
     "contextAuto": "Automatic",

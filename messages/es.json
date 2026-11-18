@@ -3773,7 +3773,6 @@
     "jiraCreated": "Incidencia {jiraKey} creada.",
     "jiraCreatedAs": "Creado como {jiraKey}.",
     "openPanelIssue": "Abrir la incidencia en el Panel",
-    "newDraft": "Nuevo borrador",
     "newDraftBrd": "BRD",
     "newDraftIssue": "Incidencia",
     "contextAuto": "Automático",
