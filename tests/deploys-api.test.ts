@@ -38,6 +38,34 @@ vi.mock("@/lib/authz", async () => {
   };
 });
 
+// Reads take the caller's access scope (lib/access-scope); the same role
+// decides as in the lib/authz stub above.
+vi.mock("@/lib/access-scope", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/access-scope")>();
+  const { canProject } = await import("@/lib/permissions");
+  return {
+    ...real,
+    accessScopeFromSession: vi.fn(async () => ({
+      userId: "user-1",
+      orgRole: "engineer",
+      projectRoles: { "project-1": state.role },
+      seesAllProjects: false,
+    })),
+    requireProjectPermissionIn: vi.fn(
+      async (
+        _scope: unknown,
+        _target: unknown,
+        perms: Parameters<typeof canProject>[1]
+      ) => {
+        if (!canProject(state.role as "viewer", perms)) {
+          throw new real.ForbiddenError();
+        }
+        return { role: state.role, projectId: "project-1" };
+      }
+    ),
+  };
+});
+
 const repo = vi.hoisted(() => ({
   getTarget: vi.fn(),
   getTagState: vi.fn(),

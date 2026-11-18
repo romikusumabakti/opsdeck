@@ -212,7 +212,17 @@ function frontendServicePatch(d: EnvironmentUpdate) {
  * picker, sidebar, etc. where only id+name matters).
  */
 export async function listEnvironments(): Promise<EnvironmentListItem[]> {
-  return listEnvironmentsFor(await accessScopeFromSession());
+  let scope: AccessScope;
+  try {
+    scope = await accessScopeFromSession();
+  } catch (error) {
+    // A refusal (no session) propagates; a failed lookup is an empty list,
+    // like a failed query below.
+    if (error instanceof HTTPException) throw error;
+    console.error("Failed to fetch environments:", error);
+    return [];
+  }
+  return listEnvironmentsFor(scope);
 }
 
 /** listEnvironments for an explicit scope (the assistant worker has no session). */

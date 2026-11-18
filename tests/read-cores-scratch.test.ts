@@ -359,14 +359,20 @@ describe.skipIf(!enabled)("read cores match their session wrappers", () => {
           sees ? "pulling\nstarted\n" : null
         );
 
-        // Builds per project: what the project's Deploys pages list.
+        // Builds per project: what the project's Deploys pages list. Compared
+        // as sets: the page lists builds per target, the core one list for
+        // the project, newest first (each project here has one environment,
+        // and all its builds fit under the limit).
         const projectBuilds = await outcome(() =>
           builds.listProjectBuildsFor(scope, project.id, 20)
         );
         if (targets.value) {
-          expect(projectBuilds).toEqual({
-            value: targets.value.flatMap((t) => t.recentBuilds),
-          });
+          const byId = (a: { id: string }, b: { id: string }) =>
+            a.id.localeCompare(b.id);
+          expect(projectBuilds.value?.toSorted(byId)).toEqual(
+            targets.value.flatMap((t) => t.recentBuilds).toSorted(byId)
+          );
+          expect(projectBuilds.value?.length).toBeGreaterThan(0);
         } else {
           expect(projectBuilds).toEqual(targets);
         }

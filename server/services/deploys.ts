@@ -2,6 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import {
   type AccessScope,
+  accessScopeFromSession,
   requireProjectPermissionIn,
 } from "@/lib/access-scope";
 import { recordActivity } from "@/lib/activity";
@@ -366,14 +367,10 @@ async function commitTargetBranch(
   }
 }
 
-// The session guard here, not listDeployTargetsFor(accessScopeFromSession()):
-// lib/authz#requireProjectPermission is the same rule on the session's scope,
-// and route tests stub it to drive this read.
 export async function listDeployTargets(
   environmentId: string
 ): Promise<TargetState[]> {
-  await requireProjectPermission({ environmentId }, { deploy: ["view"] });
-  return listTargetsForEnvironment(environmentId);
+  return listDeployTargetsFor(await accessScopeFromSession(), environmentId);
 }
 
 /** The Deploys page's targets with their deploy history, for an explicit scope. */

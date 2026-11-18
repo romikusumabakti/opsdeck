@@ -2,7 +2,7 @@ import type { AnyColumn, SQL } from "drizzle-orm";
 import type { EmptyFilter } from "drizzle-orm/relations";
 import {
   accessScopeFromSession,
-  can,
+  canAll,
   ForbiddenError,
   getProjectAccess,
   type ProjectAccess,
@@ -93,15 +93,6 @@ export function orgGrantRole(session: Session): string | null | undefined {
 // background reads that carry an explicit scope.
 
 export type ProjectScope = ProjectTarget;
-
-// Pure: does every project in the set grant `perms`? An invisible project fails.
-export function checkProjectAccess(
-  access: ProjectAccess,
-  projectIds: string[],
-  perms: ProjectPermissions
-): boolean {
-  return projectIds.every((id) => canProject(access.roles[id] ?? null, perms));
-}
 
 export async function getOrgRole(): Promise<OrgRole> {
   const session = await requireSession();
@@ -222,7 +213,7 @@ export async function requireProjectPermissionForAll(
 ): Promise<Session> {
   const session = await requireSession();
   const scope = await accessScopeFromSession();
-  if (![...new Set(projectIds)].every((id) => can(scope, id, perms))) {
+  if (!canAll(scope, [...new Set(projectIds)], perms)) {
     throw new ForbiddenError();
   }
   return session;

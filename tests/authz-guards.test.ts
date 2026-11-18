@@ -101,12 +101,11 @@ const SCOPE_CORES: Record<
       wrapper: "getRunSnapshot",
     },
   },
-  // listDeployTargets keeps the session guard (SCOPED_WRITES): the same rule
-  // on the session's scope, which route tests stub.
   "server/services/deploys.ts": {
     listDeployTargetsFor: {
       check:
         /requireProjectPermissionIn\(\s*scope,\s*\{ environmentId \},\s*\{ deploy: \["view"\] \}/,
+      wrapper: "listDeployTargets",
     },
     getDeploymentFor: {
       check:
@@ -147,11 +146,12 @@ describe("scope cores take a scope and check it", () => {
       });
       if (wrapper) {
         it(`${file} ${wrapper} delegates with the session's scope`, () => {
-          expect(body(source, wrapper)).toMatch(
-            new RegExp(
-              `return ${core}\\(\\s*await accessScopeFromSession\\(\\)[,)]`
-            )
-          );
+          // Directly, or through a local (listEnvironments keeps its
+          // empty-list fallback for a failed lookup).
+          const fn = body(source, wrapper);
+          expect(fn).toMatch(/await accessScopeFromSession\(\)/);
+          expect(fn).toMatch(new RegExp(`return ${core}\\(`));
+          expect(fn).not.toMatch(/requireProjectPermission\(|getProjectRole\(/);
         });
       }
     }
@@ -218,7 +218,6 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     controlService: /service: \["control"\]/,
   },
   "server/services/deploys.ts": {
-    listDeployTargets: /deploy: \["view"\]/,
     createDeployTarget: /deploy: \["configure"\]/,
     updateDeployTarget: /deploy: \["configure"\]/,
     deleteDeployTarget: /deploy: \["configure"\]/,

@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  checkProjectAccess,
-  type ProjectAccess,
-  resolveProjectAccess,
-} from "@/lib/authz";
+import { type AccessScope, canAll } from "@/lib/access-scope";
+import { resolveProjectAccess } from "@/lib/authz";
 
 const ALL = ["p1", "p2", "p3"];
 
@@ -52,32 +49,28 @@ describe("resolveProjectAccess", () => {
   });
 });
 
-describe("checkProjectAccess", () => {
+describe("canAll", () => {
   // One org role gives one set everywhere, so a mixed set is built by hand.
-  const access: ProjectAccess = {
-    all: false,
-    roles: { p1: "engineer", p2: "qa" },
+  const access: AccessScope = {
+    userId: "u",
+    orgRole: "engineer",
+    projectRoles: { p1: "engineer", p2: "qa" },
+    seesAllProjects: false,
   };
 
   it("passes when every project grants the permission", () => {
-    expect(checkProjectAccess(access, ["p1", "p2"], { issue: ["write"] })).toBe(
-      true
-    );
+    expect(canAll(access, ["p1", "p2"], { issue: ["write"] })).toBe(true);
   });
 
   it("refuses the whole set when one project lacks it", () => {
-    expect(
-      checkProjectAccess(access, ["p1", "p2"], { issue: ["delete"] })
-    ).toBe(false);
+    expect(canAll(access, ["p1", "p2"], { issue: ["delete"] })).toBe(false);
   });
 
   it("refuses a set containing an invisible project", () => {
-    expect(checkProjectAccess(access, ["p1", "p3"], { issue: ["write"] })).toBe(
-      false
-    );
+    expect(canAll(access, ["p1", "p3"], { issue: ["write"] })).toBe(false);
   });
 
   it("passes an empty set (nothing to authorize)", () => {
-    expect(checkProjectAccess(access, [], { issue: ["delete"] })).toBe(true);
+    expect(canAll(access, [], { issue: ["delete"] })).toBe(true);
   });
 });

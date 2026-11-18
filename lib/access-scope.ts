@@ -188,6 +188,15 @@ export function can(
   return canProject(roleOn(scope, projectId), perms);
 }
 
+/** Does every project in the set grant `perms`? An invisible project fails. */
+export function canAll(
+  scope: AccessScope,
+  projectIds: readonly string[],
+  perms: ProjectPermissions
+): boolean {
+  return projectIds.every((id) => can(scope, id, perms));
+}
+
 /** The visible project ids, or "all" when the role sees every project. */
 export function scopedProjectIds(scope: AccessScope): "all" | string[] {
   return scope.seesAllProjects ? "all" : Object.keys(scope.projectRoles);
