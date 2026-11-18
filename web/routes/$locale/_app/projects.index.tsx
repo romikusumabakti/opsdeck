@@ -19,6 +19,7 @@ import {
 } from "@/web/api/project-catalog";
 import { getEnvironmentsLastActivityQuery } from "@/web/api/runs";
 import { meQuery, useMe } from "@/web/api/session";
+import { requireProjectUser } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 
 const SORT_KEYS: SortKey[] = ["recent", "opened", "name_asc", "name_desc"];
@@ -36,6 +37,10 @@ export const Route = createFileRoute("/$locale/_app/projects/")({
         ? true
         : undefined,
   }),
+  // staff sees no project, so the list would always be empty.
+  beforeLoad: async ({ context: { queryClient } }) => {
+    await requireProjectUser(queryClient);
+  },
   loader: async ({ context: { queryClient } }) => {
     await Promise.all([
       loaderQuery(queryClient, listProjectsWithEnvironmentsQuery()),

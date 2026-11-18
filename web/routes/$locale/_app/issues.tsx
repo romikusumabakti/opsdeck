@@ -12,6 +12,7 @@ import { listProjectsQuery } from "@/web/api/project-catalog";
 import { listSavedViewsQuery } from "@/web/api/saved-views";
 import { meQuery } from "@/web/api/session";
 import { listAssignableUsersAcrossProjectsQuery } from "@/web/api/users";
+import { requireProjectUser } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import type { SearchRecord } from "@/web/search-params";
 
@@ -53,6 +54,10 @@ export const Route = createFileRoute("/$locale/_app/issues")({
       }
     }
     return out;
+  },
+  // staff sees no project, so it has no issue to list.
+  beforeLoad: async ({ context: { queryClient } }) => {
+    await requireProjectUser(queryClient);
   },
   loaderDeps: ({ search }) => ({ search }),
   loader: async ({ deps: { search }, context: { queryClient } }) => {

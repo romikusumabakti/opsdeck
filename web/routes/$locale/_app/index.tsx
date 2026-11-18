@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
 import { defaultIssueTarget } from "@/lib/home/layout";
+import { hasProjects } from "@/lib/permissions";
 import {
   getAttentionGroupsQuery,
   getHomeAccessQuery,
@@ -9,6 +10,7 @@ import {
   listMyOpenIssuesQuery,
   listRecentEnvironmentsQuery,
 } from "@/web/api/home";
+import { meQuery, useMe } from "@/web/api/session";
 import { HomeHeader } from "./-components/home/home-header";
 import { HomeIssueDialogProvider } from "./-components/home/home-issue-dialog";
 import { MainColumn } from "./-components/home/main-column";
@@ -22,8 +24,11 @@ export const Route = createFileRoute("/$locale/_app/")({
   // failure of either is not a failed page: New issue is disabled, or the
   // rail shows its error row (the component reads the failed query as such).
   // The main column is not awaited: it streams in behind its own skeleton, so
-  // its queries are only started here.
+  // its queries are only started here. staff works with no project, so none
+  // of them runs for it.
   loader: async ({ context: { queryClient } }) => {
+    const me = await queryClient.query(meQuery());
+    if (!hasProjects(me?.orgRole)) return;
     void queryClient.prefetchQuery(getAttentionGroupsQuery());
     void queryClient.prefetchQuery(listMyOpenIssuesQuery());
     void queryClient.prefetchQuery(getHomeAccessQuery());
@@ -40,9 +45,17 @@ export const Route = createFileRoute("/$locale/_app/")({
   component: HomePage,
 });
 
+// staff keeps the greeting only: every section below is about projects
+// (failures, assigned issues, live runs, recent environments) and would only
+// ever be empty for it.
+function HomePage() {
+  const me = useMe();
+  return hasProjects(me?.orgRole) ? <ProjectHome /> : <HomeHeader />;
+}
+
 // Main column: what needs the user (failures, their issues) — streamed, and
 // ordered by what it contains. Rail: context (live runs, recent environments).
-function HomePage() {
+function ProjectHome() {
   const issueProjects = useQuery({
     ...listIssueProjectsQuery(),
     retryOnMount: false,

@@ -4,6 +4,7 @@ import {
   canOrgAccess,
   canOrgAccessTarget,
   canProject,
+  hasProjects,
   type OrgPermissions,
   type ProjectPermissions,
   type ProjectRole,
@@ -73,6 +74,18 @@ export async function requireOrgRole(
   const me = await queryClient.query(meQuery());
   if (!(me && canOrgAccessTarget(me.orgRole, perms, restricted)))
     throw notFound();
+  return me;
+}
+
+/**
+ * The page guard for a page about projects or what lives in them (the project
+ * list, the global issue list, the people directory): a 404 for a role that
+ * works with no project (staff, and every unknown role, which floors to it),
+ * as requireOrgRole answers a role lacking the right.
+ */
+export async function requireProjectUser(queryClient: QueryClient) {
+  const me = await queryClient.query(meQuery());
+  if (!(me && hasProjects(me.orgRole))) throw notFound();
   return me;
 }
 
