@@ -142,9 +142,11 @@ The folder is read by the CLI, so in production it must be inside the app
 container first:
 
 ```
-docker cp ./guides menara-app:/tmp/kb
-docker exec menara-app menara knowledge import /tmp/kb --as you@example.com --dry-run
+docker compose -f /opt/<name>/compose.yaml cp ./guides app:/tmp/kb
+docker compose -f /opt/<name>/compose.yaml exec app menara knowledge import /tmp/kb --as you@example.com --dry-run
 ```
+
+then the same without `--dry-run`.
 
 In production: `docker exec <app container> menara <command>`. Locally:
 `bun scripts/cli.ts <command>`.
