@@ -101,6 +101,13 @@ export async function stopAnswer(conversationId: string) {
   );
 }
 
+/** Replaces the last answer with a new one; `assistantMessageId` is it. */
+export async function retryAnswer(conversationId: string) {
+  return parseResponse(
+    routes["retry-answer"].$post({ json: { conversationId } })
+  );
+}
+
 /**
  * Sends a question. `context` is what it asks about: `{ kind: "auto" }`, a
  * pinned project `{ kind: "project", projectId }` (its branches) or a pinned

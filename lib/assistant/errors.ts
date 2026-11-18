@@ -8,6 +8,7 @@ export const ASSISTANT_ERROR_MESSAGE_KEYS = {
   "assistant.not_configured": "notConfigured",
   "assistant.daily_cap_reached": "dailyCapReached",
   "assistant.busy": "busy",
+  "assistant.nothing_to_retry": "nothingToRetry",
   "assistant.unavailable": "unavailable",
   "assistant.credit_exhausted": "creditExhausted",
   "assistant.refused": "refused",

@@ -3656,6 +3656,7 @@
     "creditExhausted": "Kredit penyedia model untuk asisten sudah habis. Minta admin untuk mengisinya.",
     "refused": "Asisten menolak menjawab permintaan ini.",
     "tooManySteps": "Asisten berhenti setelah terlalu banyak langkah. Coba pertanyaan yang lebih spesifik.",
+    "nothingToRetry": "Tidak ada jawaban untuk diulang.",
     "interrupted": "Jawaban terputus. Kirim ulang pesan Anda.",
     "stopped": "Dihentikan",
     "failed": "Asisten tidak dapat menjawab. Coba lagi.",

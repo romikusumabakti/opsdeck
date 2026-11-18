@@ -3656,6 +3656,7 @@
     "creditExhausted": "The assistant's model provider credit has run out. Ask an admin to top it up.",
     "refused": "The assistant declined to answer this request.",
     "tooManySteps": "The assistant stopped after too many steps. Try a narrower question.",
+    "nothingToRetry": "There is no answer to retry.",
     "interrupted": "The answer was interrupted. Send your message again.",
     "stopped": "Stopped",
     "failed": "The assistant could not answer. Try again.",

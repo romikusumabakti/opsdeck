@@ -405,6 +405,32 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       if (m?.status === "queued")
         Object.assign(m, { status: "failed", errorCode });
     },
+    replaceLastAnswer: async (conversationId: string) => {
+      const mine = store.messages.filter(
+        (x) => x.conversationId === conversationId
+      );
+      const last = mine.at(-1);
+      if (last?.role !== "assistant") return "nothing_to_retry";
+      if (last.status === "queued" || last.status === "streaming")
+        return "busy";
+      store.messages = store.messages.filter((x) => x !== last);
+      store.toolCalls = store.toolCalls.filter((t) => t.messageId !== last.id);
+      const answer: Message = {
+        conversationId,
+        errorCode: null,
+        projectId: null,
+        projectName: null,
+        environmentId: null,
+        environmentName: null,
+        id: nextId(),
+        role: "assistant",
+        content: "",
+        status: "queued",
+        attachmentIds: [],
+      };
+      store.messages.push(answer);
+      return { assistantMessageId: answer.id };
+    },
     stopPendingAnswer: async (conversationId: string) => {
       const m = store.messages.find(
         (x) =>
@@ -959,6 +985,100 @@ describe("conversation ownership", () => {
       404
     );
     expect(jira.list).not.toHaveBeenCalled();
+  });
+});
+
+describe("retry-answer", () => {
+  it("replaces the last answer and enqueues the new one", async () => {
+    const id = await newConversation();
+    await send(id);
+    store.messages[1]!.status = "done";
+    queue.enqueue.mockClear();
+    const res = await post("/retry-answer", { conversationId: id });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(store.messages).toHaveLength(2);
+    expect(store.messages[1]).toMatchObject({
+      id: body.assistantMessageId,
+      role: "assistant",
+      status: "queued",
+    });
+    expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith(
+      body.assistantMessageId
+    );
+  });
+
+  it("accepts a stopped answer", async () => {
+    const id = await newConversation();
+    await send(id);
+    await post("/stop-answer", { conversationId: id });
+    const res = await post("/retry-answer", { conversationId: id });
+    expect(res.status).toBe(200);
+    expect(store.messages[1]?.status).toBe("queued");
+  });
+
+  it("refuses a pending answer (busy) and a chat without one", async () => {
+    const id = await newConversation();
+    const empty = await post("/retry-answer", { conversationId: id });
+    expect(empty.status).toBe(409);
+    expect(await empty.json()).toMatchObject({
+      code: "assistant.nothing_to_retry",
+    });
+    await send(id);
+    queue.enqueue.mockClear();
+    const busy = await post("/retry-answer", { conversationId: id });
+    expect(busy.status).toBe(409);
+    expect(await busy.json()).toMatchObject({ code: "assistant.busy" });
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 for another user's or an unknown chat", async () => {
+    as(OTHER);
+    const theirs = await newConversation();
+    await send(theirs);
+    store.messages[1]!.status = "done";
+    as(QA);
+    expect(
+      (await post("/retry-answer", { conversationId: theirs })).status
+    ).toBe(404);
+    expect(
+      (await post("/retry-answer", { conversationId: UNKNOWN_ID })).status
+    ).toBe(404);
+    expect(store.messages[1]?.status).toBe("done");
+  });
+
+  it("refuses at the daily cap and changes nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-16T03:00:00Z"));
+    const id = await newConversation();
+    await send(id);
+    store.messages[1]!.status = "done";
+    const before = store.messages[1]!.id;
+    queue.enqueue.mockClear();
+    state.spend = [
+      { userId: QA, at: new Date("2026-11-16T01:00:00Z"), costUsd: 1.5 },
+    ];
+    const res = await post("/retry-answer", { conversationId: id });
+    expect(res.status).toBe(429);
+    expect(await res.json()).toMatchObject({
+      code: "assistant.daily_cap_reached",
+    });
+    expect(store.messages[1]).toMatchObject({ id: before, status: "done" });
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("fails the new answer when the job cannot be enqueued", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = await newConversation();
+    await send(id);
+    store.messages[1]!.status = "done";
+    queue.enqueue.mockRejectedValueOnce(new Error("redis down"));
+    const res = await post("/retry-answer", { conversationId: id });
+    expect(res.status).toBe(503);
+    expect(store.messages[1]).toMatchObject({
+      status: "failed",
+      errorCode: "assistant.unavailable",
+    });
   });
 });
 

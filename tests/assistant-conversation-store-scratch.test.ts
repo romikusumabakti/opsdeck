@@ -679,5 +679,101 @@ describe.skipIf(!enabled)(
       });
       expect(await turns.claimMessage(queued)).toBe(false);
     });
+
+    it("replaces the last answer for a retry", async () => {
+      const d = drizzle({ client });
+      const store = await import("@/lib/assistant/conversation-store");
+      const user = one(
+        await d
+          .insert(schema.users)
+          .values({
+            id: "00000000-0000-7000-8000-00000000c00b",
+            name: "Dewi",
+            email: "dewi@example.com",
+            role: "qa",
+          })
+          .returning()
+      );
+      const ask = async (conversationId: string) => {
+        const turn = await store.insertTurn({
+          conversationId,
+          text: "Why?",
+          attachmentIds: [],
+          context: { kind: "auto" },
+        });
+        if (typeof turn === "string") throw new Error(turn);
+        return turn;
+      };
+      const messages = async (chat: string) =>
+        await client`select id, role, status from assistant_messages where conversation_id = ${chat} order by id`;
+
+      for (const finished of ["done", "failed"]) {
+        const chat = await store.insertConversation({ userId: user.id });
+        const turn = await ask(chat);
+        const old = turn.assistantMessageId;
+        await client`update assistant_messages set status = ${finished}, error_code = ${finished === "failed" ? "assistant.stopped" : null}, content = 'old', sources = '[{"kind":"doc","title":"t","slug":"s"}]'::jsonb where id = ${old}`;
+        await client`insert into assistant_tool_calls (message_id, tool, input, result_meta) values (${old}, 'list_files', '{}', '{}')`;
+        await client`insert into assistant_usage (message_id, user_id, cost_usd, day) values (${old}, ${user.id}, 0.01, '2026-11-18')`;
+
+        const result = await store.replaceLastAnswer(chat);
+        if (typeof result === "string") throw new Error(result);
+        expect(result.assistantMessageId).not.toBe(old);
+        expect(
+          await client`select id from assistant_messages where id = ${old}`
+        ).toEqual([]);
+        expect(
+          await client`select id from assistant_tool_calls where message_id = ${old}`
+        ).toEqual([]);
+        // One new queued answer, after the question.
+        expect(await messages(chat)).toEqual([
+          { id: turn.userMessageId, role: "user", status: "done" },
+          {
+            id: result.assistantMessageId,
+            role: "assistant",
+            status: "queued",
+          },
+        ]);
+        expect(
+          await client`select content, error_code from assistant_messages where id = ${result.assistantMessageId}`
+        ).toEqual([{ content: "", error_code: null }]);
+      }
+      // The spend of both old answers stays, without a message.
+      expect(
+        await client`select message_id from assistant_usage where user_id = ${user.id}`
+      ).toEqual([{ message_id: null }, { message_id: null }]);
+
+      // A pending answer: busy, nothing changed.
+      const pendingChat = await store.insertConversation({ userId: user.id });
+      const pending = await ask(pendingChat);
+      expect(await store.replaceLastAnswer(pendingChat)).toBe("busy");
+      await client`update assistant_messages set status = 'streaming' where id = ${pending.assistantMessageId}`;
+      expect(await store.replaceLastAnswer(pendingChat)).toBe("busy");
+      expect((await messages(pendingChat)).map((m) => m.id)).toEqual([
+        pending.userMessageId,
+        pending.assistantMessageId,
+      ]);
+
+      // No answer yet (only a question): nothing to retry.
+      const lonely = await store.insertConversation({ userId: user.id });
+      expect(await store.replaceLastAnswer(lonely)).toBe("nothing_to_retry");
+      await client`insert into assistant_messages (conversation_id, role, status, content) values (${lonely}, 'user', 'done', 'Hi')`;
+      expect(await store.replaceLastAnswer(lonely)).toBe("nothing_to_retry");
+
+      // Two retries at once queue one answer.
+      const race = await store.insertConversation({ userId: user.id });
+      const raced = await ask(race);
+      await client`update assistant_messages set status = 'done' where id = ${raced.assistantMessageId}`;
+      const results = await Promise.all([
+        store.replaceLastAnswer(race),
+        store.replaceLastAnswer(race),
+      ]);
+      expect(results.filter((r) => r === "busy")).toHaveLength(1);
+      expect(
+        results.filter(
+          (r) => typeof r === "object" && "assistantMessageId" in r
+        )
+      ).toHaveLength(1);
+      expect(await messages(race)).toHaveLength(2);
+    });
   }
 );

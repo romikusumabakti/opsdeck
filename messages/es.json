@@ -3656,6 +3656,7 @@
     "creditExhausted": "Se agotó el crédito del proveedor del modelo del asistente. Pide a un administrador que lo recargue.",
     "refused": "El asistente se negó a responder esta solicitud.",
     "tooManySteps": "El asistente se detuvo tras demasiados pasos. Prueba con una pregunta más concreta.",
+    "nothingToRetry": "No hay ninguna respuesta que reintentar.",
     "interrupted": "La respuesta se interrumpió. Envía tu mensaje de nuevo.",
     "stopped": "Detenida",
     "failed": "El asistente no pudo responder. Inténtalo de nuevo.",

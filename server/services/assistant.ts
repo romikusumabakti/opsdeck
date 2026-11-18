@@ -29,6 +29,7 @@ import {
   listConversationsOf,
   loadAssistantLimits,
   loadConversationDetail,
+  replaceLastAnswer,
   stopPendingAnswer,
   TITLE_MAX_CHARS,
   updateConversationTitle,
@@ -397,15 +398,44 @@ export async function sendMessage(
   // already, removed, or unknown): 404, and nothing was written.
   if (turn === "files_gone") notFound();
 
-  // After the commit, so the worker always finds the rows it is given.
+  await enqueueOrFail(turn.assistantMessageId);
+  return turn;
+}
+
+/**
+ * Queues the job of a committed queued answer, so the worker always finds the
+ * rows it is given. When it cannot be queued the answer fails
+ * (assistant.unavailable) and the caller gets that 503.
+ */
+async function enqueueOrFail(assistantMessageId: string): Promise<void> {
   try {
-    await enqueueAssistantTurn(turn.assistantMessageId);
+    await enqueueAssistantTurn(assistantMessageId);
   } catch (error) {
     console.error("[assistant] could not enqueue the turn:", error);
-    await failQueuedMessage(turn.assistantMessageId, "assistant.unavailable");
+    await failQueuedMessage(assistantMessageId, "assistant.unavailable");
     throw await refusal(503, "assistant.unavailable");
   }
-  return turn;
+}
+
+/**
+ * Retry: replaces the caller's last answer (done or failed, a stopped one
+ * included) with a new queued one that answers the same question. Counts
+ * against the daily allowance like a send.
+ */
+export async function retryAnswer(
+  conversationId: string
+): Promise<{ assistantMessageId: string }> {
+  const { conversation, userId } = await ownConversation(conversationId);
+  const now = new Date();
+  await requireAllowance(userId, await requireRuntime(), now);
+
+  const result = await replaceLastAnswer(conversation.id, now);
+  if (result === "busy") throw await refusal(409, "assistant.busy");
+  if (result === "nothing_to_retry") {
+    throw await refusal(409, "assistant.nothing_to_retry");
+  }
+  await enqueueOrFail(result.assistantMessageId);
+  return result;
 }
 
 /**

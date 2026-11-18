@@ -19,6 +19,7 @@ import {
   listIssueAttachmentsForPicker,
   renameConversation,
   renameConversationInputSchema,
+  retryAnswer,
   saveDraft,
   saveDraftInputSchema,
   sendMessage,
@@ -71,6 +72,10 @@ export const assistantRouter = sessionRouter()
   // The running answer ends as failed (assistant.stopped), keeping its text.
   .post("/stop-answer", json(conversationIdInputSchema), async (c) =>
     c.json(await stopAnswer(c.req.valid("json").conversationId))
+  )
+  // Replaces the last answer with a new one to the same question.
+  .post("/retry-answer", json(conversationIdInputSchema), async (c) =>
+    c.json(await retryAnswer(c.req.valid("json").conversationId))
   )
   .post("/send-message", json(sendMessageInputSchema), async (c) =>
     c.json(await sendMessage(c.req.valid("json")))

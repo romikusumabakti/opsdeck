@@ -540,6 +540,56 @@ class FilesGone extends Error {
   }
 }
 
+/**
+ * Replaces the conversation's last answer with a new queued one, for Retry.
+ * In one transaction, the conversation row locked first (as insertTurn), so
+ * two retries at once cannot both pass: the last message is read by id
+ * (uuidv7, so the newest). "busy" when it is a queued or streaming answer,
+ * "nothing_to_retry" when it is not an assistant message (no answer yet);
+ * nothing written either way. Otherwise it is deleted (its tool calls go
+ * with it, its usage rows stay with message_id null) and a new queued
+ * assistant message takes its place; its id is newer than the question's, so
+ * the turn re-answers the same question.
+ */
+export async function replaceLastAnswer(
+  conversationId: string,
+  now: Date = new Date()
+): Promise<{ assistantMessageId: string } | "busy" | "nothing_to_retry"> {
+  return await db.transaction(async (tx) => {
+    const [conversation] = await tx
+      .select({ id: assistantConversations.id })
+      .from(assistantConversations)
+      .where(eq(assistantConversations.id, conversationId))
+      .for("update");
+    if (!conversation) throw new Error("conversation vanished");
+
+    const [last] = await tx
+      .select({
+        id: assistantMessages.id,
+        role: assistantMessages.role,
+        status: assistantMessages.status,
+      })
+      .from(assistantMessages)
+      .where(eq(assistantMessages.conversationId, conversationId))
+      .orderBy(desc(assistantMessages.id))
+      .limit(1);
+    if (last?.role !== "assistant") return "nothing_to_retry";
+    if (last.status === "queued" || last.status === "streaming") return "busy";
+
+    await tx.delete(assistantMessages).where(eq(assistantMessages.id, last.id));
+    const [answer] = await tx
+      .insert(assistantMessages)
+      .values({ conversationId, role: "assistant", status: "queued" })
+      .returning({ id: assistantMessages.id });
+    if (!answer) throw new Error("message insert returned no row");
+    await tx
+      .update(assistantConversations)
+      .set({ updatedAt: now })
+      .where(eq(assistantConversations.id, conversationId));
+    return { assistantMessageId: answer.id };
+  });
+}
+
 /** queued → failed, for a turn whose job could not be enqueued. */
 export async function failQueuedMessage(
   messageId: string,
