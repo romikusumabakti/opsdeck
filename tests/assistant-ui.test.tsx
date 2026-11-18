@@ -808,8 +808,38 @@ describe("sources", () => {
       files: ["a.ts:1-40", "b.ts"],
       issueKeys: ["KST-1"],
       docSlugs: ["iuran"],
+      panel: [],
       withheld: 3,
     });
+  });
+
+  it("lists the Panel data an answer read, once per tool and subject", async () => {
+    const calls: Parameters<typeof summarizeReads>[0] = [
+      { tool: "list_environments", meta: { project: "DEMO" } },
+      {
+        tool: "get_environment_status",
+        meta: { project: "DEMO", environment: "DEMO/dev", checked: true },
+      },
+      {
+        tool: "get_environment_status",
+        meta: { project: "DEMO", environment: "DEMO/dev", checked: true },
+      },
+      { tool: "list_servers", meta: {} },
+      // Issue keys are listed under Issues, not twice.
+      { tool: "get_panel_issue", meta: { issueKeys: ["DEMO-1"] } },
+    ];
+    expect(summarizeReads(calls).panel).toEqual([
+      { tool: "list_environments", subject: "DEMO" },
+      { tool: "get_environment_status", subject: "DEMO/dev" },
+      { tool: "list_servers", subject: null },
+    ]);
+    await render(<MessageSources sources={null} toolCalls={calls} />);
+    await act(async () => button(t.sources)?.click());
+    expect(text()).toContain(t.panelRead);
+    expect(text()).toContain(`${t.panelGetEnvironmentStatus} · DEMO/dev`);
+    expect(text()).toContain(`${t.panelListEnvironments} · DEMO`);
+    expect(text()).toContain(t.panelListServers);
+    expect(text()).toContain("DEMO-1");
   });
 });
 
