@@ -473,6 +473,32 @@ describe.skipIf(!enabled)(
         )
       ).not.toContain(staff.id);
 
+      // Staff opens its own profile and an author's (My profile, Knowledge
+      // "updated by"): the page answers, with no project, issue or run on it,
+      // though the admin holds open issues in both projects.
+      const { app } = await import("@/server/app");
+      const personPage = async (id: string) => {
+        const res = await app.request(`/api/users/${id}/person`);
+        expect(res.status).toBe(200);
+        return (await res.json()) as {
+          card: { id: string };
+          projects: unknown[];
+          openIssues: { items: unknown[]; total: number };
+          runs: unknown[];
+        };
+      };
+      expect((await personPage(admin.id)).openIssues.total).toBe(2);
+      session.user = { id: staff.id, role: "staff" };
+      for (const id of [staff.id, admin.id]) {
+        const page = await personPage(id);
+        expect(page.card.id).toBe(id);
+        expect(page.projects).toEqual([]);
+        expect(page.openIssues).toEqual({ items: [], total: 0 });
+        expect(page.runs).toEqual([]);
+      }
+      expect((await app.request("/api/users/people")).status).toBe(403);
+      session.user = { id: admin.id, role: "admin" };
+
       // The migrated column defaults: a row written without a role is staff.
       const unassigned = one(
         await d
@@ -495,6 +521,16 @@ describe.skipIf(!enabled)(
         values ('invitee@example.com', 'invitee', 'scratch-token', now() + interval '1 day')
         returning role`;
       expect(rawInvite?.role).toBe("staff");
+
+      // The Members picker filters in SQL: no staff, no role that floors to
+      // staff, no banned user.
+      await client`
+        insert into users (id, name, email, role)
+        values ('00000000-0000-7000-8000-00000000c009', 'junk', 'junk@example.com', 'legacy-role')`;
+      const candidates = (await members.listMemberCandidates(p1.project.id))
+        .map((u) => u.name)
+        .sort();
+      expect(candidates).toEqual(["admin", "engineer", "observer", "qa"]);
 
       // The activity limit is clamped server-side.
       const scope = await accessScopeForUser(admin.id);

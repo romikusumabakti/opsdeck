@@ -1,10 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   type AccessScope,
   accessScopeFromSession,
   requireProjectPermissionIn,
 } from "@/lib/access-scope";
 import { recordActivity } from "@/lib/activity";
+import { MEMBERSHIP_VISIBLE_ROLES } from "@/lib/assignees";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { projectMembers, projects, users as userTable } from "@/lib/db/schema";
@@ -64,30 +65,32 @@ export async function listProjectMembersFor(
 }
 
 // Everyone who could be added to the project: every non-banned user except
-// staff (a membership gives them nothing), by name. The picker drops current
-// members itself. Membership is how an engineer or QA gains a project, so
-// this list deliberately reaches beyond the project's current members (unlike
-// listAssignableUsers).
+// staff (a membership gives them nothing), by name. Exact role match, as in
+// lib/assignees: a junk or legacy role string floors to staff and matches
+// nothing. The picker drops current members itself. Membership is how an
+// engineer or QA gains a project, so this list deliberately reaches beyond the
+// project's current members (unlike listAssignableUsers).
 export async function listMemberCandidates(
   projectId: string
 ): Promise<
   { id: string; name: string; email: string; image: string | null }[]
 > {
   await requireProjectPermission({ projectId }, { member: ["manage"] });
-  const rows = await db
+  return db
     .select({
       id: userTable.id,
       name: userTable.name,
       email: userTable.email,
       image: userTable.image,
-      role: userTable.role,
     })
     .from(userTable)
-    .where(eq(userTable.banned, false))
+    .where(
+      and(
+        eq(userTable.banned, false),
+        inArray(userTable.role, MEMBERSHIP_VISIBLE_ROLES)
+      )
+    )
     .orderBy(userTable.name);
-  return rows
-    .filter((r) => normalizeOrgRole(r.role) !== "staff")
-    .map(({ role: _role, ...candidate }) => candidate);
 }
 
 // Snapshot the user + project display names for the activity feed so it reads

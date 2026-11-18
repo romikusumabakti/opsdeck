@@ -1,21 +1,36 @@
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm/sql";
 import { describe, expect, it, vi } from "vitest";
+import { MEMBERSHIP_VISIBLE_ROLES } from "@/lib/assignees";
+
+// Staff (and every unknown role, which floors to it) gains nothing from a
+// membership, so the Members picker never offers it. The database filters it,
+// as lib/assignees does: an exact role match on the roles a membership opens a
+// project to, so a junk or legacy role string matches nothing. Checked on a
+// real database in tests/read-cores-org-scratch.test.ts.
 
 const rows = vi.hoisted(() => ({
-  value: [] as {
-    id: string;
-    name: string;
-    email: string;
-    image: string | null;
-    role: string | null;
-  }[],
+  value: [] as Record<string, unknown>[],
+  where: null as unknown,
+  fields: null as Record<string, unknown> | null,
 }));
 
 vi.mock("@/lib/db", () => {
   const chain: Record<string, unknown> = {};
   chain.from = () => chain;
-  chain.where = () => chain;
+  chain.where = (cond: unknown) => {
+    rows.where = cond;
+    return chain;
+  };
   chain.orderBy = async () => rows.value;
-  return { db: { select: () => chain } };
+  return {
+    db: {
+      select: (fields: Record<string, unknown>) => {
+        rows.fields = fields;
+        return chain;
+      },
+    },
+  };
 });
 vi.mock("@/lib/authz", () => ({
   requireProjectPermission: async () => ({}),
@@ -27,26 +42,32 @@ vi.mock("@/server/i18n", () => ({
 
 import { listMemberCandidates } from "@/server/services/project-members";
 
-const person = (id: string, role: string | null) => ({
-  id,
-  name: id,
-  email: `${id}@example.invalid`,
-  image: null,
-  role,
-});
-
 describe("listMemberCandidates", () => {
-  it("leaves out staff, including unknown roles that floor to staff", async () => {
+  it("filters staff out in SQL: non-banned users with a membership-visible role", async () => {
     rows.value = [
-      person("a", "engineer"),
-      person("b", "staff"),
-      person("c", "ba"),
-      person("d", "legacy-role"),
-      person("e", null),
-      person("f", "observer"),
+      { id: "a", name: "a", email: "a@example.invalid", image: null },
     ];
     const result = await listMemberCandidates("p1");
-    expect(result.map((r) => r.id)).toEqual(["a", "c", "f"]);
-    expect(Object.keys(result[0] ?? {})).not.toContain("role");
+    expect(result.map((r) => r.id)).toEqual(["a"]);
+
+    const query = new PgDialect().sqlToQuery(rows.where as SQL);
+    expect(query.sql).toMatch(/"banned" = \$1/);
+    expect(query.sql).toMatch(/"role" in \(/);
+    expect(query.params).toEqual([false, ...MEMBERSHIP_VISIBLE_ROLES]);
+    expect(query.params).not.toContain("staff");
+    // The role is only filtered on, never read back.
+    expect(Object.keys(rows.fields ?? {})).not.toContain("role");
+  });
+
+  it("the visible roles are every role but staff", () => {
+    expect(MEMBERSHIP_VISIBLE_ROLES).toEqual([
+      "admin",
+      "infra",
+      "engineer",
+      "qa",
+      "ba",
+      "pm",
+      "observer",
+    ]);
   });
 });
