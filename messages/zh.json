@@ -1573,6 +1573,7 @@
     "deployLockReasonInvalid": "请填写 1 到 200 个字符的原因。",
     "deployLockExpiryInvalid": "请选择未来的到期时间，最多 7 天后。",
     "deployLockChanged": "部署锁在此期间已更改。请重新加载后再试。",
+    "issueChanged": "其他人在此期间修改了此问题。请重新加载以查看其版本。",
     "deployForceUnlockReasonRequired": "请填写强制解锁的原因。",
     "preflightFailed": "无法通过 SSH 连接服务器以运行预检",
     "placementDatabaseName": "在开放的服务器上，共享数据库及其角色的名称必须以 {prefix}（本项目的键）开头；其他名称请联系管理员。",

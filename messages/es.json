@@ -1573,6 +1573,7 @@
     "deployLockReasonInvalid": "Indica un motivo de 1 a 200 caracteres.",
     "deployLockExpiryInvalid": "Elige una caducidad futura, como máximo dentro de 7 días.",
     "deployLockChanged": "El bloqueo de despliegue cambió mientras tanto. Recarga e inténtalo de nuevo.",
+    "issueChanged": "Otra persona cambió esta incidencia mientras tanto. Recarga para ver su versión.",
     "deployForceUnlockReasonRequired": "Indica un motivo para el desbloqueo forzado.",
     "preflightFailed": "No se pudo conectar al servidor por SSH para ejecutar el preflight",
     "placementDatabaseName": "En un servidor abierto, nombra la base de datos compartida y su rol empezando por {prefix} (la clave de este proyecto); pide ayuda a un administrador para otros nombres.",

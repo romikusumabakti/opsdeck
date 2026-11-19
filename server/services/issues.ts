@@ -65,6 +65,8 @@ import {
   issueStatusSchema,
   issueUpdateSchema,
 } from "@/lib/validation";
+import { CodedHTTPException } from "@/server/errors";
+import { getServerTranslator } from "@/server/i18n";
 import { getProjectWithEnvironments } from "@/server/services/project-catalog";
 import {
   type AssignableUserRow,
@@ -599,6 +601,15 @@ function isUuid(value: string | undefined): value is string {
 // Private helpers: every export is a public
 // endpoint.
 
+async function issueExists(id: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: issues.id })
+    .from(issues)
+    .where(eq(issues.id, id))
+    .limit(1);
+  return !!row;
+}
+
 // Projects owning the given issues; the bulk actions authorize against all of
 // them so a mixed selection is refused as a whole.
 async function owningProjectIds(ids: string[]): Promise<string[]> {
@@ -666,6 +677,17 @@ async function referencesInProject(
   );
 }
 
+// Labels are workspace-wide (any issue may carry any of them, as with
+// setIssueLabels); the ids must name existing ones.
+async function labelsExist(labelIds: string[]): Promise<boolean> {
+  if (labelIds.length === 0) return true;
+  const found = await db
+    .select({ id: labels.id })
+    .from(labels)
+    .where(inArray(labels.id, labelIds));
+  return found.length === labelIds.length;
+}
+
 /**
  * A logical project's issues, newest first. `statuses` narrows the list (the
  * pages pass the open + in-progress default); omitted, every status comes back,
@@ -708,9 +730,12 @@ export async function listIssuesFor(
 }
 
 /**
- * Create an issue. The per-project `number` (→ KEY-N) is assigned as
- * max(number)+1 inside a transaction; a concurrent create can still collide on
- * the unique (project_id, number) index, so retry a few times on 23505.
+ * Create an issue with its status, labels and parent in one request. The
+ * per-project `number` (→ KEY-N) is assigned as max(number)+1 inside a
+ * transaction; a concurrent create can still collide on the unique
+ * (project_id, number) index, so retry a few times on 23505. The labels are
+ * written in the same transaction: a label deleted meanwhile rolls back the
+ * issue too.
  */
 export async function createIssue(
   data: unknown
@@ -733,18 +758,31 @@ export async function createIssue(
   if (!(await referencesInProject(input.projectId, input))) {
     return { success: false, message: "Invalid issue data" };
   }
+  const labelIds = [...new Set(input.labelIds)];
+  if (!(await labelsExist(labelIds))) {
+    return { success: false, message: "Invalid issue data" };
+  }
 
   try {
-    // The next per-project number, retried on a lost race (lib/issue-number).
-    const created = await insertIssueWithNextNumber(db, input.projectId, {
-      title: input.title,
-      description: input.description ?? "",
-      type: input.type,
-      priority: input.priority,
-      environmentId: input.environmentId ?? null,
-      assigneeId: input.assigneeId ?? null,
-      parentId: input.parentId ?? null,
-      createdById: session.user.id,
+    const created = await db.transaction(async (tx) => {
+      // The next per-project number, retried on a lost race (lib/issue-number).
+      const issue = await insertIssueWithNextNumber(tx, input.projectId, {
+        title: input.title,
+        description: input.description ?? "",
+        type: input.type,
+        priority: input.priority,
+        status: input.status,
+        environmentId: input.environmentId ?? null,
+        assigneeId: input.assigneeId ?? null,
+        parentId: input.parentId ?? null,
+        createdById: session.user.id,
+      });
+      if (labelIds.length > 0) {
+        await tx
+          .insert(issueLabels)
+          .values(labelIds.map((labelId) => ({ issueId: issue.id, labelId })));
+      }
+      return issue;
     });
     const projectKey = await projectKeyOf(input.projectId);
     if (input.assigneeId) {
@@ -770,6 +808,14 @@ export async function createIssue(
   }
 }
 
+/**
+ * Update an issue's fields. With `expectedUpdatedAt` (the detail page's title
+ * and description saves) the write only applies when the row's `updatedAt`
+ * still equals it, checked in the UPDATE itself; otherwise 409 `issueChanged`
+ * and nothing is written. Compared at millisecond precision: the client only
+ * holds the ISO string the API returned, while a column default keeps
+ * microseconds. The returned row carries the new `updatedAt`.
+ */
 export async function updateIssue(
   id: string,
   data: unknown
@@ -797,13 +843,27 @@ export async function updateIssue(
   if (parsed.data.parentId === id) {
     return { success: false, message: "An issue cannot be its own parent" };
   }
+  const { expectedUpdatedAt, ...changes } = parsed.data;
   try {
     const [updated] = await db
       .update(issues)
-      .set({ ...parsed.data, updatedAt: new Date() })
-      .where(eq(issues.id, id))
+      .set({ ...changes, updatedAt: new Date() })
+      .where(
+        and(
+          eq(issues.id, id),
+          expectedUpdatedAt === undefined
+            ? undefined
+            : sql`date_trunc('milliseconds', ${issues.updatedAt}) = ${new Date(expectedUpdatedAt).toISOString()}::timestamp`
+        )
+      )
       .returning();
-    if (!updated) return { success: false, message: "Issue not found" };
+    if (!updated) {
+      if (expectedUpdatedAt !== undefined && (await issueExists(id))) {
+        const t = await getServerTranslator("actionErrors");
+        throw new CodedHTTPException(409, "issueChanged", t("issueChanged"));
+      }
+      return { success: false, message: "Issue not found" };
+    }
     // Notify on (re)assignment to someone other than the actor.
     if ("assigneeId" in parsed.data && parsed.data.assigneeId) {
       await notifyIssueAssigned({
@@ -815,7 +875,7 @@ export async function updateIssue(
       });
     }
     if (updated.jiraIssueId) {
-      const fields = Object.keys(parsed.data)
+      const fields = Object.keys(changes)
         .map((column) => JIRA_PUSHABLE[column])
         .filter((field): field is PushableField => field !== undefined);
       if (fields.length > 0) {
@@ -840,6 +900,7 @@ export async function updateIssue(
     }
     return { success: true, data: updated };
   } catch (error) {
+    if (error instanceof HTTPException) throw error;
     console.error(`Failed to update issue ${id}:`, error);
     return { success: false, message: "Failed to update issue" };
   }
@@ -980,9 +1041,15 @@ export async function deleteIssue(id: string): Promise<ActionResponse> {
   }
 }
 
+/** Most parent candidates the create form lists (newest open issues first). */
+const PARENT_OPTIONS_LIMIT = 500;
+
 export type IssueFormOptions = {
   environments: { id: string; name: string }[];
   users: AssignableUserRow[];
+  labels: LabelLite[];
+  /** The project's open (open + in progress) issues, newest first. */
+  parents: { id: string; number: number; title: string }[];
 };
 
 /**
@@ -994,9 +1061,24 @@ export async function getIssueFormOptions(
   projectId: string
 ): Promise<IssueFormOptions> {
   await requireProjectPermission({ projectId }, { issue: ["write"] });
-  const [project, users] = await Promise.all([
+  const [project, users, labelRows, parents] = await Promise.all([
     getProjectWithEnvironments(projectId),
     listAssignableUsers(projectId),
+    db
+      .select({ id: labels.id, name: labels.name, color: labels.color })
+      .from(labels)
+      .orderBy(asc(labels.name)),
+    db
+      .select({ id: issues.id, number: issues.number, title: issues.title })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.projectId, projectId),
+          inArray(issues.status, [...OPEN_STATUSES])
+        )
+      )
+      .orderBy(desc(issues.number))
+      .limit(PARENT_OPTIONS_LIMIT),
   ]);
   return {
     environments: (project?.environments ?? []).map((e) => ({
@@ -1004,5 +1086,7 @@ export async function getIssueFormOptions(
       name: e.name,
     })),
     users,
+    labels: labelRows,
+    parents,
   };
 }

@@ -251,17 +251,18 @@ export const api = hc<AppType>("/", { fetch: apiFetch });
 
 /**
  * Rule 1 of the error contract: turn an ApiError (other than a 401) into the
- * action's own failure result.
+ * action's own failure result. `failure` also gets the error, for a wrapper
+ * whose callers tell a coded refusal apart (`issueChanged`).
  */
 export async function orFailure<T>(
   call: () => Promise<T>,
-  failure: (message: string) => NoInfer<T>
+  failure: (message: string, error: ApiError) => NoInfer<T>
 ): Promise<T> {
   try {
     return await call();
   } catch (error) {
     if (error instanceof ApiError && error.status !== 401) {
-      return failure(error.message);
+      return failure(error.message, error);
     }
     throw error;
   }

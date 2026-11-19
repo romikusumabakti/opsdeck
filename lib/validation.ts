@@ -323,6 +323,10 @@ export const issueInputSchema = z.object({
   environmentId: z.uuid().nullish(),
   assigneeId: z.uuid().nullish(),
   parentId: z.uuid().nullish(),
+  // Set in the same request (the create dialog's chips): any status of the
+  // workflow, and workspace labels (repeats collapse to one).
+  status: issueStatusSchema.default("open"),
+  labelIds: z.array(z.uuid()).max(100).default([]),
 });
 export type IssueInput = z.infer<typeof issueInputSchema>;
 
@@ -335,6 +339,11 @@ export const issueUpdateSchema = z.object({
   environmentId: z.uuid().nullish(),
   assigneeId: z.uuid().nullish(),
   parentId: z.uuid().nullish(),
+  // The issue's `updatedAt` as the editor last saw it (an ISO timestamp).
+  // When sent, the update only applies if the row is unchanged since, so a
+  // stale title/description edit is refused (409 issueChanged) rather than
+  // overwriting someone else's.
+  expectedUpdatedAt: isoDateTimeSchema.optional(),
 });
 
 // A recorded QA test result against the issue's environment.

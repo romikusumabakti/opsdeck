@@ -44,4 +44,6 @@ export type ActionResponse<T = never> =
   | ([T] extends [never]
       ? { success: true; message?: string }
       : { success: true; message?: string; data: T })
-  | { success: false; message: string };
+  // `code`: a coded refusal the caller handles itself (the client wrappers
+  // copy it from the ApiError, e.g. updateIssue's 409 `issueChanged`).
+  | { success: false; message: string; code?: string };

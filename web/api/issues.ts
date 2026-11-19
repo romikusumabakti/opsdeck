@@ -129,13 +129,18 @@ export async function createIssue(data: Body<"create-issue">["data"]) {
   );
 }
 
+/**
+ * With `data.expectedUpdatedAt` (the `updatedAt` the editor saw) a stale save
+ * fails with `code: "issueChanged"` instead of overwriting; the result's
+ * `data.updatedAt` is the next one to send.
+ */
 export async function updateIssue(
   id: Body<"update-issue">["id"],
   data: Body<"update-issue">["data"]
 ) {
   return orFailure(
     () => parseResponse(routes["update-issue"].$post({ json: { id, data } })),
-    (message) => ({ success: false, message }) as const
+    (message, error) => ({ success: false, message, code: error.code }) as const
   );
 }
 

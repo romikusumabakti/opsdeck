@@ -1573,6 +1573,7 @@
     "deployLockReasonInvalid": "Isi alasan 1 sampai 200 karakter.",
     "deployLockExpiryInvalid": "Pilih waktu kedaluwarsa di masa depan, paling lama 7 hari lagi.",
     "deployLockChanged": "Kunci deploy berubah sementara itu. Muat ulang lalu coba lagi.",
+    "issueChanged": "Orang lain mengubah isu ini sementara itu. Muat ulang untuk melihat versinya.",
     "deployForceUnlockReasonRequired": "Isi alasan untuk membuka kunci secara paksa.",
     "preflightFailed": "Tidak bisa terhubung ke server lewat SSH untuk menjalankan preflight",
     "placementDatabaseName": "Di server terbuka, beri nama database bersama dan role-nya yang diawali {prefix} (kunci proyek ini); minta bantuan admin untuk nama lain.",
