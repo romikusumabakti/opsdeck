@@ -347,13 +347,13 @@ function message(
       return t("variableTemplateSaved", {
         actor,
         name: String(d.name),
-        app: String(d.app),
+        app: String(d.service ?? d.app),
       });
     case "variableTemplate.deleted":
       return t("variableTemplateDeleted", {
         actor,
         name: String(d.name),
-        app: String(d.app),
+        app: String(d.service ?? d.app),
       });
     case "environment.deletedWithVariables":
       return t("environmentDeletedWithVariables", {

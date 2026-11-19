@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { componentKeySchema } from "@/lib/deploy/validation";
 import {
   backupFilenameSchema,
   databaseNameSchema,
@@ -437,4 +438,17 @@ describe("environment schema host, url and owner", () => {
       environmentInputSchema.parse({ ...valid, owner: "QA — Budi" })
     ).not.toHaveProperty("owner");
   });
+});
+
+describe("componentKeySchema", () => {
+  it("accepts a service key", () => {
+    expect(componentKeySchema.safeParse("kmem-api").success).toBe(true);
+  });
+
+  it.each(["overview", "pipeline-preview", "legacy-apps"])(
+    "rejects the reserved route word %s",
+    (key) => {
+      expect(componentKeySchema.safeParse(key).success).toBe(false);
+    }
+  );
 });

@@ -39,9 +39,24 @@ export const appKeySchema = z
   .string()
   .regex(KEY_PATTERN, "App key must be lowercase letters, digits or '-'");
 
+/**
+ * The static path segments of the service catalog router
+ * (server/routes/service-catalog.ts) that `/:componentKey` would shadow; a
+ * service cannot take one as its key.
+ */
+export const RESERVED_COMPONENT_KEYS: readonly string[] = [
+  "overview",
+  "pipeline-preview",
+  "legacy-apps",
+];
+
 export const componentKeySchema = z
   .string()
-  .regex(KEY_PATTERN, "Component key must be lowercase letters, digits or '-'");
+  .regex(KEY_PATTERN, "Component key must be lowercase letters, digits or '-'")
+  .refine(
+    (key) => !RESERVED_COMPONENT_KEYS.includes(key),
+    "Component key is reserved"
+  );
 
 export const branchSchema = z
   .string()

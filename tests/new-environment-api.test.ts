@@ -539,6 +539,44 @@ describe("POST /api/setup/new-environment", () => {
     ]);
   });
 
+  it("accepts only the project's services once it has sources", async () => {
+    state.services = [
+      hrisService("custom"),
+      { ...hrisService("custom"), key: "ledger", repoFullName: "acme/ledger" },
+    ];
+    state.rows.project_services = [{ key: "hris" }];
+    const refused = await post("/api/setup/new-environment", {
+      ...freshInput,
+      repos: [],
+      services: [{ componentKey: "ledger", branch: "main" }],
+    });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({
+      code: "componentNotInSources",
+    });
+    expect(setup.createEnvironmentSetup).not.toHaveBeenCalled();
+
+    const accepted = await post("/api/setup/new-environment", {
+      ...freshInput,
+      repos: [],
+      services: [{ componentKey: "hris", branch: "main" }],
+    });
+    expect(accepted.status).toBe(201);
+  });
+
+  it("accepts any registered service while the project has no sources", async () => {
+    state.services = [
+      { ...hrisService("custom"), key: "ledger", repoFullName: "acme/ledger" },
+    ];
+    state.rows.project_services = [];
+    const res = await post("/api/setup/new-environment", {
+      ...freshInput,
+      repos: [],
+      services: [{ componentKey: "ledger", branch: "main" }],
+    });
+    expect(res.status).toBe(201);
+  });
+
   it("unique violation maps to an issue", async () => {
     for (const [refusal, code] of [
       ["environmentNameTaken", "nameTaken"],

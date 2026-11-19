@@ -112,6 +112,9 @@ const domainSchema = z.discriminatedUnion("kind", [
 export const environmentSetupInputSchema = z
   .object({
     projectId: z.uuid(),
+    // Sent by browser tabs from before Stage 8 (environments belonged to an
+    // app); accepted and ignored for one release. Remove after the rollout.
+    appId: z.uuid().optional(),
     name: z.string().trim().min(1).max(200),
     // The URL name; left out, the name gives one. Only shaped here: the
     // setup refuses a bad or taken one at `slug` (requireAvailableEnvSlug).

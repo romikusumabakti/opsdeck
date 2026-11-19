@@ -26,7 +26,11 @@ import {
   canPlaceEnvironment,
   type ProjectRole,
 } from "@/lib/permissions";
-import { listServices, type Service } from "@/lib/service-catalog";
+import {
+  listProjectServices,
+  listServices,
+  type Service,
+} from "@/lib/service-catalog";
 import { repoKeyOf } from "@/lib/setup/draft";
 import {
   type NewEnvironmentContext,
@@ -43,6 +47,7 @@ import {
   errorCode,
   notFound,
 } from "@/server/errors";
+import { getServerTranslator } from "@/server/i18n";
 import {
   type EnvironmentBranches,
   ensureComponentBranch,
@@ -304,7 +309,7 @@ async function loadContext(
   input: NewEnvironmentInput,
   caller: Caller
 ): Promise<NewEnvironmentContext> {
-  const [[project], serverRows, hostRows, components, zones, slug] =
+  const [[project], serverRows, hostRows, components, zones, slug, sources] =
     await Promise.all([
       db
         .select({
@@ -330,6 +335,7 @@ async function loadContext(
       listServices(),
       listZones(),
       input.slug ?? uniqueEnvSlug(input.projectId, input.name),
+      listProjectServices(input.projectId),
     ]);
   if (!project) notFound();
 
@@ -374,6 +380,22 @@ async function loadContext(
       };
     })
   );
+  // A project with services (Sources) deploys only those; one without any
+  // (its first environment) accepts any registered service.
+  if (sources.length > 0) {
+    const allowed = new Set(sources.map((x) => x.key));
+    const outside =
+      input.services.some((p) => !allowed.has(p.componentKey)) ||
+      repos.some((r) => r.component && !allowed.has(r.component.componentKey));
+    if (outside) {
+      const tErr = await getServerTranslator("actionErrors");
+      throw new CodedHTTPException(
+        409,
+        "componentNotInSources",
+        tErr("componentNotInSources")
+      );
+    }
+  }
   // The picked services, detected on their branch where their repository
   // can be read (detection only fills names).
   const services: NewEnvironmentContext["services"] = [];

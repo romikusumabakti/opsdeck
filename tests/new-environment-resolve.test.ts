@@ -187,6 +187,32 @@ const source: CopySourceLike = {
   ],
 };
 
+describe("environmentSetupInputSchema legacy appId", () => {
+  it("accepts and ignores an appId from an old browser tab", async () => {
+    const { environmentSetupInputSchema } = await import("@/lib/setup/schema");
+    const base = {
+      projectId: PROJECT,
+      name: "Legacy",
+      server: { serverId: SERVER },
+      targets: [],
+      services: [],
+      database: { kind: "none" },
+      domain: { kind: "none" },
+    };
+    const legacy = environmentSetupInputSchema.safeParse({
+      ...base,
+      appId: "0197f3a0-1b2c-7def-8000-0000000000aa",
+    });
+    // Only the unknown-key refusal would name appId; the empty targets is
+    // refused for its own reason.
+    expect(
+      legacy.success
+        ? []
+        : legacy.error.issues.filter((i) => i.code === "unrecognized_keys")
+    ).toEqual([]);
+  });
+});
+
 describe("newEnvironmentInputSchema", () => {
   it("accepts the short input and refuses more than 20 repos", () => {
     expect(newEnvironmentInputSchema.safeParse(input()).success).toBe(true);
@@ -896,6 +922,75 @@ describe("resolveNewEnvironment", () => {
       expect(plan.setup.targets.map((t) => t.deployDir)).toEqual([
         "/deployments/cnry-canary-2",
         "/deployments/cnry-canary-2",
+      ]);
+    });
+
+    it("joins a service of a copied repository to that repository's dir", () => {
+      const shared = (componentKey: string) => ({
+        ...(source.targets[0] as CopySourceLike["targets"][number]),
+        componentKey,
+        deployDir: "/deployments/cnry-dev",
+      });
+      const plan = resolveNewEnvironment(
+        input({
+          repos: [],
+          copyFromEnvironmentId: SOURCE_ENV,
+          services: [
+            { componentKey: "core-api", branch: "main" },
+            { componentKey: "core-worker", branch: "main" },
+          ],
+        }),
+        context({
+          repos: [],
+          services: [
+            { componentKey: "core-api", detection: null },
+            { componentKey: "core-worker", detection: null },
+          ],
+          copySource: { ...source, targets: [shared("core-api")] },
+          // core-worker shares core-api's repository but is not in the source.
+          repoOf: {
+            "core-api": "ci:acme/core",
+            "core-worker": "ci:acme/core",
+          },
+          takenComponentKeys: ["core-api", "core-worker"],
+        })
+      );
+      expect(plan.issues).toEqual([]);
+      expect(plan.setup.targets.map((t) => t.deployDir)).toEqual([
+        "/deployments/cnry-canary-2",
+        "/deployments/cnry-canary-2",
+      ]);
+    });
+
+    it("gives later services of a shared dir their own tag variable", () => {
+      const plan = resolveNewEnvironment(
+        input({
+          repos: [],
+          services: [
+            { componentKey: "core-api", branch: "main" },
+            { componentKey: "core-worker-job", branch: "main" },
+            { componentKey: "other-web", branch: "main" },
+          ],
+        }),
+        context({
+          repos: [],
+          services: ["core-api", "core-worker-job", "other-web"].map(
+            (componentKey) => ({ componentKey, detection: null })
+          ),
+          repoOf: {
+            "core-api": "ci:acme/core",
+            "core-worker-job": "ci:acme/core",
+            "other-web": "ci:acme/other",
+          },
+          takenComponentKeys: ["core-api", "core-worker-job", "other-web"],
+        })
+      );
+      expect(
+        plan.setup.targets.map((t) => [t.deployDir, t.tagVariable])
+      ).toEqual([
+        ["/deployments/cnry-canary-2", "IMAGE_TAG"],
+        ["/deployments/cnry-canary-2", "IMAGE_TAG_CORE_WORKER_JOB"],
+        ["/deployments/cnry-canary-2-other-web", "IMAGE_TAG"],
       ]);
     });
 

@@ -364,4 +364,38 @@ describe("activity page backup destination events", () => {
     );
     expect(text).not.toContain("instance.");
   });
+
+  it("renders variable template events of new and legacy rows", async () => {
+    const events = [
+      row("1", "variableTemplate.saved", { service: "acme-api", name: "MODE" }),
+      row("2", "variableTemplate.deleted", {
+        service: "acme-api",
+        name: "MODE",
+      }),
+      row("3", "variableTemplate.saved", { app: "acme-legacy", name: "KEY" }),
+      row("4", "variableTemplate.deleted", { app: "acme-legacy", name: "KEY" }),
+    ];
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["activity", "listActivity"], events);
+    const Page = Route.options.component as React.ComponentType;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <IntlProvider locale="en" messages={messages}>
+            <Page />
+          </IntlProvider>
+        </QueryClientProvider>
+      );
+    });
+    const text = container.textContent ?? "";
+    expect(text).toContain("Rina saved variable template MODE of acme-api");
+    expect(text).toContain("Rina deleted variable template MODE of acme-api");
+    expect(text).toContain("Rina saved variable template KEY of acme-legacy");
+    expect(text).toContain("Rina deleted variable template KEY of acme-legacy");
+    expect(text).not.toContain("undefined");
+    await act(async () => root.unmount());
+  });
 });

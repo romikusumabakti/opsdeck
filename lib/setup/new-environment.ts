@@ -444,35 +444,57 @@ export function resolveNewEnvironment(
   // source's settings where it deploys the service too; auto-deploy except
   // for prod. Each dir holds its own `.env`, so its tag variable is its own.
   const kind = advanced.kind ?? null;
-  // Services the copy source deploys in one dir (e.g. a former app's) stay
-  // together; the others go by repository.
+  // Group by repository first; a group (or several repositories) the copy
+  // source deploys in one dir (e.g. a former app's) takes that dir, so a
+  // service of the same repository the source does not deploy joins it.
+  const dirOfRepo = new Map<string, string>();
+  for (const r of repos) {
+    const fromDir = source?.targets.find(
+      (t) => t.componentKey === r.componentKey
+    )?.deployDir;
+    if (fromDir && r.repo && !dirOfRepo.has(r.repo)) {
+      dirOfRepo.set(r.repo, fromDir);
+    }
+  }
   const deployDirs = defaultTargetDirs(
     { projectKey, slug },
     repos.map((r) => {
-      const fromDir = source?.targets.find(
-        (t) => t.componentKey === r.componentKey
-      )?.deployDir;
+      const dir = r.repo
+        ? dirOfRepo.get(r.repo)
+        : source?.targets.find((t) => t.componentKey === r.componentKey)
+            ?.deployDir;
       return {
         componentKey: r.componentKey,
-        repo: fromDir ? `dir:${fromDir}` : r.repo,
+        repo: dir ? `dir:${dir}` : r.repo,
       };
     })
   );
+  // Tag variables already taken per deploy dir: the first service keeps
+  // `IMAGE_TAG`, a later one in the same dir gets its own.
+  const tagVariablesInDir = new Map<string, Set<string>>();
   const targets: EnvironmentSetupTarget[] =
     advanced.targets ??
     repos.map((repo, index) => {
       const from = source?.targets.find(
         (t) => t.componentKey === repo.componentKey
       );
+      const deployDir = deployDirs[index] as string;
+      const taken = tagVariablesInDir.get(deployDir) ?? new Set<string>();
+      tagVariablesInDir.set(deployDir, taken);
+      const wanted = from?.tagVariable ?? "IMAGE_TAG";
+      const tagVariable = taken.has(wanted)
+        ? `IMAGE_TAG_${repo.componentKey.toUpperCase().replace(/-/g, "_")}`
+        : wanted;
+      taken.add(tagVariable);
       return {
         componentKey: repo.componentKey,
         sourceBranch: repo.branch,
         autoDeploy: kind !== "prod",
-        deployDir: deployDirs[index] as string,
+        deployDir,
         services: from
           ? from.services
           : (repo.detection?.services.map((s) => s.name) ?? []),
-        tagVariable: from?.tagVariable ?? "IMAGE_TAG",
+        tagVariable,
         preStartCommand: from?.preStartCommand ?? null,
         healthUrl: from?.healthUrl ?? null,
         healthTimeoutSeconds: from?.healthTimeoutSeconds ?? 180,
