@@ -438,13 +438,59 @@ describe("redactEngineError", () => {
     [
       "mysql unknown column",
       "ERROR 1054 (42S22) at line 1: Unknown column 'emial' in 'field list'",
-      "ERROR 1054 (42S22) at line 1: Unknown column ? in ?",
+      "ERROR 1054 (42S22) at line 1: Unknown column ?",
     ],
   ])("%s", (_, error, expected) => {
     expect(redactEngineError(error)).toBe(expected);
   });
 
-  it("hides an unterminated quote to the end of its line", () => {
-    expect(redactEngineError("value 'rani@exam")).toBe("value ?");
+  it("hides an unterminated quote to the end", () => {
+    expect(redactEngineError("value 'rani@exam\nnext line")).toBe("value ?");
+  });
+
+  // Engines print values raw: embedded quotes and line breaks are not escaped.
+  it.each([
+    [
+      "mssql Msg 245, embedded quote",
+      "Msg 245, Level 16, State 1, Line 1\nConversion failed when converting the varchar value 'O'Brien x' to data type int.",
+      "Msg 245, Level 16, State 1, Line 1\nConversion failed when converting the varchar value ? to data type int.",
+    ],
+    [
+      "mssql Msg 245, embedded newline",
+      "Msg 245, Level 16, State 1, Line 1\nConversion failed when converting the varchar value 'Jl. Mawar 1\nRT 02 secret' to data type int.",
+      "Msg 245, Level 16, State 1, Line 1\nConversion failed when converting the varchar value ? to data type int.",
+    ],
+    [
+      "postgres, embedded double quotes",
+      'ERROR:  invalid input syntax for type integer: "a"secret"b"\nLINE 1: SELECT * FROM (SELECT id FROM t WHERE x = 1) AS menara_q',
+      "ERROR:  invalid input syntax for type integer: ?\nLINE 1: SELECT * FROM (SELECT id FROM t WHERE x = 1) AS menara_q",
+    ],
+    [
+      "postgres, embedded newline and a fake DETAIL",
+      'ERROR:  invalid input syntax for type integer: "line one\nsecret two"\nLINE 1: SELECT 1',
+      "ERROR:  invalid input syntax for type integer: ?\nLINE 1: SELECT 1",
+    ],
+    [
+      "postgres, value spanning a DETAIL-looking line",
+      'ERROR:  invalid input syntax for type integer: "x\nDETAIL: secret"',
+      "ERROR:  invalid input syntax for type integer: ?",
+    ],
+    [
+      "mysql, embedded quote and newline",
+      "ERROR 1292 (22007) at line 1: Truncated incorrect DOUBLE value: 'O'Brien\nsecret'",
+      "ERROR 1292 (22007) at line 1: Truncated incorrect DOUBLE value: ?",
+    ],
+    ["mixed quote kinds", "value 'a \"b' then \"c' secret\"", "value ?"],
+    [
+      "postgres, a quoted literal in the echoed query",
+      "ERROR:  invalid input syntax for type integer: \"x\"\nLINE 1: SELECT 1 WHERE a = 'secret'",
+      "ERROR:  invalid input syntax for type integer: ?",
+    ],
+  ])("%s", (_, error, expected) => {
+    const out = redactEngineError(error);
+    expect(out).toBe(expected);
+    for (const word of ["Brien", "secret", "RT 02", "two"]) {
+      expect(out).not.toContain(word);
+    }
   });
 });

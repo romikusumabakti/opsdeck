@@ -174,27 +174,48 @@ export function redactLiterals(
     : line;
 }
 
+/** The first line that only adds detail about a row (Postgres, MySQL). */
+const DETAIL_LINE = /\n\s*(?:DETAIL|CONTEXT|WHERE|HINT):/i;
+
+/** From the first quote to the last quote of the same kind, as one `?`. */
+function redactQuoted(text: string): string {
+  const first = text.search(/['"`]/);
+  if (first < 0) return text;
+  const quote = text[first] as string;
+  const last = text.lastIndexOf(quote);
+  const rest = text.slice(last + 1);
+  // Unterminated, or another quote after the span (its kind may have
+  // delimited a value holding this one): nothing after the first quote can
+  // be trusted.
+  if (last === first || /['"`]/.test(rest)) return `${text.slice(0, first)}?`;
+  return `${text.slice(0, first)}?${rest}`;
+}
+
 /**
  * Engine error text with every value it could echo taken out, for the
  * model, logs and anything else outside the server (Stage 9: a masked value
  * must not come back through an error such as SQL Server's Msg 245
  * "Conversion failed when converting the varchar value '<value>' …" or
- * Postgres' `invalid input syntax for type integer: "<value>"`). Quoted
- * substrings ('…', "…", `…`) become `?`, Postgres `Key (…)=(…)` values
- * become `(?)`, and DETAIL / CONTEXT / WHERE lines, which echo row values,
- * are dropped. Names in quotes go too; the error class and position stay.
+ * Postgres' `invalid input syntax for type integer: "<value>"`). Engines
+ * print values raw (an embedded quote or line break is not escaped), so the
+ * redaction is greedy over the whole message: everything from the first
+ * quote of a kind to the last quote of that kind is one `?` (an
+ * unterminated quote, or any quote after that span, takes the rest), a Postgres `Key (…)=(…)` value runs
+ * to the last `)`, and the message ends before its first DETAIL / CONTEXT
+ * / WHERE / HINT line, which echo row values. Quoted names go too; the
+ * error class and position stay.
  */
 export function redactEngineError(text: string): string {
-  return text
-    .split(/\r?\n/)
-    .filter((line) => !/^\s*(?:DETAIL|CONTEXT|WHERE):/i.test(line))
-    .map((line) =>
-      line
-        .replace(/\)=\((?:[^()]|\([^()]*\))*\)/g, ")=(?)")
-        .replace(/'(?:[^']|'')*'?/g, "?")
-        .replace(/"(?:[^"]|"")*"?/g, "?")
-        .replace(/`(?:[^`]|``)*`?/g, "?")
-    )
-    .join("\n")
-    .trim();
+  const normalized = text.replace(/\r\n?/g, "\n");
+  const detail = normalized.search(DETAIL_LINE);
+  let out = detail < 0 ? normalized : normalized.slice(0, detail);
+  const key = out.indexOf(")=(");
+  if (key >= 0) {
+    const close = out.lastIndexOf(")");
+    out =
+      close > key + 2
+        ? `${out.slice(0, key)})=(?)${out.slice(close + 1)}`
+        : `${out.slice(0, key)})=(?)`;
+  }
+  return redactQuoted(out).trim();
 }
