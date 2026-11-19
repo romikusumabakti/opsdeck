@@ -2987,6 +2987,7 @@
       },
       "notKept": "No se conservan los comentarios ni el orden: solo se importan nombres, valores y tipos.",
       "nothing": "No hay nada que importar.",
+      "noDirs": "Este entorno aún no tiene directorio de despliegue, así que no hay .env que importar.",
       "submit": "{count, plural, =0 {Importar variables} one {Importar # variable} other {Importar # variables}}",
       "imported": "{count, plural, one {# variable importada} other {# variables importadas}}{overwritten, plural, =0 {} other {, # reemplazadas}}",
       "errors": {

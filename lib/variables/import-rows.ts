@@ -151,7 +151,9 @@ export function planImportRows({
 } {
   const byName = new Map<string, Candidate[]>();
   const skipped = new Map<string, ImportSkipReason>();
+  let dirIndex = -1;
   for (const file of files) {
+    if (file.dir) dirIndex += 1;
     for (const entry of file.entries) {
       const reason = skipReason(entry.name, tagNames);
       if (reason) {
@@ -161,7 +163,8 @@ export function planImportRows({
       const source = file.dir && {
         serverName: file.dir.serverName,
         deployDir: file.dir.deployDir,
-        valueId: `${file.dir.fingerprint}:${entry.line}`,
+        // The dir's position keeps byte-identical files apart.
+        valueId: `${dirIndex}:${file.dir.fingerprint}:${entry.line}`,
       };
       const list = byName.get(entry.name) ?? [];
       list.push({ source, entry });

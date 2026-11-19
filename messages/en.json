@@ -2987,6 +2987,7 @@
       },
       "notKept": "Comments and order are not kept: only names, values and kinds are imported.",
       "nothing": "There is nothing to import.",
+      "noDirs": "This environment has no deploy dir yet, so there is no .env to import.",
       "submit": "{count, plural, =0 {Import variables} one {Import # variable} other {Import # variables}}",
       "imported": "{count, plural, one {# variable imported} other {# variables imported}}{overwritten, plural, =0 {} other {, # replaced}}",
       "errors": {

@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   mkdirSync,
@@ -433,6 +433,22 @@ describe("serverEnvReadScript under sh", () => {
 
   it("prints FILE_MISSING without a .env", () => {
     expect(run(dir("empty")).stdout).toBe("FILE_MISSING");
+  });
+
+  it("exits 4, not TOO_LARGE, when wc is broken", () => {
+    const bin = join(root, "broken-bin");
+    mkdirSync(bin, { recursive: true });
+    for (const tool of ["head", "base64", "tr"]) {
+      symlinkSync(
+        execFileSync("which", [tool]).toString().trim(),
+        join(bin, tool)
+      );
+    }
+    writeFileSync(join(bin, "wc"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+    const path = dir("wc-broken", { ".env": "A=1\n" });
+    const out = run(path, { ...process.env, PATH: bin });
+    expect(out.code).toBe(4);
+    expect(out.stdout).not.toContain("TOO_LARGE");
   });
 
   it("prints TOO_LARGE over 256 KiB", () => {

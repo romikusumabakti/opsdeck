@@ -2987,6 +2987,7 @@
       },
       "notKept": "不保留注释和顺序：只导入名称、值和类型。",
       "nothing": "没有可导入的内容。",
+      "noDirs": "此环境还没有部署目录，因此没有可导入的 .env。",
       "submit": "{count, plural, =0 {导入变量} other {导入 # 个变量}}",
       "imported": "{count, plural, other {已导入 # 个变量}}{overwritten, plural, =0 {} other {，替换 # 个}}",
       "errors": {

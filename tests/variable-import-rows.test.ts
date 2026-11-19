@@ -275,13 +275,13 @@ describe("planImportRows", () => {
       {
         serverName: "kestrel-app",
         deployDir: "/srv/kestrel/api",
-        valueId: "fpA:2",
+        valueId: "0:fpA:2",
         value: "info",
       },
       {
         serverName: "kestrel-app",
         deployDir: "/srv/kestrel/web",
-        valueId: "fpB:2",
+        valueId: "1:fpB:2",
         value: "debug",
       },
     ]);
@@ -292,6 +292,18 @@ describe("planImportRows", () => {
     expect(JSON.stringify(result.rows.map((p) => p.row))).not.toContain(SECRET);
 
     expect(rowOf(result, "ONLY_API").flags).toEqual({});
+  });
+
+  it("keeps valueIds unique across byte-identical dirs", () => {
+    const same = "LOG_LEVEL=info\n";
+    const result = plan([
+      dirFile("/srv/a", same, "fpSame"),
+      dirFile("/srv/b", same, "fpSame"),
+      dirFile("/srv/c", "LOG_LEVEL=debug\n", "fpOther"),
+    ]);
+    const ids = rowOf(result, "LOG_LEVEL").sources?.map((s) => s.valueId);
+    expect(ids).toEqual(["0:fpSame:1", "1:fpSame:1", "2:fpOther:1"]);
+    expect(new Set(ids).size).toBe(3);
   });
 
   it("calls a row with differing dirs a conflict when one dir matches the Panel", () => {
@@ -323,7 +335,7 @@ describe("selectImportWrites", () => {
   it("writes the chosen dir's value and the requested kind", () => {
     const { rows } = plan(files);
     const result = selectImportWrites(rows, [
-      { name: "LOG_LEVEL", kind: "plain", valueId: "fpB:1" },
+      { name: "LOG_LEVEL", kind: "plain", valueId: "1:fpB:1" },
       { name: "APP_NAME", kind: "secret" },
       { name: "DB_PASSWORD", kind: "plain" },
     ]);
@@ -361,7 +373,7 @@ describe("selectImportWrites", () => {
     ).toEqual({ issue: { code: "importSourceRequired", name: "LOG_LEVEL" } });
     expect(
       selectImportWrites(rows, [
-        { name: "LOG_LEVEL", kind: "plain", valueId: "fpX:1" },
+        { name: "LOG_LEVEL", kind: "plain", valueId: "1:fpX:1" },
       ])
     ).toEqual({ issue: { code: "importSourceUnknown", name: "LOG_LEVEL" } });
   });

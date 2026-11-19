@@ -2987,6 +2987,7 @@
       },
       "notKept": "Komentar dan urutan tidak disimpan: hanya nama, nilai, dan jenis yang diimpor.",
       "nothing": "Tidak ada yang dapat diimpor.",
+      "noDirs": "Environment ini belum punya direktori deploy, jadi tidak ada .env yang dapat diimpor.",
       "submit": "{count, plural, =0 {Impor variabel} other {Impor # variabel}}",
       "imported": "{count, plural, other {# variabel diimpor}}{overwritten, plural, =0 {} other {, # diganti}}",
       "errors": {

@@ -411,8 +411,12 @@ describe("GET import (server source)", () => {
       value: null,
       flags: { differsAcrossDirs: true },
       sources: [
-        { deployDir: "/srv/kestrel/api", valueId: "fp-api:2", value: "info" },
-        { deployDir: "/srv/kestrel/web", valueId: "fp-web:2", value: "debug" },
+        { deployDir: "/srv/kestrel/api", valueId: "0:fp-api:2", value: "info" },
+        {
+          deployDir: "/srv/kestrel/web",
+          valueId: "1:fp-web:2",
+          value: "debug",
+        },
       ],
     });
     expect(activity.recordActivity).not.toHaveBeenCalled();
@@ -470,8 +474,8 @@ describe("POST import (server source)", () => {
     const res = await send("POST", base, {
       ...SAVE_SERVER,
       rows: [
-        { name: "LOG_LEVEL", kind: "plain", valueId: "fp-web:2" },
-        { name: "DB_PASSWORD", kind: "secret", valueId: "fp-api:3" },
+        { name: "LOG_LEVEL", kind: "plain", valueId: "1:fp-web:2" },
+        { name: "DB_PASSWORD", kind: "secret", valueId: "0:fp-api:3" },
       ],
     });
     expect(res.status).toBe(200);
@@ -559,7 +563,7 @@ describe("POST import (server source)", () => {
           {
             name,
             kind: "plain",
-            ...(name === "LOG_LEVEL" ? { valueId: "fp-api:2" } : {}),
+            ...(name === "LOG_LEVEL" ? { valueId: "0:fp-api:2" } : {}),
           },
         ],
       });

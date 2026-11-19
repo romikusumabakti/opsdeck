@@ -73,6 +73,8 @@ export function serverEnvReadScript(deployDir: string): string {
     "{ [ -f .env ] && [ -r .env ]; } || exit 3",
     'for tool in head base64 wc tr; do command -v "$tool" >/dev/null 2>&1 || exit 4; done',
     `size=$(wc -c < .env | tr -d ' ') || exit 4`,
+    // A failing wc leaves size empty; without this it would read as TOO_LARGE.
+    '[ -n "$size" ] || exit 4',
     `[ "$size" -le ${SERVER_ENV_MAX_BYTES} ] || { echo TOO_LARGE; exit 0; }`,
     `if [ -f ${shq(COMPOSE_OVERRIDE_FILE)} ]; then echo "OK 1"; else echo "OK 0"; fi`,
     // POSIX sh has no pipefail: head's status comes back on fd 3 (the

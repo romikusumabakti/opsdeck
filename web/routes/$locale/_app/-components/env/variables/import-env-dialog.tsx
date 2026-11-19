@@ -474,7 +474,13 @@ function ImportEnvBody({
                 onChange={onChoice}
               />
             ) : (
-              <p className="text-muted-foreground">{t("nothing")}</p>
+              <p className="text-muted-foreground">
+                {source === "server" &&
+                reviews.server?.source === "server" &&
+                reviews.server.dirs.length === 0
+                  ? t("noDirs")
+                  : t("nothing")}
+              </p>
             )}
             <ImportReviewGroups rows={review.rows} skipped={review.skipped} />
             <p className="text-xs text-muted-foreground">{t("notKept")}</p>
