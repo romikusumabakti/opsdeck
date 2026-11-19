@@ -2211,7 +2211,7 @@
     "variableDeleted": "{actor} eliminó la variable {name} de {environment}",
     "variableRegenerated": "{actor} regeneró la variable {name} en {environment}",
     "variableEscrowRemoved": "{actor} quitó la custodia de la variable {name} en {environment}",
-    "envFileManagedOn": "{actor} permitió que el Panel escriba el .env de {environment}",
+    "envFileManagedOn": "{actor} permitió que el Panel escriba el .env de {environment}{acknowledged, select, some { tras confirmar {count, plural, one {# cambio previsualizado} other {# cambios previsualizados}}} none { sin cambios previsualizados} other {}}",
     "envFileManagedOff": "{actor} dejó de permitir que el Panel escriba el .env de {environment}",
     "variablesTemplateApplied": "{actor} añadió variables de plantilla a {environment} ({names})",
     "variablesImported": "{actor} importó variables a {environment} {source, select, server {desde el .env del servidor en {dirs}} other {desde texto pegado o subido}} ({names}{replaced, select, yes {; reemplazadas: {overwritten}} other {}})",
@@ -3004,6 +3004,41 @@
         "variableImportFailed": "No se pudieron importar las variables. No se cambió nada.",
         "envFileInvalid": "Las variables del entorno no se pueden escribir en .env. Revísalas aquí primero."
       }
+    },
+    "envPreview": {
+      "link": "Vista previa del .env",
+      "titleEnable": "¿Permitir que el Panel escriba el .env?",
+      "titleView": "Vista previa del .env gestionado",
+      "description": "Lo que el próximo despliegue escribiría en cada directorio de despliegue, comparado con el .env que hay ahora. Los valores secretos siguen ocultos.",
+      "loading": "Leyendo el .env en los servidores…",
+      "stillOff": "El interruptor sigue apagado: se puede activar cuando cargue la vista previa.",
+      "noChanges": "Nada cambia: el próximo despliegue escribe el mismo .env.",
+      "noDirs": "Este entorno aún no tiene directorio de despliegue, así que no hay .env que reemplazar.",
+      "changesWarning": "{count, plural, one {# clave cambia en el próximo despliegue} other {# claves cambian en el próximo despliegue}}. Las claves que tiene el servidor y no el Panel se eliminan.",
+      "notComparedWarning": "Estos directorios de despliegue no se pudieron leer, así que se desconoce qué reemplaza allí el próximo despliegue:",
+      "confirm": "He revisado estos cambios: el próximo despliegue reemplaza el .env del servidor por el del Panel.",
+      "enable": "Activar",
+      "unchanged": "{count} sin cambios",
+      "colName": "Nombre",
+      "colChange": "Cambio",
+      "colLive": "En el servidor",
+      "colManaged": "Próximo despliegue",
+      "status": {
+        "changed": "Cambiada",
+        "added": "Añadida",
+        "removed": "Eliminada"
+      },
+      "dirStatus": {
+        "compared": "Comparado",
+        "fileMissing": "Sin .env aún",
+        "notCompared": "No comparado"
+      },
+      "reserved": "Reservada: se descarta",
+      "panelWritten": "Escrita por el Panel",
+      "setAtDeploy": "se fija en el próximo despliegue",
+      "absent": "—",
+      "valueHidden": "Valor oculto",
+      "unmanagedHint": "El Panel aún no escribe el .env de este entorno: estas variables llegan al servidor solo cuando \"Gestionar .env desde el Panel\" está activado (Origen y despliegue, Opciones avanzadas)."
     }
   },
   "variableTemplates": {

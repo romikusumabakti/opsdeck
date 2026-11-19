@@ -1,7 +1,6 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { Controller, useWatch } from "react-hook-form";
-import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { AdvancedOptions } from "@/components/advanced-options";
 import { useProjectCan } from "@/components/project-role";
@@ -18,17 +17,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  missingRequiredNames,
-  SHARED_DEPLOY_DIR_MESSAGE,
-} from "@/lib/variables/errors";
-import { ApiError } from "@/web/api/client";
-import { setEnvFileManaged } from "@/web/api/variables";
-import {
   deployDirCopy,
   kindLabelKey,
   TargetFormDialog,
 } from "../deploys/target-form-dialog";
-import { useVariableErrorText } from "../variables/variable-form-dialog";
+import { EnvFileManagedSwitch } from "./env-file-managed-switch";
 import { EnumSelect, Hint, SaveButton, ServerSelect } from "./fields";
 import {
   ownsContainerDb,
@@ -490,57 +483,5 @@ function TargetHeading({ target }: { target: SettingsTarget }) {
         </span>
       )}
     </h3>
-  );
-}
-
-// Whether deploys render the environment's `.env` (moved here from the
-// Variables page). Saves on its own: the switch calls the API at once,
-// with the same conflict checks (shared deploy dir, missing variables).
-function EnvFileManagedSwitch({
-  environment,
-}: {
-  environment: SettingsEnvironment;
-}) {
-  const t = useTranslations("variables");
-  const errorText = useVariableErrorText();
-  const canSwitch = useProjectCan({
-    variable: ["write"],
-    deploy: ["configure"],
-  });
-  const [busy, setBusy] = useState(false);
-
-  async function onToggle(enabled: boolean) {
-    setBusy(true);
-    try {
-      await setEnvFileManaged(environment.id, enabled);
-      toast.success(t(enabled ? "managedOn" : "managedOff"));
-    } catch (error) {
-      const conflict = error instanceof ApiError && error.status === 409;
-      const names = conflict ? missingRequiredNames(error.message) : null;
-      toast.error(
-        names
-          ? t("missingRequired", { names: names.join(", ") })
-          : conflict && error.message === SHARED_DEPLOY_DIR_MESSAGE
-            ? t("sharedDeployDir")
-            : errorText(error)
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <Switch
-          id="env-file-managed"
-          checked={environment.envFileManaged}
-          disabled={!canSwitch || busy}
-          onCheckedChange={(checked) => void onToggle(checked)}
-        />
-        <Label htmlFor="env-file-managed">{t("managedTitle")}</Label>
-      </div>
-      <Hint>{t("managedDescription")}</Hint>
-    </section>
   );
 }

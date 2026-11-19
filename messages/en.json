@@ -2211,7 +2211,7 @@
     "variableDeleted": "{actor} deleted variable {name} from {environment}",
     "variableRegenerated": "{actor} regenerated variable {name} in {environment}",
     "variableEscrowRemoved": "{actor} removed escrow from variable {name} in {environment}",
-    "envFileManagedOn": "{actor} let the Panel write the .env of {environment}",
+    "envFileManagedOn": "{actor} let the Panel write the .env of {environment}{acknowledged, select, some { after confirming {count, plural, one {# previewed change} other {# previewed changes}}} none { with no previewed changes} other {}}",
     "envFileManagedOff": "{actor} stopped the Panel writing the .env of {environment}",
     "variablesTemplateApplied": "{actor} added template variables to {environment} ({names})",
     "variablesImported": "{actor} imported variables into {environment} {source, select, server {from the server .env in {dirs}} other {from pasted or uploaded text}} ({names}{replaced, select, yes {; replaced: {overwritten}} other {}})",
@@ -3004,6 +3004,41 @@
         "variableImportFailed": "The variables couldn't be imported. Nothing was changed.",
         "envFileInvalid": "The environment's variables can't be written to .env. Check them here first."
       }
+    },
+    "envPreview": {
+      "link": "Preview .env",
+      "titleEnable": "Let the Panel write the .env?",
+      "titleView": "Preview of the managed .env",
+      "description": "What the next deploy would write to each deploy dir, compared with the .env there now. Secret values stay hidden.",
+      "loading": "Reading the .env on the servers…",
+      "stillOff": "The switch stays off: it can be turned on once the preview loads.",
+      "noChanges": "Nothing changes: the next deploy writes the same .env.",
+      "noDirs": "This environment has no deploy dir yet, so there is no .env to replace.",
+      "changesWarning": "{count, plural, one {# key changes on the next deploy} other {# keys change on the next deploy}}. Keys the server has and the Panel does not are removed.",
+      "notComparedWarning": "These deploy dirs could not be read, so what the next deploy replaces there is unknown:",
+      "confirm": "I checked these changes: the next deploy replaces the server's .env with the Panel's.",
+      "enable": "Enable",
+      "unchanged": "{count} unchanged",
+      "colName": "Name",
+      "colChange": "Change",
+      "colLive": "On the server",
+      "colManaged": "Next deploy",
+      "status": {
+        "changed": "Changed",
+        "added": "Added",
+        "removed": "Removed"
+      },
+      "dirStatus": {
+        "compared": "Compared",
+        "fileMissing": "No .env yet",
+        "notCompared": "Not compared"
+      },
+      "reserved": "Reserved: dropped",
+      "panelWritten": "Written by the Panel",
+      "setAtDeploy": "set at next deploy",
+      "absent": "—",
+      "valueHidden": "Hidden value",
+      "unmanagedHint": "The Panel does not write this environment's .env yet: these variables reach the server only once \"Manage .env from the Panel\" is on (Source & deploy, Advanced options)."
     }
   },
   "variableTemplates": {

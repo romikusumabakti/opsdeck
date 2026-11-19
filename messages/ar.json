@@ -2211,7 +2211,7 @@
     "variableDeleted": "{actor} حذف المتغير {name} من {environment}",
     "variableRegenerated": "{actor} أعاد توليد المتغير {name} في {environment}",
     "variableEscrowRemoved": "{actor} أزال الحفظ عن المتغير {name} في {environment}",
-    "envFileManagedOn": "{actor} سمح للوحة بكتابة ملف ‎.env الخاص بـ {environment}",
+    "envFileManagedOn": "{actor} سمح للوحة بكتابة ملف ‎.env الخاص بـ {environment}{acknowledged, select, some { بعد تأكيد {count, plural, one {تغيير واحد في المعاينة} two {تغييرين في المعاينة} few {# تغييرات في المعاينة} other {# تغييرًا في المعاينة}}} none { دون تغييرات في المعاينة} other {}}",
     "envFileManagedOff": "{actor} أوقف كتابة اللوحة لملف ‎.env الخاص بـ {environment}",
     "variablesTemplateApplied": "{actor} أضاف متغيرات القالب إلى {environment} ({names})",
     "variablesImported": "استورد {actor} متغيرات إلى {environment} {source, select, server {من ملف .env على الخادم في {dirs}} other {من نص ملصق أو مرفوع}} ({names}{replaced, select, yes {؛ استُبدلت: {overwritten}} other {}})",
@@ -3004,6 +3004,41 @@
         "variableImportFailed": "تعذر استيراد المتغيرات. لم يتغير شيء.",
         "envFileInvalid": "لا يمكن كتابة متغيرات هذه البيئة في ‎.env. افحصها هنا أولًا."
       }
+    },
+    "envPreview": {
+      "link": "معاينة ‎.env",
+      "titleEnable": "السماح للوحة بكتابة ملف ‎.env؟",
+      "titleView": "معاينة ملف ‎.env المُدار",
+      "description": "ما سيكتبه النشر التالي في كل مجلد نشر، مقارنةً بملف ‎.env الموجود الآن. تبقى القيم السرية مخفية.",
+      "loading": "جارٍ قراءة ملف ‎.env على الخوادم…",
+      "stillOff": "يبقى المفتاح مطفأً: يمكن تشغيله بعد تحميل المعاينة.",
+      "noChanges": "لا شيء يتغير: النشر التالي يكتب ملف ‎.env نفسه.",
+      "noDirs": "ليس لهذه البيئة مجلد نشر بعد، لذا لا يوجد ملف ‎.env لاستبداله.",
+      "changesWarning": "{count, plural, one {يتغير مفتاح واحد في النشر التالي} two {يتغير مفتاحان في النشر التالي} few {تتغير # مفاتيح في النشر التالي} other {يتغير # مفتاحًا في النشر التالي}}. تُحذف المفاتيح الموجودة على الخادم وغير الموجودة في اللوحة.",
+      "notComparedWarning": "تعذرت قراءة مجلدات النشر هذه، لذا لا يُعرف ما يستبدله النشر التالي فيها:",
+      "confirm": "راجعت هذه التغييرات: النشر التالي يستبدل ملف ‎.env على الخادم بملف اللوحة.",
+      "enable": "تفعيل",
+      "unchanged": "{count, plural, one {مفتاح واحد دون تغيير} two {مفتاحان دون تغيير} few {# مفاتيح دون تغيير} other {# مفتاحًا دون تغيير}}",
+      "colName": "الاسم",
+      "colChange": "التغيير",
+      "colLive": "على الخادم",
+      "colManaged": "النشر التالي",
+      "status": {
+        "changed": "تغيّر",
+        "added": "أُضيف",
+        "removed": "حُذف"
+      },
+      "dirStatus": {
+        "compared": "تمت المقارنة",
+        "fileMissing": "لا يوجد ‎.env بعد",
+        "notCompared": "لم تتم المقارنة"
+      },
+      "reserved": "محجوز: يُحذف",
+      "panelWritten": "تكتبه اللوحة",
+      "setAtDeploy": "يُضبط في النشر التالي",
+      "absent": "—",
+      "valueHidden": "قيمة مخفية",
+      "unmanagedHint": "لا تكتب اللوحة ملف ‎.env لهذه البيئة بعد: لا تصل هذه المتغيرات إلى الخادم إلا بعد تشغيل \"إدارة ‎.env من اللوحة\" (المصدر والنشر، الخيارات المتقدمة)."
     }
   },
   "variableTemplates": {

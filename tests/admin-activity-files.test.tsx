@@ -252,3 +252,28 @@ describe("activity page variable import events", () => {
     );
   });
 });
+
+describe("activity page managed .env events", () => {
+  it("renders envFileManagedOn with the confirmed preview changes, old rows as before", async () => {
+    const text = await renderEvents([
+      row("1", "variables.envFileManagedOn", {
+        environment: "Kestrel Dev",
+        acknowledgedChanges: 3,
+      }),
+      row("2", "variables.envFileManagedOn", {
+        environment: "Kestrel QA",
+        acknowledgedChanges: 0,
+      }),
+      row("3", "variables.envFileManagedOn", { environment: "Kestrel UAT" }),
+    ]);
+    expect(text).toContain(
+      "Rina let the Panel write the .env of Kestrel Dev after confirming 3 previewed changes"
+    );
+    expect(text).toContain(
+      "Rina let the Panel write the .env of Kestrel QA with no previewed changes"
+    );
+    expect(text).toContain("Rina let the Panel write the .env of Kestrel UAT");
+    expect(text).not.toContain("Kestrel UAT after");
+    expect(text).not.toContain("Kestrel UAT with");
+  });
+});

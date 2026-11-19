@@ -2211,7 +2211,7 @@
     "variableDeleted": "{actor} menghapus variabel {name} dari {environment}",
     "variableRegenerated": "{actor} membuat ulang nilai variabel {name} di {environment}",
     "variableEscrowRemoved": "{actor} mencabut escrow variabel {name} di {environment}",
-    "envFileManagedOn": "{actor} mengizinkan Panel menulis .env {environment}",
+    "envFileManagedOn": "{actor} mengizinkan Panel menulis .env {environment}{acknowledged, select, some { setelah mengonfirmasi {count} perubahan pratinjau} none { tanpa perubahan pratinjau} other {}}",
     "envFileManagedOff": "{actor} menghentikan Panel menulis .env {environment}",
     "variablesTemplateApplied": "{actor} menambahkan variabel templat ke {environment} ({names})",
     "variablesImported": "{actor} mengimpor variabel ke {environment} {source, select, server {dari .env server di {dirs}} other {dari teks yang ditempel atau diunggah}} ({names}{replaced, select, yes {; diganti: {overwritten}} other {}})",
@@ -3004,6 +3004,41 @@
         "variableImportFailed": "Variabel tidak dapat diimpor. Tidak ada yang berubah.",
         "envFileInvalid": "Variabel environment ini tidak dapat ditulis ke .env. Periksa di sini dulu."
       }
+    },
+    "envPreview": {
+      "link": "Pratinjau .env",
+      "titleEnable": "Izinkan Panel menulis .env?",
+      "titleView": "Pratinjau .env yang dikelola",
+      "description": "Apa yang akan ditulis deploy berikutnya ke setiap direktori deploy, dibandingkan dengan .env yang ada sekarang. Nilai rahasia tetap tersembunyi.",
+      "loading": "Membaca .env di server…",
+      "stillOff": "Sakelar tetap mati: sakelar bisa dinyalakan setelah pratinjau berhasil dimuat.",
+      "noChanges": "Tidak ada yang berubah: deploy berikutnya menulis .env yang sama.",
+      "noDirs": "Environment ini belum punya direktori deploy, jadi tidak ada .env yang diganti.",
+      "changesWarning": "{count} kunci berubah pada deploy berikutnya. Kunci yang ada di server tetapi tidak ada di Panel akan dihapus.",
+      "notComparedWarning": "Direktori deploy berikut tidak bisa dibaca, jadi apa yang diganti deploy berikutnya di sana tidak diketahui:",
+      "confirm": "Saya sudah memeriksa perubahan ini: deploy berikutnya mengganti .env server dengan milik Panel.",
+      "enable": "Aktifkan",
+      "unchanged": "{count} tidak berubah",
+      "colName": "Nama",
+      "colChange": "Perubahan",
+      "colLive": "Di server",
+      "colManaged": "Deploy berikutnya",
+      "status": {
+        "changed": "Berubah",
+        "added": "Ditambah",
+        "removed": "Dihapus"
+      },
+      "dirStatus": {
+        "compared": "Dibandingkan",
+        "fileMissing": "Belum ada .env",
+        "notCompared": "Tidak dibandingkan"
+      },
+      "reserved": "Dicadangkan: dibuang",
+      "panelWritten": "Ditulis oleh Panel",
+      "setAtDeploy": "diisi saat deploy berikutnya",
+      "absent": "—",
+      "valueHidden": "Nilai disembunyikan",
+      "unmanagedHint": "Panel belum menulis .env environment ini: variabel ini baru sampai ke server setelah \"Kelola .env dari Panel\" dinyalakan (Sumber & deploy, Opsi lanjutan)."
     }
   },
   "variableTemplates": {

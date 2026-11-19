@@ -2211,7 +2211,7 @@
     "variableDeleted": "{actor} 从 {environment} 删除了变量 {name}",
     "variableRegenerated": "{actor} 重新生成了 {environment} 中的变量 {name}",
     "variableEscrowRemoved": "{actor} 取消了 {environment} 中变量 {name} 的托管",
-    "envFileManagedOn": "{actor} 允许面板写入 {environment} 的 .env",
+    "envFileManagedOn": "{actor} 允许面板写入 {environment} 的 .env{acknowledged, select, some {（已确认 {count} 项预览变更）} none {（预览无变更）} other {}}",
     "envFileManagedOff": "{actor} 停止面板写入 {environment} 的 .env",
     "variablesTemplateApplied": "{actor} 向 {environment} 添加了模板变量（{names}）",
     "variablesImported": "{actor} 向 {environment} 导入了变量{source, select, server {（来自服务器 {dirs} 中的 .env）} other {（来自粘贴或上传的文本）}}（{names}{replaced, select, yes {；已替换：{overwritten}} other {}}）",
@@ -3004,6 +3004,41 @@
         "variableImportFailed": "无法导入变量，未做任何更改。",
         "envFileInvalid": "此环境的变量无法写入 .env，请先在此处检查。"
       }
+    },
+    "envPreview": {
+      "link": "预览 .env",
+      "titleEnable": "允许面板写入 .env？",
+      "titleView": "托管 .env 预览",
+      "description": "下次部署将写入每个部署目录的内容，与当前的 .env 对比。机密值保持隐藏。",
+      "loading": "正在读取服务器上的 .env…",
+      "stillOff": "开关保持关闭：预览加载成功后才能开启。",
+      "noChanges": "没有变化：下次部署写入相同的 .env。",
+      "noDirs": "此环境还没有部署目录，因此没有要替换的 .env。",
+      "changesWarning": "下次部署有 {count} 个键发生变化。服务器有而面板没有的键将被删除。",
+      "notComparedWarning": "以下部署目录无法读取，因此不清楚下次部署会在那里替换什么：",
+      "confirm": "我已检查这些变更：下次部署将用面板的 .env 替换服务器上的 .env。",
+      "enable": "启用",
+      "unchanged": "{count} 个未变化",
+      "colName": "名称",
+      "colChange": "变更",
+      "colLive": "服务器上",
+      "colManaged": "下次部署",
+      "status": {
+        "changed": "已更改",
+        "added": "新增",
+        "removed": "已删除"
+      },
+      "dirStatus": {
+        "compared": "已对比",
+        "fileMissing": "尚无 .env",
+        "notCompared": "未对比"
+      },
+      "reserved": "保留键：将被丢弃",
+      "panelWritten": "由面板写入",
+      "setAtDeploy": "下次部署时设置",
+      "absent": "—",
+      "valueHidden": "已隐藏的值",
+      "unmanagedHint": "面板尚未写入此环境的 .env：只有开启“由面板管理 .env”（源与部署 › 高级选项）后，这些变量才会到达服务器。"
     }
   },
   "variableTemplates": {

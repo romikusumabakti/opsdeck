@@ -2,6 +2,7 @@ import {
   Eye,
   EyeOff,
   FileInput,
+  FileText,
   KeyRound,
   ListPlus,
   Loader2,
@@ -41,6 +42,7 @@ import {
   type VariableRow,
   type VariablesListing,
 } from "@/web/api/variables";
+import { EnvFilePreviewDialog } from "./env-file-preview-dialog";
 import { ImportEnvDialog } from "./import-env-dialog";
 import {
   useVariableErrorText,
@@ -64,6 +66,11 @@ export function VariablesClient({
   const errorText = useVariableErrorText();
   const canWrite = useProjectCan({ variable: ["write"] });
   const canImport = useProjectCan({ variable: ["read", "write"] });
+  const canPreview = useProjectCan({
+    variable: ["read"],
+    deploy: ["configure"],
+  });
+  const [previewing, setPreviewing] = React.useState(false);
   const canClearEscrow = canOrg(useMe()?.orgRole, {
     integration: ["manage"],
   });
@@ -209,6 +216,24 @@ export function VariablesClient({
       </div>
 
       <div className="flex flex-col gap-4">
+        {!listing.envFileManaged && (
+          <Alert>
+            <FileText />
+            <AlertDescription>
+              <p>{t("envPreview.unmanagedHint")}</p>
+              {canPreview && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto px-0"
+                  onClick={() => setPreviewing(true)}
+                >
+                  {t("envPreview.link")}
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         {hasEscrow && (
           <Alert>
             <Lock />
@@ -276,6 +301,15 @@ export function VariablesClient({
             : undefined
         }
       />
+
+      {canPreview && (
+        <EnvFilePreviewDialog
+          open={previewing}
+          onOpenChange={setPreviewing}
+          environmentId={environmentId}
+          mode="view"
+        />
+      )}
 
       {canImport && (
         <ImportEnvDialog

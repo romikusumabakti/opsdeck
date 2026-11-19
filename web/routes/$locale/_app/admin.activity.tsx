@@ -240,11 +240,18 @@ function message(
         name: String(d.name),
         environment: String(d.environment),
       });
-    case "variables.envFileManagedOn":
+    // acknowledgedChanges: the preview changes confirmed when turning it on
+    // (client-reported); rows written before the preview have none.
+    case "variables.envFileManagedOn": {
+      const count =
+        typeof d.acknowledgedChanges === "number" ? d.acknowledgedChanges : -1;
       return t("envFileManagedOn", {
         actor,
         environment: String(d.environment),
+        acknowledged: count < 0 ? "unknown" : count === 0 ? "none" : "some",
+        count: Math.max(count, 0),
       });
+    }
     case "variables.envFileManagedOff":
       return t("envFileManagedOff", {
         actor,
