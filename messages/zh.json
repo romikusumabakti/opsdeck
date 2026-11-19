@@ -1649,7 +1649,8 @@
     "assistantDbDropFailed": "助手的访问已关闭，但无法删除登录名 {login}：{reason}",
     "assistantDbAccessBlocksRebind": "移动或移除此数据库前，请先关闭助手的数据库访问。",
     "assistantDbLoginExists": "数据库服务器上已存在名为 {login} 的登录名，且不属于此环境。面板不会接管它：请先在服务器上删除或重命名它。",
-    "assistantDbLoginMappedElsewhere": "登录名 {login} 在此服务器的其他数据库中也有用户，助手可能读取到此环境数据库以外的数据。请先删除该用户。"
+    "assistantDbLoginMappedElsewhere": "登录名 {login} 在此服务器的其他数据库中也有用户，助手可能读取到此环境数据库以外的数据。请先删除该用户。",
+    "assistantDbLoginRecorded": "助手在此环境的数据库上仍有只读登录名。请先在“设置 › 数据库”中关闭“允许助手查询此数据库”：这会从数据库服务器删除该登录名。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",

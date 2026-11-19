@@ -18,6 +18,8 @@ const state = vi.hoisted(() => ({
   deleted: [] as { name: string }[],
   deletes: 0,
   activity: [] as unknown[],
+  // db services that still record the Assistant's read-only login.
+  assistantLogins: [] as { id: string }[],
 }));
 
 vi.mock("@/lib/auth-session", () => ({
@@ -84,6 +86,7 @@ vi.mock("@/lib/db", async () => {
   const rowsFor = (table: unknown): unknown[] => {
     if (table === schema.environments) return [{ name: "HRIS Dev" }];
     if (table === schema.environmentVariables) return state.variables;
+    if (table === schema.environmentServices) return state.assistantLogins;
     return [];
   };
   // biome-ignore lint/suspicious/noExplicitAny: self-referential mock builder
@@ -127,6 +130,7 @@ beforeEach(() => {
   state.deleted = [{ name: "HRIS Dev" }];
   state.deletes = 0;
   state.activity = [];
+  state.assistantLogins = [];
 });
 
 describe("deleteEnvironment and escrowed variables", () => {
@@ -240,6 +244,21 @@ describe("deleteEnvironment and escrowed variables", () => {
     await expect(deleteEnvironment(ENV_ID)).rejects.toMatchObject({
       status: 409,
     });
+    expect(state.activity).toEqual([]);
+  });
+
+  it("refuses (409) while a db service records the Assistant's read-only login, deleting nothing", async () => {
+    state.assistantLogins = [{ id: "svc-db" }];
+    for (const confirm of [false, true]) {
+      state.orgRole = confirm ? "admin" : "infra";
+      await expect(
+        deleteEnvironment(ENV_ID, { confirmEscrowedDeletion: confirm })
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "assistantDbLoginRecorded",
+      });
+    }
+    expect(state.deletes).toBe(0);
     expect(state.activity).toEqual([]);
   });
 

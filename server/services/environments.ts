@@ -4,6 +4,7 @@ import {
   eq,
   getTableColumns,
   inArray,
+  isNotNull,
   notExists,
   or,
   sql,
@@ -1588,7 +1589,11 @@ export async function deleteEnvironment(
   };
   if (!confirmed && variables.some((v) => v.escrow)) await refuseEscrowed();
 
-  let deleted: { name: string } | "teardownRunning" | undefined;
+  let deleted:
+    | { name: string }
+    | "teardownRunning"
+    | "assistantDbLoginRecorded"
+    | undefined;
   try {
     deleted = await db.transaction(async (tx) => {
       // Exclusively, as a teardown start takes it: a running teardown's job
@@ -1597,6 +1602,20 @@ export async function deleteEnvironment(
       if ((await teardownState(id, tx)).running) {
         return "teardownRunning" as const;
       }
+      // Removing only the rows would leave the Assistant's read-only login on
+      // the database server with nothing tracking it; turning the access off
+      // drops it first.
+      const [withLogin] = await tx
+        .select({ id: environmentServices.id })
+        .from(environmentServices)
+        .where(
+          and(
+            eq(environmentServices.environmentId, id),
+            isNotNull(environmentServices.assistantDbLogin)
+          )
+        )
+        .limit(1);
+      if (withLogin) return "assistantDbLoginRecorded" as const;
       const [row] = await tx
         .delete(environments)
         .where(
@@ -1625,6 +1644,14 @@ export async function deleteEnvironment(
     return { success: false, message: "Failed to delete environment" };
   }
   if (deleted === "teardownRunning") throw teardownRunningError();
+  if (deleted === "assistantDbLoginRecorded") {
+    const t = await getServerTranslator("actionErrors");
+    throw new CodedHTTPException(
+      409,
+      "assistantDbLoginRecorded",
+      t("assistantDbLoginRecorded")
+    );
+  }
   // The environment exists (the guard found it): nothing deleted means a
   // variable was escrowed since the check.
   if (!deleted) {

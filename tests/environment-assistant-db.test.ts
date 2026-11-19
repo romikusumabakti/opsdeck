@@ -34,6 +34,7 @@ const ERROR_KEYS = [
   "assistantDbAccessBlocksRebind",
   "assistantDbLoginExists",
   "assistantDbLoginMappedElsewhere",
+  "assistantDbLoginRecorded",
 ];
 
 describe("assistant database messages", () => {

@@ -1649,7 +1649,8 @@
     "assistantDbDropFailed": "Akses Asisten sudah nonaktif, tetapi login {login} tidak bisa dihapus: {reason}",
     "assistantDbAccessBlocksRebind": "Nonaktifkan akses basis data Asisten sebelum memindahkan atau menghapus basis data ini.",
     "assistantDbLoginExists": "Login bernama {login} sudah ada di server basis data dan bukan milik environment ini. Panel tidak akan mengambil alihnya: hapus atau ganti namanya di sana terlebih dahulu.",
-    "assistantDbLoginMappedElsewhere": "Login {login} juga punya user di basis data lain pada server ini, sehingga Asisten bisa membaca lebih dari basis data environment ini. Hapus user itu terlebih dahulu."
+    "assistantDbLoginMappedElsewhere": "Login {login} juga punya user di basis data lain pada server ini, sehingga Asisten bisa membaca lebih dari basis data environment ini. Hapus user itu terlebih dahulu.",
+    "assistantDbLoginRecorded": "Asisten masih punya login baca-saja di basis data environment ini. Nonaktifkan dulu \"Izinkan Asisten mengkueri basis data ini\" di Pengaturan › Basis data: itu menghapus login dari server basis data."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",

@@ -1649,7 +1649,8 @@
     "assistantDbDropFailed": "The Assistant's access is off, but the login {login} could not be removed: {reason}",
     "assistantDbAccessBlocksRebind": "Turn off the Assistant's database access before moving or removing this database.",
     "assistantDbLoginExists": "A login named {login} already exists on the database server and isn't this environment's. The Panel won't take it over: remove or rename it there first.",
-    "assistantDbLoginMappedElsewhere": "The login {login} also has a user in another database on this server, so the Assistant could read more than this environment's database. Remove that user first."
+    "assistantDbLoginMappedElsewhere": "The login {login} also has a user in another database on this server, so the Assistant could read more than this environment's database. Remove that user first.",
+    "assistantDbLoginRecorded": "The Assistant still has a read-only login on this environment's database. Turn off \"Let the Assistant query this database\" under Settings › Database first: that removes the login from the database server."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",

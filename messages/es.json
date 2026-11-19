@@ -1649,7 +1649,8 @@
     "assistantDbDropFailed": "El acceso del asistente está desactivado, pero no se pudo eliminar el inicio de sesión {login}: {reason}",
     "assistantDbAccessBlocksRebind": "Desactiva el acceso del asistente a la base de datos antes de mover o quitar esta base de datos.",
     "assistantDbLoginExists": "Ya existe un inicio de sesión llamado {login} en el servidor de base de datos y no es de este entorno. El Panel no lo tomará: elimínalo o cámbiale el nombre allí primero.",
-    "assistantDbLoginMappedElsewhere": "El inicio de sesión {login} también tiene un usuario en otra base de datos de este servidor, así que el asistente podría leer más que la base de datos de este entorno. Elimina ese usuario primero."
+    "assistantDbLoginMappedElsewhere": "El inicio de sesión {login} también tiene un usuario en otra base de datos de este servidor, así que el asistente podría leer más que la base de datos de este entorno. Elimina ese usuario primero.",
+    "assistantDbLoginRecorded": "El asistente aún tiene un inicio de sesión de solo lectura en la base de datos de este entorno. Desactiva primero \"Permitir que el asistente consulte esta base de datos\" en Ajustes › Base de datos: así se elimina el inicio de sesión del servidor de base de datos."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",

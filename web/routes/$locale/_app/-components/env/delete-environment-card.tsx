@@ -163,7 +163,11 @@ export function DeleteEnvironmentCard({
         result = await deleteEnvironment(environment.id, true);
       }
       if (!result.success) {
-        const message = errorText(result.code, t("deleteFailed"));
+        // The server words this refusal (turn the Assistant's access off).
+        const message =
+          result.code === "assistantDbLoginRecorded" && result.message
+            ? result.message
+            : errorText(result.code, t("deleteFailed"));
         if (closed) toast.error(message);
         else setError(message);
         return;
