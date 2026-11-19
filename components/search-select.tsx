@@ -1,4 +1,6 @@
+import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { useTranslations } from "use-intl";
+import type { PickerTrigger } from "@/components/compact-trigger";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -40,6 +42,7 @@ export function SearchSelect({
   className,
   "aria-label": ariaLabel,
   triggerProps,
+  trigger,
 }: {
   id?: string;
   value: string | null;
@@ -52,6 +55,8 @@ export function SearchSelect({
   className?: string;
   "aria-label"?: string;
   triggerProps?: Record<`data-${string}`, string>;
+  /** A caller-drawn trigger (issue property chips); replaces the button. */
+  trigger?: PickerTrigger;
 }) {
   const t = useTranslations("common");
   const byValue = new Map(options.map((o) => [o.value, o]));
@@ -95,22 +100,31 @@ export function SearchSelect({
       }}
       disabled={disabled}
     >
-      <ComboboxTrigger
-        render={
-          <Button
-            variant="outline"
-            className={cn("h-8 w-full justify-between font-normal", className)}
-            id={id}
-            aria-label={ariaLabel}
-            aria-invalid={invalid}
-            disabled={disabled}
-            {...triggerProps}
-          />
-        }
-      >
-        {triggerContent()}
-      </ComboboxTrigger>
-      <ComboboxContent>
+      {trigger ? (
+        <ComboboxPrimitive.Trigger render={trigger.render} disabled={disabled}>
+          {trigger.content}
+        </ComboboxPrimitive.Trigger>
+      ) : (
+        <ComboboxTrigger
+          render={
+            <Button
+              variant="outline"
+              className={cn(
+                "h-8 w-full justify-between font-normal",
+                className
+              )}
+              id={id}
+              aria-label={ariaLabel}
+              aria-invalid={invalid}
+              disabled={disabled}
+              {...triggerProps}
+            />
+          }
+        >
+          {triggerContent()}
+        </ComboboxTrigger>
+      )}
+      <ComboboxContent className={trigger ? "w-72" : undefined}>
         <ComboboxInput showTrigger={false} placeholder={t("search")} />
         <ComboboxEmpty>{t("noResults")}</ComboboxEmpty>
         <ComboboxList>

@@ -33,6 +33,9 @@ export const SLASH_COMMANDS = [
   "linkDocument",
 ] as const;
 
+/** How long "no matching commands" stays up before the menu hides. */
+const EMPTY_NOTICE_MS = 1500;
+
 export type SlashCommandId = (typeof SLASH_COMMANDS)[number];
 
 export type SlashLabels = { menu: string; empty: string } & Record<
@@ -166,6 +169,8 @@ export function createSlashStore() {
     },
     /** Assigned by the mounted menu: true when the key was the menu's. */
     keyDown: (_event: KeyboardEvent): boolean => false,
+    /** Assigned by the mounted menu: whether anything is on screen. */
+    shown: (): boolean => true,
   };
 }
 
@@ -209,9 +214,10 @@ export const SlashCommand = Extension.create<{ store: SlashStore | null }>({
           onExit: () => store.set(null),
           onKeyDown: ({ event }) => {
             // The plugin closes the menu on Esc and keeps the text; the key
-            // must not also close a dialog around the editor.
+            // must not also close a dialog around the editor — unless nothing
+            // was on screen to close (the no-match notice timed out).
             if (event.key === "Escape") {
-              event.stopPropagation();
+              if (store.shown()) event.stopPropagation();
               return true;
             }
             if (event.isComposing) return false;
@@ -264,6 +270,17 @@ export function SlashMenu({
   const index =
     highlight.key === key ? Math.min(highlight.index, items.length - 1) : 0;
   const listOpen = session !== null && items.length > 0;
+  // "No match" shows briefly, then gets out of the way: typing a path such as
+  // `/etc/hosts` at a line start is text, not a failed command.
+  const [emptyDone, setEmptyDone] = useState<number | null>(null);
+  const emptyAt =
+    session !== null && items.length === 0 ? session.range.from : null;
+  const open = session !== null && !(emptyAt !== null && emptyDone === emptyAt);
+  useEffect(() => {
+    if (emptyAt === null) return;
+    const timer = setTimeout(() => setEmptyDone(emptyAt), EMPTY_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [emptyAt]);
   const optionId = (i: number) => `${listId}-${i}`;
 
   const run = (item: Item) => {
@@ -323,7 +340,11 @@ export function SlashMenu({
         });
         return true;
       }
-      if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
+      // Ctrl/⌘+Enter is not a pick: it stays the surrounding form's submit.
+      if (
+        (event.key === "Enter" || event.key === "Tab") &&
+        !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)
+      ) {
         const item = items[index];
         if (!item) return false;
         run(item);
@@ -332,9 +353,13 @@ export function SlashMenu({
       return false;
     };
   });
+  useEffect(() => {
+    store.shown = () => open;
+  });
   useEffect(
     () => () => {
       store.keyDown = () => false;
+      store.shown = () => true;
     },
     [store]
   );
@@ -363,7 +388,7 @@ export function SlashMenu({
 
   return (
     <Popover.Root
-      open={session !== null}
+      open={open}
       modal={false}
       onOpenChange={(next, details) => {
         // A press outside the text and the list closes it (the `/query`

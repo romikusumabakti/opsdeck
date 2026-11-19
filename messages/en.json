@@ -1685,7 +1685,6 @@
     "onThisPage": "On this page",
     "copyLink": "Copy link",
     "linkCopied": "Link copied",
-    "insertImage": "Insert image",
     "imageTooLarge": "Image is too large (max 25 MB)",
     "imageUploading": "Uploading image…",
     "imageUploadFailed": "Failed to upload image",
@@ -1719,7 +1718,6 @@
     "editorInlineCode": "Inline code",
     "editorCodeBlock": "Code block",
     "editorQuote": "Quote",
-    "editorInsertTable": "Insert table",
     "docTypeLabel": "Type",
     "docType": {
       "doc": "Document",
@@ -1901,17 +1899,17 @@
       "closed": "Closed"
     },
     "createTitle": "New issue",
-    "createDescription": "Describe the bug or task.",
     "titleLabel": "Title",
     "titlePlaceholder": "Short summary",
-    "descriptionLabel": "Description",
     "descriptionPlaceholder": "What happened, steps to reproduce, expected vs actual…",
-    "environmentLabel": "Environment (optional)",
     "none": "None",
     "create": "Create issue",
     "creating": "Creating…",
     "createdSuccess": "Issue created",
     "createFailed": "Failed to create issue",
+    "createMore": "Create more",
+    "optionsLoadFailed": "Couldn't load the project's options.",
+    "properties": "Properties",
     "updateFailed": "Failed to update issue",
     "statusUpdated": "Status updated",
     "assigneeUpdated": "Assignee updated",
@@ -2071,10 +2069,6 @@
       "backup": "Backup",
       "backupStarted": "Backup started",
       "backupFailed": "Couldn't start the backup."
-    },
-    "issueDialog": {
-      "project": "Project",
-      "loadFailed": "Couldn't load the project's options."
     },
     "error": {
       "load": "Couldn't load this section.",

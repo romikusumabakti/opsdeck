@@ -1685,7 +1685,6 @@
     "onThisPage": "En esta página",
     "copyLink": "Copiar enlace",
     "linkCopied": "Enlace copiado",
-    "insertImage": "Insertar imagen",
     "imageTooLarge": "La imagen es demasiado grande (máx. 25 MB)",
     "imageUploading": "Subiendo imagen…",
     "imageUploadFailed": "No se pudo subir la imagen",
@@ -1719,7 +1718,6 @@
     "editorInlineCode": "Código en línea",
     "editorCodeBlock": "Bloque de código",
     "editorQuote": "Cita",
-    "editorInsertTable": "Insertar tabla",
     "docTypeLabel": "Tipo",
     "docType": {
       "doc": "Documento",
@@ -1901,17 +1899,17 @@
       "closed": "Cerrada"
     },
     "createTitle": "Nueva incidencia",
-    "createDescription": "Describe el error o la tarea.",
     "titleLabel": "Título",
     "titlePlaceholder": "Resumen breve",
-    "descriptionLabel": "Descripción",
     "descriptionPlaceholder": "Qué ocurrió, pasos para reproducirlo, resultado esperado frente al real…",
-    "environmentLabel": "Entorno (opcional)",
     "none": "Ninguno",
     "create": "Crear incidencia",
     "creating": "Creando…",
     "createdSuccess": "Incidencia creada",
     "createFailed": "No se pudo crear la incidencia",
+    "createMore": "Crear más",
+    "optionsLoadFailed": "No se pudieron cargar las opciones del proyecto.",
+    "properties": "Propiedades",
     "updateFailed": "No se pudo actualizar la incidencia",
     "statusUpdated": "Estado actualizado",
     "assigneeUpdated": "Responsable actualizado",
@@ -2071,10 +2069,6 @@
       "backup": "Copia",
       "backupStarted": "Copia de seguridad iniciada",
       "backupFailed": "No se pudo iniciar la copia de seguridad."
-    },
-    "issueDialog": {
-      "project": "Proyecto",
-      "loadFailed": "No se pudieron cargar las opciones del proyecto."
     },
     "error": {
       "load": "No se pudo cargar esta sección.",

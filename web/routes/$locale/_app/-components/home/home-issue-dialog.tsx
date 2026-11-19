@@ -1,13 +1,9 @@
 import * as React from "react";
-import { toast } from "sonner";
-import { useTranslations } from "use-intl";
 import {
   IssueCreateDialog,
   type IssueDefaults,
 } from "@/components/issue-create-dialog";
-import { SearchSelect } from "@/components/search-select";
 import type { IssueProject } from "@/web/api/home";
-import { getIssueFormOptions, type IssueFormOptions } from "@/web/api/issues";
 
 export type IssuePrefill = {
   projectId?: string;
@@ -19,8 +15,6 @@ type DialogState = {
   projectId: string;
   environmentId: string | null;
   defaults: IssueDefaults;
-  // Bumped by every open(), so reopening retries a failed options load.
-  nonce: number;
 };
 
 type IssueDialogApi = {
@@ -39,7 +33,7 @@ export function useIssueDialog(): IssueDialogApi {
 
 // One create-issue dialog for the whole page: the header's New issue and each
 // failure's Issue button open it with different prefills. The project is
-// picked inside the dialog; its pickers load on demand.
+// picked inside the dialog (its chip); the dialog loads that project's pickers.
 export function HomeIssueDialogProvider({
   projects,
   defaultTarget,
@@ -49,38 +43,12 @@ export function HomeIssueDialogProvider({
   defaultTarget: { projectId: string; environmentId: string } | null;
   children: React.ReactNode;
 }) {
-  const t = useTranslations("homePage");
   const [state, setState] = React.useState<DialogState | null>(null);
-  // Loaded pickers per project; a failed load leaves no entry.
-  const [options, setOptions] = React.useState<
-    Record<string, IssueFormOptions>
-  >({});
-  const loaded = React.useRef(new Set<string>());
 
   const writable = React.useMemo(
     () => new Set(projects.map((p) => p.id)),
     [projects]
   );
-  const projectId = state?.projectId ?? null;
-  const nonce = state?.nonce ?? 0;
-
-  // Runs on each open and project change; fetches unless already loaded.
-  React.useEffect(() => {
-    if (!projectId || nonce === 0 || loaded.current.has(projectId)) return;
-    let cancelled = false;
-    getIssueFormOptions(projectId).then(
-      (data) => {
-        loaded.current.add(projectId);
-        setOptions((o) => ({ ...o, [projectId]: data }));
-      },
-      () => {
-        if (!cancelled) toast.error(t("issueDialog.loadFailed"));
-      }
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, nonce, t]);
 
   const open = React.useCallback(
     (prefill: IssuePrefill = {}) => {
@@ -95,8 +63,7 @@ export function HomeIssueDialogProvider({
         : pid === defaultTarget?.projectId
           ? defaultTarget.environmentId
           : null;
-      setState((s) => ({
-        nonce: (s?.nonce ?? 0) + 1,
+      setState({
         open: true,
         projectId: pid,
         environmentId,
@@ -105,7 +72,7 @@ export function HomeIssueDialogProvider({
           description: prefill.description,
           type: prefill.type,
         },
-      }));
+      });
     },
     [writable, defaultTarget, projects]
   );
@@ -119,8 +86,6 @@ export function HomeIssueDialogProvider({
     [open, writable, projects.length]
   );
 
-  const current = projectId ? (options[projectId] ?? null) : null;
-
   return (
     <IssueDialogContext.Provider value={api}>
       {children}
@@ -131,29 +96,14 @@ export function HomeIssueDialogProvider({
             setState((s) => (s ? { ...s, open: isOpen } : s))
           }
           projectId={state.projectId}
-          environments={current?.environments ?? []}
-          users={current?.users ?? []}
           defaultEnvironmentId={state.environmentId ?? ""}
           defaults={state.defaults}
-          loading={current === null}
-          projectPicker={
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">
-                {t("issueDialog.project")}
-              </span>
-              <SearchSelect
-                aria-label={t("issueDialog.project")}
-                value={state.projectId}
-                onChange={(v) =>
-                  v && setState((s) => (s ? { ...s, projectId: v } : s))
-                }
-                options={projects.map((p) => ({ value: p.id, label: p.name }))}
-                placeholder={t("issueDialog.project")}
-              />
-            </div>
-          }
-          onCreated={() => {
-            setState((s) => (s ? { ...s, open: false } : s));
+          // The pickers follow the project; what no longer fits it is
+          // dropped by the dialog, the rest of the properties stay.
+          projectChoice={{
+            projects,
+            onChange: (id) =>
+              setState((s) => (s ? { ...s, projectId: id } : s)),
           }}
         />
       ) : null}

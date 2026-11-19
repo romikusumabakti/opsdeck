@@ -1685,7 +1685,6 @@
     "onThisPage": "本页内容",
     "copyLink": "复制链接",
     "linkCopied": "链接已复制",
-    "insertImage": "插入图片",
     "imageTooLarge": "图片过大（上限 25 MB）",
     "imageUploading": "正在上传图片…",
     "imageUploadFailed": "图片上传失败",
@@ -1719,7 +1718,6 @@
     "editorInlineCode": "行内代码",
     "editorCodeBlock": "代码块",
     "editorQuote": "引用",
-    "editorInsertTable": "插入表格",
     "docTypeLabel": "类型",
     "docType": {
       "doc": "文档",
@@ -1901,17 +1899,17 @@
       "closed": "已关闭"
     },
     "createTitle": "新建问题",
-    "createDescription": "描述缺陷或任务。",
     "titleLabel": "标题",
     "titlePlaceholder": "简短摘要",
-    "descriptionLabel": "描述",
     "descriptionPlaceholder": "发生了什么、复现步骤、预期与实际…",
-    "environmentLabel": "环境（可选）",
     "none": "无",
     "create": "创建问题",
     "creating": "创建中…",
     "createdSuccess": "问题已创建",
     "createFailed": "创建问题失败",
+    "createMore": "继续创建",
+    "optionsLoadFailed": "无法加载项目选项。",
+    "properties": "属性",
     "updateFailed": "更新问题失败",
     "statusUpdated": "状态已更新",
     "assigneeUpdated": "负责人已更新",
@@ -2071,10 +2069,6 @@
       "backup": "备份",
       "backupStarted": "备份已开始",
       "backupFailed": "无法开始备份。"
-    },
-    "issueDialog": {
-      "project": "项目",
-      "loadFailed": "无法加载项目选项。"
     },
     "error": {
       "load": "无法加载此部分。",

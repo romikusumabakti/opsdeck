@@ -1,3 +1,4 @@
+import { Select as SelectPrimitive } from "@base-ui/react/select";
 import {
   Bookmark,
   Bug,
@@ -6,7 +7,10 @@ import {
   SquareCheck,
 } from "lucide-react";
 import { useTranslations } from "use-intl";
-import { COMPACT_TRIGGER } from "@/components/compact-trigger";
+import {
+  COMPACT_TRIGGER,
+  type PickerTrigger,
+} from "@/components/compact-trigger";
 import { LabelChips } from "@/components/label-ui";
 import { PersonPicker } from "@/components/person-picker";
 import {
@@ -82,6 +86,16 @@ function triggerClass(variant: SelectVariant, className?: string) {
   return cn(variant === "compact" ? COMPACT_TRIGGER : "h-8 w-full", className);
 }
 
+// A caller-drawn trigger (issue property chips/rows): no chevron, no
+// SelectValue — the caller's content already shows the value.
+function CustomSelectTrigger({ trigger }: { trigger: PickerTrigger }) {
+  return (
+    <SelectPrimitive.Trigger render={trigger.render}>
+      {trigger.content}
+    </SelectPrimitive.Trigger>
+  );
+}
+
 // Status control with a colored dot, reused by the table and board.
 // Pass variant="compact" for dense rows and cards.
 export function StatusSelect({
@@ -89,24 +103,30 @@ export function StatusSelect({
   onChange,
   className,
   variant = "default",
+  trigger,
 }: {
   value: Status;
   onChange: (s: Status) => void;
   className?: string;
   variant?: SelectVariant;
+  trigger?: PickerTrigger;
 }) {
   const t = useTranslations("issues");
   return (
     <Select value={value} onValueChange={(v) => v && onChange(v as Status)}>
-      <SelectTrigger
-        className={triggerClass(variant, className)}
-        aria-label={t(`status.${value}`)}
-      >
-        {/* No dot here: SelectValue renders the selected item's own content
-            (dot + label) via Base UI's ItemText, so adding one would double it. */}
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
+      {trigger ? (
+        <CustomSelectTrigger trigger={trigger} />
+      ) : (
+        <SelectTrigger
+          className={triggerClass(variant, className)}
+          aria-label={t(`status.${value}`)}
+        >
+          {/* No dot here: SelectValue renders the selected item's own content
+              (dot + label) via Base UI's ItemText, so adding one would double it. */}
+          <SelectValue />
+        </SelectTrigger>
+      )}
+      <SelectContent alignItemWithTrigger={!trigger}>
         {STATUSES.map((s) => (
           <SelectItem key={s} value={s}>
             <span className="flex items-center gap-2">
@@ -143,22 +163,28 @@ export function TypeSelect({
   value,
   onChange,
   className,
+  trigger,
 }: {
   value: IssueType;
   onChange: (v: IssueType) => void;
   className?: string;
+  trigger?: PickerTrigger;
 }) {
   const t = useTranslations("issues");
   return (
     <Select value={value} onValueChange={(v) => v && onChange(v as IssueType)}>
-      <SelectTrigger
-        className={cn("h-8 w-full", className)}
-        aria-label={t(`type.${value}`)}
-      >
-        {/* SelectValue already renders the selected item's icon + label. */}
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
+      {trigger ? (
+        <CustomSelectTrigger trigger={trigger} />
+      ) : (
+        <SelectTrigger
+          className={cn("h-8 w-full", className)}
+          aria-label={t(`type.${value}`)}
+        >
+          {/* SelectValue already renders the selected item's icon + label. */}
+          <SelectValue />
+        </SelectTrigger>
+      )}
+      <SelectContent alignItemWithTrigger={!trigger}>
         {ISSUE_TYPES.map((ty) => (
           <SelectItem key={ty} value={ty}>
             <span className="flex items-center gap-2">
@@ -179,23 +205,29 @@ export function PrioritySelect({
   onChange,
   className,
   variant = "default",
+  trigger,
 }: {
   value: Priority;
   onChange: (v: Priority) => void;
   className?: string;
   variant?: SelectVariant;
+  trigger?: PickerTrigger;
 }) {
   const t = useTranslations("issues");
   return (
     <Select value={value} onValueChange={(v) => v && onChange(v as Priority)}>
-      <SelectTrigger
-        className={triggerClass(variant, className)}
-        aria-label={t(`priority.${value}`)}
-      >
-        {/* SelectValue already renders the selected item's dot + label. */}
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
+      {trigger ? (
+        <CustomSelectTrigger trigger={trigger} />
+      ) : (
+        <SelectTrigger
+          className={triggerClass(variant, className)}
+          aria-label={t(`priority.${value}`)}
+        >
+          {/* SelectValue already renders the selected item's dot + label. */}
+          <SelectValue />
+        </SelectTrigger>
+      )}
+      <SelectContent alignItemWithTrigger={!trigger}>
         {PRIORITIES.map((p) => (
           <SelectItem key={p} value={p}>
             <span className="flex items-center gap-2">
@@ -222,12 +254,14 @@ export function AssigneeSelect({
   onChange,
   className,
   variant = "default",
+  trigger,
 }: {
   users: AssignableUser[];
   value: string | null;
   onChange: (assigneeId: string | null) => void;
   className?: string;
   variant?: SelectVariant;
+  trigger?: PickerTrigger;
 }) {
   const t = useTranslations("issues");
   return (
@@ -239,6 +273,7 @@ export function AssigneeSelect({
       aria-label={t("assignee")}
       variant={variant}
       className={className}
+      trigger={trigger}
     />
   );
 }

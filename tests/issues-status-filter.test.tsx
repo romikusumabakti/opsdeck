@@ -24,14 +24,14 @@ import {
   statusFilterHref,
 } from "@/web/routes/$locale/_app/-components/issues-client";
 
-function render(status: string | undefined) {
+function render(status: string | undefined, canCreate = true) {
   return renderToString(
     <IntlProvider locale="en" messages={messages} timeZone="UTC">
       <IssuesClient
         projectId="p"
         projectKey="CMEM"
         currentEnvironmentId=""
-        environments={[]}
+        canCreate={canCreate}
         users={[]}
         initialIssues={[]}
         status={status}
@@ -54,6 +54,14 @@ describe("issues status filter", () => {
     expect(render("all")).toContain("All statuses");
     expect(resolveStatusFilter("closed", "table")).toEqual(["closed"]);
     expect(render("closed")).toContain("Closed");
+  });
+});
+
+describe("issues New issue button", () => {
+  // Viewers read issues; only `issue: write` roles create (as the server).
+  it("is offered only to callers who may create issues", () => {
+    expect(render(undefined, true)).toContain("New issue");
+    expect(render(undefined, false)).not.toContain("New issue");
   });
 });
 

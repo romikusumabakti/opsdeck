@@ -1,5 +1,6 @@
 import { Check, Tag } from "lucide-react";
 import { useTranslations } from "use-intl";
+import type { PickerTrigger } from "@/components/compact-trigger";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -64,10 +65,13 @@ export function LabelPicker({
   allLabels,
   selected,
   onChange,
+  trigger,
 }: {
   allLabels: LabelLite[];
   selected: string[];
   onChange: (labelIds: string[]) => void;
+  /** A caller-drawn trigger (issue property chips); replaces the button. */
+  trigger?: PickerTrigger;
 }) {
   const t = useTranslations("issueDetail");
   const selectedSet = new Set(selected);
@@ -84,14 +88,20 @@ export function LabelPicker({
 
   return (
     <Popover>
-      <PopoverTrigger
-        render={
-          <Button variant="outline" size="sm" className="h-8 justify-start" />
-        }
-      >
-        <Tag className="size-3.5" />
-        {t("labels")}
-      </PopoverTrigger>
+      {trigger ? (
+        <PopoverTrigger render={trigger.render}>
+          {trigger.content}
+        </PopoverTrigger>
+      ) : (
+        <PopoverTrigger
+          render={
+            <Button variant="outline" size="sm" className="h-8 justify-start" />
+          }
+        >
+          <Tag className="size-3.5" />
+          {t("labels")}
+        </PopoverTrigger>
+      )}
       <PopoverContent align="start" className="w-56 p-1">
         <ul className="flex flex-col">
           {allLabels.map((l) => {
@@ -100,6 +110,7 @@ export function LabelPicker({
               <li key={l.id}>
                 <button
                   type="button"
+                  aria-pressed={on}
                   onClick={() => toggle(l.id)}
                   className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors"
                 >

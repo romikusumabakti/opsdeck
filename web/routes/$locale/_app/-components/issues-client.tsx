@@ -3,10 +3,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { useDialog } from "@/components/dialog-provider";
-import {
-  IssueCreateDialog,
-  type Option,
-} from "@/components/issue-create-dialog";
+import { IssueCreateDialog } from "@/components/issue-create-dialog";
 import {
   type AssignableUser,
   AssigneeSelect,
@@ -91,7 +88,7 @@ export function IssuesClient({
   projectId,
   projectKey,
   currentEnvironmentId,
-  environments,
+  canCreate,
   users,
   initialIssues,
   status,
@@ -99,7 +96,8 @@ export function IssuesClient({
   projectId: string;
   projectKey: string;
   currentEnvironmentId: string;
-  environments: Option[];
+  /** May the caller create issues here (the project role's `issue: write`)? */
+  canCreate: boolean;
   users: AssignableUser[];
   initialIssues: IssueWithMeta[];
   /** The `status` URL param the list was loaded with (unset = open + in progress). */
@@ -401,10 +399,12 @@ export function IssuesClient({
               <LayoutGrid className="size-4" />
             </Button>
           </div>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            {t("new")}
-          </Button>
+          {canCreate ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              {t("new")}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -603,17 +603,15 @@ export function IssuesClient({
         </div>
       )}
 
-      <IssueCreateDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        projectId={projectId}
-        environments={environments}
-        users={users}
-        defaultEnvironmentId={currentEnvironmentId}
-        onCreated={() => {
-          setCreateOpen(false);
-        }}
-      />
+      {canCreate ? (
+        <IssueCreateDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          projectId={projectId}
+          projectKey={projectKey}
+          defaultEnvironmentId={currentEnvironmentId}
+        />
+      ) : null}
     </div>
   );
 }

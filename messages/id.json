@@ -1685,7 +1685,6 @@
     "onThisPage": "Di halaman ini",
     "copyLink": "Salin tautan",
     "linkCopied": "Tautan disalin",
-    "insertImage": "Sisipkan gambar",
     "imageTooLarge": "Gambar terlalu besar (maks 25 MB)",
     "imageUploading": "Mengunggah gambar…",
     "imageUploadFailed": "Gagal mengunggah gambar",
@@ -1719,7 +1718,6 @@
     "editorInlineCode": "Kode sebaris",
     "editorCodeBlock": "Blok kode",
     "editorQuote": "Kutipan",
-    "editorInsertTable": "Sisipkan tabel",
     "docTypeLabel": "Tipe",
     "docType": {
       "doc": "Dokumen",
@@ -1901,17 +1899,17 @@
       "closed": "Ditutup"
     },
     "createTitle": "Isu baru",
-    "createDescription": "Jelaskan bug atau tugas.",
     "titleLabel": "Judul",
     "titlePlaceholder": "Ringkasan singkat",
-    "descriptionLabel": "Deskripsi",
     "descriptionPlaceholder": "Apa yang terjadi, langkah reproduksi, harapan vs aktual…",
-    "environmentLabel": "Environment (opsional)",
     "none": "Tidak ada",
     "create": "Buat isu",
     "creating": "Membuat…",
     "createdSuccess": "Isu dibuat",
     "createFailed": "Gagal membuat isu",
+    "createMore": "Buat lagi",
+    "optionsLoadFailed": "Gagal memuat opsi project.",
+    "properties": "Properti",
     "updateFailed": "Gagal memperbarui isu",
     "statusUpdated": "Status diperbarui",
     "assigneeUpdated": "Penanggung jawab diperbarui",
@@ -2071,10 +2069,6 @@
       "backup": "Backup",
       "backupStarted": "Backup dimulai",
       "backupFailed": "Gagal memulai backup."
-    },
-    "issueDialog": {
-      "project": "Project",
-      "loadFailed": "Gagal memuat opsi project."
     },
     "error": {
       "load": "Gagal memuat bagian ini.",

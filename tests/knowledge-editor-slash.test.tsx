@@ -252,6 +252,31 @@ describe("slash menu: filtering and keys", () => {
     expect(editorMarkdown(editor)).toBe("/zzz");
   });
 
+  it("hides the no-match notice after a moment (a typed path is text)", async () => {
+    const { editor, dom } = await mount({ value: "" });
+    await type(editor, "/etc");
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain("No matching commands")
+    );
+    await vi.waitFor(
+      () =>
+        expect(document.body.textContent).not.toContain("No matching commands"),
+      { timeout: 3000 }
+    );
+    await type(editor, "/hosts");
+    expect(document.body.textContent).not.toContain("No matching commands");
+    await key(dom, { key: "Enter" });
+    expect(editorMarkdown(editor)).toContain("/etc/hosts");
+  });
+
+  it("leaves Ctrl/⌘+Enter to the surrounding form", async () => {
+    const { editor, dom } = await mount({ value: "" });
+    await type(editor, "/");
+    await openList();
+    await key(dom, { key: "Enter", ctrlKey: true });
+    expect(editorMarkdown(editor)).not.toMatch(/^#/);
+  });
+
   it("moves the highlight with the arrows (wrapping) and runs it on Enter", async () => {
     const { editor, dom } = await mount({ value: "" });
     await type(editor, "/");

@@ -53,7 +53,6 @@ export type { SlashLabels } from "@/components/editor/slash-menu";
 export type LinkableDoc = { title: string; slug: string };
 
 export type UploadLabels = {
-  button: string;
   uploading: string;
   tooLarge: string;
   failed: string;
@@ -392,7 +391,6 @@ export function KnowledgeEditor({
         multiple
         hidden
         tabIndex={-1}
-        aria-label={uploadLabels?.button ?? "Insert image"}
         onChange={(e) => {
           for (const f of imageFiles(e.target.files)) uploadRef.current(f);
           e.target.value = "";

@@ -1,6 +1,10 @@
+import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { useMemo } from "react";
 import { useTranslations } from "use-intl";
-import { COMPACT_TRIGGER } from "@/components/compact-trigger";
+import {
+  COMPACT_TRIGGER,
+  type PickerTrigger,
+} from "@/components/compact-trigger";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -50,6 +54,7 @@ export function PersonPicker({
   "aria-invalid": ariaInvalid,
   disabled,
   className,
+  trigger,
 }: (
   | { value: string | null; actionLabel?: undefined }
   | { actionLabel: string; value?: undefined }
@@ -64,6 +69,8 @@ export function PersonPicker({
   "aria-invalid"?: boolean;
   disabled?: boolean;
   className?: string;
+  /** A caller-drawn trigger (issue property chips); replaces the button. */
+  trigger?: PickerTrigger;
 }) {
   const t = useTranslations("personPicker");
   const tp = useTranslations("people");
@@ -117,29 +124,37 @@ export function PersonPicker({
         return p ? `${p.name} ${p.email ?? ""}` : "";
       }}
     >
-      <ComboboxTrigger
-        render={
-          <Button
-            variant={compact ? "ghost" : "outline"}
-            size={actionLabel !== undefined ? "sm" : undefined}
-            className={
-              actionLabel !== undefined
-                ? className
-                : compact
-                  ? cn(COMPACT_TRIGGER, className)
-                  : cn("h-8 w-full justify-between font-normal", className)
-            }
-            id={id}
-            aria-label={ariaLabel}
-            aria-invalid={ariaInvalid}
-            disabled={disabled}
-          />
-        }
-      >
-        {triggerContent()}
-      </ComboboxTrigger>
+      {trigger ? (
+        <ComboboxPrimitive.Trigger render={trigger.render} disabled={disabled}>
+          {trigger.content}
+        </ComboboxPrimitive.Trigger>
+      ) : (
+        <ComboboxTrigger
+          render={
+            <Button
+              variant={compact ? "ghost" : "outline"}
+              size={actionLabel !== undefined ? "sm" : undefined}
+              className={
+                actionLabel !== undefined
+                  ? className
+                  : compact
+                    ? cn(COMPACT_TRIGGER, className)
+                    : cn("h-8 w-full justify-between font-normal", className)
+              }
+              id={id}
+              aria-label={ariaLabel}
+              aria-invalid={ariaInvalid}
+              disabled={disabled}
+            />
+          }
+        >
+          {triggerContent()}
+        </ComboboxTrigger>
+      )}
       <ComboboxContent
-        className={compact || actionLabel !== undefined ? "w-72" : undefined}
+        className={
+          compact || trigger || actionLabel !== undefined ? "w-72" : undefined
+        }
       >
         <ComboboxInput showTrigger={false} placeholder={t("search")} />
         <ComboboxEmpty>{t("empty")}</ComboboxEmpty>

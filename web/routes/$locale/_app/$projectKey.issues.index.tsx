@@ -3,8 +3,12 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { resolveStatusFilter } from "@/lib/issue-query";
+import { canProject } from "@/lib/permissions";
 import { listIssuesQuery } from "@/web/api/issues";
-import { getProjectByKeyWithEnvironmentsQuery } from "@/web/api/project-catalog";
+import {
+  getMyProjectAccessQuery,
+  getProjectByKeyWithEnvironmentsQuery,
+} from "@/web/api/project-catalog";
 import { listAssignableUsersQuery } from "@/web/api/users";
 import { requireProjectRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
@@ -61,6 +65,11 @@ function ProjectIssuesPage() {
     listIssuesQuery(project.id, statusesFor(status))
   ).data;
   const users = useSuspenseQuery(listAssignableUsersQuery(project.id)).data;
+  // Viewers read issues; creating one takes `issue: write` (as the server).
+  const roles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
+  const canCreate = canProject(roles[project.id] ?? null, {
+    issue: ["write"],
+  });
 
   return (
     <>
@@ -70,10 +79,7 @@ function ProjectIssuesPage() {
         projectId={project.id}
         projectKey={project.key}
         currentEnvironmentId=""
-        environments={project.environments.map((e) => ({
-          id: e.id,
-          name: e.name,
-        }))}
+        canCreate={canCreate}
         users={users}
         initialIssues={issues}
         status={status}

@@ -39,7 +39,7 @@
         "@tiptap/pm": "^3.33.1",
         "@tiptap/react": "^3.33.1",
         "@tiptap/starter-kit": "^3.33.1",
-        "@tiptap/suggestion": "3.33.1",
+        "@tiptap/suggestion": "^3.33.1",
         "@wterm/dom": "0.5.10",
         "@wterm/ghostty": "0.5.10",
         "ai": "^7.0.173",

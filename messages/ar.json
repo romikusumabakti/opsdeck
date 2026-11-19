@@ -1685,7 +1685,6 @@
     "onThisPage": "في هذه الصفحة",
     "copyLink": "نسخ الرابط",
     "linkCopied": "تم نسخ الرابط",
-    "insertImage": "إدراج صورة",
     "imageTooLarge": "الصورة كبيرة جدًا (الحد الأقصى 25 ميجابايت)",
     "imageUploading": "جارٍ رفع الصورة…",
     "imageUploadFailed": "فشل رفع الصورة",
@@ -1719,7 +1718,6 @@
     "editorInlineCode": "كود مضمّن",
     "editorCodeBlock": "كتلة كود",
     "editorQuote": "اقتباس",
-    "editorInsertTable": "إدراج جدول",
     "docTypeLabel": "النوع",
     "docType": {
       "doc": "مستند",
@@ -1901,17 +1899,17 @@
       "closed": "مغلقة"
     },
     "createTitle": "مشكلة جديدة",
-    "createDescription": "صف الخطأ أو المهمة.",
     "titleLabel": "العنوان",
     "titlePlaceholder": "ملخص قصير",
-    "descriptionLabel": "الوصف",
     "descriptionPlaceholder": "ماذا حدث، خطوات إعادة الإنتاج، المتوقع مقابل الفعلي…",
-    "environmentLabel": "البيئة (اختياري)",
     "none": "لا شيء",
     "create": "إنشاء مشكلة",
     "creating": "جارٍ الإنشاء…",
     "createdSuccess": "تم إنشاء المشكلة",
     "createFailed": "فشل إنشاء المشكلة",
+    "createMore": "إنشاء المزيد",
+    "optionsLoadFailed": "تعذّر تحميل خيارات المشروع.",
+    "properties": "الخصائص",
     "updateFailed": "فشل تحديث المشكلة",
     "statusUpdated": "تم تحديث الحالة",
     "assigneeUpdated": "تم تحديث المُكلَّف",
@@ -2071,10 +2069,6 @@
       "backup": "نسخ احتياطي",
       "backupStarted": "بدأ النسخ الاحتياطي",
       "backupFailed": "تعذّر بدء النسخ الاحتياطي."
-    },
-    "issueDialog": {
-      "project": "المشروع",
-      "loadFailed": "تعذّر تحميل خيارات المشروع."
     },
     "error": {
       "load": "تعذّر تحميل هذا القسم.",

@@ -1,98 +1,193 @@
+import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import {
-  type AssignableUser,
-  AssigneeSelect,
-  type IssueType,
-  type Priority,
-  PrioritySelect,
-  TypeSelect,
-} from "@/components/issues-board";
+  AssigneeProperty,
+  EnvironmentProperty,
+  LabelsProperty,
+  ParentProperty,
+  PriorityProperty,
+  ProjectProperty,
+  StatusProperty,
+  TypeProperty,
+} from "@/components/issue-property-trigger";
+import type { IssueType, Priority, Status } from "@/components/issues-board";
 import { MarkdownEditor } from "@/components/markdown-editor";
-import { SearchSelect } from "@/components/search-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { createIssue } from "@/web/api/issues";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { createIssue, getIssueFormOptionsQuery } from "@/web/api/issues";
+import { listTreeNodesQuery } from "@/web/api/knowledge";
 
-export type Option = { id: string; name: string };
 export type IssueDefaults = {
   title?: string;
   description?: string;
   type?: IssueType;
 };
 
-const NONE = "none";
+/** The Project chip (Home and global entry points only). */
+export type ProjectChoice = {
+  projects: { id: string; name: string; key: string }[];
+  onChange: (projectId: string) => void;
+};
 
+/**
+ * The New issue dialog: a large borderless title, the description editor and
+ * a chip row for the properties, all sent in one create request. Ctrl/⌘+Enter
+ * creates from anywhere in it (Enter in the title does not). With "Create
+ * more" on, a create keeps the dialog open with the chosen properties, clears
+ * the title and description and puts the caret back in the title.
+ *
+ * The project's pickers (environments, people, labels, parent candidates) and
+ * the linkable documents load while it is open.
+ */
 export function IssueCreateDialog({
   open,
   onOpenChange,
   projectId,
-  environments,
-  users,
+  projectKey,
   defaultEnvironmentId,
   defaults,
-  loading = false,
-  projectPicker,
+  projectChoice,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-  environments: Option[];
-  users: AssignableUser[];
+  /** For parent references (`KEY-12`); taken from `projectChoice` there. */
+  projectKey?: string;
   defaultEnvironmentId: string;
   defaults?: IssueDefaults;
-  loading?: boolean;
-  projectPicker?: React.ReactNode;
+  projectChoice?: ProjectChoice;
+  /** After each create. Closing is the dialog's own (unless Create more). */
+  onCreated?: () => void;
+}) {
+  // Stays on for the page's life, as the switch was left.
+  const [createMore, setCreateMore] = React.useState(false);
+
+  // A new prefill (Home's buttons) restarts the form even while it is open;
+  // a project change alone does not.
+  const [formKey, setFormKey] = React.useState(0);
+  const [seen, setSeen] = React.useState({ defaults, defaultEnvironmentId });
+  if (
+    seen.defaults !== defaults ||
+    seen.defaultEnvironmentId !== defaultEnvironmentId
+  ) {
+    setSeen({ defaults, defaultEnvironmentId });
+    setFormKey((k) => k + 1);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Capped to the viewport with the title and description scrolling
+          inside, so the chips and Create stay on screen. */}
+      <DialogContent className="flex max-h-[calc(100dvh-4rem)] flex-col gap-0 p-0 sm:max-w-2xl">
+        {/* Mounted only while open: each open starts a fresh form. */}
+        <IssueCreateForm
+          key={formKey}
+          projectId={projectId}
+          projectKey={
+            projectChoice?.projects.find((p) => p.id === projectId)?.key ??
+            projectKey
+          }
+          defaultEnvironmentId={defaultEnvironmentId}
+          defaults={defaults}
+          projectChoice={projectChoice}
+          createMore={createMore}
+          onCreateMoreChange={setCreateMore}
+          onCreated={() => {
+            onCreated?.();
+            if (!createMore) onOpenChange(false);
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function IssueCreateForm({
+  projectId,
+  projectKey,
+  defaultEnvironmentId,
+  defaults,
+  projectChoice,
+  createMore,
+  onCreateMoreChange,
+  onCreated,
+}: {
+  projectId: string;
+  projectKey?: string;
+  defaultEnvironmentId: string;
+  defaults?: IssueDefaults;
+  projectChoice?: ProjectChoice;
+  createMore: boolean;
+  onCreateMoreChange: (on: boolean) => void;
   onCreated: () => void;
 }) {
   const t = useTranslations("issues");
-  const tCommon = useTranslations("common");
+  const titleRef = React.useRef<HTMLInputElement>(null);
+  const createMoreId = React.useId();
 
-  const [title, setTitle] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [type, setType] = React.useState<IssueType>("task");
-  const [priority, setPriority] = React.useState<Priority>("medium");
-  const [assigneeId, setAssigneeId] = React.useState<string | null>(null);
-  // Empty default (e.g. from the project overview, which has no "current" env)
-  // falls back to the "None" option.
-  const [environmentId, setEnvironmentId] = React.useState(
-    defaultEnvironmentId || NONE
+  const [title, setTitle] = React.useState(defaults?.title ?? "");
+  const [description, setDescription] = React.useState(
+    defaults?.description ?? ""
   );
+  const [type, setType] = React.useState<IssueType>(defaults?.type ?? "task");
+  const [priority, setPriority] = React.useState<Priority>("medium");
+  const [status, setStatus] = React.useState<Status>("open");
+  const [assigneeId, setAssigneeId] = React.useState<string | null>(null);
+  // Empty default (e.g. the project issue list, which has no "current" env)
+  // means none.
+  const [environmentId, setEnvironmentId] = React.useState<string | null>(
+    defaultEnvironmentId || null
+  );
+  const [parentId, setParentId] = React.useState<string | null>(null);
+  const [labelIds, setLabelIds] = React.useState<string[]>([]);
   const [saving, setSaving] = React.useState(false);
 
-  // Reset the form each time the dialog opens.
+  const options = useQuery(getIssueFormOptionsQuery(projectId));
+  const loadFailed = options.isError;
   React.useEffect(() => {
-    if (open) {
-      setTitle(defaults?.title ?? "");
-      setDescription(defaults?.description ?? "");
-      setType(defaults?.type ?? "task");
-      setPriority("medium");
-      setAssigneeId(null);
-      setEnvironmentId(defaultEnvironmentId || NONE);
-    }
-  }, [open, defaultEnvironmentId, defaults]);
+    if (loadFailed) toast.error(t("optionsLoadFailed"));
+  }, [loadFailed, t]);
+  // Only documents the caller can see (the tree is filtered server-side); a
+  // failed load just leaves "Link to document" out.
+  const docs = useQuery(listTreeNodesQuery());
+  const linkableDocs = React.useMemo(
+    () => (docs.data ?? []).map((n) => ({ title: n.title, slug: n.slug })),
+    [docs.data]
+  );
+
+  const environments = options.data?.environments ?? [];
+  const users = options.data?.users ?? [];
+  const labels = options.data?.labels ?? [];
+  const parents = options.data?.parents ?? [];
+  const loading = options.data === undefined;
 
   // Selections only count while they belong to the current project's lists:
-  // Home lets the project change under an open form, and a stale id would be
-  // rejected server-side (or, worse, picked from the wrong project).
-  const envValue = environments.some((e) => e.id === environmentId)
-    ? environmentId
-    : NONE;
+  // the project can change under an open form (and Create more keeps the
+  // properties), and a stale id would be rejected server-side.
+  const envValue =
+    environmentId && environments.some((e) => e.id === environmentId)
+      ? environmentId
+      : null;
   const assigneeValue =
     assigneeId && users.some((u) => u.id === assigneeId) ? assigneeId : null;
+  const parentValue =
+    parentId && parents.some((p) => p.id === parentId) ? parentId : null;
+  const labelValue = labelIds.filter((id) => labels.some((l) => l.id === id));
+
+  const canSubmit = title.trim() !== "" && !loading && !saving;
 
   async function submit() {
-    if (!title.trim() || loading) return;
+    if (!canSubmit) return;
     setSaving(true);
     const result = await createIssue({
       projectId,
@@ -100,8 +195,11 @@ export function IssueCreateDialog({
       description: description.trim(),
       type,
       priority,
-      environmentId: envValue === NONE ? null : envValue,
+      status,
+      environmentId: envValue,
       assigneeId: assigneeValue,
+      parentId: parentValue,
+      labelIds: labelValue,
     });
     setSaving(false);
     if (!result.success) {
@@ -109,99 +207,119 @@ export function IssueCreateDialog({
       return;
     }
     toast.success(t("createdSuccess"));
+    if (createMore) {
+      setTitle("");
+      setDescription("");
+      titleRef.current?.focus();
+    }
     onCreated();
   }
 
+  // Capture phase: ahead of the editor, which would otherwise take
+  // Ctrl/⌘+Enter as a line break.
+  function onKeyDownCapture(e: React.KeyboardEvent) {
+    if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey)) return;
+    if (e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void submit();
+  }
+
+  const chip = "chip" as const;
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Capped to the viewport with the fields scrolling inside: the markdown
-          editor's toolbar plus its writing surface make this form taller than a
-          short screen, and without the cap the header and the Create button are
-          the parts that fall off. The wider breakpoint keeps the toolbar on one
-          row. */}
-      <DialogContent className="grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-2xl max-h-[calc(100dvh-4rem)]">
-        <DialogHeader>
-          <DialogTitle>{t("createTitle")}</DialogTitle>
-          <DialogDescription>{t("createDescription")}</DialogDescription>
-        </DialogHeader>
-        {/* px/py + the negative margin keep focus rings from being clipped by
-            the scroll container's edges. */}
-        <div className="-mx-1 flex flex-col gap-4 overflow-y-auto px-1 py-1">
-          {projectPicker}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" htmlFor="issue-title">
-              {t("titleLabel")}
-            </label>
-            <Input
-              id="issue-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t("titlePlaceholder")}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">{t("typeLabel")}</span>
-              <TypeSelect value={type} onChange={setType} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">{t("priorityLabel")}</span>
-              <PrioritySelect value={priority} onChange={setPriority} />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">{t("descriptionLabel")}</span>
-            {/* Same markdown editor as the issue detail page, so what is typed
-                here round-trips through the same parse/serialize. Shorter than
-                the default surface — it sits in a dialog and grows as you
-                type. */}
-            <MarkdownEditor
-              value={description}
-              onChange={setDescription}
-              contentClassName="min-h-[6rem]"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">{t("environmentLabel")}</span>
-            <SearchSelect
-              aria-label={t("environmentLabel")}
-              value={envValue === NONE ? null : envValue}
-              onChange={(v) => setEnvironmentId(v ?? NONE)}
-              options={environments.map((e) => ({
-                value: e.id,
-                label: e.name,
-              }))}
-              placeholder={t("none")}
-              noneLabel={t("none")}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">{t("assignee")}</span>
-            <AssigneeSelect
-              users={users}
-              value={assigneeValue}
-              onChange={setAssigneeId}
-            />
-          </div>
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      onKeyDownCapture={onKeyDownCapture}
+    >
+      <DialogHeader className="px-5 pt-4 pe-12">
+        <DialogTitle className="text-sm font-medium text-muted-foreground">
+          {t("createTitle")}
+        </DialogTitle>
+      </DialogHeader>
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-5 py-3">
+        <input
+          ref={titleRef}
+          aria-label={t("titleLabel")}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={t("titlePlaceholder")}
+          maxLength={300}
+          className="w-full bg-transparent text-xl font-semibold outline-none placeholder:text-muted-foreground/70"
+        />
+        <MarkdownEditor
+          borderless
+          value={description}
+          onChange={setDescription}
+          linkableDocs={linkableDocs}
+          contentClassName="min-h-[6rem]"
+        />
+      </div>
+      <div
+        role="group"
+        aria-label={t("properties")}
+        className="flex flex-wrap items-center gap-1.5 px-5 pb-4"
+      >
+        {projectChoice ? (
+          <ProjectProperty
+            variant={chip}
+            projects={projectChoice.projects}
+            value={projectId}
+            onChange={projectChoice.onChange}
+          />
+        ) : null}
+        <StatusProperty variant={chip} value={status} onChange={setStatus} />
+        <PriorityProperty
+          variant={chip}
+          value={priority}
+          onChange={setPriority}
+        />
+        <AssigneeProperty
+          variant={chip}
+          users={users}
+          value={assigneeValue}
+          onChange={setAssigneeId}
+        />
+        <TypeProperty variant={chip} value={type} onChange={setType} />
+        <LabelsProperty
+          variant={chip}
+          allLabels={labels}
+          value={labelValue}
+          onChange={setLabelIds}
+        />
+        <EnvironmentProperty
+          variant={chip}
+          environments={environments}
+          value={envValue}
+          onChange={setEnvironmentId}
+        />
+        <ParentProperty
+          variant={chip}
+          parents={parents}
+          projectKey={projectKey}
+          value={parentValue}
+          onChange={setParentId}
+        />
+      </div>
+      <div className="flex items-center justify-end gap-4 border-t px-5 py-3">
+        <div className="flex items-center gap-2">
+          <Switch
+            id={createMoreId}
+            checked={createMore}
+            onCheckedChange={onCreateMoreChange}
+          />
+          <Label htmlFor={createMoreId} className="font-normal">
+            {t("createMore")}
+          </Label>
         </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
-          >
-            {tCommon("cancel")}
-          </Button>
-          <Button
-            type="button"
-            onClick={submit}
-            disabled={saving || loading || !title.trim()}
-          >
-            {saving ? t("creating") : t("create")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <Button
+          type="button"
+          onClick={() => void submit()}
+          disabled={!canSubmit}
+          aria-keyshortcuts="Control+Enter Meta+Enter"
+        >
+          {saving ? t("creating") : t("create")}
+        </Button>
+      </div>
+    </div>
   );
 }

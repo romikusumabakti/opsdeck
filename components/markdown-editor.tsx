@@ -52,7 +52,6 @@ export function MarkdownEditor({
         remove: t("linkRemove"),
       }}
       uploadLabels={{
-        button: t("insertImage"),
         uploading: t("imageUploading"),
         tooLarge: t("imageTooLarge"),
         failed: t("imageUploadFailed"),
