@@ -154,6 +154,22 @@ describe("project form group", () => {
     );
   });
 
+  it("shows the group wording and refreshes groups on a coded groupNotFound", async () => {
+    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+    await renderForm("admin", BANKING);
+    api.editProject.mockResolvedValue({
+      success: false,
+      message: "Group not found",
+      code: "groupNotFound",
+    });
+    await submit();
+    expect(api.toast.error).toHaveBeenCalledWith(
+      messages.actionErrors.groupNotFound
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["project-groups"] });
+    invalidate.mockRestore();
+  });
+
   it("does not offer Create group to a non-admin", async () => {
     await renderForm("engineer");
     await openSelect();

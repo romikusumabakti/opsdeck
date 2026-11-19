@@ -109,6 +109,9 @@ export function ProjectsOverview({
   const sectioned = groupsInUse.length > 1;
 
   function toggleSection(id: string) {
+    // A search forces every section open, so a toggle would only change what
+    // is saved for after it.
+    if (query.trim() !== "") return;
     const next = new Set(collapsed);
     if (!next.delete(id)) next.add(id);
     setCollapsed(next);
@@ -210,7 +213,13 @@ export function ProjectsOverview({
 
   const sections = React.useMemo(() => {
     if (!sectioned) return [];
-    const byGroup = Map.groupBy(visible, (p) => p.groupId ?? NO_GROUP);
+    const byGroup = new Map<string, ProjectWithEnvironments[]>();
+    for (const p of visible) {
+      const id = p.groupId ?? NO_GROUP;
+      const list = byGroup.get(id);
+      if (list) list.push(p);
+      else byGroup.set(id, [p]);
+    }
     return [
       ...groups.map((g) => ({ id: g.id, name: g.name })),
       { id: NO_GROUP, name: t("noGroup") },
@@ -246,6 +255,9 @@ export function ProjectsOverview({
           openIssues={openIssueCounts[project.id] ?? 0}
           lastActivity={lastActivity}
           role={projectRoles[project.id] ?? null}
+          groupLabel={
+            sectioned ? null : (groupName.get(project.groupId ?? "") ?? null)
+          }
         />
       ))}
     </div>
@@ -348,11 +360,14 @@ function ProjectCard({
   openIssues,
   lastActivity,
   role,
+  groupLabel,
 }: {
   project: ProjectWithEnvironments;
   openIssues: number;
   lastActivity: Record<string, EnvironmentActivity | null>;
   role: ProjectRole | null;
+  /** The group name, shown only where no section header already names it. */
+  groupLabel: string | null;
 }) {
   const canCreateEnvironment = canProject(role, SETUP_PERMISSIONS);
   const canUpdateEnvironment = canProject(role, { environment: ["update"] });
@@ -384,6 +399,9 @@ function ProjectCard({
                 <span className="shrink-0">
                   · {t("openIssues", { count: openIssues })}
                 </span>
+              ) : null}
+              {groupLabel ? (
+                <span className="truncate">· {groupLabel}</span>
               ) : null}
             </div>
           </div>

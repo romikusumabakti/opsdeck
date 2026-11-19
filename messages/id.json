@@ -2034,8 +2034,7 @@
     "newEnvironment": "Environment baru",
     "editProject": "Edit proyek",
     "noEnvironments": "Belum ada environment",
-    "noEnvironmentsDescription": "Tambahkan environment pertama (QA, dev, atau rilis) untuk proyek ini.",
-    "client": "Klien"
+    "noEnvironmentsDescription": "Tambahkan environment pertama (QA, dev, atau rilis) untuk proyek ini."
   },
   "projectSettings": {
     "title": "Pengaturan proyek",
@@ -2043,7 +2042,7 @@
     "tabDetails": "Detail",
     "tabDanger": "Zona berbahaya",
     "editTitle": "Detail proyek",
-    "editDescription": "Perbarui nama, kunci, klien, dan deskripsi proyek.",
+    "editDescription": "Perbarui nama, kunci, grup, dan deskripsi proyek.",
     "dangerZoneTitle": "Zona berbahaya",
     "dangerZoneDescription": "Menghapus proyek juga menghapus environment-nya, riwayat tugasnya, dan semua isunya. Tindakan ini tidak bisa dibatalkan.",
     "deleteButton": "Hapus proyek",

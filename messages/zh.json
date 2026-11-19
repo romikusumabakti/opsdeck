@@ -2034,8 +2034,7 @@
     "newEnvironment": "新建环境",
     "editProject": "编辑项目",
     "noEnvironments": "暂无环境",
-    "noEnvironmentsDescription": "为该项目添加第一个环境（QA、开发或发布部署）。",
-    "client": "客户"
+    "noEnvironmentsDescription": "为该项目添加第一个环境（QA、开发或发布部署）。"
   },
   "projectSettings": {
     "title": "项目设置",
@@ -2043,7 +2042,7 @@
     "tabDetails": "详情",
     "tabDanger": "危险区域",
     "editTitle": "项目详情",
-    "editDescription": "更新项目的名称、标识、客户和描述。",
+    "editDescription": "更新项目的名称、标识、分组和描述。",
     "dangerZoneTitle": "危险区域",
     "dangerZoneDescription": "删除项目会同时删除其环境、任务历史以及全部问题。此操作无法撤销。",
     "deleteButton": "删除项目",

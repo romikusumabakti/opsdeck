@@ -2034,8 +2034,7 @@
     "newEnvironment": "New environment",
     "editProject": "Edit project",
     "noEnvironments": "No environments yet",
-    "noEnvironmentsDescription": "Add the first environment (a QA, dev, or release deployment) for this project.",
-    "client": "Client"
+    "noEnvironmentsDescription": "Add the first environment (a QA, dev, or release deployment) for this project."
   },
   "projectSettings": {
     "title": "Project settings",
@@ -2043,7 +2042,7 @@
     "tabDetails": "Details",
     "tabDanger": "Danger zone",
     "editTitle": "Project details",
-    "editDescription": "Update the project's name, key, client, and description.",
+    "editDescription": "Update the project's name, key, group, and description.",
     "dangerZoneTitle": "Danger zone",
     "dangerZoneDescription": "Deleting a project also deletes its environments, their task history, and its issues. This cannot be undone.",
     "deleteButton": "Delete project",

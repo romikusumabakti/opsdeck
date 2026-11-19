@@ -68,7 +68,7 @@ export const getProjectByKeyWithEnvironmentsQuery = (
 export async function addProject(data: Body<"add-project">["data"]) {
   return orFailure(
     () => parseResponse(routes["add-project"].$post({ json: { data } })),
-    (message) => ({ success: false, message }) as const
+    (message, error) => ({ success: false, message, code: error.code }) as const
   );
 }
 
@@ -78,7 +78,7 @@ export async function editProject(
 ) {
   return orFailure(
     () => parseResponse(routes["edit-project"].$post({ json: { id, data } })),
-    (message) => ({ success: false, message }) as const
+    (message, error) => ({ success: false, message, code: error.code }) as const
   );
 }
 

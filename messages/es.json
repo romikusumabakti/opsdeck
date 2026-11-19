@@ -2034,8 +2034,7 @@
     "newEnvironment": "Nuevo entorno",
     "editProject": "Editar proyecto",
     "noEnvironments": "Aún no hay entornos",
-    "noEnvironmentsDescription": "Añade el primer entorno (un despliegue de QA, dev o release) para este proyecto.",
-    "client": "Cliente"
+    "noEnvironmentsDescription": "Añade el primer entorno (un despliegue de QA, dev o release) para este proyecto."
   },
   "projectSettings": {
     "title": "Ajustes del proyecto",
@@ -2043,7 +2042,7 @@
     "tabDetails": "Detalles",
     "tabDanger": "Zona de peligro",
     "editTitle": "Detalles del proyecto",
-    "editDescription": "Actualiza el nombre, la clave, el cliente y la descripción del proyecto.",
+    "editDescription": "Actualiza el nombre, la clave, el grupo y la descripción del proyecto.",
     "dangerZoneTitle": "Zona de peligro",
     "dangerZoneDescription": "Eliminar un proyecto también elimina sus entornos, su historial de tareas y sus incidencias. Esto no se puede deshacer.",
     "deleteButton": "Eliminar proyecto",

@@ -2034,8 +2034,7 @@
     "newEnvironment": "بيئة جديدة",
     "editProject": "تعديل المشروع",
     "noEnvironments": "لا توجد بيئات بعد",
-    "noEnvironmentsDescription": "أضف أول بيئة (اختبار جودة أو تطوير أو إصدار) لهذا المشروع.",
-    "client": "العميل"
+    "noEnvironmentsDescription": "أضف أول بيئة (اختبار جودة أو تطوير أو إصدار) لهذا المشروع."
   },
   "projectSettings": {
     "title": "إعدادات المشروع",
@@ -2043,7 +2042,7 @@
     "tabDetails": "التفاصيل",
     "tabDanger": "منطقة الخطر",
     "editTitle": "تفاصيل المشروع",
-    "editDescription": "حدّث اسم المشروع ورمزه والعميل والوصف.",
+    "editDescription": "حدّث اسم المشروع ورمزه والمجموعة والوصف.",
     "dangerZoneTitle": "منطقة الخطر",
     "dangerZoneDescription": "حذف المشروع يحذف أيضًا بيئاته وسجل مهامها وكل مشكلاته. لا يمكن التراجع عن هذا.",
     "deleteButton": "حذف المشروع",

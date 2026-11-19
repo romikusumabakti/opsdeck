@@ -23,6 +23,7 @@ import type { Project as ProjectRow } from "@/lib/db/schema";
 import { canManageProjectGroups } from "@/lib/permissions";
 import { RESERVED_PROJECT_KEYS } from "@/lib/reserved-paths";
 import type { Serialized } from "@/web/api/client";
+import { ApiError } from "@/web/api/client";
 import { addProject, editProject } from "@/web/api/project-catalog";
 import { createGroup, listGroupsQuery } from "@/web/api/project-groups";
 import { useMe } from "@/web/api/session";
@@ -139,12 +140,18 @@ export function ProjectForm({
         : await editProject(mode.project.id, payload);
 
     if (!result.success || !result.data) {
+      const code = "code" in result ? result.code : undefined;
+      if (code === "groupNotFound") {
+        // The chosen group was deleted meanwhile: refresh the list it came from.
+        await queryClient.invalidateQueries({ queryKey: ["project-groups"] });
+      }
       toast.error(
         result.message === "keyTaken"
           ? t("keyTaken")
-          : mode.type === "create"
-            ? t("createFailed")
-            : t("saveFailed")
+          : groupError(
+              code ? new ApiError(404, result.message ?? "", code) : null,
+              mode.type === "create" ? t("createFailed") : t("saveFailed")
+            )
       );
       return;
     }

@@ -173,6 +173,42 @@ describe("ProjectsOverview groups", () => {
     expect(container.textContent).toContain("Proj CCC");
   });
 
+  it("ignores section toggles while searching", async () => {
+    await render([project("BBB", "g-a"), project("CCC", "g-b")], GROUPS);
+    const input = container.querySelector("input") as HTMLInputElement;
+    const type = async (value: string) =>
+      act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set?.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    await type("proj");
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>("h2 button")?.click()
+    );
+    expect(localStorage.getItem("menara:projects:collapsed-groups:u1")).toBe(
+      null
+    );
+    await type("");
+    expect(container.textContent).toContain("Proj CCC");
+    expect(container.textContent).toContain("Proj BBB");
+  });
+
+  it("names the group on the card in the plain grid only", async () => {
+    await render(
+      [project("AAA", "g-a"), project("BBB", null)],
+      GROUPS.slice(1, 2)
+    );
+    expect(container.textContent).toContain("· Alpha");
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await render([project("BBB", "g-a"), project("CCC", "g-b")], GROUPS);
+    expect(container.textContent).not.toContain("· Alpha");
+    expect(container.textContent).not.toContain("· Bravo");
+  });
+
   it("matches the group name in search", async () => {
     await render(
       [project("BBB", "g-a"), project("CCC", "g-b"), project("DDD", null)],
