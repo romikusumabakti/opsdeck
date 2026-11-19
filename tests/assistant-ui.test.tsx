@@ -1122,6 +1122,11 @@ describe("answer stream", () => {
     await render(<ChatThread conversationId="c1" />);
     expect(container.querySelector('a[href^="javascript"]')).toBeNull();
     expect(container.innerHTML).not.toContain("javascript:");
+    // Plain text only: no hard-coded English marker or tooltip.
+    expect(text()).toContain("klik");
+    expect(text()).not.toContain("[blocked]");
+    expect(container.innerHTML).not.toContain("Blocked URL");
+    expect(container.querySelector("[title]")).toBeNull();
   });
   // happy-dom does no layout: give the scroller a fixed geometry.
   const scroller = () => {

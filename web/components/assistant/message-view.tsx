@@ -17,6 +17,7 @@ import {
   defaultRehypePlugins,
   type ExtraProps,
   Streamdown,
+  type StreamdownProps,
 } from "streamdown";
 import { useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
@@ -81,13 +82,27 @@ const ANSWER_COMPONENTS: Components = {
   ),
 };
 
+type Pluggable = NonNullable<StreamdownProps["rehypePlugins"]>[number];
+
+// Streamdown's rehype-harden with a blocked link (javascript: and other
+// non-web URLs) left as its plain text: the default marks it with a
+// hard-coded English " [blocked]" and "Blocked URL" tooltip.
+const [harden, hardenOptions] = defaultRehypePlugins.harden as [
+  Extract<Pluggable, unknown[]>[0],
+  Record<string, unknown>,
+];
+const hardenTextOnly: Pluggable = [
+  harden,
+  { ...hardenOptions, linkBlockPolicy: "text-only" },
+];
+
 // Streamdown's rehype chain without `raw`: HTML inside an answer is never
 // parsed into elements (it shows as the literal text the model wrote).
-const ANSWER_REHYPE_PLUGINS = [
+const ANSWER_REHYPE_PLUGINS: Pluggable[] = [
   defaultRehypePlugins.sanitize,
   defaultRehypePlugins.undoubleClobberPrefix,
-  defaultRehypePlugins.harden,
-].filter((p) => p !== undefined);
+  hardenTextOnly,
+].filter((p): p is Pluggable => p !== undefined);
 
 const ANSWER_PLUGINS = { code };
 
