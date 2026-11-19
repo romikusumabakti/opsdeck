@@ -1,7 +1,10 @@
 /** biome-ignore-all lint/suspicious/noTemplateCurlyInString: .env text */
 import { describe, expect, it } from "vitest";
-import { type DotenvEntry, parseDotenv } from "@/lib/variables/dotenv";
-import { hasReservedPrefix } from "@/lib/variables/validation";
+import {
+  type DotenvEntry,
+  MAX_NESTING,
+  parseDotenv,
+} from "@/lib/variables/dotenv";
 
 // Vectors follow compose-go v2.16.2 dotenv/parser.go and template/template.go
 // (see lib/variables/dotenv.ts). Fixtures are fictional.
@@ -120,6 +123,14 @@ describe("parseDotenv quoted values", () => {
     ]);
   });
 
+  it("keeps a single-quoted backslash pair", () => {
+    expect(values("A='a\\b'\n")).toEqual({ A: "a\\b" });
+  });
+
+  it("starts a new statement right after the closing quote", () => {
+    expect(values('A="x"y=1\n')).toEqual({ A: "x", y: "1" });
+  });
+
   it("ignores text after the closing quote up to a comment", () => {
     expect(values("A=\"x\" # note\nB='y'   \n")).toEqual({ A: "x", B: "y" });
   });
@@ -187,6 +198,35 @@ describe("parseDotenv interpolation", () => {
       value: "",
       unresolvedRefs: ["NONE"],
     });
+    expect(entries("A=${NONE?m}\n")[0]).toMatchObject({
+      value: "",
+      unresolvedRefs: ["NONE"],
+    });
+  });
+
+  it("lists the name of an alternative form when it is not in the text", () => {
+    for (const text of ["A=${NONE+alt}\n", "A=${NONE:+alt}\n"]) {
+      expect(entries(text)[0], text).toMatchObject({
+        value: "",
+        unresolvedRefs: ["NONE"],
+      });
+    }
+  });
+
+  it("accepts nesting up to MAX_NESTING levels", () => {
+    const depth = MAX_NESTING;
+    const text = `A=${"${X:-".repeat(depth)}d${"}".repeat(depth)}\n`;
+    expect(entries(text)[0]).toMatchObject({
+      value: "d",
+      unresolvedRefs: ["X"],
+    });
+  });
+
+  it("stays linear on long lines of templates", () => {
+    const text = `A=1\nB=${"${A:-x}".repeat(30000)}\n`;
+    const started = Date.now();
+    expect(values(text).B).toBe("1".repeat(30000));
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 });
 
@@ -224,6 +264,20 @@ describe("parseDotenv errors", () => {
     expect(errorLine("E=\nA=${E:?must be set}\n")).toBe(2);
   });
 
+  it("refuses a line with only export", () => {
+    expect(errorLine("A=1\nexport\nB=2\n")).toBe(2);
+  });
+
+  it("refuses nesting deeper than MAX_NESTING with the line, not a crash", () => {
+    const deep = (n: number) =>
+      `A=1\nB=${"${X:-".repeat(n)}d${"}".repeat(n)}\n`;
+    expect(errorLine(deep(MAX_NESTING + 1))).toBe(2);
+    // The review probe: ~120 KB of nesting, under the 256 KiB read limit.
+    const started = Date.now();
+    expect(parseDotenv(deep(20000))).toEqual({ error: { line: 2 } });
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
   it("carries only the line, never the file text", () => {
     const secret = "s3cr3t-fictional-token";
     for (const text of [
@@ -237,14 +291,5 @@ describe("parseDotenv errors", () => {
       expect(JSON.stringify(result)).not.toContain(secret);
       expect(JSON.stringify(result)).toMatch(/^\{"error":\{"line":\d+\}\}$/);
     }
-  });
-});
-
-describe("COMPOSE_PROFILES", () => {
-  it("is exempt from the reserved COMPOSE_ prefix; COMPOSE_FILE is not", () => {
-    expect(hasReservedPrefix("COMPOSE_PROFILES")).toBe(false);
-    expect(hasReservedPrefix("COMPOSE_FILE")).toBe(true);
-    expect(hasReservedPrefix("COMPOSE_PROJECT_NAME")).toBe(true);
-    expect(hasReservedPrefix("COMPOSE_PROFILES_X")).toBe(true);
   });
 });

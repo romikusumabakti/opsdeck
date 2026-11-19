@@ -47,7 +47,7 @@ import {
 } from "@/lib/variables/repository";
 import {
   generateValue,
-  hasReservedPrefix,
+  isReservedVariableName,
   type PlaceholderContext,
   resolvePlaceholders,
   variableNameSchema,
@@ -686,7 +686,7 @@ function nameIssue(
   name: string,
   tagNames: readonly string[]
 ): VariableErrorCode | null {
-  if (hasReservedPrefix(name)) return "reservedPrefix";
+  if (isReservedVariableName(name)) return "reservedPrefix";
   if (tagNames.includes(name)) return "tagVariableName";
   return variableNameSchema(tagNames).safeParse(name).success
     ? null

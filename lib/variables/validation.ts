@@ -17,23 +17,35 @@ const NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
  */
 export const RESERVED_NAME_PREFIXES = ["COMPOSE_", "DOCKER_", "BUILDKIT_"];
 
-/**
- * Names exempt from {@link RESERVED_NAME_PREFIXES}: `COMPOSE_PROFILES` only
- * selects which services of the project run, so it is stored and rendered
- * like any other variable (live `.env` files set it; dropping it would stop
- * profile services from deploying). `COMPOSE_FILE` and the rest stay
- * Panel-owned.
- */
-export const RESERVED_PREFIX_EXEMPT_NAMES = ["COMPOSE_PROFILES"];
-
+/** Strict: any {@link RESERVED_NAME_PREFIXES} prefix (tag variable names). */
 export function hasReservedPrefix(name: string): boolean {
-  if (RESERVED_PREFIX_EXEMPT_NAMES.includes(name)) return false;
   return RESERVED_NAME_PREFIXES.some((prefix) => name.startsWith(prefix));
 }
 
 /**
+ * Stored and template variable names exempt from
+ * {@link RESERVED_NAME_PREFIXES}: `COMPOSE_PROFILES` only selects which
+ * services of the project run, so it is stored and rendered like any other
+ * variable (live `.env` files set it; dropping it would stop profile services
+ * from deploying). `COMPOSE_FILE` and the rest stay Panel-owned. Tag variable
+ * names keep the strict {@link hasReservedPrefix}: a tag written as
+ * `COMPOSE_PROFILES=<tag>` would disable the profiled services.
+ */
+export const RESERVED_PREFIX_EXEMPT_NAMES: readonly string[] = [
+  "COMPOSE_PROFILES",
+];
+
+/** A stored or template variable name the Panel refuses for its prefix. */
+export function isReservedVariableName(name: string): boolean {
+  return (
+    !RESERVED_PREFIX_EXEMPT_NAMES.includes(name) && hasReservedPrefix(name)
+  );
+}
+
+/**
  * A variable name: upper-case letters, digits and `_`, not starting with a
- * digit or a {@link RESERVED_NAME_PREFIXES} prefix, at most 128 characters.
+ * digit or a {@link RESERVED_NAME_PREFIXES} prefix (except
+ * {@link RESERVED_PREFIX_EXEMPT_NAMES}), at most 128 characters.
  * `reservedNames` are the environment's tag variable names; the deploy writes
  * those itself, so a variable may not take one.
  */
@@ -45,7 +57,7 @@ export function variableNameSchema(reservedNames: readonly string[] = []) {
       NAME_PATTERN,
       "Variable name must be uppercase letters, digits or '_', not starting with a digit"
     )
-    .refine((name) => !hasReservedPrefix(name), RESERVED_PREFIX_MESSAGE)
+    .refine((name) => !isReservedVariableName(name), RESERVED_PREFIX_MESSAGE)
     .refine(
       (name) => !reservedNames.includes(name),
       "Variable name is reserved for the image tag"

@@ -42,7 +42,7 @@ import {
   SECRET_TO_PLAIN_MESSAGE,
 } from "@/lib/variables/errors";
 import {
-  hasReservedPrefix,
+  isReservedVariableName,
   variableNameSchema,
   variableValueSchema,
 } from "@/lib/variables/validation";
@@ -120,12 +120,12 @@ export function VariableFormDialog({
         .min(1, tCommon("required"))
         .refine(
           (name) =>
-            hasReservedPrefix(name) ||
+            isReservedVariableName(name) ||
             variableNameSchema().safeParse(name).success,
           tForm("nameInvalid")
         )
         .refine(
-          (name) => !hasReservedPrefix(name),
+          (name) => !isReservedVariableName(name),
           tForm("nameReservedPrefix")
         ),
       kind: z.enum(VARIABLE_KINDS),

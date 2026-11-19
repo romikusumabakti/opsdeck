@@ -13,10 +13,14 @@
 //   consulted: an unknown reference resolves to empty and is listed in the
 //   entry's `unresolvedRefs`.
 // - A required form (`${X:?msg}`, `${X?msg}`) whose name is not in the text
-//   is such an unknown reference too (the shell might define it); one whose
-//   name is in the text but fails the check is an error, as in Compose.
+//   is such an unknown reference too: in compose-go the lookup (the shell)
+//   takes precedence over the file's own names, so the deploy shell might
+//   define it. One whose name is in the text but fails the check is an
+//   error, as in Compose with a shell that does not define it.
 // - A name with no `=`/`:` (compose-go's "inherited from the shell" form, or
-//   the last line without one) and an empty name are errors.
+//   the last line without one), a line with only `export`, and an empty name
+//   are errors.
+// - `${…}` nesting deeper than MAX_NESTING is an error (stack safety).
 // - Duplicates: the last definition wins, as in Compose; only it is returned,
 //   with `duplicate: true`.
 // - Errors carry the statement's line and nothing else: no file text.
@@ -82,42 +86,50 @@ const NAME_RUNE = /^[\p{L}\p{N}_.\-[\]]$/u;
 const EXPORT_PREFIX = /^export[\t\n\f\r ]+/;
 
 // --- template/template.go -------------------------------------------------
+//
+// DefaultPattern is `\$(?i:(?P<escaped>\$)|(?P<named>[_a-z][_a-z0-9]*)|
+// {(?:(?P<braced>[_a-z][_a-z0-9]*(?::?[-+?](.*))?)}|(?P<invalid>)))`, applied
+// with ReplaceAllStringFunc and DefaultReplacementAppliedFunc. It is matched
+// here by hand, with the same results, so that the work stays linear in the
+// text and the recursion bounded:
+// - The greedy `(.*)}` of a braced form with a separator ends at the last `}`
+//   on the line (Go's `.` excludes only `\n`); without such a `}` the braced
+//   alternative fails and the match is `invalid`.
+// - getSubstitutionFunctionForTemplate picks the separator occurring first in
+//   the match; `${NAME` holds none of `:?-+`, so it is the one right after
+//   the name.
+// - Upstream substitutes the text after getFirstBraceClosingIndex (`rest`)
+//   recursively and appends it; that text ends at the match's last `}`, so
+//   no match inside it could extend past it, and resuming the scan right
+//   after the closing brace gives the same result without the recursion.
+// - Defaults, alternatives and messages nest (`${A:-${B:-…}}`); past
+//   MAX_NESTING levels the statement is refused rather than overflowing the
+//   stack (an addition: upstream has no limit).
 
-// DefaultPattern: `\$(?i:(?P<escaped>\$)|(?P<named>[_a-z][_a-z0-9]*)|
-// {(?:(?P<braced>[_a-z][_a-z0-9]*(?::?[-+?](.*))?)}|(?P<invalid>)))`.
-// Go's `.` excludes only `\n`; `u` makes `i` fold like Go (`ſ`, `K`).
-const PATTERN_SOURCE =
-  "\\$(?:(\\$)|([_a-z][_a-z0-9]*)|\\{(?:([_a-z][_a-z0-9]*(?::?[-+?](?:[^\\n]*))?)\\}|()))";
+/** Deepest `${…}` nesting accepted inside one value. */
+export const MAX_NESTING = 100;
 
 type Lookup = (name: string) => string | undefined;
+type Separator = ":?" | "?" | ":-" | "-" | ":+" | "+";
 
-// The interpolation separators in getSubstitutionFunctionForTemplate's order.
-const SEPARATORS = [":?", "?", ":-", "-", ":+", "+"] as const;
-type Separator = (typeof SEPARATORS)[number];
-
-/**
- * getSubstitutionFunctionForTemplate: the separator occurring first in the
- * matched template (ties are impossible: the candidates sharing a first
- * character are told apart by the second).
- */
-function pickSeparator(template: string): Separator | null {
-  let best: Separator | null = null;
-  let bestIndex = -1;
-  for (const sep of SEPARATORS) {
-    const i = template.indexOf(sep);
-    if (i >= 0 && (bestIndex < 0 || i < bestIndex)) {
-      best = sep;
-      bestIndex = i;
-    }
-  }
-  return best;
+interface Context {
+  lookup: Lookup;
+  missing: (name: string) => void;
 }
 
-// getFirstBraceClosingIndex: the `}` balancing the first `{` (the character
-// after each `{` is skipped, as upstream does).
-function firstBraceClosingIndex(s: string): number {
+// `[_a-z][_a-z0-9]*` under Go's `(?i)`: `u` makes `i` fold like Go (`ſ`, `K`).
+const NAME_AT = /[_a-z][_a-z0-9]*/iuy;
+
+function nameAt(s: string, pos: number): string | null {
+  NAME_AT.lastIndex = pos;
+  return NAME_AT.exec(s)?.[0] ?? null;
+}
+
+// getFirstBraceClosingIndex over s[from, to): the `}` balancing the first
+// `{` (the character after each `{` is skipped, as upstream does), or -1.
+function firstBraceClosingIndex(s: string, from: number, to: number): number {
   let open = 0;
-  for (let i = 0; i < s.length; i++) {
+  for (let i = from; i < to; i++) {
     if (s[i] === "}") {
       open--;
       if (open === 0) return i;
@@ -130,108 +142,124 @@ function firstBraceClosingIndex(s: string): number {
   return -1;
 }
 
-// partition: split at the first `sep`.
-function partition(s: string, sep: string): [string, string] {
-  const i = s.indexOf(sep);
-  return i < 0 ? [s, ""] : [s.slice(0, i), s.slice(i + sep.length)];
-}
-
 /**
- * The substitute functions (withDefaultWhenAbsence, withDefaultWhenPresence,
- * withRequired). Returns null when `substitution` lacks `sep` (not applied).
+ * withDefaultWhenAbsence, withDefaultWhenPresence and withRequired for
+ * `${name<sep>operand}`.
  */
 function applySeparator(
   sep: Separator,
-  substitution: string,
-  lookup: Lookup,
-  missing: (name: string) => void
-): string | null {
-  if (!substitution.includes(sep)) return null;
-  const [name, operand] = partition(substitution, sep);
-  const value = lookup(name);
+  name: string,
+  operand: string,
+  ctx: Context,
+  depth: number
+): string {
+  const value = ctx.lookup(name);
+  if (value === undefined) ctx.missing(name);
   switch (sep) {
     case ":-":
     case "-":
       if (value === undefined || (sep === ":-" && value === "")) {
-        if (value === undefined) missing(name);
-        return substitute(operand, lookup, missing);
+        return substitute(operand, ctx, depth + 1);
       }
       return value;
     case ":+":
     case "+":
       if (value !== undefined && (sep === "+" || value !== "")) {
-        return substitute(operand, lookup, missing);
+        return substitute(operand, ctx, depth + 1);
       }
-      if (value === undefined) missing(name);
       return value ?? "";
     case ":?":
     case "?":
-      if (value === undefined) {
-        // Not in the text: the deploy shell might define it (see the header).
-        missing(name);
-        return "";
-      }
+      // Not in the text: the deploy shell might define it (see the header).
+      if (value === undefined) return "";
       if (sep === ":?" && value === "") {
-        // Upstream also substitutes the message before failing.
-        substitute(operand, lookup, missing);
+        // Upstream substitutes the message before failing.
+        substitute(operand, ctx, depth + 1);
         throw new DotenvError();
       }
       return value;
   }
 }
 
-// DefaultReplacementAppliedFunc.
-function replaceMatch(
-  match: string,
-  lookup: Lookup,
-  missing: (name: string) => void
-): string {
-  const sep = pickSeparator(match);
-  const closing = firstBraceClosingIndex(match);
-  let rest = "";
-  let template = match;
-  if (closing > -1) {
-    rest = match.slice(closing + 1);
-    template = match.slice(0, closing + 1);
+function separatorAt(s: string, pos: number): Separator | null {
+  const c = s[pos];
+  if (c === "-" || c === "+" || c === "?") return c;
+  const next = s[pos + 1];
+  if (c === ":" && (next === "-" || next === "+" || next === "?")) {
+    return `:${next}`;
   }
-  const groups = new RegExp(PATTERN_SOURCE, "iu").exec(template);
-  if (groups === null) throw new DotenvError();
-  if (groups[1] !== undefined) return groups[1];
+  return null;
+}
 
-  let substitution = groups[2];
-  let braced = false;
-  if (substitution === undefined) {
-    substitution = groups[3];
-    braced = true;
-  }
-  if (substitution === undefined || substitution === "") {
-    throw new DotenvError(); // InvalidTemplateError
-  }
-
-  if (braced && sep !== null) {
-    const value = applySeparator(sep, substitution, lookup, missing);
-    if (value !== null) return value + substitute(rest, lookup, missing);
-  }
-
-  const value = lookup(substitution);
-  if (value === undefined) missing(substitution);
+// The plain `$NAME` / `${NAME}` lookup; a miss resolves to empty.
+function resolve(name: string, ctx: Context): string {
+  const value = ctx.lookup(name);
+  if (value === undefined) ctx.missing(name);
   return value ?? "";
 }
 
-// Substitute / SubstituteWithOptions (ReplaceAllStringFunc over the pattern).
-// The first error aborts, where upstream keeps replacing but returns it: the
-// parse fails either way.
-function substitute(
-  template: string,
-  lookup: Lookup,
-  missing: (name: string) => void
-): string {
-  const pattern = new RegExp(PATTERN_SOURCE, "giu");
+/** template.Substitute with the text's earlier names as the mapping. */
+function substitute(template: string, ctx: Context, depth: number): string {
+  if (depth > MAX_NESTING) throw new DotenvError();
+  // The last `}` on the line holding `pos`; scanning only moves forward.
+  let lineEnd = -1;
+  let lineLastBrace = -1;
+  const lastBraceOnLine = (pos: number): number => {
+    if (pos > lineEnd) {
+      const nl = template.indexOf("\n", pos);
+      lineEnd = nl === -1 ? template.length : nl;
+      lineLastBrace = template.lastIndexOf("}", lineEnd - 1);
+    }
+    return lineLastBrace;
+  };
+
   let out = "";
   let last = 0;
-  for (const m of template.matchAll(pattern)) {
-    out += template.slice(last, m.index) + replaceMatch(m[0], lookup, missing);
-    last = m.index + m[0].length;
+  let i = template.indexOf("$");
+  while (i !== -1) {
+    const next = template[i + 1];
+    let resume: number;
+    let value: string;
+    if (next === "$") {
+      value = "$";
+      resume = i + 2;
+    } else if (next !== "{") {
+      const name = nameAt(template, i + 1);
+      if (name === null) {
+        i = template.indexOf("$", i + 1); // no match: a literal `$`
+        continue;
+      }
+      value = resolve(name, ctx);
+      resume = i + 1 + name.length;
+    } else {
+      const name = nameAt(template, i + 2);
+      if (name === null) throw new DotenvError(); // InvalidTemplateError
+      const afterName = i + 2 + name.length;
+      if (template[afterName] === "}") {
+        value = resolve(name, ctx);
+        resume = afterName + 1;
+      } else {
+        const sep = separatorAt(template, afterName);
+        const operandStart = afterName + (sep?.length ?? 0);
+        const matchLast = sep === null ? -1 : lastBraceOnLine(operandStart);
+        if (sep === null || matchLast < operandStart) {
+          throw new DotenvError(); // InvalidTemplateError
+        }
+        const closing = firstBraceClosingIndex(template, i, matchLast + 1);
+        const end = closing === -1 ? matchLast : closing;
+        value = applySeparator(
+          sep,
+          name,
+          template.slice(operandStart, end),
+          ctx,
+          depth
+        );
+        resume = end + 1;
+      }
+    }
+    out += template.slice(last, i) + value;
+    last = resume;
+    i = template.indexOf("$", resume);
   }
   return out + template.slice(last);
 }
@@ -331,9 +359,11 @@ export function parseDotenv(text: string): DotenvResult {
 
       // extractVarValue.
       const unresolved: string[] = [];
-      const lookup: Lookup = (n) => values.get(n);
-      const missing = (n: string) => {
-        if (!unresolved.includes(n)) unresolved.push(n);
+      const ctx: Context = {
+        lookup: (n) => values.get(n),
+        missing: (n) => {
+          if (!unresolved.includes(n)) unresolved.push(n);
+        },
       };
       let value: string;
       const quote = src[pos];
@@ -343,7 +373,7 @@ export function parseDotenv(text: string): DotenvResult {
         pos = nl === -1 ? src.length : nl + 1;
         const comment = raw.indexOf(" #");
         if (comment !== -1) raw = raw.slice(0, comment);
-        value = substitute(trimRightUnicodeSpace(raw), lookup, missing);
+        value = substitute(trimRightUnicodeSpace(raw), ctx, 0);
       } else {
         // A `\` before the closing quote escapes it (and is dropped); before
         // any other character it is kept along with it.
@@ -374,9 +404,7 @@ export function parseDotenv(text: string): DotenvResult {
         }
         if (closed === -1) throw new DotenvError(); // unterminated quoted value
         value =
-          quote === '"'
-            ? substitute(expandEscapes(chars), lookup, missing)
-            : chars;
+          quote === '"' ? substitute(expandEscapes(chars), ctx, 0) : chars;
         pos = closed + 1;
       }
 

@@ -32,7 +32,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 import {
-  hasReservedPrefix,
+  isReservedVariableName,
   variableNameSchema,
   variableValueSchema,
 } from "@/lib/variables/validation";
@@ -95,11 +95,11 @@ export function TemplateFormDialog({
       .min(1, tCommon("required"))
       .refine(
         (name) =>
-          hasReservedPrefix(name) ||
+          isReservedVariableName(name) ||
           variableNameSchema().safeParse(name).success,
         t("nameInvalid")
       )
-      .refine((name) => !hasReservedPrefix(name), t("nameReservedPrefix")),
+      .refine((name) => !isReservedVariableName(name), t("nameReservedPrefix")),
     kind: z.enum(VARIABLE_KINDS),
     required: z.boolean(),
     defaultValue: z
