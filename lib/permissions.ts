@@ -364,6 +364,16 @@ export function canCreateProject(orgRole: string | null | undefined): boolean {
   return holdsEngineerAnywhere(orgRole);
 }
 
+// Project groups are organisational and grant nothing; creating, renaming,
+// reordering, merging and deleting them, and setting a project's group, take
+// the org project:create statement (admin). Unlike canCreateProject, the
+// engineer set does not reach it.
+export function canManageProjectGroups(
+  orgRole: string | null | undefined
+): boolean {
+  return canOrg(orgRole, { project: ["create"] });
+}
+
 // True for the job roles that hold the engineer set on the projects they see
 // (admin, infra, engineer). The name predates global roles, when engineer was
 // held per project.

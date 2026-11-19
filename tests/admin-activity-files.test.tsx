@@ -277,3 +277,36 @@ describe("activity page managed .env events", () => {
     expect(text).not.toContain("Kestrel UAT with");
   });
 });
+
+describe("activity page project group events", () => {
+  it("renders each group action as a sentence", async () => {
+    const text = await renderEvents([
+      row("1", "projectGroup.created", { group: "Acme" }),
+      row("2", "projectGroup.renamed", { from: "Acme", to: "Acme Works" }),
+      row("3", "projectGroup.merged", {
+        from: "Beta",
+        into: "Acme Works",
+        count: 2,
+      }),
+      row("4", "projectGroup.deleted", { group: "Gamma", count: 1 }),
+      row("5", "projectGroup.reordered", { group: "Acme Works" }),
+      row("6", "project.groupChanged", {
+        project: "Kestrel",
+        group: "Acme Works",
+      }),
+      row("7", "project.groupChanged", { project: "Osprey", group: "" }),
+    ]);
+    expect(text).toContain("Rina created the project group Acme");
+    expect(text).toContain("Rina renamed the project group Acme to Acme Works");
+    expect(text).toContain(
+      "Rina merged the project group Beta into Acme Works (2 projects moved)"
+    );
+    expect(text).toContain(
+      "Rina deleted the project group Gamma (1 project ungrouped)"
+    );
+    expect(text).toContain("Rina moved the project group Acme Works");
+    expect(text).toContain("Rina moved Kestrel to the group Acme Works");
+    expect(text).toContain("Rina removed Osprey from its group");
+    expect(text).not.toContain("did something");
+  });
+});

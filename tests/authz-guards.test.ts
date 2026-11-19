@@ -16,6 +16,8 @@ const SCOPED_READS: Record<string, string[]> = {
     "getProjectWithEnvironments",
     "getProjectByKeyWithEnvironments",
   ],
+  // Every group is listed, but its count covers visible projects only.
+  "server/services/project-groups.ts": ["listGroups"],
   // listEnvironments and getEnvironmentById are session wrappers of scope
   // cores (SCOPE_CORES below).
   "server/services/environments.ts": ["getEnvironmentsLastOpened"],
@@ -367,6 +369,15 @@ const SCOPED_WRITES: Record<string, Record<string, RegExp>> = {
     deleteIssueAttachment: /issue: \["write"\]/,
   },
   "server/services/labels.ts": { setIssueLabels: /issue: \["write"\]/ },
+  // Org-wide, not project-scoped: the right that creates projects (admin).
+  "server/services/project-groups.ts": {
+    createGroup: /requireManageGroups\(/,
+    renameGroup: /requireManageGroups\(/,
+    reorderGroup: /requireManageGroups\(/,
+    mergeGroups: /requireManageGroups\(/,
+    deleteGroup: /requireManageGroups\(/,
+    requireManageGroups: /requireOrgPermission\(\{ project: \["create"\] \}\)/,
+  },
   "server/services/test-runs.ts": {
     listIssueTestRuns: /project: \["read"\]/,
     recordTestRun: /issue: \["write"\]/,

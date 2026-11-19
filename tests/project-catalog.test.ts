@@ -186,3 +186,71 @@ describe("editProject default server", () => {
     expect(state.activity).toEqual([]);
   });
 });
+
+const GROUP_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
+const OTHER_GROUP_ID = "0197f3a0-1b2c-7def-8000-0123456789e2";
+
+describe("a project's group", () => {
+  it("refuses an engineer creating a project in a group, before writing", async () => {
+    state.orgRole = "engineer";
+    await expect(
+      addProject({ ...input, groupId: GROUP_ID })
+    ).rejects.toMatchObject({ status: 403, code: "projectGroupForbidden" });
+    expect(state.inserts).toEqual([]);
+  });
+
+  it("lets an admin create a project in a group, never writing client", async () => {
+    state.orgRole = "admin";
+    expect(
+      (await addProject({ ...input, groupId: GROUP_ID, client: "Legacy" }))
+        .success
+    ).toBe(true);
+    const project = state.inserts.find((i) => i.table === schema.projects);
+    expect(project?.values).toMatchObject({ groupId: GROUP_ID });
+    expect(project?.values).not.toHaveProperty("client");
+  });
+
+  it("refuses an engineer moving a project to another group", async () => {
+    state.orgRole = "engineer";
+    state.selects = [[{ groupId: GROUP_ID, defaultServerId: null }]];
+    await expect(
+      editProject(PROJECT_ID, { groupId: OTHER_GROUP_ID })
+    ).rejects.toMatchObject({ status: 403, code: "projectGroupForbidden" });
+    expect(state.updates).toEqual([]);
+  });
+
+  it("lets an engineer resend the unchanged group with other edits", async () => {
+    state.orgRole = "engineer";
+    state.selects = [[{ groupId: GROUP_ID, defaultServerId: null }]];
+    expect(
+      (await editProject(PROJECT_ID, { name: "Renamed", groupId: GROUP_ID }))
+        .success
+    ).toBe(true);
+    expect(state.activity).toEqual([]);
+  });
+
+  it("records an admin's group change", async () => {
+    state.orgRole = "admin";
+    state.selects = [
+      [{ groupId: GROUP_ID, defaultServerId: null }],
+      [{ name: "Beta" }],
+    ];
+    expect(
+      (
+        await editProject(PROJECT_ID, {
+          name: "Kestrel",
+          groupId: OTHER_GROUP_ID,
+        })
+      ).success
+    ).toBe(true);
+    expect(state.activity).toEqual([
+      {
+        actorId: USER_ID,
+        action: "project.groupChanged",
+        entityType: "project",
+        entityId: PROJECT_ID,
+        data: { project: "Kestrel", group: "Beta" },
+      },
+    ]);
+  });
+});

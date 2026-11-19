@@ -96,7 +96,6 @@ export function ProjectForm({
     const payload = {
       name: values.name,
       key: values.key,
-      client: values.client ? values.client : null,
       description: values.description ? values.description : null,
       ...(canChangeDefaultServer && {
         defaultServerId:

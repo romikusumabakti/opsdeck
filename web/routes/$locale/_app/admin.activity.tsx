@@ -120,6 +120,37 @@ function message(
             actor,
             project: String(d.project),
           });
+    case "project.groupChanged":
+      return d.group
+        ? t("projectGroupSet", {
+            actor,
+            project: String(d.project),
+            group: String(d.group),
+          })
+        : t("projectGroupCleared", { actor, project: String(d.project) });
+    case "projectGroup.created":
+      return t("projectGroupCreated", { actor, group: String(d.group) });
+    case "projectGroup.renamed":
+      return t("projectGroupRenamed", {
+        actor,
+        from: String(d.from),
+        to: String(d.to),
+      });
+    case "projectGroup.merged":
+      return t("projectGroupMerged", {
+        actor,
+        from: String(d.from),
+        into: String(d.into),
+        count: Number(d.count),
+      });
+    case "projectGroup.deleted":
+      return t("projectGroupDeleted", {
+        actor,
+        group: String(d.group),
+        count: Number(d.count),
+      });
+    case "projectGroup.reordered":
+      return t("projectGroupReordered", { actor, group: String(d.group) });
     case "project.sourceAdded":
       return t("projectSourceAdded", {
         actor,

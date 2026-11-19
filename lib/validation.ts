@@ -137,7 +137,10 @@ export const projectKeySchema = z
 export const projectMetaInputSchema = z.object({
   name: z.string().trim().min(1).max(200),
   key: projectKeySchema,
-  client: z.string().trim().max(120).nullish(),
+  // The project's group (null = ungrouped). Only the right that manages
+  // groups may set or change it (addProject / editProject check). Replaces
+  // the free-text `client`, which is no longer written.
+  groupId: z.uuid().nullish(),
   description: z.string().trim().max(2000).nullish(),
 });
 // Editing may also set the project's default server (null clears it); only
@@ -146,6 +149,29 @@ export const projectMetaUpdateSchema = projectMetaInputSchema.partial().extend({
   defaultServerId: z.uuid().nullable().optional(),
 });
 export type ProjectMetaInput = z.infer<typeof projectMetaInputSchema>;
+
+// Project groups: names compared ignoring case and surrounding spaces (the
+// lower(trim(name)) unique index), at most 80 characters once trimmed.
+export const PROJECT_GROUP_NAME_MAX = 80;
+export const projectGroupNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(PROJECT_GROUP_NAME_MAX);
+export const projectGroupInputSchema = z.object({
+  name: projectGroupNameSchema,
+});
+// Where a reordered group lands: after `after` and/or before `before` (its
+// new neighbours). With one of them, the other neighbour is the adjacent group.
+// At least one is required (reorderGroup checks).
+export const projectGroupReorderSchema = z.object({
+  before: z.uuid().optional(),
+  after: z.uuid().optional(),
+});
+export const projectGroupMergeSchema = z.object({
+  from: z.uuid(),
+  into: z.uuid(),
+});
 
 // An environment (deployment) belongs to one logical project.
 const environmentFields = z.object({

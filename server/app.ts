@@ -42,6 +42,7 @@ import { mockTimeRouter } from "@/server/routes/mock-time";
 import { notificationsRouter } from "@/server/routes/notifications";
 import { avatarsRouter, profileRouter } from "@/server/routes/profile";
 import { projectCatalogRouter } from "@/server/routes/project-catalog";
+import { projectGroupsRouter } from "@/server/routes/project-groups";
 import { projectMembersRouter } from "@/server/routes/project-members";
 import { projectSourcesRouter } from "@/server/routes/project-sources";
 import { provisioningRouter } from "@/server/routes/provisioning";
@@ -115,6 +116,7 @@ export const app = createBaseApp()
   .route("/api/project-members", projectMembersRouter)
   .route("/api/project-sources", projectSourcesRouter)
   .route("/api/project-catalog", projectCatalogRouter)
+  .route("/api/project-groups", projectGroupsRouter)
   .route("/api/environments", environmentsRouter)
   .route("/api/environments", mailFilesRouter)
   .route("/api/environments", serviceLogsRouter)

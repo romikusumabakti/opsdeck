@@ -18,6 +18,10 @@ ALTER TABLE "projects" ADD CONSTRAINT "projects_group_id_fkey" FOREIGN KEY ("gro
 -- fractional-indexing's generateKeyBetween would for an appended sequence:
 -- a0..az for the first 62, then b00..bzz. Idempotent: groups whose key already
 -- exists are not inserted again, and only ungrouped projects are linked.
+-- Rank assumptions: the table is new, so the backfill seeds every rank (a
+-- re-run that inserts more groups restarts at a0 and may repeat ranks, which
+-- only ties their order); the two-character spelling covers at most 3906
+-- groups (62 + 62*62), far above any real count of distinct client values.
 INSERT INTO "project_groups" ("name", "rank")
 SELECT p."name",
   CASE WHEN p."n" < 62

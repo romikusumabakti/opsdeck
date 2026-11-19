@@ -2268,6 +2268,7 @@ export type NewServer = InferInsertModel<typeof servers>;
 
 // The logical project (parent). Deployment-level data lives on `Environment`.
 export type Project = InferSelectModel<typeof projects>;
+export type ProjectGroup = InferSelectModel<typeof projectGroups>;
 export type NewProject = InferInsertModel<typeof projects>;
 
 export type ProjectMember = InferSelectModel<typeof projectMembers>;
