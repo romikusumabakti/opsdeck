@@ -180,10 +180,11 @@ describe.skipIf(!enabled)("environment slug renames on Postgres", () => {
   beforeEach(async () => {
     await sql`delete from activity_log`;
     await sql`delete from environments`;
-    await sql`insert into environments (id, project_id, name, slug, app_id, env_file_managed) values
-      (${ENV_A}, ${PROJECT_A}, 'Kestrel QA', 'qa', ${APP}, true),
-      (${ENV_B}, ${PROJECT_A}, 'Kestrel UAT', 'uat', null, false),
-      (${ENV_C}, ${PROJECT_B}, 'Heron QA', 'qa', null, false)`;
+    // created_slug as insertEnvironmentIn records it.
+    await sql`insert into environments (id, project_id, name, slug, created_slug, app_id, env_file_managed) values
+      (${ENV_A}, ${PROJECT_A}, 'Kestrel QA', 'qa', 'qa', ${APP}, true),
+      (${ENV_B}, ${PROJECT_A}, 'Kestrel UAT', 'uat', 'uat', null, false),
+      (${ENV_C}, ${PROJECT_B}, 'Heron QA', 'qa', 'qa', null, false)`;
     for (const env of [ENV_A, ENV_B, ENV_C]) {
       await sql`insert into environment_services
         (environment_id, role, server_id, service_type, service_name)
@@ -376,6 +377,44 @@ describe.skipIf(!enabled)("environment slug renames on Postgres", () => {
     });
   });
 
+  describe("moving to another project", () => {
+    // A move keeps the slug but changes its namespace: /KES/qa must keep
+    // opening the environment, now at /HER/qa.
+    it("keeps the old project's slug as an alias, so its links follow the move", async () => {
+      as(ADMIN, "admin");
+      await rename(ENV_C, "heron-qa");
+      expect(
+        await svc.updateEnvironment(ENV_B, { projectId: PROJECT_B })
+      ).toMatchObject({ success: true });
+      expect(await aliases()).toContain(`A:uat->${ENV_B}`);
+      const res = await app.request(
+        "/api/environments/resolve?projectKey=KES&envSlug=uat"
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        environmentId: ENV_B,
+        projectKey: "HER",
+        envSlug: "uat",
+      });
+      // Kestrel can't give `uat` to another environment.
+      expect(await refusal(rename(ENV_A, "uat"))).toEqual({
+        status: 409,
+        code: "environmentSlugAliasTaken",
+      });
+      expect(await svc.uniqueEnvSlug(PROJECT_A, "UAT")).toBe("uat-2");
+    });
+
+    it("moving back makes the slug current again and drops its alias", async () => {
+      as(ADMIN, "admin");
+      await svc.updateEnvironment(ENV_B, { projectId: PROJECT_B });
+      await svc.updateEnvironment(ENV_B, { projectId: PROJECT_A });
+      expect(await aliases()).toEqual([`B:uat->${ENV_B}`]);
+      expect(
+        await resolver.resolveEnvironmentBySlug(PROJECT_A, "uat")
+      ).toMatchObject({ environment: { id: ENV_B }, viaAlias: false });
+    });
+  });
+
   describe("/resolve", () => {
     it("opens an old slug and answers the current one", async () => {
       await rename(ENV_A, "qa-1");
@@ -439,12 +478,13 @@ describe.skipIf(!enabled)("environment slug renames on Postgres", () => {
   });
 
   describe("applyTemplate", () => {
-    it("fills {envSlug} with the slug the environment was created with", async () => {
+    const stackName = async (renames: string[]) => {
       await sql`delete from app_variable_templates`;
+      await sql`delete from environment_variables
+        where environment_id = ${ENV_A} and name = 'STACK_NAME'`;
       await sql`insert into app_variable_templates (app_id, name, kind, default_value)
         values (${APP}, 'STACK_NAME', 'plain', 'kes-{envSlug}')`;
-      await rename(ENV_A, "qa-1");
-      await rename(ENV_A, "qa-2");
+      for (const slug of renames) await rename(ENV_A, slug);
       const { applyTemplate } = await import("@/server/services/variables");
       expect(await applyTemplate(ENV_A)).toMatchObject({
         added: ["STACK_NAME"],
@@ -452,8 +492,27 @@ describe.skipIf(!enabled)("environment slug renames on Postgres", () => {
       const [row] = await sql<{ value: string }[]>`
         select value from environment_variables
         where environment_id = ${ENV_A} and name = 'STACK_NAME'`;
-      expect(row?.value).toBe("kes-qa");
       await sql`delete from app_variable_templates`;
+      return row?.value;
+    };
+
+    it("fills {envSlug} with the slug the environment was created with", async () => {
+      expect(await stackName(["qa-1", "qa-2"])).toBe("kes-qa");
+    });
+
+    // Renaming back drops the alias of the slug it was created with: the
+    // created slug is its own column, not the oldest alias.
+    it("keeps the created slug after renaming away and back (a→b→a)", async () => {
+      expect(await stackName(["qa-1", "qa"])).toBe("kes-qa");
+      expect(await aliases()).toEqual([`A:qa-1->${ENV_A}`]);
+    });
+
+    it("keeps the created slug after a→b→c→a", async () => {
+      expect(await stackName(["qa-1", "qa-2", "qa"])).toBe("kes-qa");
+    });
+
+    it("keeps the created slug when a rename back lands on a later slug (a→b→a→c)", async () => {
+      expect(await stackName(["qa-1", "qa", "qa-3"])).toBe("kes-qa");
     });
 
     it("uses the current slug of an environment never renamed", async () => {
@@ -557,6 +616,9 @@ describe.skipIf(!enabled)("environment slug renames on Postgres", () => {
       );
       expect(created.envSlug).toBe("kes-west");
       expect(await slugOf(created.environmentId)).toBe("kes-west");
+      const [row] = await sql<{ created_slug: string | null }[]>`
+        select created_slug from environments where id = ${created.environmentId}`;
+      expect(row?.created_slug).toBe("kes-west");
     });
   });
 

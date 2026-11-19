@@ -1097,6 +1097,7 @@ export async function insertEnvironmentIn(
         projectId: input.projectId,
         name: input.name,
         slug,
+        createdSlug: slug,
         kind: input.kind,
         ownerId,
         url: input.url,
@@ -1384,14 +1385,18 @@ export async function updateEnvironment(
           .for("update");
         if (!current) return undefined;
         await slugCheck(tx);
-        if (renamedSlug !== undefined && current.slug !== renamedSlug) {
+        // A rename or a move each leave a URL behind: the old /KEY/slug stays
+        // an alias in the project it was used in.
+        const slugRenamed =
+          renamedSlug !== undefined && current.slug !== renamedSlug;
+        if (slugRenamed || current.projectId !== slugProjectId) {
           await tx.insert(environmentSlugAliases).values({
             projectId: current.projectId,
             slug: current.slug,
             environmentId: id,
           });
-          slugChangedFrom = current.slug;
         }
+        if (slugRenamed) slugChangedFrom = current.slug;
         // Renaming back to an old slug makes it current again: its alias goes.
         await tx
           .delete(environmentSlugAliases)

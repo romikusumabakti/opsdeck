@@ -126,6 +126,7 @@ function makeProject(
     projectId: "22222222-2222-2222-2222-222222222222",
     name: "Demo",
     slug: "demo",
+    createdSlug: "demo",
     kind: null,
     ownerId: null,
     url: null,

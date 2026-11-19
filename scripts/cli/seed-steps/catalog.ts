@@ -243,6 +243,7 @@ export async function seedEnvironments(ctx: SeedContext): Promise<void> {
     const appId = ctx.apps.get(project.app) ?? null;
     const rows = DEMO_ENVIRONMENTS.map((e) => ({
       ...e,
+      createdSlug: e.slug,
       projectId,
       appId,
       url: environmentUrl(project, e.slug),

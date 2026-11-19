@@ -113,7 +113,11 @@ describe("environment slug aliases migration", () => {
     expect(sql.startsWith("SET LOCAL lock_timeout = '5s';")).toBe(true);
     expect(sql).not.toMatch(/\b(BEGIN|COMMIT)\b/);
     expect(sql).not.toMatch(/\b(DROP|RENAME)\b/);
-    expect(sql).not.toMatch(/ALTER TABLE "environments"/);
+    // The one change to environments is a nullable column, backfilled.
+    expect(sql.match(/ALTER TABLE "environments"[^;]*/g)).toEqual([
+      'ALTER TABLE "environments" ADD COLUMN "created_slug" text',
+    ]);
+    expect(sql).toContain('UPDATE "environments" SET "created_slug" = "slug";');
   });
 
   it("keys aliases by (project, slug) and drops them with the environment", () => {
@@ -173,16 +177,17 @@ describe("runtime code never derives a name from the current slug", () => {
 // its reason — and must not materialise a name from the current slug.
 describe("only known sites read the environment slug", () => {
   const SLUG_READ =
-    /environments\.slug|\benvSlug\b|resolvePlaceholders|\b(?:env|environment|stored|current|e)\.slug\b/;
+    /environments\.slug|\benvSlug\b|resolvePlaceholders|\b(?:env|environment|stored|current|e)\.slug\b|\.environment\.slug\b|\bslug:\s*true\b/;
   const ALLOWED: Record<string, string> = {
     "lib/assistant/tools/panel.ts": "KEY/slug references in answers (links)",
     "lib/canonical-path.ts": "the URL casing and the old-slug redirect path",
     "lib/db/schema.ts": "the column and the template placeholder's doc",
-    "lib/environment-slug.ts": "the resolver, aliases, the original slug",
+    "lib/environment-slug.ts": "the resolver and aliases",
     "lib/env-url.ts": "/KEY/slug resolution for the API",
     "lib/home/queries.ts": "Home's environment links",
     "lib/nav-path.ts": "breadcrumb and switcher links",
     "lib/notifications.ts": "notification links",
+    "lib/people/queries.ts": "a person's run links",
     "lib/project-sources.ts": "links of a project's source environments",
     "lib/reserved-paths.ts": "the reserved sub-routes' doc",
     "lib/run-progress.ts": "run progress links",
@@ -197,7 +202,7 @@ describe("only known sites read the environment slug", () => {
     "server/services/s3-connections.ts": "storage page links",
     "server/services/servers.ts": "server page links to environments",
     "server/services/variables.ts":
-      "applyTemplate, with the original slug (originalEnvironmentSlug)",
+      "applyTemplate, with the slug it was created with (created_slug)",
   };
 
   it("lists every reader in lib/ and server/, and only readers", async () => {
@@ -218,7 +223,7 @@ describe("only known sites read the environment slug", () => {
       source.indexOf("export async function applyTemplate")
     );
     const fn = body.slice(0, body.indexOf("\n}\n"));
-    expect(fn).toContain("originalEnvironmentSlug(env)");
+    expect(fn).toContain("env.createdSlug ?? env.slug");
     expect(fn).not.toMatch(/envSlug:\s*env\.slug/);
   });
 });

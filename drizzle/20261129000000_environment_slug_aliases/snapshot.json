@@ -27,6 +27,24 @@
       ]
     },
     {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "environments",
+        "created_slug"
+      ],
+      "writes": [
+        "s|col|public.environments.created_slug",
+        "n|col|public.environments.created_slug",
+        "e|col|public.environments.created_slug"
+      ],
+      "reads": [
+        "n|tbl|public.environments",
+        "n|sch|public"
+      ]
+    },
+    {
       "statementType": "create_index",
       "statementTarget": [
         "index",
@@ -162,6 +180,22 @@
         "notNull": true,
         "dimensions": 0,
         "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environments",
+        "name": "created_slug",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
         "generated": null,
         "identity": null,
         "entityType": "columns"

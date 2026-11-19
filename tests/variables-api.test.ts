@@ -51,6 +51,7 @@ const store = vi.hoisted(() => ({
     id: "0197f3a0-1b2c-7def-8000-0123456789e1",
     name: "Kestrel Dev",
     slug: "dev",
+    createdSlug: "dev" as string | null,
     url: "https://dev.example.test" as string | null,
     appId: "0197f3a0-1b2c-7def-8000-0123456789d1" as string | null,
     envFileManaged: false,
@@ -102,13 +103,6 @@ vi.mock("@/lib/authz", async (importOriginal) => {
 
 const activity = vi.hoisted(() => ({ recordActivity: vi.fn() }));
 vi.mock("@/lib/activity", () => activity);
-
-// Never renamed: the slug it was created with is its current one (the
-// alias lookup has its own scratch suite, environment-slug-scratch).
-vi.mock("@/lib/environment-slug", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/environment-slug")>()),
-  originalEnvironmentSlug: async (env: { slug: string }) => env.slug,
-}));
 
 vi.mock("@/lib/variables/repository", () => {
   let seq = 0;
@@ -723,6 +717,27 @@ describe("apply-template", () => {
       template("OPTIONAL_SECRET", "secret"),
     ];
   });
+
+  // A renamed environment keeps the slug it was created with in names; a row
+  // seeded without created_slug falls back to its slug.
+  it.each([
+    { slug: "dev-2", createdSlug: "dev", expected: "dev" },
+    { slug: "dev-2", createdSlug: null, expected: "dev-2" },
+  ])(
+    "fills {envSlug} from created_slug ($slug, $createdSlug)",
+    async ({ slug, createdSlug, expected }) => {
+      Object.assign(store.env, { slug, createdSlug });
+      try {
+        const res = await send("POST", `${base}/variables/apply-template`);
+        expect(res.status).toBe(200);
+        expect(store.vars.get("APP_URL")?.value).toBe(
+          `https://dev.example.test/api?env=${expected}`
+        );
+      } finally {
+        Object.assign(store.env, { slug: "dev", createdSlug: "dev" });
+      }
+    }
+  );
 
   it("fills missing variables and lists required ones it could not fill", async () => {
     const res = await send("POST", `${base}/variables/apply-template`);

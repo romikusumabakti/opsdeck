@@ -16,7 +16,6 @@ import {
 } from "@/lib/db/schema";
 import { deployDirSharedWithOtherEnvironment } from "@/lib/deploy/repository";
 import { deployTagSchema } from "@/lib/deploy/validation";
-import { originalEnvironmentSlug } from "@/lib/environment-slug";
 import { encryptSecret } from "@/lib/secrets";
 import {
   ESCROW_REMOVAL_MESSAGE,
@@ -417,11 +416,11 @@ export async function applyTemplate(
   if (!env.appId) return fail(409, NO_APP_MESSAGE);
   // `{envSlug}` is the slug the environment was created with: a value
   // filled in after a rename must match the ones filled in at creation.
-  const [templates, rows, tagNames, envSlug] = await Promise.all([
+  const envSlug = env.createdSlug ?? env.slug;
+  const [templates, rows, tagNames] = await Promise.all([
     listTemplates(env.appId),
     listVariableRows(env.id),
     listTagVariableNames(env.id),
-    originalEnvironmentSlug(env),
   ]);
   const present = new Set(rows.map((row) => row.name));
 

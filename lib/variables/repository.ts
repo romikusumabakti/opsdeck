@@ -25,6 +25,8 @@ export type EnvironmentContext = {
   id: string;
   name: string;
   slug: string;
+  /** The slug it was created with; null for rows seeded without it. */
+  createdSlug: string | null;
   url: string | null;
   appId: string | null;
   envFileManaged: boolean;
@@ -38,6 +40,7 @@ export async function getEnvironmentContext(
       id: environments.id,
       name: environments.name,
       slug: environments.slug,
+      createdSlug: environments.createdSlug,
       url: environments.url,
       appId: environments.appId,
       envFileManaged: environments.envFileManaged,

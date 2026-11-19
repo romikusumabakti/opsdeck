@@ -335,6 +335,11 @@ export const environments = pgTable(
     // URL-friendly identifier, unique within a project. Lowercase. Kept stable
     // across renames so a shared link doesn't rot. Routed as /[key]/[slug]/….
     slug: text("slug").notNull(),
+    // The slug the environment was created with. Names materialised from the
+    // slug (the `{envSlug}` template placeholder) use it, so they never follow
+    // a rename. Null only for rows inserted outside insertEnvironmentIn
+    // (seed, tests): readers fall back to `slug`.
+    createdSlug: text("created_slug"),
 
     // --- Purpose / ownership (both optional) ---
     // What this deployment is for; drives the kind badge in the grid/switcher.
