@@ -494,6 +494,7 @@ describe("Teardown messages", () => {
     "archive_volumes",
     "stack_down",
     "drop_database",
+    "drop_assistant_db_login",
     "remove_tunnel_route",
     "remove_access_app",
     "remove_dns_record",

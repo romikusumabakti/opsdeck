@@ -17,7 +17,11 @@ import {
 } from "@/lib/services";
 import { shq } from "@/lib/sh";
 import { executeRemoteCommand, redactSecrets } from "@/lib/ssh";
-import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
+import {
+  HostKeyMismatchError,
+  type SshTarget,
+  sshTarget,
+} from "@/lib/ssh-connect";
 
 // The Assistant's dedicated read-only login per environment (Stage 9 spec
 // F.2). Enabling creates, through the Panel's admin path, a login that reads
@@ -84,6 +88,30 @@ export function generateAssistantDbPassword(): string {
   }
 }
 
+// Raised inside the provisioning scripts, recognised in their error output.
+const LOGIN_EXISTS = "menara-assistant-login-exists";
+const LOGIN_MAPPED = "menara-assistant-login-mapped";
+
+/**
+ * Enabling refused before anything changed: a login of that name exists on
+ * the server and the environment doesn't record it as its own ("exists"), or
+ * the SQL Server login also has a user in another database ("mapped").
+ * Never taken over, never dropped.
+ */
+export class AssistantDbLoginRefused extends Error {
+  constructor(
+    readonly reason: "exists" | "mapped",
+    readonly login: string
+  ) {
+    super(
+      reason === "exists"
+        ? `A login named ${login} already exists on the database server`
+        : `The login ${login} has a user in another database`
+    );
+    this.name = "AssistantDbLoginRefused";
+  }
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NON_SYSTEM_SCHEMA =
   "nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'";
@@ -97,8 +125,9 @@ const SEARCH_PATH = "SET search_path = pg_catalog, pg_temp;";
  * `psql -X -q -1 -v ON_ERROR_STOP=on` as postgres connected to `database`,
  * so it is one transaction: any refusal rolls everything back. The search
  * path is pinned first, so a database setting made by its owner can't
- * shadow a catalog function. Refuses an existing role without this
- * environment's marker (a hand-made role is never taken over), and after
+ * shadow a catalog function. Refuses an existing role unless `adopt` (the
+ * environment records it as its own) and it carries this environment's
+ * marker: a hand-made or foreign role is never taken over. After
  * granting verifies the role is unprivileged, a member of no role, and can't
  * create in the database or any of its schemas nor write any of its tables
  * (a privilege granted to PUBLIC would give it that).
@@ -112,6 +141,7 @@ export function pgEnableAssistantDbSql(input: {
   role: string;
   environmentId: string;
   appRoles: string[];
+  adopt: boolean;
 }): string {
   if (!UUID.test(input.environmentId)) {
     throw new Error("environmentId must be a uuid");
@@ -138,8 +168,17 @@ export function pgEnableAssistantDbSql(input: {
     "  IF role_oid IS NULL THEN",
     `    EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS', ${roleLit});`,
     `    EXECUTE format('COMMENT ON ROLE %I IS %L', ${roleLit}, ${markerLit});`,
-    `  ELSIF shobj_description(role_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
-    `    RAISE EXCEPTION 'role % was not created by the Panel for this environment', ${roleLit};`,
+    // Not recorded as the environment's own: never taken over, even when
+    // it carries the marker (a leftover nobody tracks any more).
+    ...(input.adopt
+      ? [
+          `  ELSIF shobj_description(role_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
+          `    RAISE EXCEPTION 'role % was not created by the Panel for this environment', ${roleLit};`,
+        ]
+      : [
+          "  ELSE",
+          `    RAISE EXCEPTION '${LOGIN_EXISTS}: role % already exists', ${roleLit};`,
+        ]),
     "  END IF;",
     "END",
   ].join("\n");
@@ -301,10 +340,13 @@ export function mssqlEnableAssistantDbSql(input: {
   database: string;
   login: string;
   password: string;
+  adopt: boolean;
 }): string {
   // Runs inside the database (sp_executesql after USE), @login a parameter.
   const inDatabase = [
     "DECLARE @q nvarchar(max);",
+    "IF @adopt = 0 AND DATABASE_PRINCIPAL_ID(@login) IS NOT NULL",
+    `  THROW 50000, N'${LOGIN_EXISTS}: a database user with that name exists', 1;`,
     "IF DATABASE_PRINCIPAL_ID(@login) IS NULL",
     "BEGIN",
     "  SET @q = N'CREATE USER ' + QUOTENAME(@login) + N' FOR LOGIN ' + QUOTENAME(@login);",
@@ -323,7 +365,36 @@ export function mssqlEnableAssistantDbSql(input: {
   ].join("\n");
   return [
     ...mssqlDeclares(input),
+    `DECLARE @adopt bit = ${input.adopt ? 1 : 0};`,
     "IF DB_ID(@db) IS NULL THROW 50000, N'database not found', 1;",
+    // A login the environment doesn't record as its own is never taken over.
+    "IF @adopt = 0 AND SUSER_ID(@login) IS NOT NULL",
+    `  THROW 50000, N'${LOGIN_EXISTS}: a login with that name exists', 1;`,
+    // An existing login must not reach any other database (three-part
+    // names would let a SELECT read it): no user for its SID elsewhere.
+    "IF SUSER_ID(@login) IS NOT NULL",
+    "BEGIN",
+    "  DECLARE @sid varbinary(85) = SUSER_SID(@login);",
+    "  DECLARE @other sysname, @n int, @found nvarchar(max) = N'', @q nvarchar(max);",
+    "  DECLARE dbs CURSOR LOCAL FAST_FORWARD FOR",
+    "    SELECT name FROM sys.databases WHERE name <> @db AND state = 0;",
+    "  OPEN dbs;",
+    "  FETCH NEXT FROM dbs INTO @other;",
+    "  WHILE @@FETCH_STATUS = 0",
+    "  BEGIN",
+    "    SET @q = N'SELECT @n = COUNT(*) FROM ' + QUOTENAME(@other) + N'.sys.database_principals WHERE sid = @sid';",
+    "    EXEC sp_executesql @q, N'@sid varbinary(85), @n int OUTPUT', @sid = @sid, @n = @n OUTPUT;",
+    "    IF @n > 0 SET @found = @found + QUOTENAME(@other) + N' ';",
+    "    FETCH NEXT FROM dbs INTO @other;",
+    "  END",
+    "  CLOSE dbs;",
+    "  DEALLOCATE dbs;",
+    "  IF @found <> N''",
+    "  BEGIN",
+    `    DECLARE @mapped nvarchar(2048) = N'${LOGIN_MAPPED}: ' + @found;`,
+    "    THROW 50000, @mapped, 1;",
+    "  END",
+    "END",
     "IF SUSER_ID(@login) IS NULL",
     "BEGIN",
     "  SET @sql = N'CREATE LOGIN ' + QUOTENAME(@login) + N' WITH PASSWORD = ' + QUOTENAME(@pw, '''')",
@@ -342,7 +413,7 @@ export function mssqlEnableAssistantDbSql(input: {
     "  EXEC (@sql);",
     "END",
     `SET @sql = N'USE ' + QUOTENAME(@db) + N';' + NCHAR(10) + N'${sqlQuoteString(inDatabase)}';`,
-    "EXEC sp_executesql @sql, N'@login sysname', @login = @login;",
+    "EXEC sp_executesql @sql, N'@login sysname, @adopt bit', @login = @login, @adopt = @adopt;",
     "",
   ].join("\n");
 }
@@ -422,6 +493,12 @@ export function mysqlEnableAssistantDbSql(input: {
   ].join("\n");
 }
 
+/** Counts the accounts of that user name on any host (`-N -B` output). */
+export function mysqlAssistantDbProbeSql(user: string): string {
+  mysqlAccount(user);
+  return `SELECT COUNT(*) FROM mysql.user WHERE User = '${user}';`;
+}
+
 export function mysqlDisableAssistantDbSql(input: { user: string }): string {
   return `DROP USER IF EXISTS ${mysqlAccount(input.user)};`;
 }
@@ -478,9 +555,23 @@ async function run(
       ...(stdin === undefined ? {} : { stdin }),
     });
   } catch (error) {
+    // Carries no secret; teardown reports it as such.
+    if (error instanceof HostKeyMismatchError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(redactSecrets(message, secrets));
   }
+}
+
+/** The refusal a script raised, else the error itself. */
+function refusalOf(error: unknown, login: string): unknown {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes(LOGIN_MAPPED)) {
+    return new AssistantDbLoginRefused("mapped", login);
+  }
+  if (message.includes(LOGIN_EXISTS)) {
+    return new AssistantDbLoginRefused("exists", login);
+  }
+  return error;
 }
 
 function secretsOf(service: AssistantDbService, password: string | null) {
@@ -493,27 +584,49 @@ function secretsOf(service: AssistantDbService, password: string | null) {
  * Creates or refreshes the environment's read-only login, then proves it can
  * log in the way the query path will (as the login, on the database host's
  * local socket or loopback). A login that can't log in is dropped again and
- * the error names the cause. Returns the login and, for mssql/mysql, its
- * password: `password` when given (a rerun keeps the stored one), else a new
- * one. Refuses an external database or a missing admin password before any
- * SSH. Errors never carry a password.
+ * the error names the cause.
+ *
+ * `ownLogin` is the login the environment row records. Only that one is
+ * refreshed (and keeps `password`, the stored one); any other existing
+ * login, role or user of that name is refused with AssistantDbLoginRefused
+ * before anything changes, as is a SQL Server login with a user in another
+ * database. A first enable that fails halfway drops what it created.
+ * Returns the login and, for mssql/mysql, its password. Refuses an external
+ * database or a missing admin password before any SSH. Errors never carry a
+ * password.
  */
 export async function enableAssistantDbLogin(
   input: AssistantDbService,
-  opts: { environmentId: string; password: string | null }
+  opts: {
+    environmentId: string;
+    ownLogin: string | null;
+    password: string | null;
+  }
 ): Promise<{ login: string; password: string | null }> {
   const service = ready(input);
   const login = assistantDbLoginName(service.dbType, service.dbName);
+  const adopt = opts.ownLogin === login;
   const creds = sshTarget(service.server);
+  const dropAgain = () =>
+    disableAssistantDbLogin(input, {
+      environmentId: opts.environmentId,
+      login,
+    }).catch(() => {});
   if (service.dbType === "postgres") {
     const pipeline = pgEnableAssistantDbPipeline({
       database: service.dbName,
       role: login,
       environmentId: opts.environmentId,
       appRoles: service.dbRole ? [service.dbRole] : [],
+      adopt,
     });
     const secrets = secretsOf(service, null);
-    await run(creds, pgShell(service, pipeline), secrets);
+    // One transaction: a refusal or failure leaves nothing behind.
+    try {
+      await run(creds, pgShell(service, pipeline), secrets);
+    } catch (error) {
+      throw refusalOf(error, login);
+    }
     try {
       await run(
         creds,
@@ -521,10 +634,8 @@ export async function enableAssistantDbLogin(
         secrets
       );
     } catch (error) {
-      await disableAssistantDbLogin(input, {
-        environmentId: opts.environmentId,
-        login,
-      }).catch(() => {});
+      // The environment's own login stays recorded; only a new one goes.
+      if (!adopt) await dropAgain();
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
         `Role ${login} cannot connect to ${service.dbName} over the database host's local socket; its pg_hba must trust local connections: ${message}`
@@ -533,34 +644,60 @@ export async function enableAssistantDbLogin(
     return { login, password: null };
   }
 
-  const password = opts.password ?? generateAssistantDbPassword();
+  const password =
+    (adopt ? opts.password : null) ?? generateAssistantDbPassword();
   const secrets = secretsOf(service, password);
   const admin = dbAdminUser(service.dbType, service.dbUser);
   const adminPassword = service.dbPassword as string;
-  if (service.dbType === "mssql") {
-    const sql = mssqlEnableAssistantDbSql({
-      database: service.dbName,
-      login,
-      password,
-    });
-    await run(
+  if (service.dbType === "mysql" && !adopt) {
+    const count = await run(
       creds,
-      sqlcmdStdinCommand(admin, service.serviceType, service.serviceName),
+      mysqlStdinCommand(admin, service.serviceType, service.serviceName, [
+        "-N",
+        "-B",
+      ]),
       secrets,
-      `${adminPassword}\n${sql}`
+      `${adminPassword}\n${mysqlAssistantDbProbeSql(login)}\n`
     );
-  } else {
-    const sql = mysqlEnableAssistantDbSql({
-      database: service.dbName,
-      user: login,
-      password,
-    });
-    await run(
-      creds,
-      mysqlStdinCommand(admin, service.serviceType, service.serviceName),
-      secrets,
-      `${adminPassword}\n${sql}\n`
-    );
+    if (count.trim() !== "0") {
+      throw new AssistantDbLoginRefused("exists", login);
+    }
+  }
+  try {
+    if (service.dbType === "mssql") {
+      const sql = mssqlEnableAssistantDbSql({
+        database: service.dbName,
+        login,
+        password,
+        adopt,
+      });
+      await run(
+        creds,
+        sqlcmdStdinCommand(admin, service.serviceType, service.serviceName),
+        secrets,
+        `${adminPassword}\n${sql}`
+      );
+    } else {
+      const sql = mysqlEnableAssistantDbSql({
+        database: service.dbName,
+        user: login,
+        password,
+      });
+      await run(
+        creds,
+        mysqlStdinCommand(admin, service.serviceType, service.serviceName),
+        secrets,
+        `${adminPassword}\n${sql}\n`
+      );
+    }
+  } catch (error) {
+    const refused = refusalOf(error, login);
+    // A first enable may have created the login before failing; a refusal
+    // changed nothing and must never drop someone else's login.
+    if (!(refused instanceof AssistantDbLoginRefused) && !adopt) {
+      await dropAgain();
+    }
+    throw refused;
   }
   try {
     const check =
@@ -578,10 +715,7 @@ export async function enableAssistantDbLogin(
           ]);
     await run(creds, check, secrets, `${password}\n`);
   } catch (error) {
-    await disableAssistantDbLogin(input, {
-      environmentId: opts.environmentId,
-      login,
-    }).catch(() => {});
+    if (!adopt) await dropAgain();
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
       `Login ${login} cannot log in to ${service.dbName}: ${message}`

@@ -58,6 +58,8 @@ export type TeardownEnvironment = {
     id: string;
     dbType: "postgres" | "mssql" | "mysql" | null;
     dbKind: "shared" | "container" | "external" | null;
+    /** The Assistant's read-only login still on the database server. */
+    assistantDbLogin: string | null;
   }[];
   /** Row ids (cloudflare_zones, remote_tunnels) and Cloudflare object ids. */
   domain: {
@@ -111,6 +113,7 @@ export async function loadTeardownEnvironment(
       id: environmentServices.id,
       dbType: environmentServices.dbType,
       dbKind: environmentServices.dbKind,
+      assistantDbLogin: environmentServices.assistantDbLogin,
     })
     .from(environmentServices)
     .where(

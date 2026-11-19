@@ -30,6 +30,7 @@ export type TeardownStepSpec =
   | { kind: "archive_volumes"; params: DirParams }
   | { kind: "stack_down"; params: DirParams }
   | { kind: "drop_database"; params: { serviceId: string } }
+  | { kind: "drop_assistant_db_login"; params: { serviceId: string } }
   | {
       kind: "remove_tunnel_route";
       params: { remoteTunnelId: string; hostname: string };
@@ -73,6 +74,10 @@ export const teardownStepSpecSchema: z.ZodType<TeardownStepSpec> =
     z.object({ kind: z.literal("archive_volumes"), params: dirParams }),
     z.object({ kind: z.literal("stack_down"), params: dirParams }),
     z.object({ kind: z.literal("drop_database"), params: serviceParams }),
+    z.object({
+      kind: z.literal("drop_assistant_db_login"),
+      params: serviceParams,
+    }),
     z.object({
       kind: z.literal("remove_tunnel_route"),
       params: z.object({
@@ -179,6 +184,16 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   for (const params of dirs) steps.push({ kind: "check_stack", params });
   for (const service of env.dbServices) {
     steps.push({ kind: "archive_database", params: { serviceId: service.id } });
+  }
+  // The Assistant's read-only login goes while its database still runs (a
+  // container database stops with its stack); it would outlive the
+  // environment otherwise.
+  for (const service of env.dbServices) {
+    if (!service.assistantDbLogin) continue;
+    steps.push({
+      kind: "drop_assistant_db_login",
+      params: { serviceId: service.id },
+    });
   }
   for (const params of dirs) steps.push({ kind: "stop_stack", params });
   for (const params of dirs) steps.push({ kind: "archive_deploy_dir", params });

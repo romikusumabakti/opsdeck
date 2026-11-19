@@ -1647,7 +1647,9 @@
     "assistantDbUnavailable": "{reason, select, external {The Panel has no admin access to an external database.} incomplete {Set the database's engine and name first.} adminPasswordMissing {Set the database's admin password first.} other {The Panel can't create a read-only login for this database.}}",
     "assistantDbProvisionFailed": "The database server refused the read-only login: {reason}",
     "assistantDbDropFailed": "The Assistant's access is off, but the login {login} could not be removed: {reason}",
-    "assistantDbAccessBlocksRebind": "Turn off the Assistant's database access before moving or removing this database."
+    "assistantDbAccessBlocksRebind": "Turn off the Assistant's database access before moving or removing this database.",
+    "assistantDbLoginExists": "A login named {login} already exists on the database server and isn't this environment's. The Panel won't take it over: remove or rename it there first.",
+    "assistantDbLoginMappedElsewhere": "The login {login} also has a user in another database on this server, so the Assistant could read more than this environment's database. Remove that user first."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -3433,6 +3435,7 @@
       "archive_volumes": "Back up the volumes",
       "stack_down": "Stop and remove the containers",
       "drop_database": "Drop the database",
+      "drop_assistant_db_login": "Remove the Assistant's database login",
       "remove_tunnel_route": "Remove the tunnel route",
       "remove_access_app": "Remove the Access app",
       "remove_dns_record": "Remove the DNS record",

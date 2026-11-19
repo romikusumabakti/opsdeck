@@ -32,6 +32,8 @@ const ERROR_KEYS = [
   "assistantDbProvisionFailed",
   "assistantDbDropFailed",
   "assistantDbAccessBlocksRebind",
+  "assistantDbLoginExists",
+  "assistantDbLoginMappedElsewhere",
 ];
 
 describe("assistant database messages", () => {
@@ -58,6 +60,13 @@ describe("assistant database messages", () => {
         );
       }
       expect(own.get("enabledAs")).toContain("{login}");
+      expect(m.teardown?.steps).toHaveProperty("drop_assistant_db_login");
+      for (const key of [
+        "assistantDbLoginExists",
+        "assistantDbLoginMappedElsewhere",
+      ]) {
+        expect(m.actionErrors?.[key], key).toContain("{login}");
+      }
       expect(own.get("leftover")).toContain("{login}");
     });
   }
@@ -97,6 +106,20 @@ describe("assistant database messages", () => {
   });
 });
 
+describe("teardown step migration", () => {
+  it("adds drop_assistant_db_login to teardown_step_kind, expand-only", () => {
+    const sql = readFileSync(
+      "drizzle/20261201000001_teardown_assistant_db_login/migration.sql",
+      "utf8"
+    );
+    expect(sql.startsWith("SET LOCAL lock_timeout = '5s';")).toBe(true);
+    expect(sql).toContain(
+      `ALTER TYPE "teardown_step_kind" ADD VALUE 'drop_assistant_db_login'`
+    );
+    expect(sql).not.toMatch(/\b(DROP|RENAME)\b/);
+  });
+});
+
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
@@ -113,6 +136,10 @@ describe("who writes the assistant_db_* columns", () => {
       "lib/environments.ts",
       "lib/assistant-db/login.ts",
       "server/services/environment-assistant-db.ts",
+      // The teardown step that drops the login.
+      "lib/teardown/assistant-db.ts",
+      "lib/teardown/repository.ts",
+      "lib/teardown/plan.ts",
       // The rebind guard reads them.
       "server/services/environments.ts",
     ]);

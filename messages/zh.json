@@ -1647,7 +1647,9 @@
     "assistantDbUnavailable": "{reason, select, external {面板没有外部数据库的管理员权限。} incomplete {请先设置数据库引擎和名称。} adminPasswordMissing {请先设置数据库管理员密码。} other {面板无法为此数据库创建只读登录名。}}",
     "assistantDbProvisionFailed": "数据库服务器拒绝了只读登录名：{reason}",
     "assistantDbDropFailed": "助手的访问已关闭，但无法删除登录名 {login}：{reason}",
-    "assistantDbAccessBlocksRebind": "移动或移除此数据库前，请先关闭助手的数据库访问。"
+    "assistantDbAccessBlocksRebind": "移动或移除此数据库前，请先关闭助手的数据库访问。",
+    "assistantDbLoginExists": "数据库服务器上已存在名为 {login} 的登录名，且不属于此环境。面板不会接管它：请先在服务器上删除或重命名它。",
+    "assistantDbLoginMappedElsewhere": "登录名 {login} 在此服务器的其他数据库中也有用户，助手可能读取到此环境数据库以外的数据。请先删除该用户。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -3433,6 +3435,7 @@
       "archive_volumes": "备份卷",
       "stack_down": "停止并移除容器",
       "drop_database": "删除数据库",
+      "drop_assistant_db_login": "删除助手的数据库登录名",
       "remove_tunnel_route": "移除隧道路由",
       "remove_access_app": "移除 Access 应用",
       "remove_dns_record": "移除 DNS 记录",

@@ -338,7 +338,16 @@ describe("planTeardown", () => {
     for (const dbType of ["mysql", "mssql", null] as const) {
       expect(
         planTeardown(
-          env({ dbServices: [{ id: "svc-db", dbType, dbKind: "container" }] })
+          env({
+            dbServices: [
+              {
+                id: "svc-db",
+                dbType,
+                dbKind: "container",
+                assistantDbLogin: null,
+              },
+            ],
+          })
         )
       ).toEqual({ refusal: "databaseBackupUnsupported" });
     }
@@ -348,8 +357,18 @@ describe("planTeardown", () => {
     const result = planTeardown(
       env({
         dbServices: [
-          { id: "svc-shared", dbType: "postgres", dbKind: "shared" },
-          { id: "svc-stack", dbType: "postgres", dbKind: "container" },
+          {
+            id: "svc-shared",
+            dbType: "postgres",
+            dbKind: "shared",
+            assistantDbLogin: null,
+          },
+          {
+            id: "svc-stack",
+            dbType: "postgres",
+            dbKind: "container",
+            assistantDbLogin: null,
+          },
         ],
       })
     );
@@ -361,6 +380,39 @@ describe("planTeardown", () => {
         { kind: "delete_environment", params: {} },
       ],
     });
+  });
+
+  it("drops a recorded Assistant login while the database still runs, any kind", () => {
+    const result = planTeardown(
+      env({
+        targets: [{ serverId: S1, deployDir: "/deployments/dms" }],
+        dbServices: [
+          {
+            id: "svc-stack",
+            dbType: "postgres",
+            dbKind: "container",
+            assistantDbLogin: "menara_ro_dms",
+          },
+          {
+            id: "svc-plain",
+            dbType: "postgres",
+            dbKind: null,
+            assistantDbLogin: null,
+          },
+        ],
+      })
+    );
+    const kinds = "steps" in result ? result.steps : [];
+    expect(kinds.filter((s) => s.kind === "drop_assistant_db_login")).toEqual([
+      { kind: "drop_assistant_db_login", params: { serviceId: "svc-stack" } },
+    ]);
+    const order = kinds.map((s) => s.kind);
+    expect(order.indexOf("drop_assistant_db_login")).toBeGreaterThan(
+      order.lastIndexOf("archive_database")
+    );
+    expect(order.indexOf("drop_assistant_db_login")).toBeLessThan(
+      order.indexOf("stop_stack")
+    );
   });
 
   it("removes only the Cloudflare objects whose ids are set", () => {
@@ -415,7 +467,14 @@ describe("planTeardown", () => {
           { serverId: S1, deployDir: "/deployments/dms" },
           { serverId: S1, deployDir: "/deployments/dms" },
         ],
-        dbServices: [{ id: "svc-db", dbType: "postgres", dbKind: "shared" }],
+        dbServices: [
+          {
+            id: "svc-db",
+            dbType: "postgres",
+            dbKind: "shared",
+            assistantDbLogin: "menara_ro_dms",
+          },
+        ],
         domain: {
           kind: "tunnel",
           hostname: "dms.example.com",
@@ -429,6 +488,7 @@ describe("planTeardown", () => {
     expect("steps" in result && result.steps.map((s) => s.kind)).toEqual([
       "check_stack",
       "archive_database",
+      "drop_assistant_db_login",
       "stop_stack",
       "archive_deploy_dir",
       "archive_volumes",

@@ -21,6 +21,7 @@ import {
   archiveDeployDir,
   archiveVolumes,
 } from "@/lib/teardown/archive";
+import { dropAssistantDbLogin } from "@/lib/teardown/assistant-db";
 import { StepFailed, type TeardownErrorCode } from "@/lib/teardown/errors";
 import {
   type TeardownStepSpec,
@@ -68,6 +69,7 @@ function summarize(spec: TeardownStepSpec): string {
       return spec.params.deployDir;
     case "archive_database":
     case "drop_database":
+    case "drop_assistant_db_login":
       return spec.params.serviceId;
     case "remove_tunnel_route":
       return spec.params.hostname;
@@ -251,6 +253,8 @@ function executeStep(
       return stackDown(ctx, spec.params);
     case "drop_database":
       return dropDatabase(ctx, spec.params);
+    case "drop_assistant_db_login":
+      return dropAssistantDbLogin(ctx, spec.params);
     case "remove_dns_record":
       return removeDnsRecord(ctx, spec.params);
     case "remove_tunnel_route":

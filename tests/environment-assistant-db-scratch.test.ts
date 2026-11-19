@@ -79,6 +79,8 @@ const ENV_EXT = "00000000-0000-7000-8000-00000000d0e3";
 const ENV_NODB = "00000000-0000-7000-8000-00000000d0e4";
 const SVC_PG = "00000000-0000-7000-8000-00000000d0f1";
 const SVC_MY = "00000000-0000-7000-8000-00000000d0f2";
+const ENV_MS = "00000000-0000-7000-8000-00000000d0e5";
+const SVC_MS = "00000000-0000-7000-8000-00000000d0f5";
 // Fictional credentials.
 const ADMIN_DB_PW = "fictional-root-Pw-81";
 const SSH_PW = "fictional-ssh-Pw-82";
@@ -174,7 +176,8 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
       (${ENV_PG}, ${PROJECT}, 'Kestrel QA', 'qa'),
       (${ENV_MY}, ${PROJECT}, 'Kestrel UAT', 'uat'),
       (${ENV_EXT}, ${PROJECT}, 'Kestrel Ext', 'ext'),
-      (${ENV_NODB}, ${PROJECT}, 'Kestrel Bare', 'bare')`;
+      (${ENV_NODB}, ${PROJECT}, 'Kestrel Bare', 'bare'),
+      (${ENV_MS}, ${PROJECT}, 'Kestrel SQL', 'sql')`;
     await sql`insert into environment_services
       (id, environment_id, role, server_id, service_type, service_name,
        db_type, db_name, db_user, db_password, db_backup_path, db_kind) values
@@ -183,8 +186,10 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
       (${SVC_MY}, ${ENV_MY}, 'db', ${SERVER}, 'docker', 'kestrel-uat-db',
        'mysql', 'kestrel_uat', null, ${encryptSecret(ADMIN_DB_PW)}, '/backups', null),
       (gen_random_uuid(), ${ENV_EXT}, 'db', ${SERVER}, 'systemd', 'postgresql',
-       'postgres', 'kestrel_ext', null, null, '/backups', 'external')`;
-    for (const env of [ENV_PG, ENV_MY, ENV_EXT, ENV_NODB]) {
+       'postgres', 'kestrel_ext', null, null, '/backups', 'external'),
+      (${SVC_MS}, ${ENV_MS}, 'db', ${SERVER}, 'docker', 'kestrel-sql-db',
+       'mssql', 'kestrel_sql', null, ${encryptSecret(ADMIN_DB_PW)}, '/backups', null)`;
+    for (const env of [ENV_PG, ENV_MY, ENV_EXT, ENV_NODB, ENV_MS]) {
       await sql`insert into environment_services
         (environment_id, role, server_id, service_type, service_name) values
         (${env}, 'backend', ${SERVER}, 'docker', ${`backend-${env.slice(-2)}`})`;
@@ -262,6 +267,57 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
     expect(await activity()).toEqual([]);
   });
 
+  it("never adopts a login of that name the environment doesn't record (409, nothing changed)", async () => {
+    const off = {
+      assistant_db_enabled: false,
+      assistant_db_login: null,
+      assistant_db_password: null,
+    };
+    // Postgres: the provisioning transaction raised and rolled back.
+    ssh.results = [
+      {
+        code: 3,
+        stdout: "",
+        stderr:
+          "ERROR:  menara-assistant-login-exists: role menara_ro_kestrel_qa already exists",
+      },
+    ];
+    const pg = await post(ENV_PG, true);
+    expect(pg.status).toBe(409);
+    expect(await pg.json()).toMatchObject({
+      code: "assistantDbLoginExists",
+      params: { login: "menara_ro_kestrel_qa" },
+    });
+    expect(ssh.calls).toHaveLength(1);
+    expect(await row(SVC_PG)).toMatchObject(off);
+    // MySQL: the probe finds the user name; the script never runs.
+    ssh.calls = [];
+    ssh.results = [{ code: 0, stdout: "1\n", stderr: "" }];
+    const my = await post(ENV_MY, true);
+    expect(my.status).toBe(409);
+    expect(await my.json()).toMatchObject({ code: "assistantDbLoginExists" });
+    expect(ssh.calls).toHaveLength(1);
+    expect(await row(SVC_MY)).toMatchObject(off);
+    // SQL Server: an existing foreign login, and one mapped elsewhere.
+    for (const [marker, code] of [
+      ["menara-assistant-login-exists", "assistantDbLoginExists"],
+      [
+        "menara-assistant-login-mapped: [other] ",
+        "assistantDbLoginMappedElsewhere",
+      ],
+    ] as const) {
+      ssh.calls = [];
+      ssh.results = [{ code: 1, stdout: `Msg 50000, ${marker}`, stderr: "" }];
+      const ms = await post(ENV_MS, true);
+      expect(ms.status).toBe(409);
+      expect(await ms.json()).toMatchObject({ code });
+      // No cleanup: the login isn't the Panel's to drop.
+      expect(ssh.calls).toHaveLength(1);
+      expect(await row(SVC_MS)).toMatchObject(off);
+    }
+    expect(await activity()).toEqual([]);
+  });
+
   it("enables postgres for an admin: role provisioned, row on, no password, activity", async () => {
     const res = await post(ENV_PG, true);
     expect(res.status).toBe(200);
@@ -292,9 +348,13 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
 
   it("enables mysql for infra: the generated password is stored encrypted and never sent back or logged", async () => {
     as(INFRA, "infra");
+    // The probe finds no user of that name.
+    ssh.results = [{ code: 0, stdout: "0\n", stderr: "" }];
     const res = await post(ENV_MY, true);
     expect(res.status).toBe(200);
     const text = await res.text();
+    expect(ssh.calls[0]?.stdin).toContain("FROM mysql.user");
+    ssh.calls.shift();
     const stored = await row(SVC_MY);
     expect(stored?.assistant_db_password).toMatch(/^enc:/);
     const password = decryptSecret(stored?.assistant_db_password as string);
@@ -433,5 +493,63 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
     });
     expect(moved.status).toBe(200);
     expect(svc).toBeDefined();
+  });
+
+  it("teardown drops a recorded login (access off first), fails like a server step, and is a no-op once gone", async () => {
+    const { dropAssistantDbLogin } = await import(
+      "@/lib/teardown/assistant-db"
+    );
+    const { StepFailed } = await import("@/lib/teardown/errors");
+    expect((await post(ENV_PG, true)).status).toBe(200);
+    const login = (await row(SVC_PG))?.assistant_db_login as string;
+    expect(login).toBe("menara_ro_kestrel_qa2");
+    // The server refuses: access is off anyway, the login stays recorded.
+    ssh.calls = [];
+    ssh.results = [{ code: 1, stdout: "", stderr: `boom ${SSH_PW}` }];
+    const ctx = { environmentId: ENV_PG, secrets: [] as string[] };
+    const failed = await dropAssistantDbLogin(ctx, { serviceId: SVC_PG }).catch(
+      (e: unknown) => e
+    );
+    expect(failed).toBeInstanceOf(StepFailed);
+    expect(failed).toMatchObject({ code: "serverCommandFailed" });
+    expect((failed as Error).message).not.toContain(SSH_PW);
+    expect(await row(SVC_PG)).toMatchObject({
+      assistant_db_enabled: false,
+      assistant_db_login: login,
+    });
+    expect(await getAssistantDbLogin(ENV_PG)).toBeNull();
+    // The retry drops it and forgets it.
+    ssh.calls = [];
+    expect(await dropAssistantDbLogin(ctx, { serviceId: SVC_PG })).toBe(
+      `Assistant database login ${login} dropped`
+    );
+    expect(ssh.calls).toHaveLength(1);
+    expect(ssh.calls[0]?.command).toContain("DROP ROLE");
+    expect(await row(SVC_PG)).toMatchObject({
+      assistant_db_enabled: false,
+      assistant_db_login: null,
+      assistant_db_password: null,
+    });
+    ssh.calls = [];
+    expect(await dropAssistantDbLogin(ctx, { serviceId: SVC_PG })).toBe(
+      "No Assistant database login to drop"
+    );
+    expect(ssh.calls).toEqual([]);
+    // A service of another environment is refused.
+    await expect(
+      dropAssistantDbLogin(
+        { environmentId: ENV_MY, secrets: [] },
+        { serviceId: SVC_PG }
+      )
+    ).rejects.toMatchObject({ code: "databaseNotRegistered" });
+    // The planner adds the step only while a login is recorded.
+    const { loadTeardownEnvironment } = await import(
+      "@/lib/teardown/repository"
+    );
+    expect(
+      (await loadTeardownEnvironment(ENV_MY))?.dbServices.map(
+        (d) => d.assistantDbLogin
+      )
+    ).toEqual([null]);
   });
 });

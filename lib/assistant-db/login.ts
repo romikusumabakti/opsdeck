@@ -64,3 +64,40 @@ export async function getAssistantDbLogin(
   }
   return password ? { ...base, password } : null;
 }
+
+/**
+ * Turns the environment's access off (committed at once, so the Assistant
+ * stops) and returns the login still recorded on the db service, if any.
+ */
+export async function turnOffAssistantDbAccess(
+  serviceId: string
+): Promise<string | null> {
+  const [row] = await db
+    .update(environmentServices)
+    .set({ assistantDbEnabled: false })
+    .where(eq(environmentServices.id, serviceId))
+    .returning({ login: environmentServices.assistantDbLogin });
+  return row?.login ?? null;
+}
+
+/** Forgets a login once it is dropped (only while it is still the recorded one). */
+export async function forgetAssistantDbLogin(
+  serviceId: string,
+  login: string
+): Promise<void> {
+  await db
+    .update(environmentServices)
+    .set({
+      assistantDbEnabled: false,
+      assistantDbLogin: null,
+      assistantDbPassword: null,
+      assistantDbEnabledAt: null,
+      assistantDbEnabledBy: null,
+    })
+    .where(
+      and(
+        eq(environmentServices.id, serviceId),
+        eq(environmentServices.assistantDbLogin, login)
+      )
+    );
+}

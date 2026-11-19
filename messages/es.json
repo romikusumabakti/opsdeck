@@ -1647,7 +1647,9 @@
     "assistantDbUnavailable": "{reason, select, external {El Panel no tiene acceso de administrador a una base de datos externa.} incomplete {Indica primero el motor y el nombre de la base de datos.} adminPasswordMissing {Indica primero la contraseña de administrador de la base de datos.} other {El Panel no puede crear un inicio de sesión de solo lectura para esta base de datos.}}",
     "assistantDbProvisionFailed": "El servidor de base de datos rechazó el inicio de sesión de solo lectura: {reason}",
     "assistantDbDropFailed": "El acceso del asistente está desactivado, pero no se pudo eliminar el inicio de sesión {login}: {reason}",
-    "assistantDbAccessBlocksRebind": "Desactiva el acceso del asistente a la base de datos antes de mover o quitar esta base de datos."
+    "assistantDbAccessBlocksRebind": "Desactiva el acceso del asistente a la base de datos antes de mover o quitar esta base de datos.",
+    "assistantDbLoginExists": "Ya existe un inicio de sesión llamado {login} en el servidor de base de datos y no es de este entorno. El Panel no lo tomará: elimínalo o cámbiale el nombre allí primero.",
+    "assistantDbLoginMappedElsewhere": "El inicio de sesión {login} también tiene un usuario en otra base de datos de este servidor, así que el asistente podría leer más que la base de datos de este entorno. Elimina ese usuario primero."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -3433,6 +3435,7 @@
       "archive_volumes": "Copiar los volúmenes",
       "stack_down": "Detener y quitar los contenedores",
       "drop_database": "Eliminar la base de datos",
+      "drop_assistant_db_login": "Eliminar el inicio de sesión del asistente en la base de datos",
       "remove_tunnel_route": "Quitar la ruta del túnel",
       "remove_access_app": "Quitar la aplicación de Access",
       "remove_dns_record": "Quitar el registro DNS",

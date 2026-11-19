@@ -1647,7 +1647,9 @@
     "assistantDbUnavailable": "{reason, select, external {Panel tidak punya akses admin ke basis data eksternal.} incomplete {Isi mesin dan nama basis data terlebih dahulu.} adminPasswordMissing {Isi kata sandi admin basis data terlebih dahulu.} other {Panel tidak bisa membuat login baca-saja untuk basis data ini.}}",
     "assistantDbProvisionFailed": "Server basis data menolak login baca-saja: {reason}",
     "assistantDbDropFailed": "Akses Asisten sudah nonaktif, tetapi login {login} tidak bisa dihapus: {reason}",
-    "assistantDbAccessBlocksRebind": "Nonaktifkan akses basis data Asisten sebelum memindahkan atau menghapus basis data ini."
+    "assistantDbAccessBlocksRebind": "Nonaktifkan akses basis data Asisten sebelum memindahkan atau menghapus basis data ini.",
+    "assistantDbLoginExists": "Login bernama {login} sudah ada di server basis data dan bukan milik environment ini. Panel tidak akan mengambil alihnya: hapus atau ganti namanya di sana terlebih dahulu.",
+    "assistantDbLoginMappedElsewhere": "Login {login} juga punya user di basis data lain pada server ini, sehingga Asisten bisa membaca lebih dari basis data environment ini. Hapus user itu terlebih dahulu."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -3433,6 +3435,7 @@
       "archive_volumes": "Cadangkan volume",
       "stack_down": "Hentikan dan hapus container",
       "drop_database": "Hapus database",
+      "drop_assistant_db_login": "Hapus login basis data Asisten",
       "remove_tunnel_route": "Hapus rute tunnel",
       "remove_access_app": "Hapus aplikasi Access",
       "remove_dns_record": "Hapus record DNS",

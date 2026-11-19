@@ -75,6 +75,9 @@ vi.mock("@/lib/teardown/server-steps", () => ({
   dropDatabase: fakeStep("drop_database"),
   removeDeployDir: fakeStep("remove_deploy_dir"),
 }));
+vi.mock("@/lib/teardown/assistant-db", () => ({
+  dropAssistantDbLogin: fakeStep("drop_assistant_db_login"),
+}));
 
 vi.mock("@/lib/teardown/repository", () => ({
   getTeardownRun: async () =>
@@ -254,6 +257,8 @@ const PARAMS: Record<string, Record<string, unknown>> = {
     hostname: "hris-staging.example.com",
   },
   remove_deploy_dir: DIR,
+  // Last but one, so the index-based resume cases keep their steps.
+  drop_assistant_db_login: { serviceId: "svc" },
   delete_environment: {},
 };
 const ALL = Object.keys(PARAMS);
@@ -342,6 +347,7 @@ describe("runTeardown", () => {
       "stack_down",
       "drop_database",
       "remove_deploy_dir",
+      "drop_assistant_db_login",
       "delete_environment",
     ]);
     // Recorded by deleteTeardownEnvironment, for the run's user.

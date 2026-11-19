@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { recordActivity } from "@/lib/activity";
 import { assistantDbUnavailableReason } from "@/lib/assistant-db/availability";
 import {
+  AssistantDbLoginRefused,
   disableAssistantDbLogin,
   enableAssistantDbLogin,
 } from "@/lib/assistant-db/provision";
@@ -115,10 +116,15 @@ async function enable(
     try {
       provisioned = await enableAssistantDbLogin(stored, {
         environmentId,
-        // A rerun keeps the password the stored login already has.
-        password: locked.login ? stored.assistantDbPassword : null,
+        // Only the recorded login is refreshed (keeping its password); any
+        // other of that name on the server is refused.
+        ownLogin: locked.login,
+        password: stored.assistantDbPassword,
       });
     } catch (error) {
+      if (error instanceof AssistantDbLoginRefused) {
+        return { ok: false as const, refused: error };
+      }
       return { ok: false as const, error: messageOf(error) };
     }
     const [row] = await tx
@@ -140,10 +146,21 @@ async function enable(
   });
   if (!result) return refuse(409, "assistantDbNoDatabase");
   if (!result.ok) {
+    if (result.refused) {
+      return refuse(
+        409,
+        result.refused.reason === "exists"
+          ? "assistantDbLoginExists"
+          : "assistantDbLoginMappedElsewhere",
+        { login: result.refused.login }
+      );
+    }
     console.error(
       `Assistant database login for environment ${environmentId} failed: ${result.error}`
     );
-    return refuse(502, "assistantDbProvisionFailed", { reason: result.error });
+    return refuse(502, "assistantDbProvisionFailed", {
+      reason: result.error ?? "",
+    });
   }
   if (!result.wasEnabled) {
     await recordActivity({

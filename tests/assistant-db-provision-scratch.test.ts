@@ -94,14 +94,22 @@ const asRo = (sql: string, database = DB_A, role = RO_A) =>
     sql
   );
 
+// `adopt`: the environment records the role as its own (a re-enable).
 const enable = (
   database: string,
   role: string,
   environmentId: string,
-  appRoles: string[] = []
+  appRoles: string[] = [],
+  adopt = false
 ) =>
   shell(
-    pgEnableAssistantDbPipeline({ database, role, environmentId, appRoles })
+    pgEnableAssistantDbPipeline({
+      database,
+      role,
+      environmentId,
+      appRoles,
+      adopt,
+    })
   );
 const disable = (database: string, role: string, environmentId: string) =>
   shell(pgDisableAssistantDbPipeline({ database, role, environmentId }));
@@ -294,34 +302,59 @@ describe.skipIf(!enabled)("assistant read-only role on Postgres", () => {
     });
     const write = await asRo("INSERT INTO members VALUES (3, 'z');");
     expect(write.stderr).toMatch(/permission denied for table members/);
-    expect(await enable(DB_A, RO_A, ENV_A, [APP_A])).toMatchObject({ code: 0 });
+    expect(await enable(DB_A, RO_A, ENV_A, [APP_A], true)).toMatchObject({
+      code: 0,
+    });
     expect(
       await asRo("SHOW default_transaction_read_only; SHOW statement_timeout;")
     ).toMatchObject({ stdout: "on\n10s" });
   });
 
-  it("is idempotent", async () => {
-    expect(await enable(DB_A, RO_A, ENV_A, [APP_A])).toMatchObject({ code: 0 });
+  it("is idempotent for the environment's own recorded role", async () => {
+    expect(await enable(DB_A, RO_A, ENV_A, [APP_A], true)).toMatchObject({
+      code: 0,
+    });
     expect(await asRo("SELECT count(*) FROM members;")).toMatchObject({
       code: 0,
       stdout: "1",
     });
   });
 
-  it("refuses a hand-made role of that name and another environment's role", async () => {
-    const other = await enable(DB_A, RO_A, ENV_C);
-    expect(other.code).not.toBe(0);
-    expect(other.stderr).toContain(
-      "was not created by the Panel for this environment"
-    );
+  it("never takes over an existing role it doesn't record: hand-made, another environment's, even its own leftover", async () => {
+    const roleSettings = () =>
+      superuser(
+        `SELECT coalesce(string_agg(c, ','), '') FROM pg_db_role_setting, unnest(setconfig) c WHERE setrole = (SELECT oid FROM pg_roles WHERE rolname = '${RO_C}')`
+      );
+    // Its own marked role, not recorded by the row (a leftover).
+    const leftover = await enable(DB_A, RO_A, ENV_A, [APP_A], false);
+    expect(leftover.code).not.toBe(0);
+    expect(leftover.stderr).toContain("menara-assistant-login-exists");
+    // Another environment's, recorded or not.
+    for (const adopt of [false, true]) {
+      const other = await enable(DB_A, RO_A, ENV_C, [], adopt);
+      expect(other.code).not.toBe(0);
+      expect(other.stderr).toMatch(
+        adopt
+          ? /was not created by the Panel for this environment/
+          : /menara-assistant-login-exists/
+      );
+    }
     expect((await disable(DB_A, RO_A, ENV_C)).code).not.toBe(0);
+    // A hand-made one keeps everything it had.
     await superuser(`CREATE DATABASE ${DB_C} OWNER ${APP_B}`);
-    await superuser(`CREATE ROLE ${RO_C} LOGIN`);
+    await superuser(`CREATE ROLE ${RO_C} LOGIN PASSWORD 'hand-Pw-1'`);
+    const before = await roleSettings();
     const hand = await enable(DB_C, RO_C, ENV_C);
     expect(hand.code).not.toBe(0);
-    expect(hand.stderr).toContain(
-      "was not created by the Panel for this environment"
-    );
+    expect(hand.stderr).toContain("menara-assistant-login-exists");
+    expect(await roleSettings()).toEqual(before);
+    expect(
+      (
+        await superuser(
+          `SELECT rolpassword IS NOT NULL, has_database_privilege('${RO_C}', '${DB_C}', 'CONNECT') FROM pg_authid WHERE rolname = '${RO_C}'`
+        )
+      ).stdout
+    ).toBe("t|t");
     await superuser(`DROP ROLE ${RO_C}`);
   });
 

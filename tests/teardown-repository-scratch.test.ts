@@ -275,7 +275,12 @@ describe.skipIf(!scratchDb)("teardown repository on scratch", async () => {
       otherTargets: [{ host: "192.0.2.21", deployDir: "/deployments/td-it" }],
       otherDomains: [],
       dbServices: [
-        { id: ids.dbService, dbType: "postgres", dbKind: "container" },
+        {
+          id: ids.dbService,
+          dbType: "postgres",
+          dbKind: "container",
+          assistantDbLogin: null,
+        },
       ],
       domain: null,
     });

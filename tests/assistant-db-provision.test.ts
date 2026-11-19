@@ -23,12 +23,14 @@ vi.mock("@/lib/ssh-session", () => ({
 }));
 
 const {
+  AssistantDbLoginRefused,
   assistantDbLoginName,
   disableAssistantDbLogin,
   enableAssistantDbLogin,
   generateAssistantDbPassword,
   mssqlDisableAssistantDbSql,
   mssqlEnableAssistantDbSql,
+  mysqlAssistantDbProbeSql,
   mysqlDisableAssistantDbSql,
   mysqlEnableAssistantDbSql,
   pgDisableAssistantDbSql,
@@ -151,6 +153,7 @@ describe("pgEnableAssistantDbSql", () => {
     role: "menara_ro_kestrel_qa",
     environmentId: ENV_ID,
     appRoles: ["kestrel_app"],
+    adopt: false,
   });
 
   it("pins the search path before anything else", () => {
@@ -190,7 +193,8 @@ describe("pgEnableAssistantDbSql", () => {
 
   it("marks the role for this environment and refuses one it did not make", () => {
     expect(sql).toContain(`menara:${ENV_ID}`);
-    expect(sql).toContain("was not created by the Panel for this environment");
+    // A first enable refuses any existing role of that name.
+    expect(sql).toContain("menara-assistant-login-exists");
   });
 
   it("verifies the role can't write before committing", () => {
@@ -207,6 +211,7 @@ describe("pgEnableAssistantDbSql", () => {
       role: `r"'`,
       environmentId: ENV_ID,
       appRoles: [`a'b`],
+      adopt: false,
     });
     expect(hostile).toContain(
       `GRANT CONNECT ON DATABASE "x""; DROP DATABASE y; --'" TO "r""'";`
@@ -222,6 +227,7 @@ describe("pgEnableAssistantDbSql", () => {
         role: "r",
         environmentId: "x' OR '1",
         appRoles: [],
+        adopt: false,
       })
     ).toThrow(/uuid/);
   });
@@ -247,6 +253,7 @@ describe("mssqlEnableAssistantDbSql", () => {
       database: "kestrel_qa",
       login: "menara_ro_kestrel_qa",
       password: "Abc123def456ghi789jkl012mno345pq",
+      adopt: false,
     });
     expect(sql).toContain("DECLARE @db sysname = N'kestrel_qa';");
     expect(sql).toContain("DECLARE @login sysname = N'menara_ro_kestrel_qa';");
@@ -262,6 +269,7 @@ describe("mssqlEnableAssistantDbSql", () => {
       database: "a'b]c",
       login: "l'x",
       password: "p'w",
+      adopt: false,
     });
     expect(sql).toContain("DECLARE @db sysname = N'a''b]c';");
     expect(sql).toContain("DECLARE @login sysname = N'l''x';");
@@ -349,6 +357,7 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
   it("postgres: provisions as postgres in the environment's database, then connects as the role", async () => {
     const result = await enableAssistantDbLogin(service(), {
       environmentId: ENV_ID,
+      ownLogin: null,
       password: null,
     });
     expect(result).toEqual({ login: "menara_ro_kestrel_qa", password: null });
@@ -376,6 +385,7 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
     await expect(
       enableAssistantDbLogin(service(), {
         environmentId: ENV_ID,
+        ownLogin: null,
         password: null,
       })
     ).rejects.toThrow(/local connections/);
@@ -386,7 +396,7 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
   it("mssql: script and both passwords on stdin, none in argv", async () => {
     const result = await enableAssistantDbLogin(
       service({ dbType: "mssql", dbPassword: ADMIN_PW, dbUser: "sa" }),
-      { environmentId: ENV_ID, password: null }
+      { environmentId: ENV_ID, ownLogin: null, password: null }
     );
     expect(result.login).toBe("menara_ro_kestrel_qa");
     expect(result.password).toMatch(/^[A-Za-z0-9]{32}$/);
@@ -406,7 +416,11 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
     const reused = "Stored1Password2For3The4Login5ab";
     const result = await enableAssistantDbLogin(
       service({ dbType: "mysql", dbPassword: ADMIN_PW }),
-      { environmentId: ENV_ID, password: reused }
+      {
+        environmentId: ENV_ID,
+        ownLogin: "menara_ro_kestrel_qa",
+        password: reused,
+      }
     );
     expect(result.password).toBe(reused);
     expect(ssh.calls[0]?.stdin?.startsWith(`${ADMIN_PW}\n`)).toBe(true);
@@ -426,7 +440,11 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
     const reused = "Stored1Password2For3The4Login5ab";
     const error = await enableAssistantDbLogin(
       service({ dbType: "mysql", dbPassword: ADMIN_PW }),
-      { environmentId: ENV_ID, password: reused }
+      {
+        environmentId: ENV_ID,
+        ownLogin: "menara_ro_kestrel_qa",
+        password: reused,
+      }
     ).then(
       () => null,
       (e: Error) => e
@@ -442,12 +460,14 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
     await expect(
       enableAssistantDbLogin(service({ dbKind: "external" }), {
         environmentId: ENV_ID,
+        ownLogin: null,
         password: null,
       })
     ).rejects.toThrow(/external/);
     await expect(
       enableAssistantDbLogin(service({ dbType: "mssql" }), {
         environmentId: ENV_ID,
+        ownLogin: null,
         password: null,
       })
     ).rejects.toThrow(/adminPasswordMissing/);
@@ -472,5 +492,164 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
     expect(ssh.calls[0]?.stdin).toBe(
       `${ADMIN_PW}\nDROP USER IF EXISTS 'menara_ro_kestrel_qa'@'127.0.0.1';\n`
     );
+  });
+});
+
+describe("never adopting a login the environment doesn't record", () => {
+  beforeEach(() => {
+    ssh.calls = [];
+    ssh.results = [];
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  const fail = (stderr: string) => ({ code: 1, stdout: "", stderr });
+
+  it("postgres SQL refuses any existing role unless adopting, then checks the marker", () => {
+    const base = {
+      database: "kestrel_qa",
+      role: "menara_ro_kestrel_qa",
+      environmentId: ENV_ID,
+      appRoles: [],
+    };
+    const fresh = pgEnableAssistantDbSql({ ...base, adopt: false });
+    expect(fresh).toContain("menara-assistant-login-exists");
+    expect(fresh).not.toContain("was not created by the Panel");
+    const own = pgEnableAssistantDbSql({ ...base, adopt: true });
+    expect(own).not.toContain("menara-assistant-login-exists");
+    expect(own).toContain("was not created by the Panel for this environment");
+  });
+
+  it("SQL Server SQL refuses an existing login or user unless adopting, and one mapped into another database", () => {
+    const sql = mssqlEnableAssistantDbSql({
+      database: "kestrel_qa",
+      login: "menara_ro_kestrel_qa",
+      password: "Abc1",
+      adopt: false,
+    });
+    expect(sql).toContain("DECLARE @adopt bit = 0;");
+    expect(sql).toContain("IF @adopt = 0 AND SUSER_ID(@login) IS NOT NULL");
+    expect(sql).toContain(
+      "IF @adopt = 0 AND DATABASE_PRINCIPAL_ID(@login) IS NOT NULL"
+    );
+    expect(sql).toContain("FROM sys.databases WHERE name <> @db");
+    expect(sql).toContain("menara-assistant-login-mapped");
+    // The mapping check runs before the password could be reset.
+    expect(sql.indexOf("menara-assistant-login-mapped")).toBeLessThan(
+      sql.indexOf("ALTER LOGIN")
+    );
+    expect(
+      mssqlEnableAssistantDbSql({
+        database: "d",
+        login: "l",
+        password: "Abc1",
+        adopt: true,
+      })
+    ).toContain("DECLARE @adopt bit = 1;");
+  });
+
+  it("postgres: an existing role is refused as such and nothing is dropped", async () => {
+    ssh.results = [
+      fail(
+        "ERROR:  menara-assistant-login-exists: role menara_ro_kestrel_qa already exists"
+      ),
+    ];
+    const error = await enableAssistantDbLogin(service(), {
+      environmentId: ENV_ID,
+      ownLogin: null,
+      password: null,
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(AssistantDbLoginRefused);
+    expect(error).toMatchObject({
+      reason: "exists",
+      login: "menara_ro_kestrel_qa",
+    });
+    expect(ssh.calls).toHaveLength(1);
+  });
+
+  it("mssql: a login mapped into another database is refused and kept", async () => {
+    ssh.results = [
+      fail("Msg 50000: menara-assistant-login-mapped: [other_db] "),
+    ];
+    const error = await enableAssistantDbLogin(
+      service({ dbType: "mssql", dbPassword: ADMIN_PW }),
+      {
+        environmentId: ENV_ID,
+        ownLogin: "menara_ro_kestrel_qa",
+        password: "Stored1Password2For3The4Login5ab",
+      }
+    ).catch((e: unknown) => e);
+    expect(error).toMatchObject({ reason: "mapped" });
+    expect(ssh.calls).toHaveLength(1);
+  });
+
+  it("mssql: a foreign login is refused without dropping it", async () => {
+    ssh.results = [fail("Msg 50000: menara-assistant-login-exists: a login")];
+    const error = await enableAssistantDbLogin(
+      service({ dbType: "mssql", dbPassword: ADMIN_PW }),
+      { environmentId: ENV_ID, ownLogin: null, password: null }
+    ).catch((e: unknown) => e);
+    expect(error).toMatchObject({ reason: "exists" });
+    expect(ssh.calls).toHaveLength(1);
+  });
+
+  it("mssql: a first enable failing halfway drops what it created; a re-enable keeps its login", async () => {
+    ssh.results = [fail("Msg 15118: password validation failed")];
+    await expect(
+      enableAssistantDbLogin(
+        service({ dbType: "mssql", dbPassword: ADMIN_PW }),
+        { environmentId: ENV_ID, ownLogin: null, password: null }
+      )
+    ).rejects.toThrow(/15118/);
+    expect(ssh.calls).toHaveLength(2);
+    expect(ssh.calls[1]?.stdin).toContain("DROP LOGIN");
+    ssh.calls = [];
+    ssh.results = [fail("Msg 15118: password validation failed")];
+    await expect(
+      enableAssistantDbLogin(
+        service({ dbType: "mssql", dbPassword: ADMIN_PW }),
+        {
+          environmentId: ENV_ID,
+          ownLogin: "menara_ro_kestrel_qa",
+          password: "Stored1Password2For3The4Login5ab",
+        }
+      )
+    ).rejects.toThrow(/15118/);
+    expect(ssh.calls).toHaveLength(1);
+  });
+
+  it("mysql: probes for the user name on any host first; an existing one is refused before any change", async () => {
+    expect(mysqlAssistantDbProbeSql("menara_ro_kestrel_qa")).toBe(
+      "SELECT COUNT(*) FROM mysql.user WHERE User = 'menara_ro_kestrel_qa';"
+    );
+    ssh.results = [{ code: 0, stdout: "1\n", stderr: "" }];
+    const error = await enableAssistantDbLogin(
+      service({ dbType: "mysql", dbPassword: ADMIN_PW }),
+      { environmentId: ENV_ID, ownLogin: null, password: null }
+    ).catch((e: unknown) => e);
+    expect(error).toMatchObject({ reason: "exists" });
+    expect(ssh.calls).toHaveLength(1);
+    expect(ssh.calls[0]?.stdin).toBe(
+      `${ADMIN_PW}\nSELECT COUNT(*) FROM mysql.user WHERE User = 'menara_ro_kestrel_qa';\n`
+    );
+    ssh.calls = [];
+    ssh.results = [{ code: 0, stdout: "0\n", stderr: "" }];
+    await enableAssistantDbLogin(
+      service({ dbType: "mysql", dbPassword: ADMIN_PW }),
+      { environmentId: ENV_ID, ownLogin: null, password: null }
+    );
+    expect(ssh.calls).toHaveLength(3);
+    expect(ssh.calls[1]?.stdin).toContain("CREATE USER IF NOT EXISTS");
+  });
+
+  it("a recorded login of another name doesn't count as the environment's own", async () => {
+    ssh.results = [{ code: 0, stdout: "1", stderr: "" }];
+    const error = await enableAssistantDbLogin(
+      service({ dbType: "mysql", dbPassword: ADMIN_PW }),
+      {
+        environmentId: ENV_ID,
+        ownLogin: "menara_ro_old_name",
+        password: "Stored1Password2For3The4Login5ab",
+      }
+    ).catch((e: unknown) => e);
+    expect(error).toMatchObject({ reason: "exists" });
   });
 });

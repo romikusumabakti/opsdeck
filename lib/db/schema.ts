@@ -931,6 +931,8 @@ export const teardownStepKindEnum = pgEnum("teardown_step_kind", [
   "archive_volumes",
   "stack_down",
   "drop_database",
+  // Drops the Assistant's read-only database login (lib/assistant-db).
+  "drop_assistant_db_login",
   "remove_tunnel_route",
   "remove_access_app",
   "remove_dns_record",
