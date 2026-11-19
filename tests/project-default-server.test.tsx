@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
@@ -14,6 +15,14 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks/use-unsaved-changes", () => ({ useUnsavedChanges: () => {} }));
 vi.mock("@/i18n/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+}));
+vi.mock("@/web/api/session", () => ({ useMe: () => ({ orgRole: "admin" }) }));
+vi.mock("@/web/api/project-groups", () => ({
+  listGroupsQuery: () => ({
+    queryKey: ["project-groups", "listGroups", []],
+    queryFn: async () => [],
+  }),
+  createGroup: vi.fn(),
 }));
 vi.mock("@/web/api/project-catalog", () => ({
   addProject: vi.fn(),
@@ -33,7 +42,7 @@ const project = {
   id: PROJECT_ID,
   key: "KMEM",
   name: "KMEM",
-  client: null,
+  groupId: null,
   description: null,
   defaultServerId: SERVER_A,
   createdAt: "2026-11-01T00:00:00.000Z",
@@ -54,12 +63,14 @@ async function renderForm(canChange: boolean) {
   root = createRoot(container);
   await act(async () => {
     root.render(
-      <IntlProvider locale="en" messages={messages}>
-        <ProjectForm
-          mode={{ type: "edit", project: project as never }}
-          defaultServer={{ servers, canChange }}
-        />
-      </IntlProvider>
+      <QueryClientProvider client={new QueryClient()}>
+        <IntlProvider locale="en" messages={messages}>
+          <ProjectForm
+            mode={{ type: "edit", project: project as never }}
+            defaultServer={{ servers, canChange }}
+          />
+        </IntlProvider>
+      </QueryClientProvider>
     );
   });
 }
@@ -81,7 +92,9 @@ afterEach(() => {
 describe("project default server", () => {
   it("is a select of all servers for server:manage, saved with the form", async () => {
     await renderForm(true);
-    const trigger = container.querySelector<HTMLElement>("[role='combobox']");
+    const trigger = container.querySelector<HTMLElement>(
+      "#project-default-server-id"
+    );
     expect(trigger?.textContent).toContain("dev-56-129");
     await submit();
     expect(api.editProject).toHaveBeenCalledWith(
@@ -92,7 +105,7 @@ describe("project default server", () => {
 
   it("is read-only for anyone else and never sent", async () => {
     await renderForm(false);
-    expect(container.querySelector("[role='combobox']")).toBeNull();
+    expect(container.querySelector("#project-default-server-id")).toBeNull();
     expect(container.textContent).toContain("dev-56-129");
     expect(container.textContent).toContain(
       messages.projectForm.defaultServerAdminOnly

@@ -1,4 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
@@ -14,12 +16,16 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useGroupErrorMessage } from "@/hooks/use-group-error-message";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useRouter } from "@/i18n/navigation";
 import type { Project as ProjectRow } from "@/lib/db/schema";
+import { canManageProjectGroups } from "@/lib/permissions";
 import { RESERVED_PROJECT_KEYS } from "@/lib/reserved-paths";
 import type { Serialized } from "@/web/api/client";
 import { addProject, editProject } from "@/web/api/project-catalog";
+import { createGroup, listGroupsQuery } from "@/web/api/project-groups";
+import { useMe } from "@/web/api/session";
 
 type Project = Serialized<ProjectRow>;
 
@@ -27,6 +33,8 @@ type Mode = { type: "create" } | { type: "edit"; project: Project };
 
 /** Select value for "no default server". */
 const NO_SERVER = "none";
+/** SearchSelect value of the "Create group…" entry (never a real id). */
+const CREATE_GROUP = "__create-group__";
 
 type Props = {
   mode: Mode;
@@ -73,7 +81,7 @@ export function ProjectForm({
         (key) => !RESERVED_PROJECT_KEYS.has(key.toUpperCase()),
         t("keyReserved")
       ),
-    client: z.string().trim(),
+    groupId: z.string().nullable(),
     description: z.string().trim(),
     defaultServerId: z.string(),
   });
@@ -84,11 +92,32 @@ export function ProjectForm({
     defaultValues: {
       name: initial?.name ?? "",
       key: initial?.key ?? "",
-      client: initial?.client ?? "",
+      groupId: initial?.groupId ?? null,
       description: initial?.description ?? "",
       defaultServerId: initial?.defaultServerId ?? NO_SERVER,
     },
   });
+  const tGroups = useTranslations("projectGroups");
+  const groupError = useGroupErrorMessage();
+  const queryClient = useQueryClient();
+  const mayCreateGroup = canManageProjectGroups(useMe()?.orgRole);
+  const groups = useQuery(listGroupsQuery()).data ?? [];
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupName, setGroupName] = useState("");
+
+  async function createAndSelectGroup() {
+    try {
+      const group = await createGroup(groupName);
+      toast.success(t("groupCreated"));
+      await queryClient.invalidateQueries({ queryKey: ["project-groups"] });
+      form.setValue("groupId", group.id, { shouldDirty: true });
+      setCreatingGroup(false);
+      setGroupName("");
+    } catch (error) {
+      toast.error(groupError(error, tGroups("failed")));
+    }
+  }
+
   const canChangeDefaultServer =
     mode.type === "edit" && defaultServer?.canChange === true;
 
@@ -97,6 +126,7 @@ export function ProjectForm({
       name: values.name,
       key: values.key,
       description: values.description ? values.description : null,
+      groupId: values.groupId,
       ...(canChangeDefaultServer && {
         defaultServerId:
           values.defaultServerId === NO_SERVER ? null : values.defaultServerId,
@@ -186,17 +216,63 @@ export function ProjectForm({
           )}
         />
         <Controller
-          name="client"
+          name="groupId"
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor="project-client">{t("client")}</FieldLabel>
-              <Input
-                placeholder={t("clientPlaceholder")}
-                {...field}
-                id="project-client"
-                aria-invalid={fieldState.invalid}
+              <FieldLabel htmlFor="project-group">{t("group")}</FieldLabel>
+              <SearchSelect
+                id="project-group"
+                invalid={fieldState.invalid}
+                value={field.value}
+                onChange={(value) => {
+                  if (value === CREATE_GROUP) {
+                    setCreatingGroup(true);
+                    return;
+                  }
+                  setCreatingGroup(false);
+                  field.onChange(value);
+                }}
+                options={[
+                  ...groups.map((group) => ({
+                    value: group.id,
+                    label: group.name,
+                  })),
+                  ...(mayCreateGroup
+                    ? [{ value: CREATE_GROUP, label: t("groupCreate") }]
+                    : []),
+                ]}
+                noneLabel={t("groupNone")}
+                placeholder={t("groupPlaceholder")}
               />
+              {creatingGroup && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    autoFocus
+                    aria-label={t("groupCreateName")}
+                    placeholder={t("groupCreateName")}
+                    value={groupName}
+                    maxLength={80}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter creates the group, not the project.
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (groupName.trim()) createAndSelectGroup();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={groupName.trim() === ""}
+                    onClick={createAndSelectGroup}
+                  >
+                    {t("groupCreateAdd")}
+                  </Button>
+                </div>
+              )}
+              <FieldDescription>{t("groupDescription")}</FieldDescription>
               <FieldError errors={[fieldState.error]} />
             </Field>
           )}

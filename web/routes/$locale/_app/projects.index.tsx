@@ -4,13 +4,14 @@ import { Info } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { NewProjectButton } from "@/components/new-project-button";
 import { PageHeader } from "@/components/page-header";
+import { ProjectGroupsButton } from "@/components/project-groups-dialog";
 import { ProjectsEmpty } from "@/components/projects-empty";
 import type { SortKey } from "@/components/projects-overview";
 import { ProjectsOverview } from "@/components/projects-overview";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { canCreateProject } from "@/lib/permissions";
+import { canCreateProject, canManageProjectGroups } from "@/lib/permissions";
 import { getEnvironmentsLastOpenedQuery } from "@/web/api/environments";
 import { getOpenIssueCountsQuery } from "@/web/api/issues";
 import {
@@ -83,7 +84,14 @@ function ProjectsPage() {
         subtitle={t("subtitle")}
         // Only "New project" here: an environment always belongs to a project,
         // so it is created from that project's card (which prefills the parent).
-        action={mayCreateProject ? <NewProjectButton /> : undefined}
+        action={
+          mayCreateProject ? (
+            <div className="flex items-center gap-2">
+              {canManageProjectGroups(orgRole) && <ProjectGroupsButton />}
+              <NewProjectButton />
+            </div>
+          ) : undefined
+        }
       />
       {newEnvironment && (
         <Alert className="w-full max-w-3xl">
