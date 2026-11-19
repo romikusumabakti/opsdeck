@@ -38,13 +38,15 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-for (const { table, column } of SECRET_COLUMNS) {
+for (const { table, column, idType } of SECRET_COLUMNS) {
   const t = sql.identifier(table);
   const c = sql.identifier(column);
+  // The id's own type, for the row guard below (a fixed literal, not input).
+  const idCast = sql.raw(idType);
   let rows: { id: string; value: string | null }[];
   try {
     rows = (await db.execute(
-      sql`SELECT id, ${c} AS value FROM ${t}`
+      sql`SELECT id::text AS id, ${c} AS value FROM ${t}`
     )) as unknown as { id: string; value: string | null }[];
   } catch (err) {
     fail(`${table}.${column}: select failed (${describeDbError(err)})`);
@@ -67,7 +69,7 @@ for (const { table, column } of SECRET_COLUMNS) {
   for (const { id, from, to } of changes) {
     try {
       const updated = await db.execute(
-        sql`UPDATE ${t} SET ${c} = ${to} WHERE id = ${id}::uuid AND ${c} = ${from} RETURNING 1`
+        sql`UPDATE ${t} SET ${c} = ${to} WHERE id = ${id}::${idCast} AND ${c} = ${from} RETURNING 1`
       );
       if (updated.length === 1) changed++;
       else skipped++;

@@ -51,13 +51,23 @@ describe("secrets migration", () => {
     ).toEqual([]);
   });
 
-  it("SECRET_COLUMNS lists exactly the four columns", async () => {
+  it("SECRET_COLUMNS lists the swept columns with their id type", async () => {
     const { SECRET_COLUMNS } = await import("@/lib/secrets-migration");
     expect(SECRET_COLUMNS).toEqual([
-      { table: "servers", column: "password" },
-      { table: "environment_services", column: "db_password" },
-      { table: "environment_services", column: "mock_time_api_key" },
-      { table: "s3_connections", column: "secret_key" },
+      { table: "servers", column: "password", idType: "uuid" },
+      { table: "environment_services", column: "db_password", idType: "uuid" },
+      {
+        table: "environment_services",
+        column: "mock_time_api_key",
+        idType: "uuid",
+      },
+      { table: "s3_connections", column: "secret_key", idType: "uuid" },
+      // The instance backup destination's own secret (single row, id 1).
+      {
+        table: "instance_settings",
+        column: "backup_s3_secret_key",
+        idType: "integer",
+      },
     ]);
   });
 
