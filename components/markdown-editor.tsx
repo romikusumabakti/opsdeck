@@ -10,6 +10,9 @@ import {
  * documents, issue descriptions) renders through this so the editing surface
  * and its translations stay in one place instead of being re-declared per call
  * site.
+ *
+ * The placeholder defaults to the `/` command hint; `borderless` drops the
+ * frame for surfaces that sit directly in a page (issue descriptions).
  */
 export function MarkdownEditor({
   value,
@@ -17,12 +20,14 @@ export function MarkdownEditor({
   placeholder,
   linkableDocs = [],
   contentClassName,
+  borderless = false,
 }: {
   value: string;
   onChange: (markdown: string) => void;
   placeholder?: string;
   linkableDocs?: LinkableDoc[];
   contentClassName?: string;
+  borderless?: boolean;
 }) {
   const t = useTranslations("knowledge");
 
@@ -30,9 +35,10 @@ export function MarkdownEditor({
     <KnowledgeEditor
       value={value}
       onChange={onChange}
-      placeholder={placeholder}
+      placeholder={placeholder ?? t("editorPlaceholder")}
       linkableDocs={linkableDocs}
       contentClassName={contentClassName}
+      borderless={borderless}
       linkLabels={{
         title: t("linkDocument"),
         search: t("searchPlaceholder"),
@@ -61,11 +67,12 @@ export function MarkdownEditor({
         edit: t("imageAltEdit"),
         placeholder: t("imageAltPlaceholder"),
         apply: t("linkApply"),
+        remove: t("imageRemove"),
       }}
       toolbarLabels={{
         toolbar: t("editorToolbar"),
-        undo: t("editorUndo"),
-        redo: t("editorRedo"),
+        tableMenu: t("editorTableMenu"),
+        imageMenu: t("editorImageMenu"),
         bold: t("editorBold"),
         italic: t("editorItalic"),
         strikethrough: t("editorStrikethrough"),
@@ -75,9 +82,7 @@ export function MarkdownEditor({
         orderedList: t("editorOrderedList"),
         taskList: t("editorTaskList"),
         code: t("editorInlineCode"),
-        codeBlock: t("editorCodeBlock"),
         quote: t("editorQuote"),
-        insertTable: t("editorInsertTable"),
       }}
     />
   );

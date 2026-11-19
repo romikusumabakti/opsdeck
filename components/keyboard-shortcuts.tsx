@@ -61,6 +61,17 @@ export function KeyboardShortcuts({
         { keys: ["Esc"], label: t("closeDialog") },
       ],
     },
+    {
+      // Markdown editors (Knowledge documents, issue descriptions): formatting
+      // lives in contextual menus, so their keyboard route is listed here.
+      title: t("groupEditor"),
+      shortcuts: [
+        { keys: ["Alt", "F10"], label: t("editorFocusMenu") },
+        { keys: ["Esc"], label: t("editorLeaveMenu") },
+        { keys: [modKey, "Z"], label: t("editorUndo") },
+        { keys: [modKey, "Shift", "Z"], label: t("editorRedo") },
+      ],
+    },
   ];
 
   return (

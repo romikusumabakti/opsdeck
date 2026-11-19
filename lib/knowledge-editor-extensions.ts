@@ -1,3 +1,4 @@
+import type { Editor, JSONContent } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -61,4 +62,28 @@ export function buildEditorExtensions(placeholder = "") {
     // StarterKit's Link (autolink: true) above, so no extra linkify here.
     Markdown.configure({ markedOptions: { gfm: true } }),
   ];
+}
+
+const isEmptyParagraph = (node: JSONContent | undefined) =>
+  node?.type === "paragraph" && !node.content?.length;
+
+/**
+ * The editor's document as stored markdown. Same as `editor.getMarkdown()`
+ * except that empty paragraphs at the very end are left out: StarterKit's
+ * TrailingNode appends one after a document that ends in a table, image or
+ * code block (so the caret can get below it) on the first transaction — just
+ * clicking into the text. Serialized, that paragraph is a trailing "\n\n"
+ * that markdown cannot carry back (parse drops it), so emitting it would make
+ * an unedited document differ from what was stored.
+ */
+export function editorMarkdown(editor: Editor): string {
+  const json = editor.getJSON();
+  const content = [...(json.content ?? [])];
+  while (content.length > 1 && isEmptyParagraph(content.at(-1))) {
+    content.pop();
+  }
+  if (content.length === json.content?.length || !editor.markdown) {
+    return editor.getMarkdown();
+  }
+  return editor.markdown.serialize({ ...json, content });
 }

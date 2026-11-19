@@ -9,13 +9,17 @@
 //   2. what the editor emits parses to the structure react-markdown expects.
 // Both build from buildEditorExtensions — the same config the live editor runs.
 
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { beforeAll, describe, expect, it } from "vitest";
-import { buildEditorExtensions } from "@/lib/knowledge-editor-extensions";
+import {
+  buildEditorExtensions,
+  editorMarkdown,
+} from "@/lib/knowledge-editor-extensions";
 
 // Tiptap's Editor reaches for window/document at construction; happy-dom
 // (registered in tests/preload.ts) provides them. Import lazily after the env
@@ -131,5 +135,96 @@ describe("knowledge editor markdown round-trip", () => {
     // Underline is intentionally disabled; ensure no raw <u> leaks into the
     // serialized markdown, which the read-side would not sanitize.
     expect(serialize("<u>x</u>")).not.toContain("<u>");
+  });
+});
+
+// Review Focus: a stored document (tables, images with alt, task lists, code
+// blocks with a language, headings, quotes, links and /knowledge/<slug> doc
+// links) must come back byte-identical after open + save without edits.
+//
+// `knowledge-round-trip.md` is a document in the editor's canonical form —
+// what every document saved through the editor already looks like. The file
+// ends with one newline for POSIX tooling; the stored body does not (the
+// serializer never emits a trailing newline), so that one byte is stripped.
+//
+// `knowledge-round-trip.authored.md` is the same document written by hand (or
+// imported/created through the API). Opening it normalises exactly as pinned
+// here, unchanged from the editor before the contextual menus:
+//   - GFM table cells are padded so the pipes line up;
+//   - a table is surrounded by two blank lines instead of one;
+//   - the trailing newline is dropped.
+// Everything else (headings, emphasis, quotes, lists, task lists, fences with
+// their language, links, doc links, images with alt) is byte-identical.
+function fixture(name: string): string {
+  // cwd-relative: happy-dom swaps the URL global, so new URL(…, import.meta.url)
+  // does not resolve to the file here.
+  return readFileSync(`tests/fixtures/${name}`, "utf8");
+}
+
+describe("knowledge document fixture round-trip", () => {
+  const stored = fixture("knowledge-round-trip.md").replace(/\n$/, "");
+
+  it("covers every construct the editor stores", () => {
+    for (const needle of [
+      "| ---",
+      "![Network diagram of the staging cluster](",
+      "- [ ] ",
+      "- [x] ",
+      "```bash\n",
+      "```ts\n",
+      "\n## ",
+      "\n### ",
+      "\n> ",
+      "](https://example.com/docs)",
+      "](/knowledge/release-checklist)",
+    ]) {
+      expect(stored).toContain(needle);
+    }
+  });
+
+  it("is byte-identical after open + serialize without edits", () => {
+    expect(serialize(stored)).toBe(stored);
+  });
+
+  it("normalises a hand-written document exactly as before", () => {
+    const authored = fixture("knowledge-round-trip.authored.md");
+    expect(serialize(authored)).toBe(stored);
+    // The only differences are the documented ones: undo them and the
+    // hand-written source and the stored form are the same text.
+    const unpad = (md: string) =>
+      md
+        .split("\n")
+        .map((line) =>
+          line.startsWith("|")
+            ? line.replace(/ {2,}\|/g, " |").replace(/-{3,}/g, "---")
+            : line
+        )
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n");
+    expect(unpad(stored)).toBe(authored.replace(/\n$/, ""));
+  });
+});
+
+describe("unedited documents ending in a block", () => {
+  // StarterKit's TrailingNode appends an empty paragraph after a final table,
+  // image or code block on the first transaction (clicking into the text).
+  // The stored markdown must not pick that up.
+  it.each([
+    ["image", "Intro\n\n![A diagram](/api/knowledge/asset/abc)"],
+    ["code block", "Intro\n\n```ts\nconst x = 1;\n```"],
+    ["table", "Intro\n\n\n| a   | b   |\n| --- | --- |\n| 1   | 2   |\n"],
+    ["the fixture", fixture("knowledge-round-trip.md").replace(/\n$/, "")],
+  ])("%s stays byte-identical after a selection change", (_name, md) => {
+    const editor = editorWith(md);
+    editor.commands.setTextSelection(2);
+    expect(editorMarkdown(editor)).toBe(md);
+    editor.destroy();
+  });
+
+  it("keeps a single empty paragraph document empty", () => {
+    const editor = editorWith("");
+    editor.commands.setTextSelection(1);
+    expect(editorMarkdown(editor)).toBe("");
+    editor.destroy();
   });
 });
