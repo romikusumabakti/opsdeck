@@ -11,7 +11,9 @@ export type DemoServerHost = (typeof DEMO_SERVERS)[number];
 export interface DemoProject {
   key: string;
   name: string;
-  client: string;
+  // Fictional group on the Projects page. The first seed wrote the same text
+  // into the legacy `client` column, which is how it is still recognised.
+  group: string;
   description: string;
   app: DemoAppKey;
   defaultServer: DemoServerHost;
@@ -26,7 +28,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     key: "DEMO",
     name: "Demo Membership",
-    client: "Demo",
+    group: "Demo",
     description: "Sample membership project for trying Menara.",
     app: "demo-membership",
     defaultServer: "sandbox-1.invalid",
@@ -35,7 +37,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     key: "DEMOPORTAL",
     name: "Demo Portal",
-    client: "Demo",
+    group: "Demo",
     description: "Sample customer portal project for trying Menara.",
     app: "demo-portal",
     defaultServer: "sandbox-2.invalid",
@@ -44,7 +46,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     key: "NPMB",
     name: "Nusantara Pensiun Membership",
-    client: "DPLK Nusantara Pensiun",
+    group: "DPLK Nusantara Pensiun",
     description:
       "Kepesertaan, iuran dan manfaat pensiun untuk DPLK Nusantara Pensiun (fiktif).",
     app: "demo-membership",
@@ -54,7 +56,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     key: "NPCP",
     name: "Nusantara Pensiun Portal",
-    client: "DPLK Nusantara Pensiun",
+    group: "DPLK Nusantara Pensiun",
     description:
       "Portal peserta DPLK Nusantara Pensiun: saldo, iuran, klaim (fiktif).",
     app: "demo-portal",
@@ -64,7 +66,7 @@ export const DEMO_PROJECTS: readonly DemoProject[] = [
   {
     key: "BSAC",
     name: "Bahari Sejahtera Accounting",
-    client: "Dana Pensiun Bahari Sejahtera",
+    group: "Dana Pensiun Bahari Sejahtera",
     description:
       "Akuntansi dan pelaporan Dana Pensiun Bahari Sejahtera (fiktif).",
     app: "demo-accounting",

@@ -589,6 +589,7 @@ function projectAccess(
         async (project): Promise<ListedProject> => ({
           key: project.key,
           name: project.name,
+          group: project.group,
           description: project.description,
           components: (await sources(project)).map((s) => s.componentKey),
         })

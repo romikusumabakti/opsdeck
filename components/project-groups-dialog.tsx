@@ -258,7 +258,7 @@ export function ProjectGroupsDialog({
             onSubmit={(e) => {
               e.preventDefault();
               act(
-                () => createGroup(newName),
+                () => createGroup(newName.trim()),
                 t("created"),
                 () => setNewName("")
               );

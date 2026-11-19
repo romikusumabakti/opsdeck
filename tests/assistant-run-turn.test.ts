@@ -304,21 +304,21 @@ const PROJECTS = [
     id: "project-1",
     key: "KST",
     name: "Kestrel Membership",
-    client: "Acme",
+    group: "Acme",
     description: "Membership",
   },
   {
     id: "project-2",
     key: "OSP",
     name: "Osprey",
-    client: null,
+    group: null,
     description: null,
   },
   {
     id: "project-secret",
     key: "SEC",
     name: "Secret Ledger",
-    client: null,
+    group: null,
     description: "Hidden",
   },
 ];
@@ -1547,6 +1547,7 @@ describe("runTurn", () => {
     expect(toolsOf(calls[0]).map((t) => t.name)).toContain("list_projects");
     const listed = JSON.stringify(calls[1]?.prompt);
     expect(listed).toContain("Kestrel Membership");
+    expect(listed).toContain('\\"group\\":\\"Acme\\"');
     expect(listed).toContain('\\"components\\":[\\"backend\\"]');
     expect(listed).not.toContain("Secret Ledger");
     expect(resolveProjectSources).not.toHaveBeenCalledWith("project-secret");
@@ -1621,7 +1622,7 @@ describe("runTurn", () => {
       id: `project-${i + 1}`,
       key: `P${i + 1}`,
       name: `Project ${i + 1}`,
-      client: null,
+      group: null,
       description: null,
     }));
     let inFlight = 0;

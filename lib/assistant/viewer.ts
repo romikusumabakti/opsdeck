@@ -1,3 +1,4 @@
+import { asc, eq } from "drizzle-orm";
 import {
   type AccessScope,
   AccessScopeError,
@@ -5,6 +6,7 @@ import {
   scopedProjectIds,
 } from "@/lib/access-scope";
 import { db } from "@/lib/db";
+import { projectGroups, projects } from "@/lib/db/schema";
 import { canOrg, type OrgRole } from "@/lib/permissions";
 
 /**
@@ -62,7 +64,7 @@ export type ProjectEntry = {
   id: string;
   key: string;
   name: string;
-  client: string | null;
+  group: string | null;
   description: string | null;
 };
 
@@ -76,16 +78,17 @@ export function viewerSees(
 
 /** Every project, ordered by key. Filter with visibleProjects before use. */
 export async function loadProjectEntries(): Promise<ProjectEntry[]> {
-  return db.query.projects.findMany({
-    columns: {
-      id: true,
-      key: true,
-      name: true,
-      client: true,
-      description: true,
-    },
-    orderBy: { key: "asc" },
-  });
+  return db
+    .select({
+      id: projects.id,
+      key: projects.key,
+      name: projects.name,
+      group: projectGroups.name,
+      description: projects.description,
+    })
+    .from(projects)
+    .leftJoin(projectGroups, eq(projectGroups.id, projects.groupId))
+    .orderBy(asc(projects.key));
 }
 
 /** The projects the viewer can see, in the given order. */

@@ -18,6 +18,7 @@ import {
   getMyProjectAccessQuery,
   listProjectsWithEnvironmentsQuery,
 } from "@/web/api/project-catalog";
+import { listGroupsQuery } from "@/web/api/project-groups";
 import { getEnvironmentsLastActivityQuery } from "@/web/api/runs";
 import { meQuery, useMe } from "@/web/api/session";
 import { requireProjectUser } from "@/web/project-guard";
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/$locale/_app/projects/")({
       loaderQuery(queryClient, getEnvironmentsLastActivityQuery()),
       loaderQuery(queryClient, getEnvironmentsLastOpenedQuery()),
       loaderQuery(queryClient, getOpenIssueCountsQuery()),
+      loaderQuery(queryClient, listGroupsQuery()),
     ]);
   },
   pendingComponent: ProjectsPending,
@@ -68,13 +70,20 @@ function ProjectsPage() {
   ).data;
   const lastOpened = useSuspenseQuery(getEnvironmentsLastOpenedQuery()).data;
   const openIssueCounts = useSuspenseQuery(getOpenIssueCountsQuery()).data;
+  const groups = useSuspenseQuery(listGroupsQuery()).data;
 
   const orgRole = me?.orgRole ?? "staff";
   // The list is every member's; only the create affordances depend on the role.
   const mayCreateProject = canCreateProject(orgRole);
+  const mayManageGroups = canManageProjectGroups(orgRole);
 
   if (projects.length === 0) {
-    return <ProjectsEmpty canCreate={mayCreateProject} />;
+    return (
+      <ProjectsEmpty
+        canCreate={mayCreateProject}
+        canManageGroups={mayManageGroups}
+      />
+    );
   }
 
   return (
@@ -87,7 +96,7 @@ function ProjectsPage() {
         action={
           mayCreateProject ? (
             <div className="flex items-center gap-2">
-              {canManageProjectGroups(orgRole) && <ProjectGroupsButton />}
+              {mayManageGroups && <ProjectGroupsButton />}
               <NewProjectButton />
             </div>
           ) : undefined
@@ -106,6 +115,8 @@ function ProjectsPage() {
         lastOpened={lastOpened}
         initialSort={sort ?? "recent"}
         projectRoles={access.roles}
+        groups={groups}
+        userId={me?.user.id ?? ""}
       />
     </>
   );

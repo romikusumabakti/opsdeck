@@ -1,5 +1,6 @@
 // Servers, projects, apps with their components, and environments.
-import { and, eq, or } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
+import { generateKeyBetween } from "fractional-indexing";
 import {
   appComponents,
   apps,
@@ -8,6 +9,7 @@ import {
   issues,
   projectApps,
   projectComponentBranches,
+  projectGroups,
   projects,
   servers,
 } from "@/lib/db/schema";
@@ -58,19 +60,25 @@ export async function seedServers(ctx: SeedContext): Promise<void> {
  * The demo projects. A project with a demo key that this run did not create
  * is seeded further only when it is recognisably demo data: the demo app is
  * already among its sources, or it carries the seed's name and either the
- * seed's client or (as the first seed wrote it, without a client) one of
+ * seed's group (its legacy client) or (as the first seed wrote it, without a client) one of
  * the first seed's sample issues. Any other project with that key belongs
  * to someone; nothing is added under it.
  */
 export async function seedProjects(ctx: SeedContext): Promise<void> {
   const { tx } = ctx;
   for (const project of DEMO_PROJECTS) {
+    // A project the seed already owns keeps its row, group included; only a
+    // project created now is filed under its group.
+    const [exists] = await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.key, project.key));
     const [inserted] = await tx
       .insert(projects)
       .values({
         key: project.key,
         name: project.name,
-        client: project.client,
+        groupId: exists ? null : await ensureGroup(ctx, project.group),
         description: project.description,
         defaultServerId: ctx.servers.get(project.defaultServer) ?? null,
         createdAt: addDays(ctx.now, -35),
@@ -103,14 +111,40 @@ export async function seedProjects(ctx: SeedContext): Promise<void> {
   }
 }
 
-/** Seed name plus the seed's client, or no client and a first-seed issue. */
+/**
+ * The group with this name (ignoring case and surrounding spaces, as the
+ * unique index does), created last in the order when it does not exist.
+ */
+async function ensureGroup(ctx: SeedContext, name: string): Promise<string> {
+  const { tx } = ctx;
+  const match = sql`lower(trim(${projectGroups.name})) = lower(trim(${name}))`;
+  const [found] = await tx
+    .select({ id: projectGroups.id })
+    .from(projectGroups)
+    .where(match);
+  if (found) return found.id;
+  const [last] = await tx
+    .select({ rank: projectGroups.rank })
+    .from(projectGroups)
+    .orderBy(desc(projectGroups.rank))
+    .limit(1);
+  const [created] = await tx
+    .insert(projectGroups)
+    .values({ name, rank: generateKeyBetween(last?.rank ?? null, null) })
+    .returning({ id: projectGroups.id });
+  if (!created) throw new Error(`Group ${name} was not created`);
+  count(ctx, "projectGroups");
+  return created.id;
+}
+
+/** Seed name plus the seed's group, or no client and a first-seed issue. */
 async function isOldDemoProject(
   ctx: SeedContext,
   row: { id: string; name: string; client: string | null },
   project: DemoProject
 ): Promise<boolean> {
   if (row.name !== project.name) return false;
-  if (row.client === project.client) return true;
+  if (row.client === project.group) return true;
   if (row.client !== null) return false;
   const original = ORIGINAL_ISSUES.map((i) =>
     and(eq(issues.number, i.number), eq(issues.title, i.title))

@@ -107,7 +107,7 @@ export function ProjectForm({
 
   async function createAndSelectGroup() {
     try {
-      const group = await createGroup(groupName);
+      const group = await createGroup(groupName.trim());
       toast.success(t("groupCreated"));
       await queryClient.invalidateQueries({ queryKey: ["project-groups"] });
       form.setValue("groupId", group.id, { shouldDirty: true });

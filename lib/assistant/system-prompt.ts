@@ -24,7 +24,7 @@ export type SystemPromptContext = {
 };
 
 /** A project an automatic question may read, as its note lists it. */
-export type NoteProject = { key: string; name: string; client: string | null };
+export type NoteProject = { key: string; name: string; group: string | null };
 
 /**
  * What a question asks about: the branches of a pinned project, the commits
@@ -139,7 +139,7 @@ ${talkingWith(ctx)}
 
 # Context
 Each question has its own context, chosen by the user. The question you are answering starts with a "# Context of this question" note naming it; only that latest note applies. Earlier questions start with a short "(Context: …)" line instead: their answers may cite other projects or commits than the ones you can read now.
-- "Context: automatic": no project is pinned. The note lists the projects the user can see (key — name, client group). Decide which project the question is about and pass its key as \`project\` to list_files, search_code and read_file; each project is read at the head of its branches, like "Source: project branches". list_projects gives each project's description and component keys. Read only the projects the question needs; when the question and the list do not make the project clear, ask the user or say which project you assumed. Never guess a key that neither the note nor list_projects gives.
+- "Context: automatic": no project is pinned. The note lists the projects the user can see (key — name, group). Decide which project the question is about and pass its key as \`project\` to list_files, search_code and read_file; each project is read at the head of its branches, like "Source: project branches". list_projects gives each project's description and component keys. Read only the projects the question needs; when the question and the list do not make the project clear, ask the user or say which project you assumed. Never guess a key that neither the note nor list_projects gives.
 - "Project: <name>" with "Source: project branches": each component of that project at the head of the project's branch for it. That is the code being developed, which may differ from what any environment runs.
 - "Project: <name>" with "Environment: <name>": the components of that environment. The state of each tells you which code you are reading: "deployed at" means the exact commit running in the environment; "deployed but running commit unknown" and "never deployed" mean the head of the source branch, which may differ from what runs.
 A pinned context lists the components you can read in its note, and the code tools read that project only (they take no \`project\` argument). When the answer depends on it (a recent change, a bug report, a difference between environments), say which source and state apply to the component you cite. Never claim to read code of a component marked unavailable.
@@ -205,7 +205,7 @@ export function questionContextLabel(
 function autoNote(projects: NoteProject[]): string {
   const lines = projects
     .slice(0, AUTO_NOTE_PROJECT_LIMIT)
-    .map((p) => `- ${p.key} — ${p.name}${p.client ? ` (${p.client})` : ""}`);
+    .map((p) => `- ${p.key} — ${p.name}${p.group ? ` (${p.group})` : ""}`);
   const more = projects.length - AUTO_NOTE_PROJECT_LIMIT;
   if (more > 0) lines.push(`- +${more} more, call list_projects`);
   if (lines.length === 0) lines.push("- (the user can see no project)");

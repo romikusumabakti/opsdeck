@@ -173,7 +173,7 @@ describe("project form group", () => {
       Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
         "value"
-      )?.set?.call(input, "Partners");
+      )?.set?.call(input, "  Partners ");
       input?.dispatchEvent(new Event("input", { bubbles: true }));
     });
     const add = [...container.querySelectorAll("button")].find(

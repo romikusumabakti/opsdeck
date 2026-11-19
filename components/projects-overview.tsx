@@ -1,5 +1,6 @@
 import {
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   CircleAlert,
   Loader2,
@@ -16,6 +17,7 @@ import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { FacetedFilter } from "@/components/ui/faceted-filter";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -39,9 +41,28 @@ import {
   SETUP_PERMISSIONS,
 } from "@/lib/permissions";
 import type { ProjectWithEnvironments } from "@/web/api/project-catalog";
+import type { ProjectGroupSummary } from "@/web/api/project-groups";
 import type { EnvironmentActivity } from "@/web/api/runs";
 
 export type SortKey = "recent" | "opened" | "name_asc" | "name_desc";
+
+// Filter and collapse key of the projects that belong to no group. Group ids
+// are UUIDs, so it cannot collide.
+const NO_GROUP = "none";
+
+const collapsedKey = (userId: string) =>
+  `menara:projects:collapsed-groups:${userId}`;
+
+function readCollapsed(userId: string): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(collapsedKey(userId)) ?? "[]");
+    return new Set(
+      Array.isArray(raw) ? raw.filter((v) => typeof v === "string") : []
+    );
+  } catch {
+    return new Set();
+  }
+}
 
 export function ProjectsOverview({
   projects,
@@ -50,6 +71,8 @@ export function ProjectsOverview({
   lastOpened,
   initialSort,
   projectRoles,
+  groups,
+  userId,
 }: {
   projects: ProjectWithEnvironments[];
   openIssueCounts: Record<string, number>;
@@ -57,6 +80,10 @@ export function ProjectsOverview({
   lastOpened: Record<string, number>;
   initialSort: SortKey;
   projectRoles: Record<string, ProjectRole>;
+  /** Every group, in rank order. */
+  groups: ProjectGroupSummary[];
+  /** Keys the collapsed sections the user left closed in this browser. */
+  userId: string;
 }) {
   const t = useTranslations("home");
   const router = useRouter();
@@ -64,6 +91,33 @@ export function ProjectsOverview({
 
   const [query, setQuery] = React.useState("");
   const [sort, setSort] = React.useState<SortKey>(initialSort);
+  const [groupFilter, setGroupFilter] = React.useState<string[]>([]);
+  const [collapsed, setCollapsed] = React.useState(() => readCollapsed(userId));
+
+  const groupName = React.useMemo(
+    () => new Map(groups.map((g) => [g.id, g.name])),
+    [groups]
+  );
+
+  // Sections only help when there is something to tell apart: with at most
+  // one group in use the page stays the plain grid. Decided on every project,
+  // so searching or filtering never flips the layout.
+  const groupsInUse = React.useMemo(
+    () => groups.filter((g) => projects.some((p) => p.groupId === g.id)),
+    [groups, projects]
+  );
+  const sectioned = groupsInUse.length > 1;
+
+  function toggleSection(id: string) {
+    const next = new Set(collapsed);
+    if (!next.delete(id)) next.add(id);
+    setCollapsed(next);
+    try {
+      localStorage.setItem(collapsedKey(userId), JSON.stringify([...next]));
+    } catch {
+      // Private mode or a full quota: the section still toggles for now.
+    }
+  }
 
   // Persist the sort in the URL (?sort=) so it survives reload, back/forward,
   // and is shareable. `recent` is the default, so keep it out of the URL to
@@ -93,7 +147,7 @@ export function ProjectsOverview({
     [lastOpened]
   );
 
-  // Search spans both levels: a project matches on its own name/key/client (and
+  // Search spans both levels: a project matches on its own name/key/group (and
   // keeps all its environments), otherwise it survives only through the
   // environments whose name or database matches — so typing "qa" narrows each
   // project down to its QA deployment instead of hiding the project entirely.
@@ -101,6 +155,13 @@ export function ProjectsOverview({
     const q = query.trim().toLowerCase();
     const filtered: ProjectWithEnvironments[] = [];
     for (const p of projects) {
+      if (
+        sectioned &&
+        groupFilter.length > 0 &&
+        !groupFilter.includes(p.groupId ?? NO_GROUP)
+      ) {
+        continue;
+      }
       if (!q) {
         filtered.push(p);
         continue;
@@ -108,7 +169,7 @@ export function ProjectsOverview({
       const projectHit =
         p.name.toLowerCase().includes(q) ||
         p.key.toLowerCase().includes(q) ||
-        (p.client ?? "").toLowerCase().includes(q);
+        (groupName.get(p.groupId ?? "") ?? "").toLowerCase().includes(q);
       if (projectHit) {
         filtered.push(p);
         continue;
@@ -136,7 +197,59 @@ export function ProjectsOverview({
         break;
     }
     return sorted;
-  }, [projects, query, sort, activityOf, openedOf]);
+  }, [
+    projects,
+    query,
+    sort,
+    activityOf,
+    openedOf,
+    groupName,
+    groupFilter,
+    sectioned,
+  ]);
+
+  const sections = React.useMemo(() => {
+    if (!sectioned) return [];
+    const byGroup = Map.groupBy(visible, (p) => p.groupId ?? NO_GROUP);
+    return [
+      ...groups.map((g) => ({ id: g.id, name: g.name })),
+      { id: NO_GROUP, name: t("noGroup") },
+    ]
+      .map((section) => ({
+        ...section,
+        projects: byGroup.get(section.id) ?? [],
+      }))
+      .filter((section) => section.projects.length > 0);
+  }, [sectioned, visible, groups, t]);
+
+  const groupOptions = React.useMemo(() => {
+    const count = (id: string) =>
+      projects.filter((p) => (p.groupId ?? NO_GROUP) === id).length;
+    return [
+      ...groupsInUse.map((g) => ({
+        value: g.id,
+        label: g.name,
+        count: count(g.id),
+      })),
+      ...(count(NO_GROUP) > 0
+        ? [{ value: NO_GROUP, label: t("noGroup"), count: count(NO_GROUP) }]
+        : []),
+    ];
+  }, [projects, groupsInUse, t]);
+
+  const renderCards = (list: ProjectWithEnvironments[]) => (
+    <div className="grid grid-cols-1 xl:grid-cols-2 items-start gap-4">
+      {list.map((project) => (
+        <ProjectCard
+          key={project.id}
+          project={project}
+          openIssues={openIssueCounts[project.id] ?? 0}
+          lastActivity={lastActivity}
+          role={projectRoles[project.id] ?? null}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -151,6 +264,14 @@ export function ProjectsOverview({
             aria-label={t("searchPlaceholder")}
           />
         </div>
+        {sectioned && (
+          <FacetedFilter
+            title={t("groupFilter")}
+            options={groupOptions}
+            selected={groupFilter}
+            onChange={setGroupFilter}
+          />
+        )}
         <Select value={sort} onValueChange={(v) => changeSort(v as SortKey)}>
           <SelectTrigger
             className="sm:ms-auto sm:w-56"
@@ -170,24 +291,53 @@ export function ProjectsOverview({
       {visible.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            {t("noMatch", { query: query.trim() })}
+            {query.trim()
+              ? t("noMatch", { query: query.trim() })
+              : t("noMatchGroups")}
           </p>
-          <Button variant="outline" size="sm" onClick={() => setQuery("")}>
-            {t("clearSearch")}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setQuery("");
+              setGroupFilter([]);
+            }}
+          >
+            {query.trim() ? t("clearSearch") : t("clearFilters")}
           </Button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 items-start gap-4">
-          {visible.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              openIssues={openIssueCounts[project.id] ?? 0}
-              lastActivity={lastActivity}
-              role={projectRoles[project.id] ?? null}
-            />
-          ))}
+      ) : sectioned ? (
+        <div className="flex flex-col gap-6">
+          {sections.map((section) => {
+            // A search shows every match, whatever the user collapsed.
+            const open = query.trim() !== "" || !collapsed.has(section.id);
+            return (
+              <section key={section.id} className="flex flex-col gap-3">
+                <h2 className="text-sm font-medium">
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => toggleSection(section.id)}
+                    className="flex items-center gap-2 rounded-md text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
+                    {open ? (
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="size-4 text-muted-foreground rtl:rotate-180" />
+                    )}
+                    <span>{section.name}</span>
+                    <Badge variant="secondary" className="tabular-nums">
+                      {section.projects.length}
+                    </Badge>
+                  </button>
+                </h2>
+                {open && renderCards(section.projects)}
+              </section>
+            );
+          })}
         </div>
+      ) : (
+        renderCards(visible)
       )}
     </div>
   );
@@ -227,9 +377,6 @@ function ProjectCard({
               </Badge>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
-              {project.client ? (
-                <span className="truncate">{project.client}</span>
-              ) : null}
               <span className="shrink-0">
                 {t("environmentCount", { count: project.environments.length })}
               </span>

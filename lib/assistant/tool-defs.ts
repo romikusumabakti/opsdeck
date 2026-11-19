@@ -142,7 +142,7 @@ const project = str(
 const AUTO_DEFINITIONS = {
   list_projects: {
     description:
-      "List the projects the user can see: key, name, short description and component keys. Use it when the context note does not make clear which project a question is about; the code tools take one of these keys as project.",
+      "List the projects the user can see: key, name, group, short description and component keys. Use it when the context note does not make clear which project a question is about; the code tools take one of these keys as project.",
     // Written out: zod emits no `required` for an empty object, and strict
     // tools expect the (empty) list. executeTool validates with AUTO_INPUTS.
     inputSchema: jsonSchema<Record<string, never>>({
@@ -343,6 +343,7 @@ export type ToolName = keyof typeof AUTO_INPUTS | PanelToolName;
 export type ListedProject = {
   key: string;
   name: string;
+  group: string | null;
   description: string | null;
   components: string[];
 };

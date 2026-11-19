@@ -146,7 +146,7 @@ describe("manage project groups", () => {
   });
 
   it("creates a group", async () => {
-    await type(label(t.newName) as HTMLInputElement, "Partners");
+    await type(label(t.newName) as HTMLInputElement, "  Partners ");
     await click(fill(t.create));
     expect(api.create).toHaveBeenCalledWith("Partners");
   });

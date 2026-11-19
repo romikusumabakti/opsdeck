@@ -73,6 +73,7 @@ const listProjects = vi.fn(async () => [
   {
     key: "KST",
     name: "Kestrel",
+    group: "Acme",
     description: "Membership",
     components: ["backend"],
   },
@@ -531,6 +532,7 @@ describe("executeTool in automatic context", () => {
           {
             key: "KST",
             name: "Kestrel",
+            group: "Acme",
             description: "Membership",
             components: ["backend"],
           },

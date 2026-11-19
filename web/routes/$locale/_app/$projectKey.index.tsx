@@ -19,6 +19,7 @@ import {
   getMyProjectAccessQuery,
   getProjectByKeyWithEnvironmentsQuery,
 } from "@/web/api/project-catalog";
+import { listGroupsQuery } from "@/web/api/project-groups";
 import { getEnvironmentsLastActivityQuery } from "@/web/api/runs";
 import { requireProjectRole } from "@/web/project-guard";
 
@@ -64,6 +65,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/")({
     const [project] = await Promise.all([
       queryClient.query(getProjectByKeyWithEnvironmentsQuery(projectKey)),
       queryClient.query(getEnvironmentsLastActivityQuery()),
+      queryClient.query(listGroupsQuery()),
     ]);
     if (!project) throw notFound();
     await requireProjectRole(queryClient, project.id);
@@ -85,7 +87,9 @@ function ProjectOverviewPage() {
     getEnvironmentsLastActivityQuery()
   ).data;
   const roles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
+  const groups = useSuspenseQuery(listGroupsQuery()).data;
   if (!project) throw notFound();
+  const group = groups.find((g) => g.id === project.groupId);
   const role = roles[project.id] ?? null;
   // Engineers set environments up on the project's servers (the page
   // offers only the ones they may place on).
@@ -99,7 +103,7 @@ function ProjectOverviewPage() {
     <>
       <PageHeader
         title={project.name}
-        subtitle={project.client ?? undefined}
+        subtitle={group?.name}
         action={
           canCreateEnvironment ? (
             <Button

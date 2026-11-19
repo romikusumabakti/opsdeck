@@ -194,4 +194,27 @@ describe.skipIf(!enabled)("assistant context tools on a real Postgres", () => {
     expect((await readKnowledgeTool(qaViewer, "draft")).ok).toBe(false);
     expect((await readKnowledgeTool(adminViewer, "draft")).ok).toBe(true);
   });
+  it("names each project's group, or none, when the assistant lists projects", async () => {
+    const d = drizzle({ client });
+    const { loadProjectEntries } = await import("@/lib/assistant/viewer");
+    const acme = one(
+      await d
+        .insert(schema.projectGroups)
+        .values({ name: "Acme", rank: "a0" })
+        .returning()
+    );
+    await d
+      .insert(schema.projects)
+      .values({ name: "Grouped", key: "grp", groupId: acme.id });
+    await d.insert(schema.projects).values({ name: "Loose", key: "loose" });
+    const entries = await loadProjectEntries();
+    expect(
+      entries
+        .filter((e) => ["grp", "loose"].includes(e.key))
+        .map((e) => [e.key, e.group])
+    ).toEqual([
+      ["grp", "Acme"],
+      ["loose", null],
+    ]);
+  });
 });

@@ -126,6 +126,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     const [row] = await sql`
       select
         (select count(*) from projects)::int as projects,
+        (select count(*) from project_groups)::int as "projectGroups",
         (select count(*) from environments)::int as environments,
         (select count(*) from servers)::int as servers,
         (select count(*) from issues)::int as issues,
@@ -209,6 +210,8 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     expect(newIssues).toBe(45);
     expect(first).toMatchObject({
       projects: 5,
+      // The two projects created now (NPCP, BSAC) bring their groups.
+      projectGroups: 2,
       // DEMO keeps its own Dev; NPMB gets none; the other 3 × 3.
       environments: 10,
       servers: 3,
@@ -242,6 +245,20 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     expect(first.notifications).toBeGreaterThan(0);
     expect(first.activity).toBeGreaterThan(40);
     expect(inserted.projects).toBe(2);
+    expect(inserted.projectGroups).toBe(2);
+    const filed = await sql`
+      select p.key, g.name as "group" from projects p
+      left join project_groups g on g.id = p.group_id order by p.key`;
+    expect(filed).toEqual([
+      { key: "BSAC", group: "Dana Pensiun Bahari Sejahtera" },
+      // Rows the seed did not create keep no group.
+      { key: "DEMO", group: null },
+      { key: "DEMOPORTAL", group: null },
+      { key: "NPCP", group: "DPLK Nusantara Pensiun" },
+      { key: "NPMB", group: null },
+    ]);
+    const ranks = await sql`select rank from project_groups order by rank`;
+    expect(new Set(ranks.map((r) => r.rank)).size).toBe(2);
     expect(inserted.issues).toBe(34);
     expect(lines).toEqual(
       expect.arrayContaining([

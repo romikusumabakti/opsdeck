@@ -28,7 +28,7 @@ export const SEED_USAGE = `Usage: menara seed demo [--print-passwords] [--force]
 Creates (or keeps, when present) fictional demo data:
 - projects DEMO, DEMOPORTAL, NPMB, NPCP and BSAC, each with Dev, QA and Demo
   environments, on three placeholder servers (sandbox-N.invalid, never
-  reachable);
+  reachable), filed under fictional groups;
 - apps Demo Membership, Demo Portal and Demo Accounting (repositories under
   demo-org/, a placeholder CI connection) with a deploy target per
   environment and component, and 30 days of finished builds and deployments;

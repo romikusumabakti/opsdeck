@@ -6,10 +6,10 @@ import {
   questionContextLabel,
 } from "@/lib/assistant/system-prompt";
 
-const project = (n: number, client: string | null = null) => ({
+const project = (n: number, group: string | null = null) => ({
   key: `P${String(n).padStart(3, "0")}`,
   name: `Project ${n}`,
-  client,
+  group,
 });
 
 describe("buildSystemPrompt", () => {
@@ -91,13 +91,13 @@ describe("buildSystemPrompt", () => {
 });
 
 describe("buildSourceNote", () => {
-  it("lists the projects of an automatic question with their client group", () => {
+  it("lists the projects of an automatic question with their group", () => {
     const note = buildSourceNote({
       source: {
         kind: "auto",
         projects: [
-          { key: "KST", name: "Kestrel", client: "Acme" },
-          { key: "OSP", name: "Osprey", client: null },
+          { key: "KST", name: "Kestrel", group: "Acme" },
+          { key: "OSP", name: "Osprey", group: null },
         ],
       },
       sources: [],

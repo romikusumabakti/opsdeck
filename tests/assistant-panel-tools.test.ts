@@ -35,10 +35,10 @@ const PROJECTS: ProjectEntry[] = [
     id: ACME_ID,
     key: "ACME",
     name: "Acme Membership",
-    client: null,
+    group: null,
     description: null,
   },
-  { id: BETA_ID, key: "BETA", name: "Beta", client: null, description: null },
+  { id: BETA_ID, key: "BETA", name: "Beta", group: null, description: null },
 ];
 
 const envId = (n: number) =>
