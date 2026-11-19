@@ -599,7 +599,7 @@ describe("Import .env dialog: from server", () => {
 });
 
 describe("Add variable: name-field paste", () => {
-  const listing = { envFileManaged: false, hasApp: true, variables: [] };
+  const listing = { envFileManaged: false, hasServices: true, variables: [] };
 
   async function openForm() {
     await render(<VariablesClient environmentId={ENV} listing={listing} />);

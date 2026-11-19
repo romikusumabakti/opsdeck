@@ -356,7 +356,7 @@ describe("managed .env switch: off and read-only preview", () => {
 describe("Variables tab: unmanaged hint", () => {
   const listing = (envFileManaged: boolean) => ({
     envFileManaged,
-    hasApp: true,
+    hasServices: true,
     variables: [],
   });
 

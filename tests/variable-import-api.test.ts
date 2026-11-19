@@ -9,7 +9,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 process.env.SECRETS_KEY ??= Buffer.alloc(32, 7).toString("base64");
 
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
-const APP_ID = "0197f3a0-1b2c-7def-8000-0123456789d1";
 const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 
 const STORED_SECRET = "FAKE_STORED_SECRET_4b1e";
@@ -51,12 +50,12 @@ const store = vi.hoisted(() => ({
     name: "Kestrel Dev",
     slug: "dev",
     url: "https://dev.example.test" as string | null,
-    appId: "0197f3a0-1b2c-7def-8000-0123456789d1" as string | null,
     envFileManaged: false,
   },
   tags: ["IMAGE_TAG"] as string[],
   vars: new Map<string, unknown>(),
-  templates: [] as unknown[],
+  services: ["kestrel-api"] as string[],
+  templates: [] as Record<string, unknown>[],
   dirs: [] as unknown[],
   // Set by a test: escrows this name right before the write (a concurrent
   // admin), so the statement leaves it out.
@@ -138,7 +137,19 @@ vi.mock("@/lib/variables/repository", () => {
         .sort((a, b) => (a.name < b.name ? -1 : 1))
         .map((row) => ({ ...row, updatedByName: null }))
     ),
-    listTemplates: vi.fn(async () => [...store.templates]),
+    listEnvironmentServiceKeys: vi.fn(async () => [...store.services]),
+    listServiceTemplates: vi.fn(async (keys: string[]) =>
+      store.templates
+        .map((t) => ({
+          componentKey: "kestrel-api",
+          required: false,
+          defaultValue: null,
+          generatedLength: null,
+          description: null,
+          ...t,
+        }))
+        .filter((t) => keys.includes(t.componentKey))
+    ),
     // Mirrors the SQL: one statement, escrowed rows left out.
     importVariables: vi.fn(async (tx: unknown, writes: Write[]) => {
       if ((tx as { fake?: string })?.fake !== "tx") {
@@ -227,7 +238,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.role = "engineer";
   state.signInMethod = "passkey";
-  store.env.appId = APP_ID;
+  store.services = ["kestrel-api"];
   store.tags = ["IMAGE_TAG"];
   store.templates = [];
   store.escrowDuringWrite = null;
@@ -421,6 +432,48 @@ describe("GET import (server source)", () => {
     });
     expect(activity.recordActivity).not.toHaveBeenCalled();
     expectNothingLeaked();
+  });
+
+  it("proposes the strictest of several services' templates", async () => {
+    store.services = ["kestrel-api", "kestrel-web"];
+    store.templates = [
+      { name: "SESSION_KEY", kind: "generated", escrow: false },
+      {
+        componentKey: "kestrel-web",
+        name: "SESSION_KEY",
+        kind: "generated",
+        escrow: true,
+      },
+      { name: "MAIL_KEY", kind: "plain", escrow: false },
+      {
+        componentKey: "kestrel-web",
+        name: "MAIL_KEY",
+        kind: "secret",
+        escrow: false,
+      },
+    ];
+    store.dirs = [
+      dir(
+        "/srv/kestrel/api",
+        `SESSION_KEY=${FILE_SECRET}\nMAIL_KEY=${FILE_SECRET}\n`,
+        "fp-api"
+      ),
+    ];
+    const body = await (await send("GET", base)).json();
+    expect(body.rows).toEqual([
+      expect.objectContaining({ name: "MAIL_KEY", proposedKind: "secret" }),
+      expect.objectContaining({
+        name: "SESSION_KEY",
+        proposedKind: "generated",
+      }),
+    ]);
+    const res = await send("POST", base, {
+      source: "server",
+      dirs: [{ deployDir: "/srv/kestrel/api", fingerprint: "fp-api" }],
+      rows: [{ name: "SESSION_KEY", kind: "generated" }],
+    });
+    expect(res.status).toBe(200);
+    expect(stored("SESSION_KEY")).toMatchObject({ escrow: true });
   });
 
   it("proposes the template's generated and escrow kinds", async () => {

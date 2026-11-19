@@ -378,6 +378,66 @@ describe.skipIf(!enabled)("services model on a real Postgres", () => {
     });
   });
 
+  it("a target added while its service is removed from the project keeps the service there", async () => {
+    const { db } = await import("@/lib/db");
+    const { insertDeployTargetIn } = await import("@/server/services/deploys");
+    const { deleteProjectService, insertProjectService } = await import(
+      "@/lib/project-sources"
+    );
+    const RACE_ENV = id(22);
+    await sql`insert into environments (id, project_id, name, slug)
+    values (${RACE_ENV}, ${OTHER_PROJECT}, 'Race', 'race')`;
+    await insertProjectService(OTHER_PROJECT, "cms-web");
+
+    // The target's transaction is open (target row written, not committed)
+    // when the removal starts.
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let inserted = () => {};
+    const targetWritten = new Promise<void>((resolve) => {
+      inserted = resolve;
+    });
+    const targetTx = db.transaction(async (tx) => {
+      await insertDeployTargetIn(tx, {
+        environmentId: RACE_ENV,
+        componentKey: "cms-web",
+        serverId: SERVER,
+        sourceBranch: BRANCH,
+        kind: "compose",
+        deployDir: "/opt/race-cms",
+        services: ["app"],
+        tagVariable: "IMAGE_TAG",
+        autoDeploy: false,
+        healthTimeoutSeconds: 180,
+        backupBeforeDeploy: false,
+        preStartCommand: null,
+        healthUrl: null,
+      });
+      inserted();
+      await gate;
+    });
+    await targetWritten;
+    let settled = false;
+    const removal = deleteProjectService(OTHER_PROJECT, "cms-web").finally(
+      () => {
+        settled = true;
+      }
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    // The removal waits for the target's transaction...
+    expect(settled).toBe(false);
+    release();
+    await targetTx;
+    // ...and then sees the target: the service stays.
+    expect(await removal).toBe("inUse");
+    expect(
+      await sql`select 1 from project_services
+      where project_id = ${OTHER_PROJECT} and component_key = 'cms-web'`
+    ).toHaveLength(1);
+  });
+
   describe("CLI (scripts/deploy-app.ts)", () => {
     const run = (args: string[]) =>
       spawnSync("bun", ["scripts/deploy-app.ts", ...args], {
@@ -427,6 +487,30 @@ describe.skipIf(!enabled)("services model on a real Postgres", () => {
       // The printed secret is the one the hook verifies.
       const secret = plain.stdout.trim();
       const body = woodpeckerBody("docs-site", "origin-docs-1234567");
+      expect((await deliver(body, sign(body, secret))).status).toBe(202);
+    }, 60_000);
+
+    it("create on a repository that already builds a service names its own notify secret", async () => {
+      const result = run([
+        "create",
+        "docs-search",
+        "team/docs-search-bundle",
+        "--repo",
+        "team/docs",
+      ]);
+      expect(result.status, result.stderr).toBe(0);
+      // Never the repository's menara_notify, which docs-site reads.
+      expect(result.stderr).toContain("menara_notify_docs_search");
+      expect(result.stderr).not.toMatch(/secret menara_notify\./);
+      expect(
+        await sql`select notify_secret_name from app_components
+        where component_key in ('docs-site', 'docs-search') order by component_key`
+      ).toEqual([
+        { notify_secret_name: "menara_notify_docs_search" },
+        { notify_secret_name: "menara_notify" },
+      ]);
+      const secret = result.stdout.trim();
+      const body = woodpeckerBody("docs-search", "origin-docs-7654321");
       expect((await deliver(body, sign(body, secret))).status).toBe(202);
     }, 60_000);
   });

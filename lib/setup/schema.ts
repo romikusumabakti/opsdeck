@@ -18,8 +18,8 @@ import {
 } from "@/lib/domains/validation";
 import { sharedDatabaseNameSchema } from "@/lib/validation";
 
-// The setup wizard's input: one environment of an app with its deploy
-// targets, database, variables and domain, created in one request
+// The setup wizard's input: one environment with its deploy targets (any
+// services, one each), database, variables and domain, created in one request
 // (server/services/environment-setup). Shapes only, shared by the client
 // forms and the API; the rules that need the database (placement, ports,
 // names in use, copy permissions) are the service's, which reports them as
@@ -112,7 +112,6 @@ const domainSchema = z.discriminatedUnion("kind", [
 export const environmentSetupInputSchema = z
   .object({
     projectId: z.uuid(),
-    appId: z.uuid(),
     name: z.string().trim().min(1).max(200),
     // The URL name; left out, the name gives one. Only shaped here: the
     // setup refuses a bad or taken one at `slug` (requireAvailableEnvSlug).
@@ -121,7 +120,7 @@ export const environmentSetupInputSchema = z
     ownerId: z.uuid().nullish(),
     copyFromEnvironmentId: z.uuid().nullish(),
     server: z.object({ serverId: z.uuid() }).strict(),
-    // One per component of the app, all on `server`.
+    // One per service, all on `server`.
     targets: z.array(targetSchema).min(1).max(20),
     // The containers service control and logs act on, by role (Docker
     // container names, e.g. `hris-staging-backend-1`); the db one comes from

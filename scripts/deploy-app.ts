@@ -198,14 +198,27 @@ const notifySecret = encryptSecret(secret);
 
 if (command === "create") {
   const ciConnectionId = await resolveCiConnectionId(values.ci);
+  const repoFullName = values.repo as string;
+  const { linkedCiRepos } = await import("@/lib/apps");
+  const { notifySecretNameFor } = await import(
+    "@/lib/ci/register-artifact-component"
+  );
+  // A repository that already builds a service keeps its menara_notify:
+  // this one gets a secret of its own, like create-artifact's.
+  let notifySecretName: string;
   try {
+    const repoHasOtherService = (await linkedCiRepos(ciConnectionId)).some(
+      (l) => l.repoFullName === repoFullName
+    );
+    notifySecretName = notifySecretNameFor(componentKey, repoHasOtherService);
     await insertServices([
       {
         componentKey,
         ciConnectionId,
-        repoFullName: values.repo as string,
+        repoFullName,
         bundleImage: bundleImage as string,
         notifySecret,
+        notifySecretName,
       },
     ]);
   } catch (error) {
@@ -215,7 +228,7 @@ if (command === "create") {
   }
   console.log(secret);
   console.error(
-    "Shown once. Put it in the Woodpecker repo secret menara_notify."
+    `Shown once. Put it in the Woodpecker repo secret ${notifySecretName}.`
   );
 } else {
   let rows: { notifySecretName: string }[] = [];

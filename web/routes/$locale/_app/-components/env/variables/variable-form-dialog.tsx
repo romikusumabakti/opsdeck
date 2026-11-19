@@ -36,7 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   ESCROW_REMOVAL_MESSAGE,
   ESCROWED_MESSAGE,
-  NO_APP_MESSAGE,
+  NO_SERVICES_MESSAGE,
   NOT_GENERATED_MESSAGE,
   RESERVED_PREFIX_MESSAGE,
   SECRET_TO_PLAIN_MESSAGE,
@@ -66,8 +66,8 @@ export function useVariableErrorText() {
           return t("escrowRemovalError");
         case NOT_GENERATED_MESSAGE:
           return t("notGeneratedError");
-        case NO_APP_MESSAGE:
-          return t("noAppHint");
+        case NO_SERVICES_MESSAGE:
+          return t("noServicesHint");
         case SECRET_TO_PLAIN_MESSAGE:
           return t("form.valueRequiredForPlain");
         case RESERVED_PREFIX_MESSAGE:

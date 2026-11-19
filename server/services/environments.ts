@@ -1083,7 +1083,7 @@ export async function insertEnvironmentIn(
   }: {
     slug: string;
     ownerId: string;
-    extra?: Pick<NewEnvironment, "appId" | "envFileManaged" | "entryPort">;
+    extra?: Pick<NewEnvironment, "envFileManaged" | "entryPort">;
     extraServices?: ServiceValues[];
   }
 ): Promise<Environment> {

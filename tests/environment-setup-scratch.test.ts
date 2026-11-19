@@ -47,8 +47,14 @@ vi.mock("@/lib/auth", () => ({
   auth: { api: { getSession: async () => null }, handler: vi.fn() },
 }));
 vi.mock("@/lib/auth-session", () => ({
-  requireSession: vi.fn(async () => ({ user: state.user })),
-  getServerSession: vi.fn(async () => ({ user: state.user })),
+  requireSession: vi.fn(async () => ({
+    user: state.user,
+    session: { signInMethod: "passkey" },
+  })),
+  getServerSession: vi.fn(async () => ({
+    user: state.user,
+    session: { signInMethod: "passkey" },
+  })),
 }));
 vi.mock("@/lib/queue", () => ({
   enqueue: vi.fn(async (name: string, payload: unknown) => {
@@ -331,29 +337,34 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
       bundleImage: "wiz-it-deploy",
       notifySecret: encryptSecret("notify"),
     });
-    await db.insert(s.appVariableTemplates).values([
+    await db.insert(s.serviceVariableTemplates).values([
       {
-        appId: ids.app,
+        componentKey: "wiz-it",
         name: "DB_PASSWORD",
         kind: "generated",
         generatedLength: 40,
       },
       {
-        appId: ids.app,
+        componentKey: "wiz-it",
         name: "SESSION_SECRET",
         kind: "generated",
         generatedLength: 48,
       },
       {
-        appId: ids.app,
+        componentKey: "wiz-it",
         name: "DATA_ENCRYPTION_KEY",
         kind: "secret",
         required: true,
         escrow: true,
       },
-      { appId: ids.app, name: "SMTP_PASSWORD", kind: "secret", required: true },
       {
-        appId: ids.app,
+        componentKey: "wiz-it",
+        name: "SMTP_PASSWORD",
+        kind: "secret",
+        required: true,
+      },
+      {
+        componentKey: "wiz-it",
         name: "CORS_ORIGINS",
         kind: "plain",
         defaultValue: "{url}",
@@ -473,7 +484,6 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
 
   const input = (overrides: Record<string, unknown> = {}) => ({
     projectId: ids.projectA,
-    appId: ids.app,
     name: "Wiz Staging",
     kind: "qa",
     copyFromEnvironmentId: ids.source,
@@ -610,7 +620,8 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
     expect(envs[0]).toMatchObject({
       id: envId,
       projectId: ids.projectA,
-      appId: ids.app,
+      // Services model: the environment adopts no app.
+      appId: null,
       kind: "qa",
       ownerId: ids.maintainer,
       envFileManaged: true,
@@ -905,6 +916,8 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
         hasValue: true,
         copyable: true,
         value: "Wiz",
+        // No template of the source's services names it.
+        definedBy: [],
       },
       {
         name: "DATA_ENCRYPTION_KEY",
@@ -912,6 +925,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
         escrow: true,
         hasValue: true,
         copyable: false,
+        definedBy: ["wiz-it"],
       },
       {
         name: "DB_PASSWORD",
@@ -919,6 +933,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
         escrow: false,
         hasValue: true,
         copyable: false,
+        definedBy: ["wiz-it"],
       },
       {
         name: "SESSION_SECRET",
@@ -926,6 +941,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
         escrow: false,
         hasValue: true,
         copyable: false,
+        definedBy: ["wiz-it"],
       },
       {
         name: "SMTP_PASSWORD",
@@ -933,6 +949,7 @@ describe.skipIf(!scratchDb)("environment setup on scratch", async () => {
         escrow: false,
         hasValue: true,
         copyable: true,
+        definedBy: ["wiz-it"],
       },
     ]);
   });

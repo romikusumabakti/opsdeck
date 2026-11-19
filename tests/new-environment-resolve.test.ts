@@ -9,8 +9,6 @@ import {
 } from "@/lib/setup/new-environment";
 
 const PROJECT = "0197f3a0-1b2c-7def-8000-000000000001";
-const APP = "0197f3a0-1b2c-7def-8000-000000000002";
-const OTHER_APP = "0197f3a0-1b2c-7def-8000-000000000003";
 const SERVER = "0197f3a0-1b2c-7def-8000-000000000004";
 const SERVER_2 = "0197f3a0-1b2c-7def-8000-000000000005";
 const DB_HOST = "0197f3a0-1b2c-7def-8000-000000000006";
@@ -51,11 +49,7 @@ function detection(overrides: Partial<RepoDetection> = {}): RepoDetection {
   };
 }
 
-const known = (componentKey: string, appId = APP, appKey = "cnry") => ({
-  componentKey,
-  appId,
-  appKey,
-});
+const known = (componentKey: string) => ({ componentKey });
 
 function context(
   overrides: Partial<NewEnvironmentContext> = {}
@@ -84,7 +78,8 @@ function context(
         component: known("panel-canary"),
       },
     ],
-    app: { id: APP, key: "cnry" },
+    services: [],
+    templateNames: [],
     slug: "canary-2",
     copySource: null,
     suggestedPort: 8104,
@@ -93,7 +88,6 @@ function context(
     zones: [{ id: ZONE, name: "example.net" }],
     existingDbNames: [],
     takenComponentKeys: ["panel-canary"],
-    takenAppKeys: ["cnry"],
     ...overrides,
   };
 }
@@ -104,6 +98,7 @@ function input(
   return {
     projectId: PROJECT,
     name: "Canary 2",
+    services: [],
     repos: [
       {
         ciConnectionId: CI,
@@ -119,7 +114,6 @@ function input(
 
 const freshRepo = (pipeline: RepoDetection["pipeline"] = { kind: "none" }) =>
   context({
-    app: null,
     repos: [
       {
         repoFullName: "acme/panel-canary-2",
@@ -129,7 +123,6 @@ const freshRepo = (pipeline: RepoDetection["pipeline"] = { kind: "none" }) =>
       },
     ],
     takenComponentKeys: [],
-    takenAppKeys: [],
   });
 const freshInput = input({
   repos: [
@@ -283,14 +276,6 @@ describe("resolveNewEnvironment", () => {
     expect(plan.setup.targets).toHaveLength(1);
   });
 
-  it("keeps the existing app's key even without a known repo", () => {
-    const plan = resolveNewEnvironment(
-      input({ repos: [], copyFromEnvironmentId: SOURCE_ENV }),
-      context({ copySource: source, repos: [] })
-    );
-    expect(plan.appKey).toBe("cnry");
-  });
-
   it("derives names from the context's unique slug", () => {
     const plan = resolveNewEnvironment(
       input({ name: "Canary", needsDatabase: true }),
@@ -331,7 +316,7 @@ describe("resolveNewEnvironment", () => {
     expect(next.dbName.startsWith(`${db.dbName}_`)).toBe(false);
   });
 
-  it("refuses a repo of another app", () => {
+  it("deploys repos whose services came from two former apps", () => {
     const ctx = context({
       repos: [
         ...context().repos,
@@ -339,7 +324,7 @@ describe("resolveNewEnvironment", () => {
           repoFullName: "acme/other",
           ciConnectionId: CI,
           detection: detection(),
-          component: known("other", OTHER_APP, "other"),
+          component: known("other"),
         },
       ],
     });
@@ -356,17 +341,17 @@ describe("resolveNewEnvironment", () => {
       }),
       ctx
     );
-    expect(plan.issues).toContainEqual({
-      field: "repos.1",
-      code: "repoOtherApp",
-    });
+    expect(plan.issues).toEqual([]);
     expect(plan.registrations).toEqual([]);
+    expect(plan.setup.targets.map((t) => t.componentKey)).toEqual([
+      "panel-canary",
+      "other",
+    ]);
   });
 
-  it("does not register a known repo and keeps the app key", () => {
+  it("does not register a known repo", () => {
     const plan = resolveNewEnvironment(input(), context());
     expect(plan.registrations).toEqual([]);
-    expect(plan.appKey).toBe("cnry");
     expect(plan.setup.targets.map((t) => t.componentKey)).toEqual([
       "panel-canary",
     ]);
@@ -388,7 +373,6 @@ describe("resolveNewEnvironment", () => {
         "panel-canary-2",
         "panel-canary-2-api",
       ]);
-      expect(plan.appKey).toBe("panel-canary-2");
       expect(plan.setup.targets[0]?.sourceBranch).toBe("develop");
       expect(plan.issues).toEqual([]);
     });
@@ -564,10 +548,8 @@ describe("resolveNewEnvironment", () => {
     const taken = resolveNewEnvironment(freshInput, {
       ...freshRepo(),
       takenComponentKeys: ["panel-canary-2"],
-      takenAppKeys: ["panel-canary-2"],
     });
     expect(taken.registrations[0]?.componentKey).toBe("panel-canary-2-2");
-    expect(taken.appKey).toBe("panel-canary-2-2");
   });
 
   describe("database default", () => {
@@ -816,6 +798,142 @@ describe("resolveNewEnvironment", () => {
       { name: "DB_PASSWORD", kind: "generated" },
       { name: "ENTRY_PORT", kind: "plain", value: "8104" },
     ]);
+  });
+
+  describe("picks services (Stage 8)", () => {
+    const twoServices = (over: Partial<NewEnvironmentContext> = {}) =>
+      context({
+        repos: [],
+        services: [
+          { componentKey: "panel-canary", detection: detection() },
+          { componentKey: "ledger-api", detection: null },
+        ],
+        takenComponentKeys: ["panel-canary", "ledger-api"],
+        ...over,
+      });
+
+    it("deploys the picked subset of services on their branches", () => {
+      const plan = resolveNewEnvironment(
+        input({
+          repos: [],
+          services: [
+            { componentKey: "ledger-api", branch: "kestrel/dev" },
+            { componentKey: "panel-canary", branch: "main" },
+          ],
+        }),
+        twoServices()
+      );
+      expect(plan.issues).toEqual([]);
+      expect(plan.registrations).toEqual([]);
+      expect(
+        plan.setup.targets.map((t) => [t.componentKey, t.sourceBranch])
+      ).toEqual([
+        ["ledger-api", "kestrel/dev"],
+        ["panel-canary", "main"],
+      ]);
+      // Each target keeps its own deploy dir (the stack's by default).
+      expect(new Set(plan.setup.targets.map((t) => t.deployDir)).size).toBe(1);
+      expect(plan.setup).not.toHaveProperty("appId");
+    });
+
+    it("refuses a service picked twice, unknown, or also picked by its repo", () => {
+      const plan = resolveNewEnvironment(
+        input({
+          services: [
+            { componentKey: "panel-canary", branch: "main" },
+            { componentKey: "panel-canary", branch: "dev" },
+            { componentKey: "no-such-service", branch: "main" },
+          ],
+        }),
+        twoServices({ repos: context().repos })
+      );
+      expect(plan.issues).toEqual([
+        { field: "services.1", code: "duplicate" },
+        { field: "services.2", code: "invalid" },
+        { field: "repos.0", code: "duplicate" },
+      ]);
+      expect(plan.setup.targets.map((t) => t.componentKey)).toEqual([
+        "panel-canary",
+      ]);
+    });
+
+    it("copies only the targets and variables of the services both share", () => {
+      const copy: CopySourceLike = {
+        ...source,
+        targets: [
+          ...source.targets,
+          {
+            ...(source.targets[0] as CopySourceLike["targets"][number]),
+            componentKey: "billing-web",
+          },
+        ],
+        variables: [
+          ...source.variables.map((v) => ({ ...v, definedBy: [] })),
+          {
+            name: "BILLING_KEY",
+            kind: "plain",
+            escrow: false,
+            hasValue: true,
+            copyable: true,
+            value: "b",
+            definedBy: ["billing-web"],
+          },
+          {
+            name: "SHARED_KEY",
+            kind: "plain",
+            escrow: false,
+            hasValue: true,
+            copyable: true,
+            value: "s",
+            definedBy: ["billing-web", "panel-canary"],
+          },
+        ],
+      };
+      const plan = resolveNewEnvironment(
+        input({
+          repos: [],
+          copyFromEnvironmentId: SOURCE_ENV,
+          services: [
+            { componentKey: "panel-canary", branch: "main" },
+            { componentKey: "ledger-api", branch: "main" },
+          ],
+        }),
+        twoServices({ copySource: copy })
+      );
+      expect(plan.issues).toEqual([]);
+      // The shared service keeps the source's target settings; the other is new.
+      expect(plan.setup.targets).toEqual([
+        expect.objectContaining({
+          componentKey: "panel-canary",
+          sourceBranch: "main",
+          tagVariable: "APP_TAG",
+          healthTimeoutSeconds: 300,
+        }),
+        expect.objectContaining({
+          componentKey: "ledger-api",
+          tagVariable: "IMAGE_TAG",
+          healthTimeoutSeconds: 180,
+        }),
+      ]);
+      const names = plan.setup.variables.map((v) => v.name);
+      expect(names).toContain("SHARED_KEY");
+      expect(names).toContain("MODE");
+      expect(names).not.toContain("BILLING_KEY");
+
+      // A name the new environment's own templates define is kept.
+      const kept = resolveNewEnvironment(
+        input({
+          repos: [],
+          copyFromEnvironmentId: SOURCE_ENV,
+          services: [{ componentKey: "ledger-api", branch: "main" }],
+        }),
+        twoServices({ copySource: copy, templateNames: ["BILLING_KEY"] })
+      );
+      expect(kept.setup.variables.map((v) => v.name)).toContain("BILLING_KEY");
+      expect(kept.setup.variables.map((v) => v.name)).not.toContain(
+        "SHARED_KEY"
+      );
+    });
   });
 
   it("asks for a repo without one and without a copy source", () => {

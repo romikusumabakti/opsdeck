@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
-import { branchSchema, envVarNameSchema } from "@/lib/deploy/validation";
+import {
+  branchSchema,
+  componentKeySchema,
+  envVarNameSchema,
+} from "@/lib/deploy/validation";
 import { domainLabelSchema } from "@/lib/domains/validation";
 import { suggestServices } from "@/lib/setup/compose-names";
 import { type RepoDetection, suggestedBuildSpec } from "@/lib/setup/detect";
@@ -23,12 +27,17 @@ import {
   sharedDatabaseNameSchema,
   sharedDatabaseNamesOverlap,
 } from "@/lib/validation";
+import { keepsCopiedVariable } from "@/lib/variables/template-merge";
 
-// The New environment page's short input (name, repos, a database checkbox,
-// an address) and its translation to the setup wizard's full input. Pure: the
-// server (server/services/new-environment) reads the context from the
-// database and repo detection, then previews or creates the resolved setup
-// and registers the repos the plan lists.
+// The New environment page's short input (name, services, repos, a database
+// checkbox, an address) and its translation to the setup wizard's full input.
+// The environment deploys any subset of services: registered ones picked by
+// key (`services`) or by repository (`repos`, a registered repository's
+// service), and new ones registered from a repository. A copy source fills
+// the settings of the services both share and the variables those keep
+// (keepsCopiedVariable). Pure: the server (server/services/new-environment)
+// reads the context from the database and repo detection, then previews or
+// creates the resolved setup and registers the repos the plan lists.
 
 const setupShape = environmentSetupInputSchema.shape;
 
@@ -89,7 +98,18 @@ export const newEnvironmentInputSchema = z
     // The URL name, when the caller edited it; else the name gives one.
     slug: setupShape.slug,
     copyFromEnvironmentId: z.uuid().nullish(),
-    // Empty with a copy source: the source's components and branches.
+    // Registered services, each on its branch.
+    services: z
+      .array(
+        z
+          .object({ componentKey: componentKeySchema, branch: branchSchema })
+          .strict()
+      )
+      .max(20)
+      .default([]),
+    // Repositories: a registered one deploys its service, another is
+    // registered as a new service. With `services`, both empty and a copy
+    // source: the source's services and branches.
     repos: z
       .array(
         z
@@ -100,7 +120,8 @@ export const newEnvironmentInputSchema = z
           })
           .strict()
       )
-      .max(20),
+      .max(20)
+      .default([]),
     needsDatabase: z.boolean(),
     // null = no address; an empty label = `<project key>-<slug>`.
     address: z
@@ -125,17 +146,22 @@ export type NewEnvironmentContext = {
     databaseHostId: string | null;
   }[];
   /**
-   * The input's repos (and, for a copy, the source's components) with their
+   * The input's repos (and, for a copy, the source's services) with their
    * detection; `component` when the repo is registered.
    */
   repos: {
     repoFullName: string;
     ciConnectionId: string;
     detection: RepoDetection;
-    component: { componentKey: string; appId: string; appKey: string } | null;
+    component: { componentKey: string } | null;
   }[];
-  /** The app of the copy source, else of the first registered repo. */
-  app: { id: string; key: string } | null;
+  /**
+   * The input's services that are registered, with their repository's
+   * detection where it could be read (it only fills names).
+   */
+  services: { componentKey: string; detection: RepoDetection | null }[];
+  /** The names the templates of the input's registered services define. */
+  templateNames: string[];
   /** The input's URL name, else the unique one its name gives (uniqueEnvSlug). */
   slug: string;
   /** Already filtered by the copy rules (secrets only with variable:read). */
@@ -148,9 +174,8 @@ export type NewEnvironmentContext = {
   zones: { id: string; name: string }[];
   /** Database, role and user names on the chosen server's database host. */
   existingDbNames: string[];
-  /** Registered component and app keys (both are global). */
+  /** Registered service keys (global). */
   takenComponentKeys: string[];
-  takenAppKeys: string[];
 };
 
 export type NewEnvironmentRegistration = {
@@ -162,11 +187,9 @@ export type NewEnvironmentRegistration = {
 };
 
 export type NewEnvironmentPlan = {
-  /** The repos to register before the setup runs. */
+  /** The repos to register (as services) before the setup runs. */
   registrations: NewEnvironmentRegistration[];
-  /** The existing app's key, or the new app's (from the first repo). */
-  appKey: string;
-  setup: Omit<EnvironmentSetupInput, "appId">;
+  setup: EnvironmentSetupInput;
   summary: {
     serverName: string;
     port: number | null;
@@ -189,7 +212,7 @@ const ENTRY_PORT_VARIABLE = "ENTRY_PORT";
 const KEY_MAX_LENGTH = 64;
 const DB_NAME_MAX_LENGTH = 63;
 const LABEL_MAX_LENGTH = 63;
-// The base a repository name gives a component or app key, before -2, -3.
+// The base a repository name gives a service key, before -2, -3.
 const REPO_KEY_LENGTH = 60;
 
 /** `base`, else `base-2`, `base-3`, ... the first not in `taken`. */
@@ -276,10 +299,12 @@ export function resolveNewEnvironment(
     });
   }
 
-  // Repos: registered ones keep their component, new ones are registered.
+  // Services: registered ones by key or by repository, new ones registered
+  // from a repository; each once.
   const takenComponents = new Set(ctx.takenComponentKeys);
   const repos: ResolvedRepo[] = [];
-  if (input.repos.length === 0 && source) {
+  const picked = new Set<string>();
+  if (input.repos.length === 0 && input.services.length === 0 && source) {
     for (const t of source.targets) {
       const known = ctx.repos.find(
         (r) => r.component?.componentKey === t.componentKey
@@ -290,35 +315,57 @@ export function resolveNewEnvironment(
         detection: known?.detection ?? null,
       });
     }
-  } else if (input.repos.length === 0) {
+  } else if (input.repos.length === 0 && input.services.length === 0) {
     issues.push({ field: "repos", code: "required" });
   }
-  input.repos.forEach((picked, index) => {
+  input.services.forEach((service, index) => {
+    const field = `services.${index}`;
+    if (picked.has(service.componentKey)) {
+      issues.push({ field, code: "duplicate" });
+      return;
+    }
+    const known = ctx.services.find(
+      (s) => s.componentKey === service.componentKey
+    );
+    if (!known) {
+      issues.push({ field, code: "invalid" });
+      return;
+    }
+    picked.add(service.componentKey);
+    repos.push({
+      componentKey: service.componentKey,
+      branch: service.branch,
+      detection: known.detection,
+    });
+  });
+  input.repos.forEach((pickedRepo, index) => {
     const field = `repos.${index}`;
     if (
-      input.repos.findIndex((r) => r.repoFullName === picked.repoFullName) !==
-      index
+      input.repos.findIndex(
+        (r) => r.repoFullName === pickedRepo.repoFullName
+      ) !== index
     ) {
       issues.push({ field, code: "duplicate" });
       return;
     }
     const repo = ctx.repos.find(
       (r) =>
-        r.repoFullName === picked.repoFullName &&
-        r.ciConnectionId === picked.ciConnectionId
+        r.repoFullName === pickedRepo.repoFullName &&
+        r.ciConnectionId === pickedRepo.ciConnectionId
     );
     if (!repo) {
       issues.push({ field, code: "invalid" });
       return;
     }
     if (repo.component) {
-      if (ctx.app && repo.component.appId !== ctx.app.id) {
-        issues.push({ field, code: "repoOtherApp" });
+      if (picked.has(repo.component.componentKey)) {
+        issues.push({ field, code: "duplicate" });
         return;
       }
+      picked.add(repo.component.componentKey);
       repos.push({
         componentKey: repo.component.componentKey,
-        branch: picked.branch,
+        branch: pickedRepo.branch,
         detection: repo.detection,
       });
       return;
@@ -329,12 +376,12 @@ export function resolveNewEnvironment(
     const componentKey =
       pipeline.kind === "panel" && !takenComponents.has(pipeline.componentKey)
         ? pipeline.componentKey
-        : uniqueKey(repoKey(picked.repoFullName), takenComponents);
+        : uniqueKey(repoKey(pickedRepo.repoFullName), takenComponents);
     takenComponents.add(componentKey);
     // Detection decides the pipeline unless an admin chose it: a custom
     // pipeline file is used, else one is generated.
     const pipelineIndex = (advanced.pipelines ?? []).findIndex(
-      (p) => p.repoFullName === picked.repoFullName
+      (p) => p.repoFullName === pickedRepo.repoFullName
     );
     const chosen = advanced.pipelines?.[pipelineIndex];
     const mode =
@@ -350,7 +397,7 @@ export function resolveNewEnvironment(
     } else if (chosen?.buildSpec) {
       buildSpec = chosen.buildSpec;
       // The environment's branch must be one the pipeline builds.
-      if (!buildSpec.branches.includes(picked.branch)) {
+      if (!buildSpec.branches.includes(pickedRepo.branch)) {
         issues.push({
           field: `pipelines.${pipelineIndex}.buildSpec.branches`,
           code: "pipelineBranchMissing",
@@ -361,34 +408,26 @@ export function resolveNewEnvironment(
       buildSpec = suggestedBuildSpec(
         repo.detection,
         componentKey,
-        picked.branch
+        pickedRepo.branch
       );
       if (!buildSpec) issues.push({ field, code: "repoNotBuildable" });
     }
     registrations.push({
-      repoFullName: picked.repoFullName,
-      ciConnectionId: picked.ciConnectionId,
+      repoFullName: pickedRepo.repoFullName,
+      ciConnectionId: pickedRepo.ciConnectionId,
       componentKey,
       pipelineMode: mode,
       buildSpec,
     });
     repos.push({
       componentKey,
-      branch: picked.branch,
+      branch: pickedRepo.branch,
       detection: repo.detection,
     });
   });
 
-  // An existing app keeps its key; only a new app gets one.
-  const appKey =
-    ctx.app?.key ??
-    uniqueKey(
-      repoKey(input.repos[0]?.repoFullName ?? slug),
-      new Set(ctx.takenAppKeys)
-    );
-
-  // Targets: one per repo in the stack's deploy dir, the copy source's
-  // settings where it has the component; auto-deploy except for prod.
+  // Targets: one per service in the stack's deploy dir, the copy source's
+  // settings where it deploys the service too; auto-deploy except for prod.
   const kind = advanced.kind ?? null;
   const deployDir = defaultDeployDir({ projectKey, slug });
   const targets: EnvironmentSetupTarget[] =
@@ -510,13 +549,20 @@ export function resolveNewEnvironment(
   if (advanced.variables) {
     variables = [...advanced.variables];
   } else {
-    variables = (source?.variables ?? []).map((v) => {
-      const { input: value, missingValue } = variableInput(copiedVariable(v));
-      if (missingValue) {
-        issues.push({ field: `variables.${v.name}`, code: "valueRequired" });
-      }
-      return value;
-    });
+    // Only the variables a copy for these services keeps.
+    const keys = new Set(repos.map((r) => r.componentKey));
+    const templateNames = new Set(ctx.templateNames);
+    variables = (source?.variables ?? [])
+      .filter((v) =>
+        keepsCopiedVariable(v.name, v.definedBy ?? [], keys, templateNames)
+      )
+      .map((v) => {
+        const { input: value, missingValue } = variableInput(copiedVariable(v));
+        if (missingValue) {
+          issues.push({ field: `variables.${v.name}`, code: "valueRequired" });
+        }
+        return value;
+      });
   }
   if (
     database.kind === "shared" &&
@@ -550,7 +596,6 @@ export function resolveNewEnvironment(
 
   return {
     registrations,
-    appKey,
     setup: {
       projectId: input.projectId,
       name: input.name,

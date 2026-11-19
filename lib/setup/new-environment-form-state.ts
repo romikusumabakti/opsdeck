@@ -55,15 +55,12 @@ const REPO_CODES = new Set([
   "repoNotFound",
   "repoUnreadable",
   "ciUnavailable",
-  "repoOtherApp",
   "repoNotBuildable",
   "duplicate",
-  "appKeyTaken",
   "componentKeyTaken",
   "repoLinked",
   "registrationRace",
   "pipelineFileExists",
-  "targetMissing",
 ]);
 
 /**

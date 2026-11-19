@@ -5,7 +5,6 @@ import { orgGrantRole, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import {
   appComponents,
-  apps,
   databaseHosts,
   deployTargets,
   environmentDomains,
@@ -15,7 +14,6 @@ import {
   remoteTunnels,
   servers,
 } from "@/lib/db/schema";
-import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
 import { listTargetDirsOnMachine } from "@/lib/deploy/repository";
 import { staticRootConflict } from "@/lib/deploy/target-dirs";
 import { DOMAIN_ERRORS, pgErrorCode } from "@/lib/domains/errors";
@@ -46,9 +44,14 @@ import {
 import { SHARED_DEPLOY_DIR_MESSAGE } from "@/lib/variables/errors";
 import {
   deployDirInUse,
-  listTemplates,
+  listEnvironmentServiceKeys,
+  listServiceTemplates,
   listVariables as listVariableRows,
 } from "@/lib/variables/repository";
+import {
+  keepsCopiedVariable,
+  mergeTemplates,
+} from "@/lib/variables/template-merge";
 import { CodedHTTPException, errorCode } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 import { insertDeployTargetIn, targetError } from "@/server/services/deploys";
@@ -73,9 +76,13 @@ import {
 } from "@/server/services/variables";
 
 /**
- * The setup wizard's environment: one request that creates an environment of
- * an app with its services, deploy targets, variables, database binding and
- * domain, then starts its provisioning run.
+ * The setup wizard's environment: one request that creates an environment
+ * deploying any services (one target each, normally the project's; a target
+ * adds its service to the project) with its container bindings, variables,
+ * database binding and domain, then starts its provisioning run. The
+ * variables are filled from the merged templates of those services; a copy
+ * source keeps its variables except those only templates of its services the
+ * new environment does not deploy define.
  *
  * The rules are the existing ones, run by the same functions the single-row
  * APIs use (validateNewEnvironment, validateDomainBinding, the variables
@@ -96,9 +103,7 @@ export { SETUP_PERMISSIONS };
 
 // Refusals only the setup has, by code (the others are the reused rules').
 export const SETUP_ERRORS = {
-  appNotFound: [404, "App not found"],
   serverNotFound: [404, "Server not found"],
-  copySourceOtherApp: [400, "The copy source deploys another app"],
   environmentNameTaken: [
     409,
     "The project already has an environment of this name",
@@ -119,7 +124,6 @@ export const SETUP_ERRORS = {
     "Backing up before a deploy needs a shared database",
   ],
   invalidInput: [400, "Invalid request"],
-  targetMissing: [400, "Every component of the app needs a deploy target"],
   sharedDeployDir: [409, SHARED_DEPLOY_DIR_MESSAGE],
   passwordVariableMissing: [
     400,
@@ -204,7 +208,6 @@ type Caller = {
 type CopySource = {
   id: string;
   name: string;
-  appId: string | null;
   canReadVariables: boolean;
 };
 
@@ -226,7 +229,7 @@ async function authorize(
     { project: ["read"] }
   );
   const [row] = await db
-    .select({ appId: environments.appId, name: environments.name })
+    .select({ name: environments.name })
     .from(environments)
     .where(eq(environments.id, input.copyFromEnvironmentId))
     .limit(1);
@@ -236,7 +239,6 @@ async function authorize(
     source: {
       id: input.copyFromEnvironmentId,
       name: row.name,
-      appId: row.appId,
       canReadVariables: canProject(sourceRole, { variable: ["read"] }),
     },
   };
@@ -422,28 +424,20 @@ async function checkSetup(
     .limit(1);
   if (!project) throw new HTTPException(404, { message: "Not Found" });
 
-  const [app] = await db
-    .select({ id: apps.id })
-    .from(apps)
-    .where(eq(apps.id, input.appId))
-    .limit(1);
-  if (!app) checks.refuse("appId", setupError("appNotFound"));
-  const appComponentRows = app
-    ? await db
-        .select({
-          componentKey: appComponents.componentKey,
-          buildSpec: appComponents.buildSpec,
-        })
-        .from(appComponents)
-        .where(eq(appComponents.appId, app.id))
-    : [];
-  const appComponentKeys = appComponentRows.map((c) => c.componentKey);
-  // The wizard's targets are compose ones: an artifact component's would be
-  // refused by insertDeployTargetIn.
+  // The targets' services: any registered one, once each (insertDeployTargetIn
+  // adds it to the project). The wizard's targets are compose ones: an
+  // artifact service's would be refused by insertDeployTargetIn.
+  const targetKeys = [...new Set(input.targets.map((t) => t.componentKey))];
+  const serviceRows = await db
+    .select({
+      componentKey: appComponents.componentKey,
+      buildSpec: appComponents.buildSpec,
+    })
+    .from(appComponents)
+    .where(inArray(appComponents.componentKey, targetKeys));
+  const knownKeys = new Set(serviceRows.map((c) => c.componentKey));
   const artifactComponentKeys = new Set(
-    appComponentRows
-      .filter((c) => c.buildSpec?.artifact)
-      .map((c) => c.componentKey)
+    serviceRows.filter((c) => c.buildSpec?.artifact).map((c) => c.componentKey)
   );
 
   const [server] = await db
@@ -453,35 +447,17 @@ async function checkSetup(
     .limit(1);
   if (!server) checks.refuse("server.serverId", setupError("serverNotFound"));
 
-  if (source && source.appId !== input.appId) {
-    checks.refuse("copyFromEnvironmentId", setupError("copySourceOtherApp"));
-  }
-
   if (await environmentNameTaken(input.projectId, input.name)) {
     checks.refuse("name", setupError("environmentNameTaken"));
   }
 
-  // Deploy targets: the app's components, once each, in dirs of their own
-  // (the wizard's environments have a managed `.env`).
+  // Deploy targets: once each, in dirs of their own (the wizard's
+  // environments have a managed `.env`).
   const seen = new Set<string>();
   for (const [i, target] of input.targets.entries()) {
     const field = `targets.${i}.componentKey`;
-    if (app && !appComponentKeys.includes(target.componentKey)) {
-      const [other] = await db
-        .select({ key: appComponents.componentKey })
-        .from(appComponents)
-        .where(eq(appComponents.componentKey, target.componentKey))
-        .limit(1);
-      checks.refuse(
-        field,
-        other
-          ? new CodedHTTPException(
-              409,
-              "componentOtherApp",
-              COMPONENT_OTHER_APP_MESSAGE
-            )
-          : targetError("componentNotFound")
-      );
+    if (!knownKeys.has(target.componentKey)) {
+      checks.refuse(field, targetError("componentNotFound"));
     } else if (seen.has(target.componentKey)) {
       checks.refuse(field, targetError("targetDuplicate"));
     } else if (artifactComponentKeys.has(target.componentKey)) {
@@ -507,9 +483,6 @@ async function checkSetup(
         setupError("backupNeedsSharedDb")
       );
     }
-  }
-  if (app && appComponentKeys.some((key) => !seen.has(key))) {
-    checks.refuse("targets", setupError("targetMissing"));
   }
 
   // The zone's name gives the environment its URL ({url} placeholders).
@@ -606,10 +579,10 @@ async function checkSetup(
     );
   }
   const slug = chosenSlug ?? (await uniqueEnvSlug(input.projectId, input.name));
-  const [templates, sourceVariables] = await Promise.all([
-    app ? listTemplates(app.id) : Promise.resolve([]),
-    source ? listVariableRows(source.id) : Promise.resolve(null),
-  ]);
+  const { templates, sourceVariables } = await setupTemplates(
+    targetKeys,
+    source?.id ?? null
+  );
   const plannedVariables = planEnvironmentVariables({
     entries: input.variables,
     templates,
@@ -681,6 +654,32 @@ async function checkSetup(
             copySource: source ? { id: source.id, name: source.name } : null,
           }
         : null,
+  };
+}
+
+/**
+ * The merged templates of the setup's services, and the copy source's
+ * variables a copy for those services keeps (keepsCopiedVariable).
+ */
+async function setupTemplates(targetKeys: string[], sourceId: string | null) {
+  const sourceKeys = sourceId ? await listEnvironmentServiceKeys(sourceId) : [];
+  const [rows, sourceRows] = await Promise.all([
+    listServiceTemplates([...new Set([...targetKeys, ...sourceKeys])]),
+    sourceId ? listVariableRows(sourceId) : Promise.resolve(null),
+  ]);
+  const targets = new Set(targetKeys);
+  const targetRows = rows.filter((r) => targets.has(r.componentKey));
+  const targetNames = new Set(targetRows.map((r) => r.name));
+  const definedBy = (name: string) =>
+    rows
+      .filter((r) => r.name === name && sourceKeys.includes(r.componentKey))
+      .map((r) => r.componentKey);
+  return {
+    templates: mergeTemplates(targetRows),
+    sourceVariables:
+      sourceRows?.filter((v) =>
+        keepsCopiedVariable(v.name, definedBy(v.name), targets, targetNames)
+      ) ?? null,
   };
 }
 
@@ -920,7 +919,6 @@ export async function createEnvironmentSetup(
         slug: prepared.slug,
         ownerId: environment.ownerId ?? caller.userId,
         extra: {
-          appId: input.appId,
           envFileManaged: true,
           entryPort: prepared.domain?.entryPort ?? null,
         },
@@ -1034,6 +1032,11 @@ export type CopySourceView = {
     hasValue: boolean;
     copyable: boolean;
     value?: string;
+    /**
+     * The source's services whose templates define it; empty for an
+     * environment-wide one (see keepsCopiedVariable).
+     */
+    definedBy: string[];
   }[];
 };
 
@@ -1096,6 +1099,12 @@ export async function getCopySource(
     // Names, kinds and escrow flags are variable:read data, like listVariables.
     canRead ? listVariableRows(environmentId) : Promise.resolve([]),
   ]);
+  const templateRows =
+    variables.length > 0
+      ? await listServiceTemplates([
+          ...new Set(targets.map((t) => t.componentKey)),
+        ])
+      : [];
 
   return {
     environment: env,
@@ -1134,6 +1143,9 @@ export async function getCopySource(
       hasValue: v.value !== "",
       copyable: !v.escrow && v.kind !== "generated",
       ...(v.kind === "plain" && !v.escrow ? { value: v.value } : {}),
+      definedBy: templateRows
+        .filter((r) => r.name === v.name)
+        .map((r) => r.componentKey),
     })),
   };
 }

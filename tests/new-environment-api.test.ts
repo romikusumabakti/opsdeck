@@ -2,13 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The New environment API (server/services/new-environment) without a
 // database: the context it reads, the order of its writes, and how it maps
-// refusals. The services it drives (the setup, app registration, detection,
-// builds) are stubbed; their own rules are tested in their own files.
+// refusals. The services it drives (the setup, service registration,
+// detection, builds) are stubbed; their own rules are tested in their own files.
 
 process.env.SECRETS_KEY ??= Buffer.alloc(32, 7).toString("base64");
 
 const PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f1";
-const APP_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const OPEN_SERVER = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const RESTRICTED_SERVER = "0197f3a0-1b2c-7def-8000-0123456789c2";
 const DB_HOST = "0197f3a0-1b2c-7def-8000-0123456789d1";
@@ -26,7 +25,7 @@ const state = vi.hoisted(() => ({
   rows: {} as Record<string, Row[]>,
   updates: [] as { table: string; values: Row; where: unknown }[],
   inserts: [] as string[],
-  apps: [] as Row[],
+  services: [] as Row[],
   calls: [] as string[],
 }));
 
@@ -108,9 +107,9 @@ vi.mock("@/lib/db", async () => {
   };
 });
 
-vi.mock("@/lib/apps", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/apps")>()),
-  listApps: vi.fn(async () => state.apps),
+vi.mock("@/lib/service-catalog", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/service-catalog")>()),
+  listServices: vi.fn(async () => state.services),
 }));
 
 vi.mock("@/lib/domains/repository", async (importOriginal) => ({
@@ -220,8 +219,7 @@ vi.mock("@/server/services/environment-setup", async (importOriginal) => ({
 }));
 
 const apps = vi.hoisted(() => ({
-  registerSetupApp: vi.fn(),
-  addSetupComponents: vi.fn(),
+  registerSetupServices: vi.fn(),
   ensureComponentBranch: vi.fn(),
   triggerComponentBuild: vi.fn(),
 }));
@@ -254,32 +252,23 @@ const freshInput = {
   serverId: OPEN_SERVER,
 };
 
-const hrisApp = (pipelineMode: "custom" | "generated") => ({
-  id: APP_ID,
-  appKey: "hris",
-  name: "HRIS",
-  components: [
-    {
-      componentKey: "hris",
-      appId: APP_ID,
-      ciConnectionId: CI,
-      repoFullName: "acme/hris",
-      ciRepoId: "7",
-      pipelineMode,
-      buildSpec:
-        pipelineMode === "generated"
-          ? {
-              branches: ["main"],
-              images: [
-                { name: "hris", dockerfile: "Dockerfile", context: "." },
-              ],
-              bundleFiles: [{ from: "compose.yaml", to: "compose.yaml" }],
-              checks: [],
-              timeoutMinutes: 60,
-            }
-          : null,
-    },
-  ],
+/** A registered service (once of the legacy app `hris`). */
+const hrisService = (pipelineMode: "custom" | "generated") => ({
+  key: "hris",
+  ciConnectionId: CI,
+  repoFullName: "acme/hris",
+  ciRepoId: "7",
+  pipelineMode,
+  buildSpec:
+    pipelineMode === "generated"
+      ? {
+          branches: ["main"],
+          images: [{ name: "hris", dockerfile: "Dockerfile", context: "." }],
+          bundleFiles: [{ from: "compose.yaml", to: "compose.yaml" }],
+          checks: [],
+          timeoutMinutes: 60,
+        }
+      : null,
 });
 
 const emptyPreview = {
@@ -313,7 +302,7 @@ beforeEach(() => {
   };
   state.updates = [];
   state.inserts = [];
-  state.apps = [];
+  state.services = [];
   state.calls = [];
   detection.pipeline = { kind: "none" };
   for (const fn of [...Object.values(setup), ...Object.values(apps)]) {
@@ -332,21 +321,9 @@ beforeEach(() => {
       runId: "run-1",
     };
   });
-  apps.registerSetupApp.mockImplementation(
-    async (input: { appKey: string }) => {
-      state.calls.push("register");
-      return {
-        app: { id: APP_ID, appKey: input.appKey, name: "x", components: [] },
-        pipelineFileFailures: [],
-      };
-    }
-  );
-  apps.addSetupComponents.mockImplementation(async (appKey: string) => {
-    state.calls.push("addComponents");
-    return {
-      app: { id: APP_ID, appKey, name: "x", components: [] },
-      pipelineFileFailures: [],
-    };
+  apps.registerSetupServices.mockImplementation(async () => {
+    state.calls.push("register");
+    return [];
   });
   apps.ensureComponentBranch.mockImplementation(async () => {
     state.calls.push("ensureBranch");
@@ -370,34 +347,29 @@ describe("POST /api/setup/new-environment", () => {
       pipelineFileFailures: [],
     });
 
-    // One new app with one generated component, named from the repo.
-    expect(apps.registerSetupApp).toHaveBeenCalledTimes(1);
-    const registered = apps.registerSetupApp.mock.calls[0]?.[0];
-    expect(registered).toMatchObject({
-      appKey: "panel-canary",
-      components: [
-        {
-          componentKey: "panel-canary",
-          ciConnectionId: CI,
-          forgeRemoteId: "{r1}",
-          bundleImage: "panel-canary-deploy",
-          pipelineMode: "generated",
-          buildSpec: { branches: ["main"] },
-        },
-      ],
-    });
+    // One new generated service, named from the repo, without an app.
+    expect(apps.registerSetupServices).toHaveBeenCalledTimes(1);
+    expect(apps.registerSetupServices.mock.calls[0]?.[0]).toMatchObject([
+      {
+        componentKey: "panel-canary",
+        ciConnectionId: CI,
+        forgeRemoteId: "{r1}",
+        bundleImage: "panel-canary-deploy",
+        pipelineMode: "generated",
+        buildSpec: { branches: ["main"] },
+      },
+    ]);
     // The build spec is detection's (server-derived); the new environment's
     // branch is the one that builds.
-    expect(apps.registerSetupApp.mock.calls[0]?.[1]).toEqual({
+    expect(apps.registerSetupServices.mock.calls[0]?.[1]).toEqual({
       "panel-canary": ["main"],
     });
-    expect(apps.addSetupComponents).not.toHaveBeenCalled();
 
-    // The resolved setup, on the registered app.
+    // The resolved setup: no app.
     const created = setup.createEnvironmentSetup.mock.calls[0]?.[0];
+    expect(created).not.toHaveProperty("appId");
     expect(created).toMatchObject({
       projectId: PROJECT_ID,
-      appId: APP_ID,
       name: "Dev",
       server: { serverId: OPEN_SERVER },
       targets: [{ componentKey: "panel-canary", sourceBranch: "main" }],
@@ -493,21 +465,19 @@ describe("POST /api/setup/new-environment", () => {
   });
 
   it("adds the environment branch", async () => {
-    state.apps = [hrisApp("generated")];
+    state.services = [hrisService("generated")];
     const res = await post("/api/setup/new-environment", {
       ...freshInput,
       repos: [{ ciConnectionId: CI, repoFullName: "acme/hris", branch: "uat" }],
     });
     expect(res.status).toBe(201);
-    expect(apps.registerSetupApp).not.toHaveBeenCalled();
-    expect(apps.addSetupComponents).not.toHaveBeenCalled();
+    expect(apps.registerSetupServices).not.toHaveBeenCalled();
     expect(apps.ensureComponentBranch).toHaveBeenCalledWith(
       "hris",
       "uat",
       PROJECT_ID
     );
     expect(setup.createEnvironmentSetup.mock.calls[0]?.[0]).toMatchObject({
-      appId: APP_ID,
       targets: [{ componentKey: "hris", sourceBranch: "uat" }],
     });
     expect(state.calls.indexOf("ensureBranch")).toBeLessThan(
@@ -515,8 +485,8 @@ describe("POST /api/setup/new-environment", () => {
     );
   });
 
-  it("adds a new repo to the app of a registered one", async () => {
-    state.apps = [hrisApp("custom")];
+  it("registers a new repo as a service next to a registered one", async () => {
+    state.services = [hrisService("custom")];
     const res = await post("/api/setup/new-environment", {
       ...freshInput,
       repos: [
@@ -529,9 +499,7 @@ describe("POST /api/setup/new-environment", () => {
       ],
     });
     expect(res.status).toBe(201);
-    expect(apps.registerSetupApp).not.toHaveBeenCalled();
-    expect(apps.addSetupComponents).toHaveBeenCalledWith(
-      "hris",
+    expect(apps.registerSetupServices).toHaveBeenCalledWith(
       [
         expect.objectContaining({
           componentKey: "panel-canary",
@@ -540,10 +508,35 @@ describe("POST /api/setup/new-environment", () => {
       ],
       { hris: ["main"], "panel-canary": ["main"] }
     );
-    // The new component is not checked against the app before it exists.
-    expect(setup.previewEnvironmentSetup.mock.calls[0]?.[0]).toMatchObject({
-      appId: APP_ID,
+    expect(
+      setup.createEnvironmentSetup.mock.calls[0]?.[0].targets
+    ).toMatchObject([
+      { componentKey: "hris" },
+      { componentKey: "panel-canary" },
+    ]);
+  });
+
+  it("deploys registered services picked by key, of any former app", async () => {
+    state.services = [
+      hrisService("custom"),
+      { ...hrisService("custom"), key: "ledger", repoFullName: "acme/ledger" },
+    ];
+    const res = await post("/api/setup/new-environment", {
+      ...freshInput,
+      repos: [],
+      services: [
+        { componentKey: "ledger", branch: "kestrel/dev" },
+        { componentKey: "hris", branch: "main" },
+      ],
     });
+    expect(res.status).toBe(201);
+    expect(apps.registerSetupServices).not.toHaveBeenCalled();
+    expect(
+      setup.createEnvironmentSetup.mock.calls[0]?.[0].targets
+    ).toMatchObject([
+      { componentKey: "ledger", sourceBranch: "kestrel/dev" },
+      { componentKey: "hris", sourceBranch: "main" },
+    ]);
   });
 
   it("unique violation maps to an issue", async () => {
@@ -620,20 +613,17 @@ describe("POST /api/setup/new-environment", () => {
   it("refuses before registering when the setup checks fail", async () => {
     setup.previewEnvironmentSetup.mockResolvedValueOnce({
       ...emptyPreview,
-      issues: [
-        { field: "appId", code: "appNotFound" },
-        { field: "name", code: "environmentNameTaken" },
-      ],
+      issues: [{ field: "name", code: "environmentNameTaken" }],
     });
     const res = await post("/api/setup/new-environment", freshInput);
     expect(res.status).toBe(409);
     expect(await res.json()).toMatchObject({ code: "nameTaken" });
-    expect(apps.registerSetupApp).not.toHaveBeenCalled();
+    expect(apps.registerSetupServices).not.toHaveBeenCalled();
     expect(setup.createEnvironmentSetup).not.toHaveBeenCalled();
   });
 
   it("a failed registration leaves no environment", async () => {
-    apps.registerSetupApp.mockRejectedValueOnce(
+    apps.registerSetupServices.mockRejectedValueOnce(
       new CodedHTTPException(409, "pipelineFileExists", "exists")
     );
     const res = await post("/api/setup/new-environment", freshInput);
@@ -649,17 +639,14 @@ describe("POST /api/setup/new-environment", () => {
       code: null,
       error: "Branch main does not exist",
     };
-    apps.registerSetupApp.mockResolvedValueOnce({
-      app: { id: APP_ID, appKey: "panel-canary", name: "x", components: [] },
-      pipelineFileFailures: [failure],
-    });
+    apps.registerSetupServices.mockResolvedValueOnce([failure]);
     const res = await post("/api/setup/new-environment", freshInput);
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ pipelineFileFailures: [failure] });
   });
 
   it("returns the added branch's pipeline file failure", async () => {
-    state.apps = [hrisApp("generated")];
+    state.services = [hrisService("generated")];
     const failure = {
       componentKey: "hris",
       branch: "uat",
@@ -717,7 +704,7 @@ describe("POST /api/setup/new-environment", () => {
     const res = await post("/api/setup/new-environment", freshInput);
     expect(res.status).toBe(404);
     expect(await res.json()).toMatchObject({ code: "repoNotFound" });
-    expect(apps.registerSetupApp).not.toHaveBeenCalled();
+    expect(apps.registerSetupServices).not.toHaveBeenCalled();
   });
 
   it("answers ciUnavailable when the CI server fails", async () => {
@@ -784,11 +771,10 @@ describe("POST /api/setup/new-environment/preview", () => {
       databaseName: null,
       url: "https://cnry-dev.example.test",
     });
-    // The setup preview ran for the not-yet-registered app, without the
+    // The setup preview ran for the not-yet-registered service, without the
     // refusal its absence causes.
     expect(body.preview).toMatchObject({ issues: [], slug: "dev" });
-    expect(apps.registerSetupApp).not.toHaveBeenCalled();
-    expect(apps.addSetupComponents).not.toHaveBeenCalled();
+    expect(apps.registerSetupServices).not.toHaveBeenCalled();
     expect(apps.ensureComponentBranch).not.toHaveBeenCalled();
     expect(apps.triggerComponentBuild).not.toHaveBeenCalled();
     expect(setup.createEnvironmentSetup).not.toHaveBeenCalled();
@@ -815,8 +801,7 @@ describe("POST /api/setup/new-environment/preview", () => {
   });
 
   it("suggests a database name free of the copy source's", async () => {
-    state.apps = [hrisApp("custom")];
-    state.rows.environments = [{ appId: APP_ID }];
+    state.services = [hrisService("custom")];
     // The copy source's own database, on another host.
     state.rows.environment_services = [
       { dbName: "cnry_dev", dbRole: "cnry_dev", dbUser: null },
@@ -896,16 +881,14 @@ describe("POST /api/setup/new-environment/preview", () => {
 });
 
 describe("GET /api/setup/repos", () => {
-  it("lists matching repos with the app that owns each", async () => {
-    state.apps = [hrisApp("custom")];
+  it("lists matching repos with the service that builds each", async () => {
+    state.services = [hrisService("custom")];
     const res = await app.request("/api/setup/repos?q=h");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
       {
         ciConnectionId: CI,
         repoFullName: "acme/hris",
-        appKey: "hris",
-        appName: "HRIS",
         componentKey: "hris",
         // The CI server does not know it: the usual name.
         defaultBranch: "main",
@@ -913,46 +896,36 @@ describe("GET /api/setup/repos", () => {
       {
         ciConnectionId: CI,
         repoFullName: "acme/other-thing",
-        appKey: null,
-        appName: null,
         componentKey: null,
         defaultBranch: "develop",
       },
     ]);
   });
 
-  it("names a repo's non-artifact component when it builds several", async () => {
-    // The artifact component's app sorts first.
-    state.apps = [
+  it("names a repo's non-artifact service when it builds several", async () => {
+    // The artifact service sorts first.
+    state.services = [
       {
-        id: "0197f3a0-1b2c-7def-8000-0123456789b0",
-        appKey: "aaa-legacy",
-        name: "Legacy",
-        components: [
-          {
-            ...hrisApp("custom").components[0],
-            componentKey: "hris-legacy-web",
-            appId: "0197f3a0-1b2c-7def-8000-0123456789b0",
-            pipelineMode: "generated",
-            buildSpec: {
-              branches: [],
-              images: [],
-              bundleFiles: [],
-              artifact: { kind: "static", path: "dist" },
-              checks: [
-                { name: "b", image: "oven/bun:1", dir: ".", commands: ["x"] },
-              ],
-              timeoutMinutes: 60,
-            },
-          },
-        ],
+        ...hrisService("custom"),
+        key: "hris-legacy-web",
+        pipelineMode: "generated",
+        buildSpec: {
+          branches: [],
+          images: [],
+          bundleFiles: [],
+          artifact: { kind: "static", path: "dist" },
+          checks: [
+            { name: "b", image: "oven/bun:1", dir: ".", commands: ["x"] },
+          ],
+          timeoutMinutes: 60,
+        },
       },
-      hrisApp("custom"),
+      hrisService("custom"),
     ];
     const res = await app.request("/api/setup/repos?q=hris");
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject([
-      { repoFullName: "acme/hris", appKey: "hris", componentKey: "hris" },
+      { repoFullName: "acme/hris", componentKey: "hris" },
     ]);
   });
 

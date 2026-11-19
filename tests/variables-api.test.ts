@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 process.env.SECRETS_KEY ??= Buffer.alloc(32, 7).toString("base64");
 
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
-const APP_ID = "0197f3a0-1b2c-7def-8000-0123456789d1";
 const USER_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 
 const SECRET_PLAIN = "s3cr3t-db-password-value";
@@ -28,7 +27,7 @@ type Row = {
 };
 type Template = {
   id: string;
-  appId: string;
+  componentKey: string;
   name: string;
   kind: Kind;
   required: boolean;
@@ -53,9 +52,10 @@ const store = vi.hoisted(() => ({
     slug: "dev",
     createdSlug: "dev" as string | null,
     url: "https://dev.example.test" as string | null,
-    appId: "0197f3a0-1b2c-7def-8000-0123456789d1" as string | null,
     envFileManaged: false,
   },
+  // The services the environment's deploy targets deploy.
+  services: ["hris-backend"] as string[],
   tags: ["IMAGE_TAG"] as string[],
   sharedDeployDir: false,
   vars: new Map<string, Row>(),
@@ -181,19 +181,24 @@ vi.mock("@/lib/variables/repository", () => {
     setEnvFileManaged: vi.fn(async (_env: string, enabled: boolean) => {
       store.env.envFileManaged = enabled;
     }),
-    getAppIdByKey: vi.fn(async (appKey: string) =>
-      appKey === "hris" ? "0197f3a0-1b2c-7def-8000-0123456789d1" : undefined
+    listEnvironmentServiceKeys: vi.fn(async () => [...store.services]),
+    serviceKeyExists: vi.fn(async (componentKey: string) =>
+      ["hris-backend", "hris-web"].includes(componentKey)
     ),
-    listTemplates: vi.fn(async () => [...store.templates]),
+    listServiceTemplates: vi.fn(async (componentKeys: string[]) =>
+      store.templates.filter((t) => componentKeys.includes(t.componentKey))
+    ),
     saveTemplate: vi.fn(
       async (
-        appId: string,
-        input: Omit<Template, "id" | "appId" | "createdAt" | "updatedAt">
+        componentKey: string,
+        input: Omit<Template, "id" | "componentKey" | "createdAt" | "updatedAt">
       ) => {
-        const index = store.templates.findIndex((t) => t.name === input.name);
+        const index = store.templates.findIndex(
+          (t) => t.componentKey === componentKey && t.name === input.name
+        );
         const row: Template = {
           id: index >= 0 ? (store.templates[index] as Template).id : id(),
-          appId,
+          componentKey,
           createdAt: new Date(),
           updatedAt: new Date(),
           ...input,
@@ -203,9 +208,11 @@ vi.mock("@/lib/variables/repository", () => {
         return row;
       }
     ),
-    deleteTemplate: vi.fn(async (_appId: string, name: string) => {
+    deleteTemplate: vi.fn(async (componentKey: string, name: string) => {
       const before = store.templates.length;
-      store.templates = store.templates.filter((t) => t.name !== name);
+      store.templates = store.templates.filter(
+        (t) => !(t.componentKey === componentKey && t.name === name)
+      );
       return store.templates.length < before;
     }),
   };
@@ -247,7 +254,7 @@ function template(
 ): Template {
   return {
     id: `tpl-${name}`,
-    appId: APP_ID,
+    componentKey: "hris-backend",
     name,
     kind,
     required: false,
@@ -268,7 +275,7 @@ beforeEach(() => {
   state.signInMethod = "passkey";
   store.env.envFileManaged = false;
   store.env.url = "https://dev.example.test";
-  store.env.appId = APP_ID;
+  store.services = ["hris-backend"];
   store.tags = ["IMAGE_TAG"];
   store.sharedDeployDir = false;
   store.vars = new Map([
@@ -296,7 +303,7 @@ const VARIABLE_ROUTES: Call[] = [
   },
   { method: "DELETE", path: `${base}/variables/APP_NAME` },
   { method: "POST", path: `${base}/variables/JWT_SECRET/regenerate` },
-  { method: "POST", path: `${base}/variables/apply-template` },
+  { method: "POST", path: `${base}/variables/apply-template`, body: {} },
 ];
 const ENV_FILE_ROUTE: Call = {
   method: "PATCH",
@@ -331,13 +338,19 @@ describe("permissions", () => {
 
   it("template routes need integration:manage", async () => {
     const calls: Call[] = [
-      { method: "GET", path: "/api/apps/hris/variable-templates" },
+      {
+        method: "GET",
+        path: "/api/service-catalog/hris-backend/variable-templates",
+      },
       {
         method: "PUT",
-        path: "/api/apps/hris/variable-templates/APP_URL",
+        path: "/api/service-catalog/hris-backend/variable-templates/APP_URL",
         body: { kind: "plain", defaultValue: "{url}" },
       },
-      { method: "DELETE", path: "/api/apps/hris/variable-templates/APP_URL" },
+      {
+        method: "DELETE",
+        path: "/api/service-catalog/hris-backend/variable-templates/APP_URL",
+      },
     ];
     for (const call of calls) {
       const res = await send(call.method, call.path, call.body);
@@ -382,6 +395,7 @@ describe("listing", () => {
     });
     expect(byName.get("DATA_ENCRYPTION_KEY")).toMatchObject({ escrow: true });
     expect(body.envFileManaged).toBe(false);
+    expect(body).toMatchObject({ hasServices: true });
     expect(activity.recordActivity).not.toHaveBeenCalled();
   });
 
@@ -728,7 +742,7 @@ describe("apply-template", () => {
     async ({ slug, createdSlug, expected }) => {
       Object.assign(store.env, { slug, createdSlug });
       try {
-        const res = await send("POST", `${base}/variables/apply-template`);
+        const res = await send("POST", `${base}/variables/apply-template`, {});
         expect(res.status).toBe(200);
         expect(store.vars.get("APP_URL")?.value).toBe(
           `https://dev.example.test/api?env=${expected}`
@@ -740,7 +754,7 @@ describe("apply-template", () => {
   );
 
   it("fills missing variables and lists required ones it could not fill", async () => {
-    const res = await send("POST", `${base}/variables/apply-template`);
+    const res = await send("POST", `${base}/variables/apply-template`, {});
     expect(res.status).toBe(200);
     const body = (await res.json()) as { added: string[]; missing: string[] };
     expect(body.added.sort()).toEqual(["APP_URL", "SESSION_KEY"]);
@@ -762,17 +776,156 @@ describe("apply-template", () => {
 
   it("lists a required default whose placeholder has no value as missing", async () => {
     store.env.url = null;
-    const res = await send("POST", `${base}/variables/apply-template`);
+    const res = await send("POST", `${base}/variables/apply-template`, {});
     const body = (await res.json()) as { added: string[]; missing: string[] };
     expect(body.missing).toContain("APP_URL");
     expect(store.vars.has("APP_URL")).toBe(false);
   });
 
-  it("answers 409 when the environment has no app", async () => {
-    store.env.appId = null;
+  it("answers 409 when the environment deploys no service", async () => {
+    store.services = [];
     expect(
-      (await send("POST", `${base}/variables/apply-template`)).status
+      (await send("POST", `${base}/variables/apply-template`, {})).status
     ).toBe(409);
+  });
+});
+
+describe("templates of several services (Stage 8 merge rules)", () => {
+  beforeEach(() => {
+    store.services = ["hris-backend", "hris-web"];
+    store.vars = new Map();
+  });
+  const web = (name: string, kind: Kind, extra: Partial<Template> = {}) =>
+    template(name, kind, { componentKey: "hris-web", ...extra });
+
+  it("fills identical definitions once and leaves a conflict to the user", async () => {
+    store.templates = [
+      template("APP_URL", "plain", { defaultValue: "{url}" }),
+      web("APP_URL", "plain", { defaultValue: "{url}" }),
+      template("MAIL_FROM", "plain", {
+        defaultValue: "api@example.test",
+        required: true,
+      }),
+      web("MAIL_FROM", "plain", { defaultValue: "web@example.test" }),
+    ];
+    const res = await send("POST", `${base}/variables/apply-template`, {});
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      added: ["APP_URL"],
+      missing: ["MAIL_FROM"],
+      conflicts: [
+        {
+          name: "MAIL_FROM",
+          required: true,
+          options: [
+            {
+              componentKeys: ["hris-backend"],
+              kind: "plain",
+              defaultValue: "api@example.test",
+            },
+            {
+              componentKeys: ["hris-web"],
+              kind: "plain",
+              defaultValue: "web@example.test",
+            },
+          ],
+        },
+      ],
+    });
+    expect(store.vars.has("MAIL_FROM")).toBe(false);
+  });
+
+  it("fills a conflict with the service the user picked, escrowed if any service escrows it", async () => {
+    store.templates = [
+      template("SIGNING_KEY", "secret", { escrow: true }),
+      web("SIGNING_KEY", "generated", { generatedLength: 40 }),
+    ];
+    const res = await send("POST", `${base}/variables/apply-template`, {
+      choices: { SIGNING_KEY: "hris-web" },
+    });
+    expect(await res.json()).toEqual({
+      added: ["SIGNING_KEY"],
+      missing: [],
+      conflicts: [],
+    });
+    const key = store.vars.get("SIGNING_KEY");
+    expect(key).toMatchObject({ kind: "generated", escrow: true });
+    expect(decryptSecret(key?.value ?? "")).toHaveLength(40);
+  });
+
+  it("refuses a malformed choice", async () => {
+    const res = await send("POST", `${base}/variables/apply-template`, {
+      choices: { SIGNING_KEY: "Not A Key" },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("ignores the templates of services the environment does not deploy", async () => {
+    store.services = ["hris-backend"];
+    store.templates = [web("WEB_ONLY", "plain", { defaultValue: "x" })];
+    const res = await send("POST", `${base}/variables/apply-template`, {});
+    expect(await res.json()).toEqual({ added: [], missing: [], conflicts: [] });
+  });
+
+  it("requires for the managed .env every name any service requires", async () => {
+    store.templates = [
+      template("SMTP_HOST", "plain"),
+      web("SMTP_HOST", "plain", { required: true }),
+    ];
+    const res = await send("PATCH", `${base}/env-file-managed`, {
+      enabled: true,
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toContain(
+      "SMTP_HOST"
+    );
+  });
+
+  it("generates and regenerates with the longest length any service asks for", async () => {
+    store.templates = [
+      template("SESSION_KEY", "generated", { generatedLength: 48 }),
+      web("SESSION_KEY", "generated", { generatedLength: 96 }),
+    ];
+    await send("PUT", `${base}/variables/SESSION_KEY`, { kind: "generated" });
+    expect(
+      decryptSecret(store.vars.get("SESSION_KEY")?.value ?? "")
+    ).toHaveLength(96);
+    const before = store.vars.get("SESSION_KEY")?.value;
+    await send("POST", `${base}/variables/SESSION_KEY/regenerate`);
+    const after = store.vars.get("SESSION_KEY")?.value ?? "";
+    expect(after).not.toBe(before);
+    expect(decryptSecret(after)).toHaveLength(96);
+  });
+
+  it("escrows a new variable when any service's template escrows it", async () => {
+    store.templates = [
+      template("DATA_KEY", "secret"),
+      web("DATA_KEY", "secret", { escrow: true }),
+    ];
+    await send("PUT", `${base}/variables/DATA_KEY`, {
+      kind: "secret",
+      value: "kestrel-data-key",
+    });
+    expect(store.vars.get("DATA_KEY")?.escrow).toBe(true);
+  });
+
+  it("lists a service's templates only and 404s an unknown service", async () => {
+    state.orgRole = "admin";
+    store.templates = [template("A", "plain"), web("B", "plain")];
+    const res = await send(
+      "GET",
+      "/api/service-catalog/hris-web/variable-templates"
+    );
+    expect(
+      ((await res.json()) as { name: string }[]).map((t) => t.name)
+    ).toEqual(["B"]);
+    expect(
+      (
+        await send("PUT", "/api/service-catalog/nope/variable-templates/A", {
+          kind: "plain",
+        })
+      ).status
+    ).toBe(404);
   });
 });
 
@@ -840,7 +993,11 @@ describe("templates", () => {
   });
 
   const put = (name: string, body: unknown) =>
-    send("PUT", `/api/apps/hris/variable-templates/${name}`, body);
+    send(
+      "PUT",
+      `/api/service-catalog/hris-backend/variable-templates/${name}`,
+      body
+    );
 
   it("saves and lists a template", async () => {
     expect(
@@ -857,7 +1014,10 @@ describe("templates", () => {
       (await put("SESSION_KEY", { kind: "generated", generatedLength: 64 }))
         .status
     ).toBe(200);
-    const res = await send("GET", "/api/apps/hris/variable-templates");
+    const res = await send(
+      "GET",
+      "/api/service-catalog/hris-backend/variable-templates"
+    );
     const list = (await res.json()) as { name: string }[];
     expect(list.map((t) => t.name).sort()).toEqual(["APP_URL", "SESSION_KEY"]);
   });
@@ -897,12 +1057,17 @@ describe("templates", () => {
     expect(store.templates).toHaveLength(0);
   });
 
-  it("answers 404 for an unknown app or template", async () => {
+  it("answers 404 for an unknown service or template", async () => {
     expect(
-      (await send("GET", "/api/apps/nope/variable-templates")).status
+      (await send("GET", "/api/service-catalog/nope/variable-templates")).status
     ).toBe(404);
     expect(
-      (await send("DELETE", "/api/apps/hris/variable-templates/NOPE")).status
+      (
+        await send(
+          "DELETE",
+          "/api/service-catalog/hris-backend/variable-templates/NOPE"
+        )
+      ).status
     ).toBe(404);
   });
 });
@@ -933,7 +1098,7 @@ describe("no decrypted value without reveal", () => {
         path: `${base}/variables/JWT_SECRET`,
         body: { kind: "plain" },
       },
-      { method: "POST", path: `${base}/variables/apply-template` },
+      { method: "POST", path: `${base}/variables/apply-template`, body: {} },
       { method: "GET", path: `${base}/variables` },
     ];
     const bodies: string[] = [];
@@ -1070,7 +1235,7 @@ describe("audit", () => {
     store.templates = [
       {
         id: "0197f3a0-1b2c-7def-8000-0000000000f1",
-        appId: APP_ID,
+        componentKey: "hris-backend",
         name: "APP_URL",
         kind: "plain",
         required: false,
@@ -1082,8 +1247,8 @@ describe("audit", () => {
         updatedAt: new Date(),
       },
     ];
-    await send("POST", `${base}/variables/apply-template`);
-    await send("POST", `${base}/variables/apply-template`);
+    await send("POST", `${base}/variables/apply-template`, {});
+    await send("POST", `${base}/variables/apply-template`, {});
     expect(entries()).toEqual([
       expect.objectContaining({
         action: "variables.templateApplied",
@@ -1094,21 +1259,27 @@ describe("audit", () => {
 
   it("records template saves and deletes", async () => {
     state.orgRole = "admin";
-    await send("PUT", "/api/apps/hris/variable-templates/APP_URL", {
-      kind: "plain",
-      defaultValue: "{url}",
-    });
-    await send("DELETE", "/api/apps/hris/variable-templates/APP_URL");
+    await send(
+      "PUT",
+      "/api/service-catalog/hris-backend/variable-templates/APP_URL",
+      {
+        kind: "plain",
+        defaultValue: "{url}",
+      }
+    );
+    await send(
+      "DELETE",
+      "/api/service-catalog/hris-backend/variable-templates/APP_URL"
+    );
     expect(entries()).toEqual([
       expect.objectContaining({
         action: "variableTemplate.saved",
-        entityType: "app",
-        entityId: APP_ID,
-        data: { app: "hris", name: "APP_URL" },
+        entityType: "service",
+        data: { service: "hris-backend", name: "APP_URL" },
       }),
       expect.objectContaining({
         action: "variableTemplate.deleted",
-        data: { app: "hris", name: "APP_URL" },
+        data: { service: "hris-backend", name: "APP_URL" },
       }),
     ]);
   });

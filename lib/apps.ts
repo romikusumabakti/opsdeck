@@ -32,6 +32,11 @@ export async function getComponent(
   return row;
 }
 
+/**
+ * LEGACY (Stage 8, services model): the retired `apps` grouping, read only
+ * for GET /api/apps while screens still list services by app; removed with
+ * that route (Task 4). Nothing else reads or writes `apps`.
+ */
 export async function listApps(): Promise<
   (App & { components: PublicAppComponent[] })[]
 > {
@@ -88,23 +93,6 @@ export async function latestComponentPipelineUrl(
   return row?.pipelineUrl ?? null;
 }
 
-/** One app with its public components, or undefined when the key is unknown. */
-export async function getApp(
-  appKey: string
-): Promise<(App & { components: PublicAppComponent[] }) | undefined> {
-  // A handful of apps exist; reusing listApps keeps one projection to audit.
-  return (await listApps()).find((app) => app.appKey === appKey);
-}
-
-export async function appKeyExists(appKey: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: apps.id })
-    .from(apps)
-    .where(eq(apps.appKey, appKey))
-    .limit(1);
-  return rows.length > 0;
-}
-
 /** The given component keys that are already taken. */
 export async function takenComponentKeys(keys: string[]): Promise<string[]> {
   if (keys.length === 0) return [];
@@ -140,39 +128,6 @@ export type NewAppComponent = Omit<
   typeof appComponents.$inferInsert,
   "appId" | "createdAt"
 >;
-
-/**
- * Inserts an app and its components in one transaction. A taken app key or
- * component key surfaces as a unique violation.
- */
-export async function insertAppWithComponents(
-  app: { appKey: string; name: string },
-  components: NewAppComponent[]
-): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [created] = await tx
-      .insert(apps)
-      .values(app)
-      .returning({ id: apps.id });
-    if (!created) throw new Error("App insert returned no row");
-    await tx
-      .insert(appComponents)
-      .values(components.map((c) => ({ ...c, appId: created.id })));
-  });
-}
-
-/**
- * Inserts components into an existing app. A taken component key surfaces as
- * a unique violation.
- */
-export async function insertComponents(
-  appId: string,
-  components: NewAppComponent[]
-): Promise<void> {
-  await db
-    .insert(appComponents)
-    .values(components.map((c) => ({ ...c, appId })));
-}
 
 /**
  * Records one branch's attempt to commit the generated pipeline file, merged

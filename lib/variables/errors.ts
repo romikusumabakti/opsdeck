@@ -29,7 +29,7 @@ export const NOT_GENERATED_MESSAGE =
 export const SECRET_TO_PLAIN_MESSAGE =
   "Enter a value when changing a secret to plain";
 
-export const NO_APP_MESSAGE = "Environment has no app";
+export const NO_SERVICES_MESSAGE = "Environment deploys no service";
 
 /** 409 for turning on env_file_managed in a deploy dir another env uses. */
 export const SHARED_DEPLOY_DIR_MESSAGE =

@@ -8,8 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "../messages/en.json";
 
 const PROJECT = "0197f3a0-1b2c-7def-8000-0123456789f1";
-const APP = "0197f3a0-1b2c-7def-8000-0123456789a1";
-const OTHER_APP = "0197f3a0-1b2c-7def-8000-0123456789a2";
 const SERVER = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const ZONE = "0197f3a0-1b2c-7def-8000-0123456789b1";
 const CONN = "0197f3a0-1b2c-7def-8000-0123456789d1";
@@ -93,44 +91,31 @@ vi.mock("@/web/api/project-sources", () => ({
 
 import { SETUP_PERMISSIONS } from "@/lib/permissions";
 import {
-  type NewEnvironmentApp,
   NewEnvironmentForm,
   type NewEnvironmentProject,
+  type NewEnvironmentService,
 } from "../web/routes/$locale/_app/-components/setup/new-environment-form";
 import { Route } from "../web/routes/$locale/_app/$projectKey.environments.new";
 
-const apps: NewEnvironmentApp[] = [
+const services: NewEnvironmentService[] = [
   {
-    id: APP,
-    appKey: "kmem",
-    name: "KMEM",
-    components: [
-      {
-        componentKey: "kmem-api",
-        ciConnectionId: CONN,
-        repoFullName: "acme/kmem-api",
-        buildSpec: null,
-      },
-      {
-        componentKey: "kmem-web",
-        ciConnectionId: CONN,
-        repoFullName: "acme/kmem-web",
-        buildSpec: null,
-      },
-    ],
+    componentKey: "kmem-api",
+    ciConnectionId: CONN,
+    repoFullName: "acme/kmem-api",
+    buildSpec: null,
   },
   {
-    id: OTHER_APP,
-    appKey: "hris",
-    name: "HRIS",
-    components: [
-      {
-        componentKey: "hris",
-        ciConnectionId: CONN,
-        repoFullName: "acme/hris",
-        buildSpec: null,
-      },
-    ],
+    componentKey: "kmem-web",
+    ciConnectionId: CONN,
+    repoFullName: "acme/kmem-web",
+    buildSpec: null,
+  },
+  // A service of another former app.
+  {
+    componentKey: "hris",
+    ciConnectionId: CONN,
+    repoFullName: "acme/hris",
+    buildSpec: null,
   },
 ];
 
@@ -140,12 +125,12 @@ const emptyProject: NewEnvironmentProject = {
   defaultServerId: SERVER,
   environments: [],
 };
-// OLD_ENV was set up before the app gained kmem-web.
+// OLD_ENV deploys kmem-api only.
 const projectWithEnvs: NewEnvironmentProject = {
   ...emptyProject,
   environments: [
-    { id: OLD_ENV, name: "Dev 1", appId: APP },
-    { id: NEW_ENV, name: "Dev 2", appId: APP },
+    { id: OLD_ENV, name: "Dev 1" },
+    { id: NEW_ENV, name: "Dev 2" },
   ],
 };
 
@@ -173,7 +158,6 @@ const copySource = (id: string) => ({
 function plan(issues: { field: string; code: string }[] = []) {
   return {
     registrations: [],
-    appKey: "kmem",
     setup: {
       projectId: PROJECT,
       name: "Dev 3",
@@ -270,7 +254,7 @@ async function mount(
         <IntlProvider locale="en" messages={messages}>
           <NewEnvironmentForm
             project={emptyProject}
-            apps={apps}
+            services={services}
             canPublish={false}
             canChoosePipelines={false}
             {...props}
@@ -319,32 +303,24 @@ beforeEach(() => {
     {
       ciConnectionId: CONN,
       repoFullName: "acme/hris",
-      appKey: "hris",
-      appName: "HRIS",
       componentKey: "hris",
       defaultBranch: "main",
     },
     {
       ciConnectionId: CONN,
       repoFullName: "acme/kmem-api",
-      appKey: "kmem",
-      appName: "KMEM",
       componentKey: "kmem-api",
       defaultBranch: "main",
     },
     {
       ciConnectionId: CONN,
       repoFullName: "acme/kmem-worker",
-      appKey: null,
-      appName: null,
       componentKey: null,
       defaultBranch: "develop",
     },
     {
       ciConnectionId: CONN,
       repoFullName: "acme/fresh",
-      appKey: null,
-      appName: null,
       componentKey: null,
       defaultBranch: "main",
     },
@@ -507,32 +483,27 @@ describe("New environment page", () => {
     );
   });
 
-  it("takes ?repo='s non-artifact component when the repo builds several", async () => {
-    // An artifact component of the same repo, in an app listed first.
-    const legacy: NewEnvironmentApp = {
-      id: "0197f3a0-1b2c-7def-8000-0123456789b0",
-      appKey: "aaa-legacy",
-      name: "Legacy",
-      components: [
-        {
-          componentKey: "kmem-legacy-api",
-          ciConnectionId: CONN,
-          repoFullName: "acme/kmem-api",
-          buildSpec: { branches: [], artifact: { kind: "jar", path: "a.jar" } },
-        },
-      ],
+  it("takes ?repo='s non-artifact service when the repo builds several, and starts new", async () => {
+    // An artifact service of the same repo, listed first.
+    const legacy: NewEnvironmentService = {
+      componentKey: "kmem-legacy-api",
+      ciConnectionId: CONN,
+      repoFullName: "acme/kmem-api",
+      buildSpec: { branches: [], artifact: { kind: "jar", path: "a.jar" } },
     };
     await mount({
       project: projectWithEnvs,
-      apps: [legacy, ...apps],
+      services: [legacy, ...services],
       initialRepo: "acme/kmem-api",
     });
     expect(document.querySelector("#env-start-from")?.textContent).toContain(
-      "Copy of Dev 2"
+      "New"
     );
+    expect(container.textContent).toContain("kmem-api");
+    expect(container.textContent).not.toContain("kmem-legacy-api");
   });
 
-  it("preselects ?repo= and starts new when no environment has its app", async () => {
+  it("preselects ?repo= of a new repository and starts new", async () => {
     await mount({ initialRepo: "acme/kmem-worker" });
     expect(document.querySelector("#env-start-from")?.textContent).toContain(
       "New"
@@ -559,15 +530,19 @@ describe("New environment page", () => {
     expect(alerts()).toHaveLength(0);
   });
 
-  it("lists other apps' repositories disabled, with their app", async () => {
+  it("offers the repositories of any service, naming the service", async () => {
     await mount({ project: projectWithEnvs });
     await act(async () =>
       document.querySelector<HTMLElement>("#env-repo-picker")?.click()
     );
     await settle();
     const hris = byText('[role="option"]', "acme/hris");
-    expect(hris?.textContent).toContain("HRIS");
-    expect(hris?.getAttribute("aria-disabled")).toBe("true");
+    expect(hris?.textContent).toContain("hris");
+    expect(hris?.getAttribute("aria-disabled")).not.toBe("true");
+    // The copied repository is listed once.
+    expect(
+      byText('[role="option"]', "acme/kmem-api")?.getAttribute("aria-disabled")
+    ).toBe("true");
     const free = byText('[role="option"]', "acme/kmem-worker");
     expect(free?.getAttribute("aria-disabled")).not.toBe("true");
     // Picking a repository runs the check (detection) with every repo listed.
@@ -587,37 +562,6 @@ describe("New environment page", () => {
         branch: "develop",
       },
     ]);
-  });
-
-  it("offers the missing repository of an older copy", async () => {
-    api.preview.mockResolvedValueOnce({
-      plan: plan(),
-      preview: {
-        ...cleanPreview.preview,
-        issues: [{ field: "targets", code: "targetMissing" }],
-      },
-    });
-    await mount({ project: projectWithEnvs, initialFrom: OLD_ENV });
-    await act(async () => type(nameInput(), "Dev 3"));
-    await pressCreate();
-    expect(container.textContent).toContain(
-      messages.setupWizard.issues.targetMissing
-    );
-    expect(api.create).not.toHaveBeenCalled();
-    await act(async () => byText("button", "Add acme/kmem-web")?.click());
-    await settle();
-    expect(api.preview).toHaveBeenCalledTimes(2);
-    expect(api.preview.mock.calls[1]?.[0].repos).toEqual([
-      {
-        ciConnectionId: CONN,
-        repoFullName: "acme/kmem-api",
-        branch: "develop",
-      },
-      { ciConnectionId: CONN, repoFullName: "acme/kmem-web", branch: "main" },
-    ]);
-    expect(container.textContent).not.toContain(
-      messages.setupWizard.issues.targetMissing
-    );
   });
 
   it("checks when Advanced options opens and sends only edited sections", async () => {
@@ -792,7 +736,7 @@ describe("New environment page", () => {
     });
   });
 
-  it("disables registered repositories once a new app's repository is picked", async () => {
+  it("keeps registered repositories pickable next to a new one", async () => {
     await mount({ initialRepo: "acme/kmem-worker" });
     await act(async () =>
       document.querySelector<HTMLElement>("#env-repo-picker")?.click()
@@ -800,7 +744,7 @@ describe("New environment page", () => {
     await settle();
     expect(
       byText('[role="option"]', "acme/kmem-api")?.getAttribute("aria-disabled")
-    ).toBe("true");
+    ).not.toBe("true");
     expect(
       byText('[role="option"]', "acme/fresh")?.getAttribute("aria-disabled")
     ).not.toBe("true");
@@ -871,7 +815,7 @@ describe("New environment page", () => {
       await mount({
         project: emptyProject,
         sources: {
-          appKeys: ["kmem"],
+          serviceKeys: ["kmem-api", "kmem-web"],
           defaultBranches: { "kmem-api": "kestrel/development" },
         },
       });
@@ -891,18 +835,27 @@ describe("New environment page", () => {
     });
 
     it("a copy keeps its branches; a repo added to it starts on the project default", async () => {
+      api.repos.mockResolvedValue([
+        {
+          ciConnectionId: CONN,
+          repoFullName: "acme/kmem-web",
+          componentKey: "kmem-web",
+          defaultBranch: "main",
+        },
+      ]);
+      // A refusal keeps the page open for the next pick.
       api.preview.mockResolvedValueOnce({
         plan: plan(),
         preview: {
           ...cleanPreview.preview,
-          issues: [{ field: "targets", code: "targetMissing" }],
+          issues: [{ field: "name", code: "environmentNameTaken" }],
         },
       });
       await mount({
         project: projectWithEnvs,
         initialFrom: OLD_ENV,
         sources: {
-          appKeys: ["kmem"],
+          serviceKeys: ["kmem-api", "kmem-web"],
           defaultBranches: {
             "kmem-api": "kestrel/development",
             "kmem-web": "kestrel/demo",
@@ -916,7 +869,10 @@ describe("New environment page", () => {
         copyFromEnvironmentId: OLD_ENV,
         repos: [],
       });
-      await act(async () => byText("button", "Add acme/kmem-web")?.click());
+      await openPicker();
+      await act(async () =>
+        byText('[role="option"]', "acme/kmem-web")?.click()
+      );
       await settle();
       expect(api.preview).toHaveBeenCalledTimes(2);
       expect(api.preview.mock.calls[1]?.[0].repos).toEqual([
@@ -933,17 +889,17 @@ describe("New environment page", () => {
       ]);
     });
 
-    it("other apps' repositories are disabled with the Sources hint in sources mode", async () => {
+    it("repositories of services outside the sources are disabled with the Sources hint", async () => {
       await mount({
         project: emptyProject,
-        sources: { appKeys: ["kmem"], defaultBranches: {} },
+        sources: { serviceKeys: ["kmem-api", "kmem-web"], defaultBranches: {} },
       });
       await openPicker();
       const hris = byText('[role="option"]', "acme/hris");
       expect(hris?.getAttribute("aria-disabled")).toBe("true");
       expect(hris?.textContent).toContain("not in this project's sources");
-      expect(hris?.textContent).toContain("HRIS");
-      // The source app's and an unregistered repository stay pickable.
+      expect(hris?.textContent).toContain("hris");
+      // A project service's and an unregistered repository stay pickable.
       expect(
         byText('[role="option"]', "acme/kmem-api")?.getAttribute(
           "aria-disabled"

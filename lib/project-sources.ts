@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, type SQL, sql } from "drizzle-orm";
 import { type DbExecutor, db } from "@/lib/db";
 import {
   appComponents,
@@ -133,11 +133,26 @@ export async function insertProjectService(
  * the deleted row and then inserts it), so a target never outlives its
  * project service.
  */
+/**
+ * The per-project lock between removing a project service and adding a deploy
+ * target (which adds its service): a removal holds it exclusively from its
+ * in-use check to its delete, a target's transaction shares it from its
+ * project-service insert to its commit (recordTargetSourceIn). Whichever
+ * comes second waits, so a removal never misses a target written meanwhile,
+ * and a target written after a removal adds its service again.
+ * Transaction-scoped advisory locks on one key per project.
+ */
+const projectServicesLockKey = (projectId: SQL | string) =>
+  sql`hashtextextended(${sql`'project-services:'`} || ${projectId}, 0)`;
+
 export async function deleteProjectService(
   projectId: string,
   componentKey: string
 ): Promise<"deleted" | "absent" | "inUse"> {
   return await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(${projectServicesLockKey(projectId)})`
+    );
     if (await serviceInUse(projectId, componentKey, tx)) return "inUse";
     await tx
       .delete(projectComponentBranches)
@@ -204,8 +219,9 @@ export async function upsertComponentBranch(input: {
 }
 
 /**
- * Both inserts, ON CONFLICT DO NOTHING, for the project of the target's
- * environment: the target's service as a project service (a deploy target's
+ * Under the project's services lock (shared; see projectServicesLockKey; the
+ * caller runs it in the target's transaction), both inserts, ON CONFLICT DO
+ * NOTHING, for the project of the target's environment: the target's service as a project service (a deploy target's
  * service is always one of its project's), and sourceBranch as the service's
  * default branch if it has none.
  */
@@ -213,6 +229,12 @@ export async function recordTargetSourceIn(
   executor: DbExecutor,
   target: { environmentId: string; componentKey: string; sourceBranch: string }
 ): Promise<void> {
+  await executor
+    .select({
+      locked: sql`pg_advisory_xact_lock_shared(${projectServicesLockKey(sql`${environments.projectId}::text`)})`,
+    })
+    .from(environments)
+    .where(eq(environments.id, target.environmentId));
   await executor
     .insert(projectServices)
     .select(

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Plus, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
@@ -9,7 +9,6 @@ import {
   toSpec,
 } from "@/components/app-registration-fields";
 import { SearchSelect } from "@/components/search-select";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -107,19 +106,15 @@ export type NewEnvironmentProject = {
   id: string;
   key: string;
   defaultServerId: string | null;
-  environments: { id: string; name: string; appId: string | null }[];
+  environments: { id: string; name: string }[];
 };
 
-export type NewEnvironmentApp = {
-  id: string;
-  appKey: string;
-  name: string;
-  components: {
-    componentKey: string;
-    ciConnectionId: string;
-    repoFullName: string;
-    buildSpec?: { branches: string[]; artifact?: unknown } | null;
-  }[];
+/** A registered service the environment may deploy. */
+export type NewEnvironmentService = {
+  componentKey: string;
+  ciConnectionId: string;
+  repoFullName: string;
+  buildSpec?: { branches: string[]; artifact?: unknown } | null;
 };
 
 type RepoRow = {
@@ -156,7 +151,7 @@ function withoutKeys(
 
 export function NewEnvironmentForm({
   project,
-  apps,
+  services,
   canPublish,
   canChoosePipelines,
   initialFrom,
@@ -164,8 +159,8 @@ export function NewEnvironmentForm({
   sources = null,
 }: {
   project: NewEnvironmentProject;
-  /** The registered apps (only the project's sources, when it has any): their components' repositories and branches. */
-  apps: NewEnvironmentApp[];
+  /** The registered services (only the project's, when it has sources): their repositories and branches. */
+  services: NewEnvironmentService[];
   /** May put an address behind no policy (org server:manage). */
   canPublish: boolean;
   /** May choose a new repository's pipeline (org integration:manage). */
@@ -174,7 +169,7 @@ export function NewEnvironmentForm({
   initialFrom?: string;
   /** `?repo=`: the repository to start with. */
   initialRepo?: string;
-  /** The project's sources; null (no sources) keeps every app pickable. */
+  /** The project's sources; null (no sources) keeps every service pickable. */
   sources?: NewEnvironmentSources | null;
 }) {
   const t = useTranslations("newEnvironment");
@@ -185,14 +180,8 @@ export function NewEnvironmentForm({
   const message = useIssueMessage(project.key);
   const errorMessage = useApiErrorMessage(project.key);
 
-  const components = React.useMemo(
-    () =>
-      apps.flatMap((app) =>
-        app.components.map((c) => ({ ...c, appId: app.id, app }))
-      ),
-    [apps]
-  );
-  // For a repository building several, its non-artifact component.
+  const components = services;
+  // For a repository building several, its non-artifact service.
   const componentOfRepo = (repoFullName: string) =>
     repoRepresentative(
       components.filter((c) => c.repoFullName === repoFullName)
@@ -214,19 +203,13 @@ export function NewEnvironmentForm({
       repoDefault,
     });
 
-  // Copy sources: the project's environments of an app, newest first
-  // (uuidv7 ids sort by creation).
-  const copySources = [...project.environments]
-    .filter((e) => e.appId !== null)
-    .sort((a, b) => b.id.localeCompare(a.id));
+  // Copy sources: any environment of the project, newest first (uuidv7 ids
+  // sort by creation). A copy keeps the settings of the services both share.
+  const copySources = [...project.environments].sort((a, b) =>
+    b.id.localeCompare(a.id)
+  );
   const defaultFrom =
-    initialFrom ??
-    (initialRepo
-      ? startComponent
-        ? copySources.find((e) => e.appId === startComponent.appId)?.id
-        : undefined
-      : copySources[0]?.id) ??
-    null;
+    initialFrom ?? (initialRepo ? undefined : copySources[0]?.id) ?? null;
 
   const [startFrom, setStartFrom] = React.useState<string | null>(defaultFrom);
   const [name, setName] = React.useState("");
@@ -336,8 +319,8 @@ export function NewEnvironmentForm({
     setAddress(source.domain.kind === "none" ? null : { label: "" });
   }, [source, sourceRepos]);
 
-  // `?repo=` of a repository no app builds yet: its CI connection and main
-  // branch come from the repository search, once.
+  // `?repo=` of a repository no service builds yet: its CI connection and
+  // main branch come from the repository search, once.
   const [pendingRepo, setPendingRepo] = React.useState(
     initialRepo && !startComponent ? initialRepo : null
   );
@@ -349,7 +332,7 @@ export function NewEnvironmentForm({
     if (!pendingRepoRows) return;
     const row = pendingRepoRows.find((r) => r.repoFullName === pendingRepo);
     setPendingRepo(null);
-    if (row && !row.appKey) {
+    if (row && !row.componentKey) {
       setRepos([
         {
           ciConnectionId: row.ciConnectionId,
@@ -359,15 +342,6 @@ export function NewEnvironmentForm({
       ]);
     }
   }, [pendingRepoRows, pendingRepo]);
-
-  // The app the environment deploys: the copy source's, else the first
-  // registered repository's. Other apps' repositories cannot be added.
-  const sourceAppId =
-    copySources.find((e) => e.id === startFrom)?.appId ?? null;
-  const currentApp =
-    apps.find((a) => a.id === sourceAppId) ??
-    repos.map((r) => componentOfRepo(r.repoFullName)?.app).find(Boolean) ??
-    null;
 
   // The input: a copy whose repositories and branches are the source's
   // sends none (the server takes the source's components).
@@ -391,7 +365,6 @@ export function NewEnvironmentForm({
       : undefined;
   const defaultSlug = checkedSlug ?? baseEnvSlug(name || PROBE_NAME);
   const draftCtx: DraftContext = {
-    appId: currentApp?.id ?? "",
     projectKey: project.key,
     slug: slug || defaultSlug,
     suggestedServices: [],
@@ -783,14 +756,6 @@ export function NewEnvironmentForm({
       })
     : [];
 
-  // The repositories of the app the list misses (an older environment
-  // copied after the app gained a component): one click adds each.
-  const missingComponents =
-    byField.targets === "targetMissing" && currentApp
-      ? currentApp.components.filter(
-          (c) => !repos.some((r) => r.repoFullName === c.repoFullName)
-        )
-      : [];
   const detectionPlan = checkIsCurrent("repos") ? plan : null;
 
   /** The label of the field an issue is about, as the page shows it. */
@@ -969,31 +934,10 @@ export function NewEnvironmentForm({
               <RepoPicker
                 label={repos.length === 0 ? t("chooseRepo") : t("addRepo")}
                 picked={repos.map((r) => r.repoFullName)}
-                currentAppKey={currentApp?.appKey ?? null}
-                sourceAppKeys={sources?.appKeys ?? null}
+                sourceServiceKeys={sources?.serviceKeys ?? null}
                 onPick={addRepo}
               />
-              {reposIssue && (
-                <FieldError>
-                  {message(reposIssue)}
-                  {missingComponents.length > 0 && (
-                    <span className="mt-2 flex flex-wrap gap-2">
-                      {missingComponents.map((c) => (
-                        <Button
-                          key={c.componentKey}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addRepo(c)}
-                        >
-                          <Plus data-icon="inline-start" />
-                          {t("addMissingRepo", { repo: c.repoFullName })}
-                        </Button>
-                      ))}
-                    </span>
-                  )}
-                </FieldError>
-              )}
+              {reposIssue && <FieldError>{message(reposIssue)}</FieldError>}
             </FieldContent>
           </Field>
 

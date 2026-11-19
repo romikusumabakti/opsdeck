@@ -3,12 +3,8 @@ import { HTTPException } from "hono/http-exception";
 import { recordActivity } from "@/lib/activity";
 import {
   appendBuildSpecBranch,
-  appKeyExists,
   componentTargetBranches,
-  getApp,
   getComponent,
-  insertAppWithComponents,
-  insertComponents,
   latestComponentPipelineUrl,
   linkedCiRepos,
   listApps,
@@ -41,11 +37,9 @@ import {
   NOTIFY_SECRET_EVENTS,
   notifySecretNameFor,
 } from "@/lib/ci/register-artifact-component";
-import {
-  type RegisterAppInput,
-  type RegisterComponentInput,
-  type RegisterServicesInput,
-  registerAppSchema,
+import type {
+  RegisterComponentInput,
+  RegisterServicesInput,
 } from "@/lib/ci/registration";
 import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
 import { branchSchema } from "@/lib/deploy/validation";
@@ -80,9 +74,9 @@ import {
  *
  * Engineers register custom services only (registerServices); a generated
  * service's build spec is committed with the Panel's forge token, so choosing
- * one needs org integration:manage. The New environment page still registers
- * generated components into an app for engineers through
- * registerSetupApp/addSetupComponents, whose build specs the server derived.
+ * one needs org integration:manage. The New environment page registers
+ * generated services for engineers through registerSetupServices, whose
+ * build specs the server derived.
  * Retrying a pipeline file commit and notify secret rotation need org
  * integration:manage. Every action after registration addresses the service
  * by its key alone.
@@ -105,7 +99,8 @@ const PIPELINE_FILE_SKIP_MESSAGE = `[CI SKIP] ${PIPELINE_FILE_MESSAGE}`;
 const FIRST_BUILD_WINDOW_MS = 60 * 60 * 1000;
 const INTEGRATION_MANAGE = { integration: ["manage"] } as const;
 
-export type AppWithComponents = NonNullable<Awaited<ReturnType<typeof getApp>>>;
+/** LEGACY: an app of GET /api/apps (see listApps). */
+export type AppWithComponents = Awaited<ReturnType<typeof listApps>>[number];
 
 const fail = (
   status: 403 | 404 | 409 | 500 | 502,
@@ -403,56 +398,8 @@ async function requirePipelineChoice(
   }
 }
 
-export type SetupRegistration = {
-  app: AppWithComponents;
-  pipelineFileFailures: PipelineFileFailure[];
-};
-
 /** Branches each component's new environment deploys from, by component key. */
 export type EnvironmentBranches = Readonly<Record<string, readonly string[]>>;
-
-/** Callers check requireRegistrant first. */
-async function registerNewApp(
-  input: RegisterAppInput,
-  environmentBranches?: EnvironmentBranches
-): Promise<SetupRegistration> {
-  if (await appKeyExists(input.appKey)) {
-    fail(409, `App ${input.appKey} already exists`, "appKeyTaken");
-  }
-  const pipelineFileFailures = await registerComponents(
-    input.components,
-    (rows) =>
-      insertAppWithComponents({ appKey: input.appKey, name: input.name }, rows),
-    { environmentBranches }
-  );
-  return {
-    app: (await getApp(input.appKey)) ?? notFound(),
-    pipelineFileFailures,
-  };
-}
-
-async function registerMoreComponents(
-  appKey: string,
-  components: RegisterComponentInput[],
-  environmentBranches?: EnvironmentBranches
-): Promise<SetupRegistration> {
-  const app = (await getApp(appKey)) ?? notFound();
-  const parsed = registerAppSchema.safeParse({
-    appKey,
-    name: app.name,
-    components,
-  });
-  if (!parsed.success) badRequest("Invalid components", "invalidInput");
-  const pipelineFileFailures = await registerComponents(
-    parsed.data.components,
-    (rows) => insertComponents(app.id, rows),
-    { environmentBranches }
-  );
-  return {
-    app: (await getApp(appKey)) ?? notFound(),
-    pipelineFileFailures,
-  };
-}
 
 export type ServiceRegistration = {
   services: Service[];
@@ -487,28 +434,21 @@ export async function registerServices(
 }
 
 /**
- * The New environment page's registration of a new app. Not routed: its
- * caller (createNewEnvironment) passes generated components only with the
- * build spec the server derived from detection, or one an admin chose under
- * advanced.pipelines (gated there). Commits to branches outside
- * `environmentBranches` carry `[CI SKIP]`.
+ * The New environment page's registration of new services (no app). Not
+ * routed: its caller (createNewEnvironment) passes generated services only
+ * with the build spec the server derived from detection, or one an admin
+ * chose under advanced.pipelines (gated there), and only repositories that
+ * build no service yet (409 repoLinked otherwise). Commits to branches
+ * outside `environmentBranches` carry `[CI SKIP]`.
  */
-export async function registerSetupApp(
-  input: RegisterAppInput,
+export async function registerSetupServices(
+  services: RegisterComponentInput[],
   environmentBranches: EnvironmentBranches
-): Promise<SetupRegistration> {
+): Promise<PipelineFileFailure[]> {
   await requireRegistrant();
-  return registerNewApp(input, environmentBranches);
-}
-
-/** registerSetupApp for more components of an existing app. */
-export async function addSetupComponents(
-  appKey: string,
-  components: RegisterComponentInput[],
-  environmentBranches: EnvironmentBranches
-): Promise<SetupRegistration> {
-  await requireRegistrant();
-  return registerMoreComponents(appKey, components, environmentBranches);
+  return registerComponents(services, (rows) => insertServices(rows), {
+    environmentBranches,
+  });
 }
 
 type RegisterOptions = {
@@ -517,7 +457,7 @@ type RegisterOptions = {
   /**
    * Services registration: a repository that already builds a service, or
    * one listed twice, is accepted (see registerServices). Without it (the New
-   * environment page's app) such a repository is refused (409 repoLinked).
+   * environment page) such a repository is refused (409 repoLinked).
    */
   repoMayHoldServices?: boolean;
 };

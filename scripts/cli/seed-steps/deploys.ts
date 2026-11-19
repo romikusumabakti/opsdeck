@@ -27,12 +27,10 @@ export async function seedDeploys(ctx: SeedContext): Promise<void> {
   const targets = plannedTargets();
   for (const [index, target] of targets.entries()) {
     const env = ctx.environments.get(`${target.project.key}/${target.slug}`);
-    const appId = ctx.apps.get(target.project.app);
     const serverId = ctx.servers.get(target.project.defaultServer);
-    // A target must deploy its environment's app; an environment that
-    // predates the seed without one is left alone (assigning the app would
-    // change it).
-    if (!env || !appId || !serverId || env.appId !== appId) continue;
+    // Only the seed's environments get targets: one that predates the seed
+    // is left alone.
+    if (!env?.seeded || !serverId) continue;
     const createdAt = addMinutes(addDays(ctx.now, -33), index * 3);
     const [row] = await tx
       .insert(deployTargets)

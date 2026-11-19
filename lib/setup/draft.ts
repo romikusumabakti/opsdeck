@@ -98,7 +98,6 @@ export type EnvironmentDraft = {
 
 /** What the draft resolves its defaults from. */
 export type DraftContext = {
-  appId: string;
   projectKey: string;
   /** The slug the server gave the name, else the local approximation. */
   slug: string;
@@ -224,6 +223,8 @@ export type CopySourceLike = {
     hasValue: boolean;
     copyable: boolean;
     value?: string;
+    /** The source's services whose templates define it (keepsCopiedVariable). */
+    definedBy?: string[];
   }[];
 };
 
@@ -389,7 +390,7 @@ export function variableInput(v: VariableDraft): {
  * follows the name. `required` marks the variables the plan asks a value for.
  */
 export function draftFromSetup(
-  setup: Omit<EnvironmentSetupInput, "appId">,
+  setup: EnvironmentSetupInput,
   issues: readonly SetupIssue[]
 ): EnvironmentDraft {
   const db = setup.database;
@@ -510,7 +511,6 @@ export function buildSetupInput(
 
   const input = {
     projectId: draft.projectId,
-    appId: ctx.appId,
     name: draft.name,
     copyFromEnvironmentId: draft.copyFromEnvironmentId,
     server: { serverId: draft.serverId },

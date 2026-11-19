@@ -1,5 +1,5 @@
 // `menara seed demo`: fictional sample data for beta instances — projects
-// with environments, placeholder servers, apps, a month of deploy history,
+// with environments, placeholder servers, services, a month of deploy history,
 // staff, issues and a knowledge base — plus one sign-in account per role.
 // Everything is keyed by a fixed key and kept when present, and rows that
 // hang off a parent (comments, deployments, revisions) are added only with a
@@ -9,10 +9,10 @@ import { eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { instanceSettings } from "@/lib/db/schema";
 import {
-  seedApps,
   seedEnvironments,
   seedProjects,
   seedServers,
+  seedServices,
 } from "./seed-steps/catalog";
 import type { SeedContext } from "./seed-steps/context";
 import { seedDeploys } from "./seed-steps/deploys";
@@ -29,9 +29,9 @@ Creates (or keeps, when present) fictional demo data:
 - projects DEMO, DEMOPORTAL, NPMB, NPCP and BSAC, each with Dev, QA and Demo
   environments, on three placeholder servers (sandbox-N.invalid, never
   reachable), filed under fictional groups;
-- apps Demo Membership, Demo Portal and Demo Accounting (repositories under
-  demo-org/, a placeholder CI connection) with a deploy target per
-  environment and component, and 30 days of finished builds and deployments;
+- the Demo Membership, Demo Portal and Demo Accounting services
+  (repositories under demo-org/, a placeholder CI connection, no apps) as
+  the projects' services, with a deploy target per environment and service, and 30 days of finished builds and deployments;
 - ten staff members @example.invalid who cannot sign in, project
   memberships, issues with comments, labels and milestones, notifications,
   activity entries, and a small knowledge base;
@@ -94,14 +94,13 @@ export async function seedDemo(
       servers: new Map(),
       projects: new Map(),
       environments: new Map(),
-      apps: new Map(),
       people: new Map(),
       inserted,
       lines,
     };
     await seedServers(ctx);
     await seedProjects(ctx);
-    await seedApps(ctx);
+    await seedServices(ctx);
     await seedEnvironments(ctx);
     await seedAccounts(ctx, opts);
     await seedStaff(ctx);

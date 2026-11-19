@@ -4,7 +4,8 @@ import { api, NO_REFETCH } from "@/web/api/client";
 
 const environments = api.api.environments[":id"];
 const variable = environments.variables[":name"];
-const templates = api.api.apps[":appKey"]["variable-templates"];
+const templates =
+  api.api["service-catalog"][":componentKey"]["variable-templates"];
 
 type PutVariableBody = Parameters<typeof variable.$put>[0]["json"];
 type PutTemplateBody = Parameters<
@@ -63,10 +64,18 @@ export async function regenerateVariable(environmentId: string, name: string) {
   );
 }
 
-export async function applyVariableTemplate(environmentId: string) {
+/**
+ * Fill from template: `choices` picks, per conflicting name, the service
+ * whose definition to fill from; unpicked conflicts come back in `conflicts`.
+ */
+export async function applyVariableTemplate(
+  environmentId: string,
+  choices?: Record<string, string>
+) {
   return parseResponse(
     environments.variables["apply-template"].$post({
       param: { id: environmentId },
+      json: choices ? { choices } : {},
     })
   );
 }
@@ -143,14 +152,15 @@ export type EnvFilePreview = Awaited<ReturnType<typeof previewEnvFile>>;
 export type EnvFilePreviewDir = EnvFilePreview["dirs"][number];
 export type EnvFilePreviewChange = EnvFilePreviewDir["changes"][number];
 
-export async function listVariableTemplates(appKey: string) {
-  return parseResponse(templates.$get({ param: { appKey } }));
+/** A service's variable templates. */
+export async function listVariableTemplates(componentKey: string) {
+  return parseResponse(templates.$get({ param: { componentKey } }));
 }
 
-export const listVariableTemplatesQuery = (appKey: string) =>
+export const listVariableTemplatesQuery = (componentKey: string) =>
   queryOptions({
-    queryKey: ["variables", "listVariableTemplates", appKey],
-    queryFn: () => listVariableTemplates(appKey),
+    queryKey: ["variables", "listVariableTemplates", componentKey],
+    queryFn: () => listVariableTemplates(componentKey),
   });
 
 export type VariableTemplateRow = Awaited<
@@ -158,15 +168,20 @@ export type VariableTemplateRow = Awaited<
 >[number];
 
 export async function putVariableTemplate(
-  appKey: string,
+  componentKey: string,
   name: string,
   body: PutTemplateBody
 ) {
   return parseResponse(
-    templates[":name"].$put({ param: { appKey, name }, json: body })
+    templates[":name"].$put({ param: { componentKey, name }, json: body })
   );
 }
 
-export async function deleteVariableTemplate(appKey: string, name: string) {
-  return parseResponse(templates[":name"].$delete({ param: { appKey, name } }));
+export async function deleteVariableTemplate(
+  componentKey: string,
+  name: string
+) {
+  return parseResponse(
+    templates[":name"].$delete({ param: { componentKey, name } })
+  );
 }

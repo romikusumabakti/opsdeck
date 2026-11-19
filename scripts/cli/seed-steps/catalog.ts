@@ -1,15 +1,16 @@
-// Servers, projects, apps with their components, and environments.
-import { and, desc, eq, or, sql } from "drizzle-orm";
+// Servers, projects, services (app_components rows without an app) with the
+// projects' services, and environments.
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { generateKeyBetween } from "fractional-indexing";
 import {
   appComponents,
-  apps,
   ciConnections,
+  deployTargets,
   environments,
   issues,
-  projectApps,
   projectComponentBranches,
   projectGroups,
+  projectServices,
   projects,
   servers,
 } from "@/lib/db/schema";
@@ -58,8 +59,8 @@ export async function seedServers(ctx: SeedContext): Promise<void> {
 
 /**
  * The demo projects. A project with a demo key that this run did not create
- * is seeded further only when it is recognisably demo data: the demo app is
- * already among its sources, or it carries the seed's name and either the
+ * is seeded further only when it is recognisably demo data: a demo service
+ * is already among its services, or it carries the seed's name and either the
  * seed's group (its legacy client) or (as the first seed wrote it, without a client) one of
  * the first seed's sample issues. Any other project with that key belongs
  * to someone; nothing is added under it.
@@ -97,12 +98,18 @@ export async function seedProjects(ctx: SeedContext): Promise<void> {
       .where(eq(projects.key, project.key));
     if (!row) throw new Error(`Project ${project.key} was not created`);
     const [source] = await tx
-      .select({ appId: projectApps.appId })
-      .from(projectApps)
-      .innerJoin(apps, eq(apps.id, projectApps.appId))
+      .select({ key: projectServices.componentKey })
+      .from(projectServices)
       .where(
-        and(eq(projectApps.projectId, row.id), eq(apps.appKey, project.app))
-      );
+        and(
+          eq(projectServices.projectId, row.id),
+          inArray(
+            projectServices.componentKey,
+            appByKey(project.app).components.map((c) => c.componentKey)
+          )
+        )
+      )
+      .limit(1);
     if (!source && !(await isOldDemoProject(ctx, row, project))) {
       ctx.lines.push(`skipped ${project.key} (not demo data)`);
       continue;
@@ -158,10 +165,11 @@ async function isOldDemoProject(
 }
 
 /**
- * A placeholder CI connection (required by app_components), the demo apps
- * and their components, and each project's source app and default branches.
+ * A placeholder CI connection (required by app_components), the demo
+ * services (registered without an app, as the Panel does since Stage 8), and
+ * each project's services and default branches.
  */
-export async function seedApps(ctx: SeedContext): Promise<void> {
+export async function seedServices(ctx: SeedContext): Promise<void> {
   const { tx } = ctx;
   const ci = await tx
     .insert(ciConnections)
@@ -175,59 +183,52 @@ export async function seedApps(ctx: SeedContext): Promise<void> {
     .where(eq(ciConnections.name, DEMO_CI_CONNECTION.name));
   if (!connection) throw new Error("Demo CI connection was not created");
 
-  for (const app of DEMO_APPS) {
-    const inserted = await tx
-      .insert(apps)
-      .values({ appKey: app.appKey, name: app.name })
+  for (const component of DEMO_APPS.flatMap((app) => app.components)) {
+    const added = await tx
+      .insert(appComponents)
+      .values({
+        componentKey: component.componentKey,
+        appId: null,
+        ciConnectionId: connection.id,
+        repoFullName: component.repoFullName,
+        bundleImage: component.bundleImage,
+        // Each service has a repository of its own, so the default secret
+        // name applies (lib/ci notifySecretNameFor).
+        notifySecret: ctx.encryptSecret(ctx.newPassword()),
+        createdAt: addDays(ctx.now, -35),
+      })
       .onConflictDoNothing()
-      .returning({ id: apps.id });
-    count(ctx, "apps", inserted.length);
-    const [row] = await tx
-      .select({ id: apps.id })
-      .from(apps)
-      .where(eq(apps.appKey, app.appKey));
-    if (!row) throw new Error(`App ${app.appKey} was not created`);
-    ctx.apps.set(app.appKey, row.id);
-    for (const component of app.components) {
-      const added = await tx
-        .insert(appComponents)
-        .values({
-          componentKey: component.componentKey,
-          appId: row.id,
-          ciConnectionId: connection.id,
-          repoFullName: component.repoFullName,
-          bundleImage: component.bundleImage,
-          // Each component has a repository of its own, so the default
-          // secret name applies (lib/ci notifySecretNameFor).
-          notifySecret: ctx.encryptSecret(ctx.newPassword()),
-          createdAt: addDays(ctx.now, -35),
-        })
-        .onConflictDoNothing()
-        .returning({ key: appComponents.componentKey });
-      count(ctx, "appComponents", added.length);
-    }
+      .returning({ key: appComponents.componentKey });
+    count(ctx, "appComponents", added.length);
   }
 
   for (const project of DEMO_PROJECTS) {
     const projectId = ctx.projects.get(project.key)?.id;
-    const appId = ctx.apps.get(project.app);
-    if (!projectId || !appId) continue;
-    const source = await tx
-      .insert(projectApps)
-      .values({ projectId, appId, createdAt: addDays(ctx.now, -35) })
+    if (!projectId) continue;
+    const components = appByKey(project.app).components;
+    if (components.length === 0) continue;
+    const added = await tx
+      .insert(projectServices)
+      .values(
+        components.map((c) => ({
+          projectId,
+          componentKey: c.componentKey,
+          createdAt: addDays(ctx.now, -35),
+        }))
+      )
       .onConflictDoNothing()
-      .returning({ appId: projectApps.appId });
-    count(ctx, "projectApps", source.length);
-    const branchRows = appByKey(project.app).components.map((c) => ({
-      projectId,
-      componentKey: c.componentKey,
-      branch: project.branch,
-      updatedAt: addDays(ctx.now, -35),
-    }));
-    if (branchRows.length === 0) continue;
+      .returning({ key: projectServices.componentKey });
+    count(ctx, "projectServices", added.length);
     const branches = await tx
       .insert(projectComponentBranches)
-      .values(branchRows)
+      .values(
+        components.map((c) => ({
+          projectId,
+          componentKey: c.componentKey,
+          branch: project.branch,
+          updatedAt: addDays(ctx.now, -35),
+        }))
+      )
       .onConflictDoNothing()
       .returning({ key: projectComponentBranches.componentKey });
     count(ctx, "projectComponentBranches", branches.length);
@@ -240,12 +241,10 @@ export async function seedEnvironments(ctx: SeedContext): Promise<void> {
   for (const project of DEMO_PROJECTS) {
     const projectId = ctx.projects.get(project.key)?.id;
     if (!projectId) continue;
-    const appId = ctx.apps.get(project.app) ?? null;
     const rows = DEMO_ENVIRONMENTS.map((e) => ({
       ...e,
       createdSlug: e.slug,
       projectId,
-      appId,
       url: environmentUrl(project, e.slug),
     }));
     if (rows.length === 0) continue;
@@ -255,13 +254,13 @@ export async function seedEnvironments(ctx: SeedContext): Promise<void> {
       .onConflictDoNothing()
       .returning({ id: environments.id });
     count(ctx, "environments", inserted.length);
+    const created = new Set(inserted.map((r) => r.id));
+    const demoKeys = appByKey(project.app).components.map(
+      (c) => c.componentKey
+    );
     for (const e of DEMO_ENVIRONMENTS) {
       const [row] = await tx
-        .select({
-          id: environments.id,
-          name: environments.name,
-          appId: environments.appId,
-        })
+        .select({ id: environments.id, name: environments.name })
         .from(environments)
         .where(
           and(
@@ -269,7 +268,25 @@ export async function seedEnvironments(ctx: SeedContext): Promise<void> {
             eq(environments.slug, e.slug)
           )
         );
-      if (row) ctx.environments.set(`${project.key}/${e.slug}`, row);
+      if (!row) continue;
+      // The seed's own: created now, or by an earlier seed (it deploys a
+      // demo service). Another environment with a demo slug is left alone.
+      const [demoTarget] = created.has(row.id)
+        ? []
+        : await tx
+            .select({ id: deployTargets.id })
+            .from(deployTargets)
+            .where(
+              and(
+                eq(deployTargets.environmentId, row.id),
+                inArray(deployTargets.componentKey, demoKeys)
+              )
+            )
+            .limit(1);
+      ctx.environments.set(`${project.key}/${e.slug}`, {
+        ...row,
+        seeded: created.has(row.id) || demoTarget !== undefined,
+      });
     }
   }
 }

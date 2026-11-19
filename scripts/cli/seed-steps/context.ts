@@ -10,7 +10,8 @@ export type Tx = Parameters<
 export interface SeedEnvironment {
   id: string;
   name: string;
-  appId: string | null;
+  /** Created by this seed or an earlier one (it deploys a demo service). */
+  seeded: boolean;
 }
 
 export interface SeedContext {
@@ -24,7 +25,6 @@ export interface SeedContext {
   projects: Map<string, { id: string; name: string }>;
   // Keyed by `${projectKey}/${slug}`.
   environments: Map<string, SeedEnvironment>;
-  apps: Map<string, string>;
   // Only people that exist: a staff member whose name an unrelated user
   // already holds is left out, and so is everything only they would author.
   people: Map<PersonRef, { id: string; name: string }>;

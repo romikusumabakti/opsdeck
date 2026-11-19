@@ -118,10 +118,18 @@ export function VariablesClient({
 
   function onApplyTemplate() {
     void run("template", async () => {
-      const { added, missing } = await applyVariableTemplate(environmentId);
+      const { added, missing, conflicts } =
+        await applyVariableTemplate(environmentId);
       toast.success(t("templateApplied", { count: added.length }));
       if (missing.length > 0) {
         toast.warning(t("templateMissing", { names: missing.join(", ") }));
+      }
+      if (conflicts.length > 0) {
+        toast.warning(
+          t("templateConflicts", {
+            names: conflicts.map((c) => c.name).join(", "),
+          })
+        );
       }
     });
   }
@@ -184,8 +192,8 @@ export function VariablesClient({
           {canWrite && (
             <Button
               variant="outline"
-              disabled={busy !== null || !listing.hasApp}
-              title={listing.hasApp ? undefined : t("noAppHint")}
+              disabled={busy !== null || !listing.hasServices}
+              title={listing.hasServices ? undefined : t("noServicesHint")}
               onClick={onApplyTemplate}
             >
               {busy === "template" ? (

@@ -1,21 +1,21 @@
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { type DbExecutor, type DbTransaction, db } from "@/lib/db";
 import {
-  type AppVariableTemplate,
-  apps,
-  appVariableTemplates,
+  appComponents,
   databaseHosts,
   deployTargets,
   type EnvironmentVariable,
   environmentServices,
   environments,
   environmentVariables,
+  type ServiceVariableTemplate,
+  serviceVariableTemplates,
   users,
   type VariableKind,
 } from "@/lib/db/schema";
 
-// Database access for environment variables and app variable templates.
+// Database access for environment variables and service variable templates.
 // Values are stored as given: encrypting and decrypting is the service's job
 // (server/services/variables.ts, and lib/variables/managed-env.ts for the
 // deploy job), so nothing here ever sees plaintext secrets on purpose.
@@ -28,7 +28,6 @@ export type EnvironmentContext = {
   /** The slug it was created with; null for rows seeded without it. */
   createdSlug: string | null;
   url: string | null;
-  appId: string | null;
   envFileManaged: boolean;
 };
 
@@ -42,7 +41,6 @@ export async function getEnvironmentContext(
       slug: environments.slug,
       createdSlug: environments.createdSlug,
       url: environments.url,
-      appId: environments.appId,
       envFileManaged: environments.envFileManaged,
     })
     .from(environments)
@@ -332,29 +330,44 @@ export async function setEnvFileManaged(
     .where(eq(environments.id, environmentId));
 }
 
-export async function getAppIdByKey(
-  appKey: string
-): Promise<string | undefined> {
-  const [row] = await db
-    .select({ id: apps.id })
-    .from(apps)
-    .where(eq(apps.appKey, appKey))
-    .limit(1);
-  return row?.id;
+/** The services the environment's deploy targets deploy, sorted. */
+export async function listEnvironmentServiceKeys(
+  environmentId: string
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ componentKey: deployTargets.componentKey })
+    .from(deployTargets)
+    .where(eq(deployTargets.environmentId, environmentId))
+    .orderBy(asc(deployTargets.componentKey));
+  return rows.map((row) => row.componentKey);
 }
 
-export async function listTemplates(
-  appId: string
-): Promise<AppVariableTemplate[]> {
+export async function serviceKeyExists(componentKey: string): Promise<boolean> {
+  const rows = await db
+    .select({ componentKey: appComponents.componentKey })
+    .from(appComponents)
+    .where(eq(appComponents.componentKey, componentKey))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** The templates of the given services, by name then service. */
+export async function listServiceTemplates(
+  componentKeys: readonly string[]
+): Promise<ServiceVariableTemplate[]> {
+  if (componentKeys.length === 0) return [];
   return db
     .select()
-    .from(appVariableTemplates)
-    .where(eq(appVariableTemplates.appId, appId))
-    .orderBy(asc(appVariableTemplates.name));
+    .from(serviceVariableTemplates)
+    .where(inArray(serviceVariableTemplates.componentKey, [...componentKeys]))
+    .orderBy(
+      asc(serviceVariableTemplates.name),
+      asc(serviceVariableTemplates.componentKey)
+    );
 }
 
 export type TemplateWrite = Pick<
-  AppVariableTemplate,
+  ServiceVariableTemplate,
   | "name"
   | "kind"
   | "required"
@@ -364,16 +377,19 @@ export type TemplateWrite = Pick<
   | "description"
 >;
 
-/** Inserts the template, or replaces every field of the one with its name. */
+/** Inserts the service's template, or replaces every field of the one with its name. */
 export async function saveTemplate(
-  appId: string,
+  componentKey: string,
   input: TemplateWrite
-): Promise<AppVariableTemplate> {
+): Promise<ServiceVariableTemplate> {
   const [row] = await db
-    .insert(appVariableTemplates)
-    .values({ ...input, appId })
+    .insert(serviceVariableTemplates)
+    .values({ ...input, componentKey })
     .onConflictDoUpdate({
-      target: [appVariableTemplates.appId, appVariableTemplates.name],
+      target: [
+        serviceVariableTemplates.componentKey,
+        serviceVariableTemplates.name,
+      ],
       set: { ...input, updatedAt: sql`now()` },
     })
     .returning();
@@ -381,19 +397,19 @@ export async function saveTemplate(
   return row;
 }
 
-/** Deletes the template; false when it did not exist. */
+/** Deletes the service's template; false when it did not exist. */
 export async function deleteTemplate(
-  appId: string,
+  componentKey: string,
   name: string
 ): Promise<boolean> {
   const rows = await db
-    .delete(appVariableTemplates)
+    .delete(serviceVariableTemplates)
     .where(
       and(
-        eq(appVariableTemplates.appId, appId),
-        eq(appVariableTemplates.name, name)
+        eq(serviceVariableTemplates.componentKey, componentKey),
+        eq(serviceVariableTemplates.name, name)
       )
     )
-    .returning({ id: appVariableTemplates.id });
+    .returning({ id: serviceVariableTemplates.id });
   return rows.length > 0;
 }

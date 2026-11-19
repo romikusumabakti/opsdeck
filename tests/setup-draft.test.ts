@@ -22,7 +22,6 @@ const UUID = "0197f3a0-1b2c-7def-8000-0123456789f1";
 const SERVER = "0197f3a0-1b2c-7def-8000-0123456789c1";
 
 const ctx: DraftContext = {
-  appId: UUID,
   projectKey: "HRIS",
   slug: "staging",
   suggestedServices: [

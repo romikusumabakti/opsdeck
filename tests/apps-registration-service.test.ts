@@ -15,12 +15,8 @@ const mocks = vi.hoisted(() => ({
   readRepoFile: vi.fn(),
   getForgeCredentials: vi.fn(),
   activateRepo: vi.fn(),
-  insertComponents: vi.fn(),
-  getApp: vi.fn(),
-  appKeyExists: vi.fn(),
   takenComponentKeys: vi.fn(),
   linkedCiRepos: vi.fn(),
-  insertAppWithComponents: vi.fn(),
   insertServices: vi.fn(),
   getService: vi.fn(),
 }));
@@ -33,12 +29,8 @@ vi.mock("@/lib/authz", async (importOriginal) => ({
   requireProjectPermission: mocks.requireProjectPermission,
 }));
 vi.mock("@/lib/apps", () => ({
-  appKeyExists: mocks.appKeyExists,
   componentTargetBranches: vi.fn(),
-  getApp: mocks.getApp,
   getComponent: mocks.getComponent,
-  insertAppWithComponents: mocks.insertAppWithComponents,
-  insertComponents: mocks.insertComponents,
   linkedCiRepos: mocks.linkedCiRepos,
   listApps: vi.fn(),
   appendBuildSpecBranch: mocks.appendBuildSpecBranch,
@@ -71,10 +63,9 @@ vi.mock("@/lib/secrets", () => ({ encryptSecret: (s: string) => s }));
 import { buildSpecSchema } from "@/lib/ci/build-spec";
 import { generateWoodpeckerPipeline } from "@/lib/ci/pipeline";
 import {
-  addSetupComponents,
   ensureComponentBranch,
   registerServices,
-  registerSetupApp,
+  registerSetupServices,
 } from "@/server/services/apps";
 
 const CONN = "0197f3a0-1b2c-7def-8000-0123456789c1";
@@ -127,18 +118,10 @@ beforeEach(() => {
     ciRepoId: "7",
     fullName: "acme/hris",
   });
-  mocks.appKeyExists.mockResolvedValue(false);
   mocks.takenComponentKeys.mockResolvedValue([]);
   mocks.linkedCiRepos.mockResolvedValue([]);
-  mocks.insertAppWithComponents.mockResolvedValue(undefined);
   mocks.insertServices.mockResolvedValue(undefined);
   mocks.getService.mockImplementation(async (key: string) => ({ key }));
-  mocks.getApp.mockResolvedValue({
-    id: "app-1",
-    appKey: "hris",
-    name: "HRIS",
-    components: [],
-  });
 });
 
 const REGISTER = {
@@ -194,8 +177,6 @@ describe("registerServices chooses generated for admins only", () => {
     expect(mocks.insertServices).toHaveBeenCalledWith([
       expect.objectContaining({ componentKey: "hris", ciRepoId: "7" }),
     ]);
-    expect(mocks.insertAppWithComponents).not.toHaveBeenCalled();
-    expect(mocks.insertComponents).not.toHaveBeenCalled();
     expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 
@@ -208,12 +189,14 @@ describe("registerServices chooses generated for admins only", () => {
   });
 });
 
-describe("registerSetupApp (New environment, server-derived spec)", () => {
-  it("lets an engineer register a generated pipeline", async () => {
-    await expect(registerSetupApp(REGISTER, BRANCHES)).resolves.toMatchObject({
-      app: { appKey: "hris" },
-      pipelineFileFailures: [],
-    });
+describe("registerSetupServices (New environment, server-derived spec)", () => {
+  it("lets an engineer register a generated service, without an app", async () => {
+    await expect(
+      registerSetupServices(REGISTER.components, BRANCHES)
+    ).resolves.toEqual([]);
+    expect(mocks.insertServices).toHaveBeenCalledWith([
+      expect.objectContaining({ componentKey: "hris", ciRepoId: "7" }),
+    ]);
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);
     // The environment's branch builds: its build is the first deploy.
     expect(mocks.commitFile.mock.calls[0]?.[5]).not.toContain("[CI SKIP]");
@@ -229,7 +212,7 @@ describe("registerSetupApp (New environment, server-derived spec)", () => {
         },
       ],
     };
-    await registerSetupApp(twoBranches, BRANCHES);
+    await registerSetupServices(twoBranches.components, BRANCHES);
     const messages = Object.fromEntries(
       mocks.commitFile.mock.calls.map((c) => [c[2], c[5] as string])
     );
@@ -239,23 +222,26 @@ describe("registerSetupApp (New environment, server-derived spec)", () => {
 
   it("returns the branches the file was not committed to", async () => {
     mocks.branchExists.mockResolvedValue(false);
-    await expect(registerSetupApp(REGISTER, BRANCHES)).resolves.toMatchObject({
-      pipelineFileFailures: [
-        {
-          componentKey: "hris",
-          branch: "main",
-          code: null,
-          error: "Branch main does not exist",
-        },
-      ],
-    });
+    await expect(
+      registerSetupServices(REGISTER.components, BRANCHES)
+    ).resolves.toEqual([
+      {
+        componentKey: "hris",
+        branch: "main",
+        code: null,
+        error: "Branch main does not exist",
+      },
+    ]);
   });
 
-  it("addSetupComponents lets an engineer add a generated component", async () => {
+  it("refuses a repository that already builds a service (409 repoLinked)", async () => {
+    mocks.linkedCiRepos.mockResolvedValue([
+      { componentKey: "hris-old", ciRepoId: "7", repoFullName: "acme/hris" },
+    ]);
     await expect(
-      addSetupComponents("hris", REGISTER.components, BRANCHES)
-    ).resolves.toMatchObject({ pipelineFileFailures: [] });
-    expect(mocks.insertComponents).toHaveBeenCalled();
+      registerSetupServices(REGISTER.components, BRANCHES)
+    ).rejects.toMatchObject({ status: 409, code: "repoLinked" });
+    expect(mocks.insertServices).not.toHaveBeenCalled();
   });
 
   it("is refused for a user who may not register repos (403)", async () => {
@@ -264,11 +250,8 @@ describe("registerSetupApp (New environment, server-derived spec)", () => {
       session: { signInMethod: "passkey" },
     });
     mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
-    await expect(registerSetupApp(REGISTER, BRANCHES)).rejects.toMatchObject({
-      status: 403,
-    });
     await expect(
-      addSetupComponents("hris", REGISTER.components, BRANCHES)
+      registerSetupServices(REGISTER.components, BRANCHES)
     ).rejects.toMatchObject({ status: 403 });
   });
 });
@@ -329,14 +312,6 @@ describe("generated registration checks", () => {
 
 describe("registration refusals carry a stable code", () => {
   beforeEach(asAdmin);
-  it("appKeyTaken (New environment's app)", async () => {
-    mocks.appKeyExists.mockResolvedValue(true);
-    await expect(registerSetupApp(REGISTER, BRANCHES)).rejects.toMatchObject({
-      status: 409,
-      code: "appKeyTaken",
-    });
-  });
-
   it("componentKeyTaken", async () => {
     mocks.takenComponentKeys.mockResolvedValue(["hris"]);
     await expect(registerServices(SERVICES)).rejects.toMatchObject({
@@ -345,11 +320,13 @@ describe("registration refusals carry a stable code", () => {
     });
   });
 
-  it("repoLinked (New environment's app; services may share a repository)", async () => {
+  it("repoLinked (New environment; services may share a repository)", async () => {
     mocks.linkedCiRepos.mockResolvedValue([
       { componentKey: "old", ciRepoId: "7", repoFullName: "acme/hris" },
     ]);
-    await expect(registerSetupApp(REGISTER, BRANCHES)).rejects.toMatchObject({
+    await expect(
+      registerSetupServices(REGISTER.components, BRANCHES)
+    ).rejects.toMatchObject({
       status: 409,
       code: "repoLinked",
     });
@@ -375,62 +352,14 @@ describe("registration refusals carry a stable code", () => {
   });
 });
 
-describe("addSetupComponents (New environment, existing app)", () => {
-  beforeEach(asAdmin);
-  it("registers the components into the existing app", async () => {
-    await expect(
-      addSetupComponents("hris", REGISTER.components, BRANCHES)
-    ).resolves.toMatchObject({ app: { appKey: "hris" } });
-    expect(mocks.insertComponents).toHaveBeenCalledWith("app-1", [
-      expect.objectContaining({
-        componentKey: "hris",
-        ciRepoId: "7",
-        repoFullName: "acme/hris",
-        pipelineMode: "generated",
-      }),
-    ]);
-    expect(mocks.commitFile).toHaveBeenCalledTimes(1);
-  });
-
+describe("registerSetupServices refusals", () => {
   it("refuses a foreign pipeline file before inserting (409)", async () => {
     mocks.readRepoFile.mockResolvedValue("steps:\n  build:\n    image: x\n");
     await expect(
-      addSetupComponents("hris", REGISTER.components, BRANCHES)
+      registerSetupServices(REGISTER.components, BRANCHES)
     ).rejects.toMatchObject({ status: 409, code: "pipelineFileExists" });
     expect(mocks.activateRepo).not.toHaveBeenCalled();
-    expect(mocks.insertComponents).not.toHaveBeenCalled();
-  });
-
-  it("rejects an invalid component (400)", async () => {
-    await expect(
-      addSetupComponents(
-        "hris",
-        [
-          { ...REGISTER.components[0], bundleImage: "wrong-deploy" },
-        ] as typeof REGISTER.components,
-        BRANCHES
-      )
-    ).rejects.toMatchObject({ status: 400 });
-    expect(mocks.insertComponents).not.toHaveBeenCalled();
-  });
-
-  it("answers 404 for an unknown app", async () => {
-    mocks.getApp.mockResolvedValue(undefined);
-    await expect(
-      addSetupComponents("nope", REGISTER.components, BRANCHES)
-    ).rejects.toMatchObject({ status: 404 });
-  });
-
-  it("is refused for a user who may not register repos (403)", async () => {
-    mocks.requireSession.mockResolvedValue({
-      user: { role: "qa" },
-      session: { signInMethod: "passkey" },
-    });
-    mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
-    await expect(
-      addSetupComponents("hris", CUSTOM.components, BRANCHES)
-    ).rejects.toMatchObject({ status: 403 });
-    expect(mocks.insertComponents).not.toHaveBeenCalled();
+    expect(mocks.insertServices).not.toHaveBeenCalled();
   });
 });
 

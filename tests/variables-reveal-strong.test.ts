@@ -27,8 +27,8 @@ vi.mock("@/lib/variables/repository", () => ({
     id: "e1",
     name: "prod",
     envFileManaged: true,
-    appId: null,
   })),
+  listEnvironmentServiceKeys: vi.fn(async () => []),
   listVariables: vi.fn(async () => [
     {
       id: "v1",

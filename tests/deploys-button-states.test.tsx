@@ -62,7 +62,6 @@ function target(id: string, extra: Record<string, unknown> = {}) {
   return {
     id,
     componentKey: `app-${id}`,
-    appKey: "app",
     sourceBranch: "main",
     serverId: "s1",
     deployDir: `/srv/${id}`,

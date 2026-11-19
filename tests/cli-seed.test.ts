@@ -137,6 +137,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
         (select count(*) from app_components)::int as components,
         (select count(*) from ci_connections)::int as ci,
         (select count(*) from project_apps)::int as "projectApps",
+        (select count(*) from project_services)::int as "projectServices",
         (select count(*) from project_component_branches)::int as branches,
         (select count(*) from deploy_targets)::int as targets,
         (select count(*) from builds)::int as builds,
@@ -220,10 +221,12 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
       accounts: 7,
       // demo-engineer, demo-qa and demo-ba in DEMOPORTAL, staff in NPCP/BSAC (11).
       members: 14,
-      apps: 3,
+      // Services are registered without an app (Stage 8).
+      apps: 0,
       components: 5,
       ci: 1,
-      projectApps: 3,
+      projectApps: 0,
+      projectServices: 5,
       branches: 5,
       targets: 15,
       // DEMO-1 (real) + DEMOPORTAL 8 + NPCP and BSAC 15 each.
@@ -319,9 +322,9 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
         (select count(*) from issue_labels where issue_id = ${issue?.id})::int as labels`;
     expect(attached).toEqual({ comments: 0, labels: 0 });
     const [dev] = await sql`
-      select e.id, e.app_id, e.url from environments e
+      select e.id, e.url from environments e
       join projects p on p.id = e.project_id where p.key = 'DEMO' and e.slug = 'dev'`;
-    expect(dev).toMatchObject({ app_id: null, url: null });
+    expect(dev).toMatchObject({ url: null });
     const [{ n }] = (await sql`
       select count(*)::int as n from deploy_targets where environment_id = ${dev?.id}`) as unknown as [
       { n: number },
@@ -338,7 +341,7 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
         select
           (select count(*) from environments e where e.project_id = p.id)::int as environments,
           (select count(*) from issues i where i.project_id = p.id)::int as issues,
-          (select count(*) from project_apps a where a.project_id = p.id)::int as sources,
+          (select count(*) from project_services a where a.project_id = p.id)::int as sources,
           (select count(*) from project_component_branches b where b.project_id = p.id)::int as branches,
           (select count(*) from project_members m where m.project_id = p.id)::int as members,
           (select count(*) from milestones m where m.project_id = p.id)::int as milestones,
@@ -419,12 +422,14 @@ describe.skipIf(!enabled)("menara seed demo on a real Postgres", () => {
     expect(mismatched).toHaveLength(0);
     const orphans = await sql`select id from deployments where run_id is null`;
     expect(orphans).toHaveLength(0);
-    const wrongApp = await sql`
+    // Every target deploys one of its project's services.
+    const foreign = await sql`
       select t.id from deploy_targets t
       join environments e on e.id = t.environment_id
-      join app_components c on c.component_key = t.component_key
-      where e.app_id is distinct from c.app_id or t.auto_deploy`;
-    expect(wrongApp).toHaveLength(0);
+      left join project_services s
+        on s.project_id = e.project_id and s.component_key = t.component_key
+      where s.component_key is null or t.auto_deploy`;
+    expect(foreign).toHaveLength(0);
   });
 
   it("uses only fictional addresses, and staff cannot sign in", async () => {

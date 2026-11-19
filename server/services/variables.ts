@@ -9,19 +9,19 @@ import {
 } from "@/lib/authz";
 import type { DbTransaction } from "@/lib/db";
 import {
-  type AppVariableTemplate,
   type EnvironmentVariable,
+  type ServiceVariableTemplate,
   type VariableKind,
   variableKindEnum,
 } from "@/lib/db/schema";
 import { deployDirSharedWithOtherEnvironment } from "@/lib/deploy/repository";
-import { deployTagSchema } from "@/lib/deploy/validation";
+import { componentKeySchema, deployTagSchema } from "@/lib/deploy/validation";
 import { encryptSecret } from "@/lib/secrets";
 import {
   ESCROW_REMOVAL_MESSAGE,
   ESCROWED_MESSAGE,
   MISSING_REQUIRED_PREFIX,
-  NO_APP_MESSAGE,
+  NO_SERVICES_MESSAGE,
   NOT_GENERATED_MESSAGE,
   RESERVED_PREFIX_MESSAGE,
   SECRET_TO_PLAIN_MESSAGE,
@@ -40,18 +40,19 @@ import {
   deleteTemplate as deleteTemplateRow,
   deleteVariable as deleteVariableRow,
   type EnvironmentContext,
-  getAppIdByKey,
   getEnvironmentContext,
   getVariable,
   hasSharedDeployDir,
   insertVariablesIfMissing,
+  listEnvironmentServiceKeys,
+  listServiceTemplates,
   listTagVariableNames,
-  listTemplates,
   listVariables as listVariableRows,
   replaceGeneratedValue,
   type StoredVariable,
   saveTemplate,
   saveVariable,
+  serviceKeyExists,
   setEnvFileManaged as setEnvFileManagedRow,
   type VariableWrite,
 } from "@/lib/variables/repository";
@@ -59,6 +60,11 @@ import {
   readEnvironmentEnvFiles,
   type ServerEnvFile,
 } from "@/lib/variables/server-env";
+import {
+  type MergedTemplate,
+  mergeTemplates,
+  type TemplateOption,
+} from "@/lib/variables/template-merge";
 import {
   generateValue,
   isReservedVariableName,
@@ -70,8 +76,10 @@ import {
 import { badRequest, CodedHTTPException, notFound } from "@/server/errors";
 
 /**
- * An environment's variables (the managed `.env`) and the app templates they
- * are filled from.
+ * An environment's variables (the managed `.env`) and the templates of the
+ * services it deploys, which they are filled from (merged per name by
+ * lib/variables/template-merge: the strictest required/escrow/length; a
+ * differing kind or default is a conflict the user resolves).
  *
  * Secret and generated values are encrypted at rest (lib/secrets) and leave
  * the server only through `listVariables(…, { reveal: true })`, which records
@@ -181,21 +189,33 @@ export async function requireEnvironment(
   return (await getEnvironmentContext(environmentId)) ?? notFound();
 }
 
-/** The template of `name` in the environment's app, if any. */
+/**
+ * The merged templates of the services the environment deploys (its deploy
+ * targets'), with the user's picks for conflicting names.
+ */
+export async function environmentTemplates(
+  environmentId: string,
+  choices: Readonly<Record<string, string>> = {}
+): Promise<MergedTemplate[]> {
+  const keys = await listEnvironmentServiceKeys(environmentId);
+  return mergeTemplates(await listServiceTemplates(keys), choices);
+}
+
+/** The merged template of `name` in the environment's services, if any. */
 async function templateFor(
   env: EnvironmentContext,
   name: string
-): Promise<AppVariableTemplate | undefined> {
-  if (!env.appId) return undefined;
-  return (await listTemplates(env.appId)).find((t) => t.name === name);
+): Promise<MergedTemplate | undefined> {
+  return (await environmentTemplates(env.id)).find((t) => t.name === name);
 }
 
 /**
- * The required template variables the environment lacks. Tag variables are
- * left out: the deploy writes those itself.
+ * The required template variables the environment lacks: every name any of
+ * its services requires. Tag variables are left out: the deploy writes those
+ * itself.
  */
 function missingRequired(
-  templates: AppVariableTemplate[],
+  templates: readonly MergedTemplate[],
   present: Set<string>,
   tagNames: string[]
 ): string[] {
@@ -212,7 +232,8 @@ export async function listVariables(
   { reveal = false }: { reveal?: boolean } = {}
 ): Promise<{
   envFileManaged: boolean;
-  hasApp: boolean;
+  /** Whether it deploys a service (Fill from template has templates to read). */
+  hasServices: boolean;
   variables: VariableView[];
 }> {
   const { session } = await requireProjectPermission(
@@ -221,7 +242,10 @@ export async function listVariables(
   );
   if (reveal) assertStrongSession(session);
   const env = await requireEnvironment(environmentId);
-  const rows = await listVariableRows(environmentId);
+  const [rows, serviceKeys] = await Promise.all([
+    listVariableRows(environmentId),
+    listEnvironmentServiceKeys(environmentId),
+  ]);
   if (reveal) {
     await recordActivity({
       actorId: session.user.id,
@@ -239,7 +263,7 @@ export async function listVariables(
   }
   return {
     envFileManaged: env.envFileManaged,
-    hasApp: env.appId !== null,
+    hasServices: serviceKeys.length > 0,
     variables: rows.map((row) => view(row, reveal)),
   };
 }
@@ -398,35 +422,73 @@ export async function regenerateVariable(
   };
 }
 
+export const applyTemplateInputSchema = z
+  .object({
+    // Conflicting names: the service whose definition to fill from.
+    choices: z
+      .record(z.string().min(1).max(128), componentKeySchema)
+      .refine((choices) => Object.keys(choices).length <= 200)
+      .optional(),
+  })
+  .strict();
+
+/** A name whose services define it differently, still to be picked. */
+export type TemplateConflict = {
+  name: string;
+  required: boolean;
+  options: TemplateOption[];
+};
+
 /**
- * Adds the app template's variables the environment lacks: plain defaults with
- * their placeholders resolved, generated values generated now. Existing
- * variables are never touched. `missing` lists the required template
- * variables still absent afterwards (no default, a secret, or a placeholder
- * the environment has no value for).
+ * Adds the variables the templates of the environment's services give that
+ * it lacks: plain defaults with their placeholders resolved, generated values
+ * generated now. Existing variables are never touched. A name the services
+ * define differently (kind or default) is filled only from the service picked
+ * in `choices`; otherwise it is listed in `conflicts` and left out. `missing`
+ * lists the required template variables still absent afterwards (no default,
+ * a secret, an unresolved conflict, or a placeholder the environment has no
+ * value for).
  */
 export async function applyTemplate(
-  environmentId: string
-): Promise<{ added: string[]; missing: string[] }> {
+  environmentId: string,
+  { choices = {} }: z.infer<typeof applyTemplateInputSchema> = {}
+): Promise<{
+  added: string[];
+  missing: string[];
+  conflicts: TemplateConflict[];
+}> {
   const { session } = await requireProjectPermission(
     { environmentId },
     { variable: ["write"] }
   );
   const env = await requireEnvironment(environmentId);
-  if (!env.appId) return fail(409, NO_APP_MESSAGE);
   // `{envSlug}` is the slug the environment was created with: a value
   // filled in after a rename must match the ones filled in at creation.
   const envSlug = env.createdSlug ?? env.slug;
-  const [templates, rows, tagNames] = await Promise.all([
-    listTemplates(env.appId),
+  const [serviceKeys, rows, tagNames] = await Promise.all([
+    listEnvironmentServiceKeys(env.id),
     listVariableRows(env.id),
     listTagVariableNames(env.id),
   ]);
+  if (serviceKeys.length === 0) return fail(409, NO_SERVICES_MESSAGE);
+  const templates = mergeTemplates(
+    await listServiceTemplates(serviceKeys),
+    choices
+  );
   const present = new Set(rows.map((row) => row.name));
 
   const writes: VariableWrite[] = [];
+  const conflicts: TemplateConflict[] = [];
   for (const template of templates) {
     if (present.has(template.name) || tagNames.includes(template.name)) {
+      continue;
+    }
+    if (template.conflict) {
+      conflicts.push({
+        name: template.name,
+        required: template.required,
+        options: template.conflict,
+      });
       continue;
     }
     const value = templateValue(template, {
@@ -454,14 +516,19 @@ export async function applyTemplate(
   return {
     added: added.sort(),
     missing: missingRequired(templates, present, tagNames),
+    conflicts,
   };
 }
 
-/** The value a template gives a new variable, or null when it gives none. */
+/**
+ * The value a template gives a new variable, or null when it gives none (or
+ * its services disagree and nobody picked one).
+ */
 function templateValue(
-  template: AppVariableTemplate,
+  template: MergedTemplate,
   placeholders: PlaceholderContext
 ): string | null {
+  if (template.conflict) return null;
   if (template.kind === "generated") {
     return generateValue(template.generatedLength ?? DEFAULT_GENERATED_LENGTH);
   }
@@ -478,8 +545,8 @@ function templateValue(
 /**
  * Switches whether deploys render this environment's `.env`. Turning it on
  * needs the deploy dirs to itself (a rendered `.env` replaces the whole file;
- * 409 when another environment deploys into one) and every required template
- * variable to exist (409 listing them). Deploys check the dir again.
+ * 409 when another environment deploys into one) and every variable any of
+ * its services' templates requires to exist (409 listing them). Deploys check the dir again.
  * `acknowledgedChanges` is the client's count of preview changes the user
  * confirmed when turning it on, recorded as is (the preview is not re-run).
  */
@@ -496,9 +563,9 @@ export async function setEnvFileManaged(
   if (enabled && (await hasSharedDeployDir(env.id))) {
     fail(409, SHARED_DEPLOY_DIR_MESSAGE);
   }
-  if (enabled && env.appId) {
+  if (enabled) {
     const [templates, rows, tagNames] = await Promise.all([
-      listTemplates(env.appId),
+      environmentTemplates(env.id),
       listVariableRows(env.id),
       listTagVariableNames(env.id),
     ]);
@@ -640,15 +707,15 @@ async function previewDir(
   };
 }
 
-async function requireApp(appKey: string): Promise<string> {
-  return (await getAppIdByKey(appKey)) ?? notFound();
+async function requireService(componentKey: string): Promise<string> {
+  return (await serviceKeyExists(componentKey)) ? componentKey : notFound();
 }
 
 export async function listVariableTemplates(
-  appKey: string
-): Promise<AppVariableTemplate[]> {
+  componentKey: string
+): Promise<ServiceVariableTemplate[]> {
   await requireOrgPermission({ ...INTEGRATION_MANAGE });
-  return listTemplates(await requireApp(appKey));
+  return listServiceTemplates([await requireService(componentKey)]);
 }
 
 /**
@@ -684,17 +751,17 @@ function checkTemplateKind(input: z.infer<typeof templateInputSchema>) {
   return { defaultValue, generatedLength };
 }
 
-/** Creates the template `name` of the app, or replaces it. */
+/** Creates the template `name` of the service, or replaces it. */
 export async function putVariableTemplate(
-  appKey: string,
+  componentKey: string,
   name: string,
   input: z.infer<typeof templateInputSchema>
-): Promise<AppVariableTemplate> {
+): Promise<ServiceVariableTemplate> {
   const session = await requireOrgPermission({ ...INTEGRATION_MANAGE });
-  const appId = await requireApp(appKey);
+  await requireService(componentKey);
   parseOr400(variableNameSchema(), name);
   const { defaultValue, generatedLength } = checkTemplateKind(input);
-  const saved = await saveTemplate(appId, {
+  const saved = await saveTemplate(componentKey, {
     name,
     kind: input.kind,
     required: input.required,
@@ -706,38 +773,38 @@ export async function putVariableTemplate(
   await auditTemplate(
     session.user.id,
     "variableTemplate.saved",
-    { id: appId, key: appKey },
+    componentKey,
     name
   );
   return saved;
 }
 
+// The service key is not a uuid: the entry names it in its data only.
 async function auditTemplate(
   actorId: string,
   action: string,
-  app: { id: string; key: string },
+  componentKey: string,
   name: string
 ): Promise<void> {
   await recordActivity({
     actorId,
     action,
-    entityType: "app",
-    entityId: app.id,
-    data: { app: app.key, name },
+    entityType: "service",
+    data: { service: componentKey, name },
   });
 }
 
 export async function deleteVariableTemplate(
-  appKey: string,
+  componentKey: string,
   name: string
 ): Promise<void> {
   const session = await requireOrgPermission({ ...INTEGRATION_MANAGE });
-  const appId = await requireApp(appKey);
-  if (!(await deleteTemplateRow(appId, name))) notFound();
+  await requireService(componentKey);
+  if (!(await deleteTemplateRow(componentKey, name))) notFound();
   await auditTemplate(
     session.user.id,
     "variableTemplate.deleted",
-    { id: appId, key: appKey },
+    componentKey,
     name
   );
 }
@@ -835,9 +902,11 @@ function nameIssue(
 }
 
 /**
- * The variables a new environment starts with: the entries, then the app
- * template's variables they leave out (applyTemplate's rule: plain defaults
- * with placeholders resolved, generated values generated now). Generated
+ * The variables a new environment starts with: the entries, then the merged
+ * templates' variables of its services they leave out (applyTemplate's rule:
+ * plain defaults with placeholders resolved, generated values generated now;
+ * a name the services define differently is not filled and, when required,
+ * must be entered). Generated
  * values are always new (the template's length, else 32), also for an entry
  * asking to copy one. An escrowed variable (by the template or in the source)
  * stays escrowed and is never copied. Pure apart from encryption and
@@ -852,7 +921,7 @@ export function planEnvironmentVariables({
   placeholders,
 }: {
   entries: readonly VariableEntry[];
-  templates: readonly AppVariableTemplate[];
+  templates: readonly MergedTemplate[];
   /** The copy source's variables; null without a copy source. */
   source: readonly CopySourceVariable[] | null;
   /** Whether the caller may read the source's variables (variable:read). */

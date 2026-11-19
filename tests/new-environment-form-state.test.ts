@@ -18,6 +18,7 @@ const input = (
 ): NewEnvironmentInput => ({
   projectId: PROJECT,
   name: "Dev 3",
+  services: [],
   repos: [{ ciConnectionId: CI, repoFullName: "acme/a", branch: "main" }],
   needsDatabase: false,
   address: { label: "" },
@@ -130,35 +131,20 @@ describe("visibleIssues", () => {
 });
 
 describe("repoPickable", () => {
-  const row = (repoFullName: string, appKey: string | null) => ({
+  const row = (repoFullName: string, componentKey: string | null) => ({
     repoFullName,
-    appKey,
+    componentKey,
   });
-  it("refuses another app's repository and a repeat", () => {
-    expect(repoPickable(row("acme/a", "kmem"), [], "kmem")).toBe(true);
-    expect(repoPickable(row("acme/h", "hris"), [], "kmem")).toBe(false);
-    expect(repoPickable(row("acme/a", "kmem"), ["acme/a"], "kmem")).toBe(false);
+  it("takes repositories of any services, never one twice", () => {
+    expect(repoPickable(row("acme/a", "kmem-api"), [])).toBe(true);
+    expect(repoPickable(row("acme/h", "hris-api"), ["acme/a"])).toBe(true);
+    expect(repoPickable(row("acme/new", null), ["acme/a"])).toBe(true);
+    expect(repoPickable(row("acme/a", "kmem-api"), ["acme/a"])).toBe(false);
   });
-  it("refuses any registered repository once a new app's is picked", () => {
-    expect(repoPickable(row("acme/a", "kmem"), [], null)).toBe(true);
-    expect(repoPickable(row("acme/a", "kmem"), ["acme/new"], null)).toBe(false);
-    expect(repoPickable(row("acme/other", null), ["acme/new"], null)).toBe(
-      true
-    );
-  });
-});
-
-describe("repoPickable in sources mode", () => {
-  const row = (repoFullName: string, appKey: string | null) => ({
-    repoFullName,
-    appKey,
-  });
-  it("refuses a registered repository of an app outside the sources", () => {
-    expect(repoPickable(row("acme/h", "hris"), [], null, ["kmem"])).toBe(false);
-    expect(repoPickable(row("acme/a", "kmem"), [], null, ["kmem"])).toBe(true);
-    expect(repoPickable(row("acme/new", null), [], null, ["kmem"])).toBe(true);
-  });
-  it("keeps today's rule without sources", () => {
-    expect(repoPickable(row("acme/h", "hris"), [], null, null)).toBe(true);
+  it("in sources mode refuses a registered repository of another service", () => {
+    const sources = ["kmem-api"];
+    expect(repoPickable(row("acme/h", "hris-api"), [], sources)).toBe(false);
+    expect(repoPickable(row("acme/a", "kmem-api"), [], sources)).toBe(true);
+    expect(repoPickable(row("acme/new", null), [], sources)).toBe(true);
   });
 });

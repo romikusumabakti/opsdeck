@@ -375,7 +375,6 @@ describe("target summary", () => {
   const base = {
     id: "t1",
     componentKey: "core-web",
-    appKey: "core",
     sourceBranch: "main",
     serverId: SERVER,
     deployDir: "/var/www/core-web",

@@ -6,12 +6,12 @@ import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton"
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { canOrg, canProject, SETUP_PERMISSIONS } from "@/lib/permissions";
-import { listAppsQuery } from "@/web/api/apps";
 import {
   getMyProjectAccessQuery,
   getProjectByKeyWithEnvironmentsQuery,
 } from "@/web/api/project-catalog";
 import { listProjectSourcesQuery } from "@/web/api/project-sources";
+import { listServicesQuery } from "@/web/api/service-catalog";
 import { meQuery, useMe } from "@/web/api/session";
 import { setupOptionsQuery } from "@/web/api/setup";
 import { projectRoleOf, requireProjectRole } from "@/web/project-guard";
@@ -27,7 +27,7 @@ const SOURCES_READ = { environment: ["update"] } as const;
 // New environment, inside a project: one page from a repository to a
 // running environment. `?from=<environmentId>` starts from a copy of that
 // environment, `?repo=<owner/name>` with that repository. In a project with
-// sources only the source apps are offered (see sources-mode.ts).
+// sources only its services are offered (see sources-mode.ts).
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/environments/new"
 )({
@@ -52,7 +52,7 @@ export const Route = createFileRoute(
   loader: async ({ context: { queryClient, projectId } }) => {
     const role = await projectRoleOf(queryClient, projectId);
     await Promise.all([
-      loaderQuery(queryClient, listAppsQuery()),
+      loaderQuery(queryClient, listServicesQuery()),
       loaderQuery(queryClient, meQuery()),
       loaderQuery(queryClient, setupOptionsQuery(projectId)),
       canProject(role, SOURCES_READ)
@@ -76,7 +76,12 @@ function NewEnvironmentPage() {
   const project = useSuspenseQuery(
     getProjectByKeyWithEnvironmentsQuery(projectKey)
   ).data;
-  const catalog = useSuspenseQuery(listAppsQuery()).data;
+  const catalog = useSuspenseQuery(listServicesQuery()).data.map((s) => ({
+    componentKey: s.key,
+    ciConnectionId: s.ciConnectionId,
+    repoFullName: s.repoFullName,
+    buildSpec: s.buildSpec,
+  }));
   const roles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
   const projectSources =
     useQuery({
@@ -84,14 +89,14 @@ function NewEnvironmentPage() {
       enabled: !!project && canProject(roles[project.id] ?? null, SOURCES_READ),
     }).data ?? [];
   if (!project) throw notFound();
-  const { apps, sources } = sourcesModeProps(catalog, projectSources);
+  const { services, sources } = sourcesModeProps(catalog, projectSources);
 
   return (
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
       <NewEnvironmentForm
         project={project}
-        apps={apps}
+        services={services}
         sources={sources}
         canPublish={canOrg(me?.orgRole, { server: ["manage"] })}
         canChoosePipelines={canOrg(me?.orgRole, {

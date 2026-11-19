@@ -24,7 +24,6 @@ import {
   type EnvironmentContext,
   importVariables,
   listTagVariableNames,
-  listTemplates,
   listVariables as listVariableRows,
 } from "@/lib/variables/repository";
 import {
@@ -33,7 +32,12 @@ import {
   type ServerEnvStatus,
 } from "@/lib/variables/server-env";
 import { CodedHTTPException } from "@/server/errors";
-import { audit, encode, requireEnvironment } from "@/server/services/variables";
+import {
+  audit,
+  encode,
+  environmentTemplates,
+  requireEnvironment,
+} from "@/server/services/variables";
 
 /**
  * "Import .env" into an environment's variables, from pasted or uploaded
@@ -159,11 +163,15 @@ async function requireImport(environmentId: string) {
   return { session, env: await requireEnvironment(environmentId) };
 }
 
-/** What the rows are compared with: stored values (decrypted), templates, tags. */
+/**
+ * What the rows are compared with: stored values (decrypted), the merged
+ * templates of the environment's services (strictest escrow; a kind the
+ * services disagree on proposes the non-plain one), tags.
+ */
 async function loadComparison(env: EnvironmentContext) {
   const [rows, templates, tagNames] = await Promise.all([
     listVariableRows(env.id),
-    env.appId ? listTemplates(env.appId) : Promise.resolve([]),
+    environmentTemplates(env.id),
     listTagVariableNames(env.id),
   ]);
   const existing = new Map<string, ImportExisting>(

@@ -44,7 +44,6 @@ function target(extra: Record<string, unknown> = {}) {
     id: "t1",
     componentKey: "hris-be",
     // A service registered without an app still offers its first build.
-    appKey: null,
     repoFullName: "acme/hris",
     sourceBranch: "feature-x",
     serverId: "s1",

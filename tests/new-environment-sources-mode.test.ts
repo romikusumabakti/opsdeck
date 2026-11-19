@@ -1,49 +1,47 @@
 import { describe, expect, it } from "vitest";
 import { sourcesModeProps } from "../web/routes/$locale/_app/-components/setup/sources-mode";
 
-const kmem = {
-  id: "app-kmem",
-  appKey: "kmem",
-  components: [{ componentKey: "kmem-api" }, { componentKey: "kmem-web" }],
-};
-const hris = {
-  id: "app-hris",
-  appKey: "hris",
-  components: [{ componentKey: "hris-api" }],
-};
-const catalog = [kmem, hris];
+const catalog = [
+  { componentKey: "billing" },
+  { componentKey: "hris-api" },
+  { componentKey: "kmem-api" },
+  { componentKey: "kmem-web" },
+];
 
 describe("sourcesModeProps", () => {
   it("no sources keeps the whole catalog", () => {
     expect(sourcesModeProps(catalog, [])).toEqual({
-      apps: catalog,
+      services: catalog,
       sources: null,
     });
   });
 
-  it("sources mode keeps only apps holding a project service, and the set defaults", () => {
+  it("sources mode offers only the project's services, with the set defaults", () => {
     expect(
       sourcesModeProps(catalog, [
-        { componentKey: "kmem-api", defaultBranch: "kestrel/development" },
         { componentKey: "kmem-web", defaultBranch: null },
+        { componentKey: "kmem-api", defaultBranch: "kestrel/development" },
       ])
     ).toEqual({
-      apps: [kmem],
+      services: [{ componentKey: "kmem-api" }, { componentKey: "kmem-web" }],
       sources: {
-        appKeys: ["kmem"],
+        serviceKeys: ["kmem-api", "kmem-web"],
         defaultBranches: { "kmem-api": "kestrel/development" },
       },
     });
   });
 
-  it("an app-less project service offers no app but keeps its default", () => {
+  it("offers a service registered without an app like any other", () => {
     expect(
       sourcesModeProps(catalog, [
         { componentKey: "billing", defaultBranch: "main" },
       ])
     ).toEqual({
-      apps: [],
-      sources: { appKeys: [], defaultBranches: { billing: "main" } },
+      services: [{ componentKey: "billing" }],
+      sources: {
+        serviceKeys: ["billing"],
+        defaultBranches: { billing: "main" },
+      },
     });
   });
 });

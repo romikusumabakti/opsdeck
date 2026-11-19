@@ -1,6 +1,6 @@
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
-import { appKeySchema } from "@/lib/deploy/validation";
+import { componentKeySchema } from "@/lib/deploy/validation";
 import { uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/server/services/variable-import";
 import {
   applyTemplate,
+  applyTemplateInputSchema,
   deleteVariable,
   deleteVariableTemplate,
   listVariables,
@@ -62,8 +63,12 @@ export const environmentVariablesRouter = sessionRouter()
     }
   )
   // Before /:name routes of the same method, so the literal path wins.
-  .post("/:id/variables/apply-template", envParam, async (c) =>
-    c.json(await applyTemplate(c.req.valid("param").id))
+  .post(
+    "/:id/variables/apply-template",
+    envParam,
+    json(applyTemplateInputSchema),
+    async (c) =>
+      c.json(await applyTemplate(c.req.valid("param").id, c.req.valid("json")))
   )
   // Import .env: the review of the deploy dirs' live files (SSH reads), the
   // review of pasted or uploaded text, and the save of either.
@@ -138,32 +143,36 @@ export const environmentVariablesRouter = sessionRouter()
     }
   );
 
-const appParam = param(z.object({ appKey: appKeySchema }));
+const serviceParam = param(z.object({ componentKey: componentKeySchema }));
 const templateParam = param(
-  z.object({ appKey: appKeySchema, name: nameParam })
+  z.object({ componentKey: componentKeySchema, name: nameParam })
 );
 
 /**
- * An app's variable templates, mounted at /api/apps; org
+ * A service's variable templates, mounted at /api/service-catalog; org
  * `integration:manage` (checked by the service).
  */
 export const variableTemplatesRouter = sessionRouter()
-  .get("/:appKey/variable-templates", appParam, async (c) =>
-    c.json(await listVariableTemplates(c.req.valid("param").appKey))
+  .get("/:componentKey/variable-templates", serviceParam, async (c) =>
+    c.json(await listVariableTemplates(c.req.valid("param").componentKey))
   )
   .put(
-    "/:appKey/variable-templates/:name",
+    "/:componentKey/variable-templates/:name",
     templateParam,
     json(templateInputSchema),
     async (c) => {
-      const { appKey, name } = c.req.valid("param");
+      const { componentKey, name } = c.req.valid("param");
       return c.json(
-        await putVariableTemplate(appKey, name, c.req.valid("json"))
+        await putVariableTemplate(componentKey, name, c.req.valid("json"))
       );
     }
   )
-  .delete("/:appKey/variable-templates/:name", templateParam, async (c) => {
-    const { appKey, name } = c.req.valid("param");
-    await deleteVariableTemplate(appKey, name);
-    return c.json({ ok: true });
-  });
+  .delete(
+    "/:componentKey/variable-templates/:name",
+    templateParam,
+    async (c) => {
+      const { componentKey, name } = c.req.valid("param");
+      await deleteVariableTemplate(componentKey, name);
+      return c.json({ ok: true });
+    }
+  );

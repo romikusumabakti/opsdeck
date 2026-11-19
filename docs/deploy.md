@@ -242,10 +242,11 @@ it is deprecated and ignored (the command prints a warning). `--ci` may be omitt
 exists; otherwise the command exits with status 2 and lists the connection
 names. It prints a random notify secret to stdout, once. The secret is
 stored encrypted (`enc:v1:`); the Panel cannot show it again. Put it in the
-Woodpecker repo secret `menara_notify` of that service's repo. A repository's
-later services (registered in the admin UI or with `create-artifact`) read
-their own secret, `menara_notify_<key with - as _>`, so registering one never
-overwrites another's. Pipe stdout
+Woodpecker repo secret it names on stderr: `menara_notify` for a
+repository's first service. A repository's later services (registered with
+`create`, `create-artifact` or in the admin UI) read their own secret,
+`menara_notify_<key with - as _>`, so registering one never overwrites
+another's. Pipe stdout
 straight into the Woodpecker API instead of printing it. `rotate` issues a new
 secret and invalidates the old one at once. `<bundleImage>` is a lowercase
 repository path without registry or tag (for example `acme/myapp-bundle`).
@@ -262,8 +263,16 @@ per-component routes under `/api/apps/<appKey>/components/<componentKey>/…`
 /api/apps` and `GET /api/apps/pipeline-preview` were removed. They live under
 `/api/service-catalog`, addressed by the key alone:
 `/api/service-catalog/<componentKey>/…`, `POST /api/service-catalog` (body
-`{"services": [...]}`) and `GET /api/service-catalog/pipeline-preview`. The
-build hook above is unchanged.
+`{"services": [...]}`) and `GET /api/service-catalog/pipeline-preview`.
+Variable templates belong to a service: `/api/apps/<appKey>/variable-templates…`
+moved to `/api/service-catalog/<componentKey>/variable-templates…`. An
+environment's "Fill from template" (`POST
+/api/environments/<id>/variables/apply-template`, JSON body `{}` or
+`{"choices": {"<NAME>": "<componentKey>"}}`) merges the templates of the
+services it deploys: identical definitions are one, the strictest required,
+escrow and generated length win, and a name the services define with another
+kind or default comes back under `conflicts` until a choice picks one
+service's definition. The build hook above is unchanged.
 
 ## What a deploy does
 

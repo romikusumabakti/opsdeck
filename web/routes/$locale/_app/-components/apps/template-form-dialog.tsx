@@ -76,12 +76,12 @@ function defaults(template: VariableTemplateRow | null): Values {
 export function TemplateFormDialog({
   open,
   onOpenChange,
-  appKey,
+  componentKey,
   template,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  appKey: string;
+  componentKey: string;
   template: VariableTemplateRow | null;
 }) {
   const t = useTranslations("variableTemplates.form");
@@ -135,7 +135,7 @@ export function TemplateFormDialog({
     // Only the field the kind uses is sent (the API refuses the others).
     const name = values.name.trim();
     try {
-      await putVariableTemplate(appKey, name, {
+      await putVariableTemplate(componentKey, name, {
         kind: values.kind,
         required: values.required,
         defaultValue:

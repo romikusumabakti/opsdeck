@@ -1,6 +1,5 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import { listApps } from "@/lib/apps";
 import {
   orgGrantAllows,
   orgGrantRole,
@@ -9,7 +8,7 @@ import {
 import {
   bundleImageFor,
   type RegisterComponentInput,
-  registerAppSchema,
+  registerServicesSchema,
   repoRepresentative,
 } from "@/lib/ci/registration";
 import { CiProviderError, type CiRepo } from "@/lib/ci/types";
@@ -17,7 +16,6 @@ import { db } from "@/lib/db";
 import {
   databaseHosts,
   environmentServices,
-  environments,
   projects,
   servers,
 } from "@/lib/db/schema";
@@ -28,6 +26,7 @@ import {
   canPlaceEnvironment,
   type ProjectRole,
 } from "@/lib/permissions";
+import { listServices, type Service } from "@/lib/service-catalog";
 import {
   type NewEnvironmentContext,
   type NewEnvironmentInput,
@@ -36,6 +35,7 @@ import {
   resolveNewEnvironment,
 } from "@/lib/setup/new-environment";
 import type { SetupIssue } from "@/lib/setup/schema";
+import { listServiceTemplates } from "@/lib/variables/repository";
 import {
   badRequest,
   CodedHTTPException,
@@ -43,12 +43,10 @@ import {
   notFound,
 } from "@/server/errors";
 import {
-  type AppWithComponents,
-  addSetupComponents,
   type EnvironmentBranches,
   ensureComponentBranch,
   type PipelineFileFailure,
-  registerSetupApp,
+  registerSetupServices,
   requireRegistrant,
   triggerComponentBuild,
 } from "@/server/services/apps";
@@ -73,8 +71,8 @@ import { detectComponentRepo } from "@/server/services/setup-detect";
  * The New environment page's server side: reads the context of a short input
  * (lib/setup/new-environment) from the database and repo detection, resolves
  * it into a setup, and previews or creates that setup. Create registers the
- * repos the plan lists (a new app, or more components of the existing one),
- * adds the environment's branch to generated components, runs the setup,
+ * repos the plan lists as new services (no app), adds the environment's
+ * branch to generated services, runs the setup,
  * makes the first server choice the project default and starts the first
  * builds, which deploy when they land (`deploy_next_build`).
  *
@@ -82,8 +80,6 @@ import { detectComponentRepo } from "@/server/services/setup-detect";
  * rights it asks for); a QA gets 403 before anything is read.
  */
 
-/** Stands in for an app the create registers first (the preview's check). */
-const UNREGISTERED_APP_ID = "00000000-0000-0000-0000-000000000000";
 /**
  * The Access policy a new address is behind unless the copy source has one:
  * the instance names it in ACCESS_DEFAULT_POLICY_NAME (matched
@@ -166,25 +162,15 @@ async function ciStep<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-type RegistryComponent = AppWithComponents["components"][number] & {
-  app: AppWithComponents;
-};
-
-function registryComponents(registry: AppWithComponents[]) {
-  return registry.flatMap((app) =>
-    app.components.map((c): RegistryComponent => ({ ...c, app }))
-  );
-}
-
 /**
- * The component a CI repository builds, if any; for a repository building
+ * The service a CI repository builds, if any; for a repository building
  * several, its non-artifact one (see repoRepresentative).
  */
 function componentOfRepo(
-  components: RegistryComponent[],
+  components: Service[],
   ciConnectionId: string,
   repo: { fullName: string; ciRepoId?: string }
-): RegistryComponent | undefined {
+): Service | undefined {
   return repoRepresentative(
     components.filter(
       (c) =>
@@ -299,12 +285,25 @@ async function detect(
   }
 }
 
+/**
+ * The detection of a registered service's repository on `branch`, or null
+ * when it cannot be read (it only fills names).
+ */
+async function detectQuietly(service: Service, branch: string) {
+  try {
+    return await detect(service.ciConnectionId, service.repoFullName, branch);
+  } catch (error) {
+    if (!(error instanceof HTTPException)) throw error;
+    return null;
+  }
+}
+
 /** Everything the resolver needs, read for this caller. */
 async function loadContext(
   input: NewEnvironmentInput,
   caller: Caller
 ): Promise<NewEnvironmentContext> {
-  const [[project], serverRows, hostRows, registry, zones, slug] =
+  const [[project], serverRows, hostRows, components, zones, slug] =
     await Promise.all([
       db
         .select({
@@ -327,7 +326,7 @@ async function loadContext(
         .select({ id: databaseHosts.id, serverId: databaseHosts.serverId })
         .from(databaseHosts)
         .orderBy(asc(databaseHosts.label)),
-      listApps(),
+      listServices(),
       listZones(),
       input.slug ?? uniqueEnvSlug(input.projectId, input.name),
     ]);
@@ -346,19 +345,11 @@ async function loadContext(
       ...s,
       databaseHostId: hostRows.find((h) => h.serverId === s.id)?.id ?? null,
     }));
-  const components = registryComponents(registry);
 
   // The copy source, by the copy rules (getCopySource filters the variables).
   const source = input.copyFromEnvironmentId
     ? await getCopySource(input.copyFromEnvironmentId)
     : null;
-  const [sourceRow] = source
-    ? await db
-        .select({ appId: environments.appId })
-        .from(environments)
-        .where(eq(environments.id, source.environment.id))
-        .limit(1)
-    : [];
 
   // Each picked repo once, detected on its branch.
   const picked = input.repos.filter(
@@ -378,52 +369,50 @@ async function loadContext(
         repoFullName: r.repoFullName,
         ciConnectionId: r.ciConnectionId,
         detection: await detect(r.ciConnectionId, r.repoFullName, r.branch),
-        component: component
-          ? {
-              componentKey: component.componentKey,
-              appId: component.app.id,
-              appKey: component.app.appKey,
-            }
-          : null,
+        component: component ? { componentKey: component.key } : null,
       };
     })
   );
+  // The picked services, detected on their branch where their repository
+  // can be read (detection only fills names).
+  const services: NewEnvironmentContext["services"] = [];
+  for (const picked of input.services) {
+    const service = components.find((c) => c.key === picked.componentKey);
+    if (!service || services.some((s) => s.componentKey === service.key)) {
+      continue;
+    }
+    services.push({
+      componentKey: service.key,
+      detection: await detectQuietly(service, picked.branch),
+    });
+  }
   // A copy without picked repos: the source's components, detected where
   // their repos can be read (detection only fills names).
-  if (input.repos.length === 0 && source) {
+  if (input.repos.length === 0 && input.services.length === 0 && source) {
     for (const target of source.targets) {
-      const component = components.find(
-        (c) => c.componentKey === target.componentKey
-      );
+      const component = components.find((c) => c.key === target.componentKey);
       if (!component) continue;
-      try {
-        repos.push({
-          repoFullName: component.repoFullName,
-          ciConnectionId: component.ciConnectionId,
-          detection: await detect(
-            component.ciConnectionId,
-            component.repoFullName,
-            target.sourceBranch
-          ),
-          component: {
-            componentKey: component.componentKey,
-            appId: component.app.id,
-            appKey: component.app.appKey,
-          },
-        });
-      } catch (error) {
-        if (!(error instanceof HTTPException)) throw error;
-      }
+      const detection = await detectQuietly(component, target.sourceBranch);
+      if (!detection) continue;
+      repos.push({
+        repoFullName: component.repoFullName,
+        ciConnectionId: component.ciConnectionId,
+        detection,
+        component: { componentKey: component.key },
+      });
     }
   }
-
-  const sourceApp = registry.find((a) => a.id === sourceRow?.appId);
-  const firstKnown = repos.find((r) => r.component)?.component;
-  const app = sourceApp
-    ? { id: sourceApp.id, key: sourceApp.appKey }
-    : firstKnown
-      ? { id: firstKnown.appId, key: firstKnown.appKey }
-      : null;
+  // The names the picked registered services' templates define: a copy
+  // keeps those source variables (keepsCopiedVariable).
+  const pickedKeys = [
+    ...services.map((s) => s.componentKey),
+    ...repos.flatMap((r) => (r.component ? [r.component.componentKey] : [])),
+  ];
+  const templateNames = [
+    ...new Set(
+      (await listServiceTemplates([...new Set(pickedKeys)])).map((t) => t.name)
+    ),
+  ];
 
   const server = placeable.find(
     (s) => s.id === (input.serverId ?? project.defaultServerId)
@@ -450,7 +439,8 @@ async function loadContext(
     project,
     servers: placeable,
     repos,
-    app,
+    services,
+    templateNames,
     slug,
     copySource: source,
     suggestedPort,
@@ -458,27 +448,18 @@ async function loadContext(
     defaultAccessPolicyId,
     zones,
     existingDbNames,
-    takenComponentKeys: components.map((c) => c.componentKey),
-    takenAppKeys: registry.map((a) => a.appKey),
+    takenComponentKeys: components.map((c) => c.key),
   };
 }
 
 /**
  * The setup preview of a resolved plan. Before the create registers them, the
- * app and its new components do not exist: those two refusals are dropped.
+ * new services do not exist: their refusal is dropped.
  */
-async function previewPlan(
-  plan: NewEnvironmentPlan,
-  ctx: NewEnvironmentContext
-): Promise<SetupPreview> {
-  const preview = await previewEnvironmentSetup({
-    ...plan.setup,
-    appId: ctx.app?.id ?? UNREGISTERED_APP_ID,
-  });
+async function previewPlan(plan: NewEnvironmentPlan): Promise<SetupPreview> {
+  const preview = await previewEnvironmentSetup(plan.setup);
   const pending = new Set(plan.registrations.map((r) => r.componentKey));
-  const newApp = !ctx.app && pending.size > 0;
   const isPending = (issue: SetupIssue) => {
-    if (issue.code === "appNotFound") return newApp;
     if (issue.code !== "componentNotFound") return false;
     const index = Number(/^targets\.(\d+)\./.exec(issue.field)?.[1]);
     const key = plan.setup.targets[index]?.componentKey;
@@ -495,7 +476,7 @@ export async function previewNewEnvironment(
   const ctx = await loadContext(input, caller);
   const plan = resolveNewEnvironment(input, ctx);
   if (plan.issues.length > 0) return { plan, preview: null };
-  return { plan, preview: await previewPlan(plan, ctx) };
+  return { plan, preview: await previewPlan(plan) };
 }
 
 /** The refusal of an issue found before anything is written. */
@@ -553,43 +534,20 @@ function environmentBranches(plan: NewEnvironmentPlan): EnvironmentBranches {
 }
 
 /**
- * Registers the plan's new repos; returns the environment's app id and the
- * branches the generated pipeline file was not committed to. A generated
- * component's build spec is the resolver's: detection's suggestion, or an
- * admin's advanced.pipelines choice (authorize gates it), never other input.
+ * Registers the plan's new repos as services (no app); returns the branches
+ * the generated pipeline file was not committed to. A generated service's
+ * build spec is the resolver's: detection's suggestion, or an admin's
+ * advanced.pipelines choice (authorize gates it), never other input.
  */
 async function registerRepos(
-  plan: NewEnvironmentPlan,
-  ctx: NewEnvironmentContext
-): Promise<{ appId: string; pipelineFileFailures: PipelineFileFailure[] }> {
-  if (plan.registrations.length === 0) {
-    if (!ctx.app) {
-      throw new CodedHTTPException(404, "appNotFound", "App not found");
-    }
-    return { appId: ctx.app.id, pipelineFileFailures: [] };
-  }
-  const components = await registrationComponents(plan);
-  const branches = environmentBranches(plan);
-  if (ctx.app) {
-    const { pipelineFileFailures } = await addSetupComponents(
-      ctx.app.key,
-      components,
-      branches
-    );
-    return { appId: ctx.app.id, pipelineFileFailures };
-  }
-  const first = plan.registrations[0]?.repoFullName ?? plan.appKey;
-  const parsed = registerAppSchema.safeParse({
-    appKey: plan.appKey,
-    name: (first.split("/").at(-1) || plan.appKey).slice(0, 120),
-    components,
+  plan: NewEnvironmentPlan
+): Promise<PipelineFileFailure[]> {
+  if (plan.registrations.length === 0) return [];
+  const parsed = registerServicesSchema.safeParse({
+    services: await registrationComponents(plan),
   });
   if (!parsed.success) badRequest("Invalid registration", "invalidInput");
-  const { app, pipelineFileFailures } = await registerSetupApp(
-    parsed.data,
-    branches
-  );
-  return { appId: app.id, pipelineFileFailures };
+  return registerSetupServices(parsed.data.services, environmentBranches(plan));
 }
 
 /**
@@ -683,10 +641,10 @@ export async function createNewEnvironment(
   const [planIssue] = plan.issues;
   if (planIssue) throw issueRefusal(planIssue, input);
   // Every check of the setup before a repo is registered or a branch added.
-  const [setupIssue] = (await previewPlan(plan, ctx)).issues;
+  const [setupIssue] = (await previewPlan(plan)).issues;
   if (setupIssue) throw issueRefusal(setupIssue, input);
 
-  const { appId, pipelineFileFailures } = await registerRepos(plan, ctx);
+  const pipelineFileFailures = await registerRepos(plan);
   const registered = new Set(plan.registrations.map((r) => r.componentKey));
   for (const target of plan.setup.targets) {
     if (registered.has(target.componentKey)) continue;
@@ -700,7 +658,7 @@ export async function createNewEnvironment(
 
   let created: SetupCreated;
   try {
-    created = await createEnvironmentSetup({ ...plan.setup, appId });
+    created = await createEnvironmentSetup(plan.setup);
   } catch (error) {
     const taken = takenCode(errorCode(error) ?? "", input);
     if (taken && error instanceof HTTPException) {
@@ -717,9 +675,7 @@ export async function createNewEnvironment(
 export type SetupRepo = {
   ciConnectionId: string;
   repoFullName: string;
-  /** The app whose component builds the repo; null when it is free. */
-  appKey: string | null;
-  appName: string | null;
+  /** The service the repo builds (its non-artifact one); null when free. */
   componentKey: string | null;
   /** The repository's main branch on the forge, else `main`. */
   defaultBranch: string;
@@ -727,16 +683,16 @@ export type SetupRepo = {
 
 /**
  * The CI server's repos whose name contains `q` (case-insensitive), on the
- * connections whose files the Panel can read, each with the app that already
- * builds it. At most REPO_SEARCH_LIMIT, by name. Same gate as detection.
+ * connections whose files the Panel can read, each with the service that
+ * already builds it. At most REPO_SEARCH_LIMIT, by name. Same gate as
+ * detection.
  */
 export async function searchSetupRepos(q: string): Promise<SetupRepo[]> {
   await requireRegistrant();
-  const [connections, registry] = await Promise.all([
+  const [connections, components] = await Promise.all([
     listConnectionOptions(),
-    listApps(),
+    listServices(),
   ]);
-  const components = registryComponents(registry);
   const needle = q.trim().toLowerCase();
   const rows: SetupRepo[] = [];
   for (const connection of connections) {
@@ -748,9 +704,7 @@ export async function searchSetupRepos(q: string): Promise<SetupRepo[]> {
       rows.push({
         ciConnectionId: connection.id,
         repoFullName: repo.fullName,
-        appKey: component?.app.appKey ?? null,
-        appName: component?.app.name ?? null,
-        componentKey: component?.componentKey ?? null,
+        componentKey: component?.key ?? null,
         defaultBranch: branchSchema.safeParse(repo.defaultBranch).success
           ? (repo.defaultBranch as string)
           : "main",

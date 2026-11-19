@@ -11,23 +11,20 @@ export const CLIENT_ISSUE_CODES = ["invalid", "required"] as const;
 
 /** Setup-only refusals (SETUP_ERRORS in server/services/environment-setup). */
 export const SETUP_ISSUE_CODES = [
-  "appNotFound",
   "serverNotFound",
-  "copySourceOtherApp",
   "environmentNameTaken",
   "environmentSlugTaken",
   "backendServiceRequired",
   "serviceNameInUse",
   "backupNeedsSharedDb",
   "invalidInput",
-  "targetMissing",
   "sharedDeployDir",
   "passwordVariableMissing",
   "cloudflareUnavailable",
   "forbidden",
 ] as const;
 
-/** Deploy target rules (TARGET_ERRORS) and the component-in-another-app one. */
+/** Deploy target rules (TARGET_ERRORS). */
 export const TARGET_ISSUE_CODES = [
   "componentNotFound",
   "tagVariableIsVariable",
@@ -35,7 +32,6 @@ export const TARGET_ISSUE_CODES = [
   "targetKindMismatch",
   "staticRootContainsTarget",
   "targetInsideStaticRoot",
-  "componentOtherApp",
 ] as const;
 
 /** Environment placement and binding rules (validateNewEnvironment). */
@@ -92,7 +88,6 @@ export const PLAN_ISSUE_CODES = [
  */
 export const NEW_ENVIRONMENT_ISSUE_CODES = [
   "noServerAvailable",
-  "repoOtherApp",
   "repoNotBuildable",
   "nameTaken",
   "domainTaken",
@@ -100,7 +95,6 @@ export const NEW_ENVIRONMENT_ISSUE_CODES = [
   "repoNotFound",
   "repoUnreadable",
   "ciUnavailable",
-  "appKeyTaken",
   "componentKeyTaken",
   "repoLinked",
   "registrationRace",

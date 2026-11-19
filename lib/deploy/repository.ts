@@ -18,7 +18,6 @@ import { type DbExecutor, db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
   appComponents,
-  apps,
   type Build,
   builds,
   type Deployment,
@@ -107,10 +106,8 @@ export type TagState = {
 
 export type TargetState = DeployTarget &
   TagState & {
-    /** The component's repository (null when the component is gone). */
+    /** The service's repository (null when the service is gone). */
     repoFullName: string | null;
-    /** The component's app (null when the component is gone). */
-    appKey: string | null;
     recentBuilds: Build[];
     recentDeployments: DeploymentEntry[];
   };
@@ -379,19 +376,17 @@ export async function listTargetsForEnvironment(
     .select({
       target: deployTargets,
       repoFullName: appComponents.repoFullName,
-      appKey: apps.appKey,
     })
     .from(deployTargets)
     .leftJoin(
       appComponents,
       eq(appComponents.componentKey, deployTargets.componentKey)
     )
-    .leftJoin(apps, eq(apps.id, appComponents.appId))
     .where(eq(deployTargets.environmentId, environmentId))
     .orderBy(deployTargets.componentKey);
 
   return Promise.all(
-    rows.map(async ({ target, repoFullName, appKey }) => {
+    rows.map(async ({ target, repoFullName }) => {
       const [tagState, recentBuilds, recentDeployments] = await Promise.all([
         getTagState(target.id),
         db
@@ -414,7 +409,6 @@ export async function listTargetsForEnvironment(
         ...target,
         ...tagState,
         repoFullName,
-        appKey,
         recentBuilds,
         recentDeployments: recentDeployments.map(toDeploymentEntry),
       };

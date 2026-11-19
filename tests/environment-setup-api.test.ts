@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 process.env.SECRETS_KEY ??= Buffer.alloc(32, 7).toString("base64");
 
 const PROJECT_ID = "0197f3a0-1b2c-7def-8000-0123456789f1";
-const APP_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const SERVER_ID = "0197f3a0-1b2c-7def-8000-0123456789c1";
 const SOURCE_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
 
@@ -81,7 +80,6 @@ const { composeContainerName, suggestServices } = await import(
 
 const input = {
   projectId: PROJECT_ID,
-  appId: APP_ID,
   name: "Staging",
   server: { serverId: SERVER_ID },
   targets: [
@@ -199,16 +197,14 @@ type Template = Parameters<
 
 function template(overrides: Partial<Template> & { name: string }): Template {
   return {
-    id: `t-${overrides.name}`,
-    appId: APP_ID,
     kind: "plain",
     required: false,
     defaultValue: null,
     generatedLength: null,
     escrow: false,
     description: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    componentKeys: ["hris"],
+    conflict: null,
     ...overrides,
   };
 }
@@ -416,6 +412,38 @@ describe("planEnvironmentVariables", () => {
     expect(issues).toEqual([
       { name: "SMTP_PASSWORD", code: "variableRequired" },
     ]);
+  });
+
+  it("never fills a name the services define differently; a required one must be entered", () => {
+    const conflict = [
+      { componentKeys: ["hris"], kind: "plain" as const, defaultValue: "a" },
+      {
+        componentKeys: ["hris-web"],
+        kind: "plain" as const,
+        defaultValue: "b",
+      },
+    ];
+    const { variables, issues } = planEnvironmentVariables({
+      ...base,
+      templates: [
+        template({ name: "MAIL_FROM", conflict }),
+        template({ name: "MAIL_REPLY_TO", required: true, conflict }),
+      ],
+      entries: [],
+    });
+    expect(variables).toEqual([]);
+    expect(issues).toEqual([
+      { name: "MAIL_REPLY_TO", code: "variableRequired" },
+    ]);
+    const entered = planEnvironmentVariables({
+      ...base,
+      templates: [
+        template({ name: "MAIL_REPLY_TO", required: true, conflict }),
+      ],
+      entries: [{ name: "MAIL_REPLY_TO", kind: "plain", value: "c" }],
+    });
+    expect(entered.issues).toEqual([]);
+    expect(entered.variables.map((v) => v.value)).toEqual(["c"]);
   });
 });
 

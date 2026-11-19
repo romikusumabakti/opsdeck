@@ -316,14 +316,12 @@ describe("insertEnvironmentIn project sources", () => {
     hasFrontend: false,
     ...backend,
   } as never;
-  const APP = "22222222-2222-4222-8222-222222222222";
-
-  it("writes no project source on insert, even for a setup app: targets add their services", async () => {
+  it("writes no project source on insert: targets add their services", async () => {
     await db.transaction((tx) =>
       insertEnvironmentIn(tx as never, input, {
         slug: "dev",
         ownerId: "user-1",
-        extra: { appId: APP },
+        extra: { envFileManaged: true },
       })
     );
     expect(projectSources.recordTargetSourceIn).not.toHaveBeenCalled();
