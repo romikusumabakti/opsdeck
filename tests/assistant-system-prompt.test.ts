@@ -68,6 +68,33 @@ describe("buildSystemPrompt", () => {
     expect(section).toContain('"checked": false');
   });
 
+  it("has a Database section: when to query, masked and capped results, the enable hint", () => {
+    const text = buildSystemPrompt({
+      userName: "Widya",
+      preferredName: null,
+      orgContext: null,
+    });
+    const start = text.indexOf("# Database");
+    expect(start).toBeGreaterThan(text.indexOf("# Panel data"));
+    const section = text.slice(start, text.indexOf("# Drafts"));
+    expect(section).toContain("list_tables");
+    expect(section).toContain("query_database");
+    expect(section).toContain("read-only");
+    expect(section).toMatch(/masked/);
+    expect(section).toMatch(/100 rows/);
+    expect(section).toContain("admin or infra");
+    expect(section).toContain("Settings › Database");
+    expect(section).toMatch(/never claim data you did not read/i);
+    // Byte-stable per user: the same text for every role.
+    expect(
+      buildSystemPrompt({
+        userName: "Widya",
+        preferredName: null,
+        orgContext: null,
+      })
+    ).toBe(text);
+  });
+
   it("knows the preferred and the full name, but does not open answers with it", () => {
     const text = buildSystemPrompt({
       userName: "Dana Putri Lestari",

@@ -2408,6 +2408,7 @@
       "downloadMany": "{actor} descargó {count} elementos (empezando por {path}) de {target}"
     },
     "assistantConfigured": "{actor} actualizó los ajustes del asistente: {enabled, select, true {activado} other {desactivado}}, {model}, esfuerzo {effort}, límite de {dailyCapUsd, number} USD por usuario al día{keyChanged, select, true {, clave de API cambiada} other {}}{providerChanged, select, true {, proveedor cambiado} other {}}{pricesChanged, select, true {, precios cambiados} other {}}{orgContextChanged, select, true {, contexto de la organización cambiado} other {}}",
+    "assistantDatabaseQuery": "{actor} consultó la base de datos de {environment} con el asistente: {sql} — {outcome, select, ok {{rows, plural, one {# fila} other {# filas}}} refused {rechazada ({reason, select, notEnabled {acceso no activado} multiple {más de una sentencia} not_select {no es un SELECT de solo lectura} wrapped_sensitive {columna sensible renombrada o envuelta} limit {LIMIT superior a 100} other {no se pudo analizar}})} other {falló}}",
     "environmentAssistantDbAccess": "{actor} {enabled, select, true {permitió que el asistente consulte la base de datos de {environment} (solo lectura)} other {desactivó el acceso del asistente a la base de datos de {environment}}}"
   },
   "jira": {
@@ -4061,6 +4062,8 @@
     "panelListServers": "Servidores",
     "panelGetServer": "Servidor",
     "panelRecentActivity": "Registro de actividad",
+    "panelListTables": "Tablas de la base de datos",
+    "panelQueryDatabase": "Consulta a la base de datos",
     "withheld": "{count, plural, one {# archivo ocultado (secreto)} other {# archivos ocultados (secretos)}}",
     "drafts": "Borradores ({count})",
     "draftsTitle": "Borradores",

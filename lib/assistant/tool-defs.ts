@@ -25,6 +25,14 @@ import {
   searchKnowledgeTool,
 } from "./tools/context";
 import {
+  DATABASE_INPUTS,
+  type DatabaseToolName,
+  databaseDefinitions,
+  databaseToolsOffered,
+  isDatabaseTool,
+  runDatabaseTool,
+} from "./tools/database";
+import {
   isPanelTool,
   PANEL_INPUTS,
   type PanelToolName,
@@ -259,10 +267,12 @@ export function buildTools(
   // The Panel tools follow the context's own tools, so a pinned context's
   // Stage 2 tools come first and unchanged; which Panel tools appear depends
   // only on the user's org role (stable across their turns, prompt cache).
+  // The database tools come last, for engineer, infra and admin only.
   const entries = [
     ...Object.entries(ctx.mode === "auto" ? AUTO_DEFINITIONS : DEFINITIONS),
     ...Object.entries(UPLOAD_DEFINITIONS),
     ...panelDefinitions(ctx.viewer),
+    ...databaseDefinitions(ctx.viewer),
   ] as Array<
     [ToolName, { description: string; inputSchema: FlexibleSchema<unknown> }]
   >;
@@ -337,7 +347,10 @@ const AUTO_INPUTS = {
   read_upload: INPUTS.read_upload,
 } as const;
 
-export type ToolName = keyof typeof AUTO_INPUTS | PanelToolName;
+export type ToolName =
+  | keyof typeof AUTO_INPUTS
+  | PanelToolName
+  | DatabaseToolName;
 
 /** A project as list_projects returns it. */
 export type ListedProject = {
@@ -384,7 +397,7 @@ const inputsOf = (ctx: ToolContext) =>
 function isToolName(
   name: string,
   inputs: Partial<Record<ToolName, z.ZodType>>
-): name is Exclude<ToolName, PanelToolName> {
+): name is Exclude<ToolName, PanelToolName | DatabaseToolName> {
   return Object.hasOwn(inputs, name);
 }
 
@@ -397,6 +410,7 @@ export async function executeTool(
   ctx: ToolContext
 ): Promise<ToolResult<unknown>> {
   if (isPanelTool(name)) return executePanelTool(name, input, ctx);
+  if (isDatabaseTool(name)) return executeDatabaseTool(name, input, ctx);
   const inputs = inputsOf(ctx);
   if (!isToolName(name, inputs)) {
     return { ok: false, error: `unknown tool: ${name}`, meta: {} };
@@ -438,6 +452,35 @@ async function executePanelTool(
   }
   try {
     return await runPanelTool(name, parsed.data, {
+      viewer: ctx.viewer,
+      panel: ctx.panel,
+      mode: ctx.mode,
+    });
+  } catch (error) {
+    console.error(`[assistant] tool ${name} failed`, error);
+    return { ok: false, error: `${name} failed unexpectedly`, meta: {} };
+  }
+}
+
+/** A database tool: only engineer, infra and admin get to run one. */
+async function executeDatabaseTool(
+  name: DatabaseToolName,
+  input: unknown,
+  ctx: ToolContext
+): Promise<ToolResult<unknown>> {
+  if (!databaseToolsOffered(ctx.viewer)) {
+    return { ok: false, error: `unknown tool: ${name}`, meta: {} };
+  }
+  const parsed = (DATABASE_INPUTS[name] as z.ZodType).safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: `invalid input for ${name}: ${z.prettifyError(parsed.error)}`,
+      meta: {},
+    };
+  }
+  try {
+    return await runDatabaseTool(name, parsed.data, {
       viewer: ctx.viewer,
       panel: ctx.panel,
       mode: ctx.mode,
@@ -513,7 +556,7 @@ async function runProjectCode(
 }
 
 async function run(
-  name: Exclude<ToolName, PanelToolName>,
+  name: Exclude<ToolName, PanelToolName | DatabaseToolName>,
   data: unknown,
   ctx: ToolContext
 ): Promise<ToolResult<unknown>> {

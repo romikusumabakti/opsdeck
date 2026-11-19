@@ -2408,6 +2408,7 @@
       "downloadMany": "{actor} نزّل {count} عناصر (بدءًا من {path}) من {target}"
     },
     "assistantConfigured": "قام {actor} بتحديث إعدادات المساعد: {enabled, select, true {مفعّل} other {معطّل}}، {model}، مستوى الجهد {effort}، الحد {dailyCapUsd, number} USD لكل مستخدم يوميًا{keyChanged, select, true {، تم تغيير مفتاح API} other {}}{providerChanged, select, true {، تم تغيير المزوّد} other {}}{pricesChanged, select, true {، تم تغيير الأسعار} other {}}{orgContextChanged, select, true {، تم تغيير سياق المؤسسة} other {}}",
+    "assistantDatabaseQuery": "استعلم {actor} في قاعدة بيانات {environment} عبر المساعد: {sql} — {outcome, select, ok {{rows, plural, zero {لا صفوف} one {صف واحد} two {صفان} few {# صفوف} many {# صفًا} other {# صف}}} refused {مرفوض ({reason, select, notEnabled {الوصول غير مفعّل} multiple {أكثر من عبارة واحدة} not_select {ليس SELECT للقراءة فقط} wrapped_sensitive {عمود حساس أُعيدت تسميته أو غُلّف} limit {LIMIT أكبر من 100} other {تعذّر التحليل}})} other {فشل}}",
     "environmentAssistantDbAccess": "{actor} {enabled, select, true {سمح للمساعد بالاستعلام في قاعدة بيانات {environment} (قراءة فقط)} other {أوقف وصول المساعد إلى قاعدة بيانات {environment}}}"
   },
   "jira": {
@@ -4061,6 +4062,8 @@
     "panelListServers": "الخوادم",
     "panelGetServer": "خادم",
     "panelRecentActivity": "سجل النشاط",
+    "panelListTables": "جداول قاعدة البيانات",
+    "panelQueryDatabase": "استعلام قاعدة البيانات",
     "withheld": "{count, plural, zero {لم يُحجب أي ملف} one {حُجب ملف واحد (سري)} two {حُجب ملفان (سريان)} few {حُجبت # ملفات (سرية)} many {حُجب # ملفًا (سريًا)} other {حُجب # ملف (سري)}}",
     "drafts": "المسودات ({count})",
     "draftsTitle": "المسودات",

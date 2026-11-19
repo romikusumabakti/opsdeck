@@ -30,6 +30,8 @@ const PANEL_READ_LABELS = {
   list_servers: "panelListServers",
   get_server: "panelGetServer",
   recent_activity: "panelRecentActivity",
+  list_tables: "panelListTables",
+  query_database: "panelQueryDatabase",
 } as const;
 type PanelReadTool = keyof typeof PANEL_READ_LABELS;
 

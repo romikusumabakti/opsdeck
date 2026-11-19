@@ -2408,6 +2408,7 @@
       "downloadMany": "{actor} mengunduh {count} item (dimulai dari {path}) dari {target}"
     },
     "assistantConfigured": "{actor} memperbarui pengaturan asisten: {enabled, select, true {aktif} other {nonaktif}}, {model}, effort {effort}, batas {dailyCapUsd, number} USD per pengguna per hari{keyChanged, select, true {, API key diubah} other {}}{providerChanged, select, true {, penyedia diubah} other {}}{pricesChanged, select, true {, harga diubah} other {}}{orgContextChanged, select, true {, konteks organisasi diubah} other {}}",
+    "assistantDatabaseQuery": "{actor} mengkueri basis data {environment} melalui Asisten: {sql} — {outcome, select, ok {{rows, plural, other {# baris}}} refused {ditolak ({reason, select, notEnabled {akses belum diaktifkan} multiple {lebih dari satu pernyataan} not_select {bukan SELECT baca-saja} wrapped_sensitive {kolom sensitif diganti nama atau dibungkus} limit {LIMIT di atas 100} other {tidak dapat diurai}})} other {gagal}}",
     "environmentAssistantDbAccess": "{actor} {enabled, select, true {mengizinkan Asisten mengkueri basis data {environment} (baca-saja)} other {menonaktifkan akses Asisten ke basis data {environment}}}"
   },
   "jira": {
@@ -4061,6 +4062,8 @@
     "panelListServers": "Server",
     "panelGetServer": "Server",
     "panelRecentActivity": "Log aktivitas",
+    "panelListTables": "Tabel basis data",
+    "panelQueryDatabase": "Kueri basis data",
     "withheld": "{count, plural, other {# file disembunyikan (rahasia)}}",
     "drafts": "Draf ({count})",
     "draftsTitle": "Draf",

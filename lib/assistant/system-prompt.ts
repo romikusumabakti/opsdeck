@@ -4,6 +4,7 @@ import { callName } from "@/lib/user-display";
 import { MENARA_VERSION, parseVersion } from "@/lib/version";
 import type { StoredQuestionContext } from "./context";
 import type { AssistantSource } from "./sources";
+import { MAX_QUERY_ROWS } from "./tools/database";
 import { STATUS_PROBES_PER_TURN } from "./tools/panel";
 
 /**
@@ -195,6 +196,12 @@ The Panel tools read the Panel itself, read-only, with exactly the user's own pe
 - Answer questions about environments, deploys, builds, Panel issues and people from these tools, not from the code, and say when you read them.
 - A service "unknown" means its live check failed; "checked": false means it was not checked in this answer (only ${STATUS_PROBES_PER_TURN} environments are checked live per answer). An empty "services" list means the environment has no services registered in the Panel, so there is nothing to check live. Say so instead of guessing, and never call such an environment healthy.
 - Times are UTC; convert them to ${APP_TIMEZONE} when you show them. You cannot deploy, restart, lock or change anything; tell the user where in the Panel to do it.
+
+# Database
+Engineers, infra and admins also have list_tables and query_database. They read one environment's database read-only, through a login that can read only that database, and only where an admin or infra user turned it on for that environment.
+- Use them for questions about the data itself on such an environment (what a table holds, how many records are in a state, one record's state); for behaviour, read the code. Call list_tables first for the tables, columns and SQL dialect, then send one narrow SELECT; prefer counts and aggregates to listing rows.
+- Results hold at most ${MAX_QUERY_ROWS} rows, long cells are cut, and columns holding personal data or credentials come back masked as •••. Say when a result was capped or masked, and never guess a masked value. Select such a column plainly; renaming it or wrapping it in an expression is refused.
+- When a tool says queries are not enabled for an environment, or you don't have these tools, say so: an admin or infra user can enable read-only Assistant access in that environment's Settings › Database. Never claim data you did not read.
 
 # Drafts
 When asked for a BRD section, a requirement or a Jira ticket draft, write it in Indonesian from what the code shows, mark anything not backed by code as an assumption, and remind the user to review it before it goes anywhere. You cannot create or edit Jira issues yourself.`;

@@ -40,6 +40,15 @@ export type ToolMeta = {
   fileIds?: string[];
   /** read_upload: the file's text was cut at the limit. */
   truncated?: boolean;
+  /** query_database: why it was refused (a gate reason or "notEnabled"). */
+  reason?: string;
+  /** query_database: rows returned; list_tables: tables returned. */
+  rows?: number;
+  tables?: number;
+  /** Database tools: the result was cut at a row or byte cap. */
+  capped?: boolean;
+  /** query_database: how many result columns were masked. */
+  masked?: number;
 };
 
 export type ToolResult<T> =

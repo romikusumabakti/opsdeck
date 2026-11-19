@@ -464,7 +464,7 @@ function withWithheld(meta: ToolMeta, withheld: number): ToolMeta {
   return withheld > 0 ? { ...meta, withheld } : meta;
 }
 
-type PanelContext = {
+export type PanelContext = {
   viewer: AssistantViewer;
   panel: PanelTurn;
   mode: "auto" | "pinned";
@@ -480,7 +480,7 @@ export function unknownProjectError(
     : `Unknown project ${key}. Call list_environments.`;
 }
 
-const unknownEnvironment = (ref: string) =>
+export const unknownEnvironment = (ref: string) =>
   `Unknown environment ${ref}. Call list_environments.`;
 
 async function projectByKey(
@@ -493,9 +493,9 @@ async function projectByKey(
   return project ?? key;
 }
 
-const envRef = (env: EnvironmentListItem) => `${env.key}/${env.slug}`;
+export const envRef = (env: EnvironmentListItem) => `${env.key}/${env.slug}`;
 
-async function environmentByRef(
+export async function environmentByRef(
   ctx: PanelContext,
   given: string
 ): Promise<EnvironmentListItem | null> {

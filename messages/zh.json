@@ -2408,6 +2408,7 @@
       "downloadMany": "{actor} 从 {target} 下载了 {count} 个项目（从 {path} 开始）"
     },
     "assistantConfigured": "{actor} 更新了助手设置：{enabled, select, true {已启用} other {已停用}}，{model}，思考强度 {effort}，每位用户每日上限 {dailyCapUsd, number} USD{keyChanged, select, true {，API 密钥已更改} other {}}{providerChanged, select, true {，提供商已更改} other {}}{pricesChanged, select, true {，价格已更改} other {}}{orgContextChanged, select, true {，组织背景已更改} other {}}",
+    "assistantDatabaseQuery": "{actor} 通过助手查询了 {environment} 的数据库：{sql} — {outcome, select, ok {{rows, plural, other {# 行}}} refused {已拒绝（{reason, select, notEnabled {未启用访问} multiple {多于一条语句} not_select {不是只读 SELECT} wrapped_sensitive {敏感列被重命名或包装} limit {LIMIT 超过 100} other {无法解析}}）} other {失败}}",
     "environmentAssistantDbAccess": "{actor} {enabled, select, true {允许助手查询 {environment} 的数据库（只读）} other {关闭了助手对 {environment} 数据库的访问}}"
   },
   "jira": {
@@ -4061,6 +4062,8 @@
     "panelListServers": "服务器",
     "panelGetServer": "服务器",
     "panelRecentActivity": "动态日志",
+    "panelListTables": "数据库表",
+    "panelQueryDatabase": "数据库查询",
     "withheld": "{count, plural, other {已隐藏 # 个文件（机密）}}",
     "drafts": "草稿（{count}）",
     "draftsTitle": "草稿",

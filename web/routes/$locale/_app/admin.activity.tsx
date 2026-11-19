@@ -294,6 +294,15 @@ function message(
         pricesChanged: String(d.pricesChanged),
         orgContextChanged: String(d.orgContextChanged),
       });
+    case "assistant.databaseQuery":
+      return t("assistantDatabaseQuery", {
+        actor,
+        environment: String(d.environment),
+        sql: String(d.sql),
+        rows: Number(d.rows ?? 0),
+        outcome: String(d.outcome),
+        reason: String(d.reason),
+      });
     case "variables.revealed":
       return t("variablesRevealed", {
         actor,
