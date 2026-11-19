@@ -91,7 +91,8 @@
     "repositories": "Repositori",
     "variables": "Variabel",
     "releases": "Rilis",
-    "assistant": "Asisten"
+    "assistant": "Asisten",
+    "storage": "Penyimpanan"
   },
   "commandPalette": {
     "triggerLabel": "Cari atau buka…",
@@ -1825,9 +1826,10 @@
     "browse": "Jelajahi berkas",
     "emptyTitle": "Belum ada koneksi",
     "empty": "Tambahkan koneksi kompatibel S3 untuk menjelajahi objeknya.",
-    "searchPlaceholder": "Cari koneksi…",
     "deleteTitle": "Hapus koneksi",
-    "deleteDescription": "Hapus “{name}”? Objek yang tersimpan tidak terpengaruh."
+    "deleteDescription": "Hapus “{name}”? Objek yang tersimpan tidak terpengaruh.",
+    "emptyReadOnly": "Belum ada koneksi penyimpanan. Anggota yang dapat mengubah lingkungan ini bisa menambahkannya.",
+    "instanceBackups": "Backup instans"
   },
   "newStorage": {
     "title": "Koneksi baru",
@@ -1839,8 +1841,26 @@
     "title": "Edit {name}",
     "description": "Perbarui detail koneksi.",
     "formTitle": "Detail koneksi",
-    "formDescription": "Kosongkan secret key untuk mempertahankan yang tersimpan.",
+    "formDescription": "Kredensial disimpan di sisi server dan tidak pernah dikirim ke browser.",
     "browseFiles": "Jelajahi berkas"
+  },
+  "adminStorage": {
+    "title": "Penyimpanan",
+    "subtitle": "Koneksi yang tidak dimiliki lingkungan mana pun. Berikan ke sebuah lingkungan atau hapus.",
+    "emptyTitle": "Tidak ada koneksi tanpa pemilik",
+    "empty": "Setiap koneksi penyimpanan dimiliki oleh sebuah lingkungan.",
+    "colName": "Nama",
+    "colEndpoint": "Endpoint",
+    "colBucket": "Bucket",
+    "instanceBackups": "Backup instans",
+    "assign": "Tetapkan ke lingkungan",
+    "assignTitle": "Tetapkan “{name}”",
+    "assignDescription": "Pilih lingkungan yang akan memiliki koneksi ini. Pengelolanya kemudian dapat mengubah dan menjelajahinya.",
+    "environment": "Lingkungan",
+    "environmentPlaceholder": "Cari lingkungan…",
+    "assigned": "“{name}” kini dimiliki {environment}",
+    "deleteTitle": "Hapus koneksi",
+    "deleteDescription": "Hapus “{name}”? Objek yang tersimpan tidak terpengaruh."
   },
   "s3Form": {
     "name": "Nama",
@@ -1851,7 +1871,6 @@
     "region": "Region",
     "accessKeyId": "Access key ID",
     "secretKey": "Secret key",
-    "secretKeyEdit": "Secret key",
     "secretKeyEditPlaceholder": "Kosongkan untuk mempertahankan yang sekarang",
     "forcePathStyle": "Pengalamatan path-style",
     "forcePathStyleDescription": "Diperlukan untuk Garage dan sebagian besar S3 mandiri. Biarkan aktif kecuali memakai gaya virtual-host AWS.",
@@ -1860,7 +1879,11 @@
     "testFailed": "Koneksi gagal",
     "submitting": "Menyimpan…",
     "saveChanges": "Simpan perubahan",
-    "create": "Buat"
+    "create": "Buat",
+    "keyPrefix": "Key prefix",
+    "keyPrefixDescription": "Batasi koneksi ini ke satu folder di bucket. Kosongkan untuk seluruh bucket.",
+    "secretKeyKeepHint": "Kosongkan untuk mempertahankan secret key yang tersimpan.",
+    "secretKeyRequiredHint": "Masukkan secret key lagi: mengubah endpoint, region, bucket, key prefix, access key, atau path style memerlukannya."
   },
   "projectCreateDialog": {
     "title": "Proyek baru",

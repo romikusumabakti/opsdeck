@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import messages from "../messages/en.json";
 
 // The browser side of restricted targets: the page guard for a terminal or
-// file page, and the storage list's Browse button, take the org role alone on
-// an infra-only server or the instance backup bucket.
+// file page take the org role alone on an infra-only server; an
+// environment's storage list offers nothing on the instance backup bucket.
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/dialog-provider", () => ({
@@ -23,14 +23,15 @@ vi.mock("@/i18n/navigation", async (importOriginal) => ({
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock("@/web/api/s3-connections", () => ({
-  deleteS3Connection: vi.fn(),
+vi.mock("@/web/api/environment-storage", () => ({
+  deleteEnvironmentStorage: vi.fn(),
+  testEnvironmentStorage: vi.fn(),
 }));
 
 import { getMyProjectAccessQuery } from "@/web/api/project-catalog";
 import { meQuery } from "@/web/api/session";
 import { requireOrgRole } from "@/web/project-guard";
-import { StorageClient } from "../web/routes/$locale/_app/-components/storage/storage-client";
+import { StorageList } from "../web/routes/$locale/_app/-components/env/storage/storage-list";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -102,8 +103,8 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("storage list", () => {
-  it("hides Browse on the backup bucket for an engineer member", async () => {
+describe("environment storage list", () => {
+  it("offers no Browse, edit or delete on the backup bucket", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -111,25 +112,26 @@ describe("storage list", () => {
       root?.render(
         <QueryClientProvider client={new QueryClient()}>
           <IntlProvider locale="en" messages={messages} timeZone="UTC">
-            <StorageClient
+            <StorageList
+              environmentId="e1"
+              basePath="/HMEM/dev/storage"
               connections={[
                 connection(NORMAL, false),
                 connection(BACKUP, true),
               ]}
-              can={{
-                manage: false,
-                files: (isBackupDestination) => !isBackupDestination,
-              }}
+              canManage
+              canBrowse
             />
           </IntlProvider>
         </QueryClientProvider>
       );
     });
     expect(
-      document.querySelector(`a[href='/storage/${NORMAL}/files']`)
+      document.querySelector(`a[href='/HMEM/dev/storage/${NORMAL}/files']`)
     ).not.toBeNull();
     expect(
-      document.querySelector(`a[href='/storage/${BACKUP}/files']`)
+      document.querySelector(`a[href='/HMEM/dev/storage/${BACKUP}/files']`)
     ).toBeNull();
+    expect(container.textContent).toContain(messages.storage.instanceBackups);
   });
 });

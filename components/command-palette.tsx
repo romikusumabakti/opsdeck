@@ -257,17 +257,6 @@ export function CommandPalette({
                 {tUserMenu("servers")}
               </CommandItem>
             )}
-            {canOrgAccess(orgRole, {
-              storage: ["read"],
-            }) && (
-              <CommandItem
-                value="storage buckets s3"
-                onSelect={() => run(() => router.push("/storage"))}
-              >
-                <HardDrive />
-                {tNav("storage")}
-              </CommandItem>
-            )}
             {/* The admin pages, in the sidebar's order and behind the same
                 permissions. */}
             {canOrg(orgRole, { audit: ["read"] }) && (
@@ -295,6 +284,15 @@ export function CommandPalette({
               >
                 <Boxes />
                 {tNav("repositories")}
+              </CommandItem>
+            )}
+            {canOrg(orgRole, { storage: ["manage"] }) && (
+              <CommandItem
+                value="storage buckets s3 unassigned"
+                onSelect={() => run(() => router.push("/admin/storage"))}
+              >
+                <HardDrive />
+                {tNav("storage")}
               </CommandItem>
             )}
             {canOrg(orgRole, { instance: ["manage"] }) && (

@@ -91,7 +91,8 @@
     "repositories": "Repositories",
     "variables": "Variables",
     "releases": "Releases",
-    "assistant": "Assistant"
+    "assistant": "Assistant",
+    "storage": "Storage"
   },
   "commandPalette": {
     "triggerLabel": "Search or jump to…",
@@ -1825,9 +1826,10 @@
     "browse": "Browse files",
     "emptyTitle": "No connections",
     "empty": "Add an S3-compatible connection to browse its objects.",
-    "searchPlaceholder": "Search connections…",
     "deleteTitle": "Delete connection",
-    "deleteDescription": "Delete “{name}”? The stored objects are not affected."
+    "deleteDescription": "Delete “{name}”? The stored objects are not affected.",
+    "emptyReadOnly": "No storage connections yet. A member who can edit this environment can add one.",
+    "instanceBackups": "Instance backups"
   },
   "newStorage": {
     "title": "New connection",
@@ -1839,8 +1841,26 @@
     "title": "Edit {name}",
     "description": "Update connection details.",
     "formTitle": "Connection details",
-    "formDescription": "Leave the secret key blank to keep the stored one.",
+    "formDescription": "Credentials are stored server-side and never sent to the browser.",
     "browseFiles": "Browse files"
+  },
+  "adminStorage": {
+    "title": "Storage",
+    "subtitle": "Connections no environment owns. Give one to an environment or delete it.",
+    "emptyTitle": "No unassigned connections",
+    "empty": "Every storage connection belongs to an environment.",
+    "colName": "Name",
+    "colEndpoint": "Endpoint",
+    "colBucket": "Bucket",
+    "instanceBackups": "Instance backups",
+    "assign": "Assign to environment",
+    "assignTitle": "Assign “{name}”",
+    "assignDescription": "Pick the environment that will own this connection. Its managers can then edit and browse it.",
+    "environment": "Environment",
+    "environmentPlaceholder": "Search environments…",
+    "assigned": "“{name}” now belongs to {environment}",
+    "deleteTitle": "Delete connection",
+    "deleteDescription": "Delete “{name}”? The stored objects are not affected."
   },
   "s3Form": {
     "name": "Name",
@@ -1851,7 +1871,6 @@
     "region": "Region",
     "accessKeyId": "Access key ID",
     "secretKey": "Secret key",
-    "secretKeyEdit": "Secret key",
     "secretKeyEditPlaceholder": "Leave blank to keep current",
     "forcePathStyle": "Path-style addressing",
     "forcePathStyleDescription": "Required for Garage and most self-hosted S3. Leave on unless using AWS virtual-host style.",
@@ -1860,7 +1879,11 @@
     "testFailed": "Connection failed",
     "submitting": "Saving…",
     "saveChanges": "Save changes",
-    "create": "Create"
+    "create": "Create",
+    "keyPrefix": "Key prefix",
+    "keyPrefixDescription": "Confine this connection to a folder of the bucket. Leave empty for the whole bucket.",
+    "secretKeyKeepHint": "Leave blank to keep the stored secret key.",
+    "secretKeyRequiredHint": "Enter the secret key again: changing the endpoint, region, bucket, key prefix, access key or path style needs it."
   },
   "projectCreateDialog": {
     "title": "New project",

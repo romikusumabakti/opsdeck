@@ -91,7 +91,8 @@
     "repositories": "المستودعات",
     "variables": "المتغيرات",
     "releases": "Releases",
-    "assistant": "المساعد"
+    "assistant": "المساعد",
+    "storage": "التخزين"
   },
   "commandPalette": {
     "triggerLabel": "بحث أو انتقل إلى…",
@@ -1825,9 +1826,10 @@
     "browse": "تصفح الملفات",
     "emptyTitle": "لا توجد اتصالات",
     "empty": "أضف اتصالاً متوافقًا مع S3 لتصفح كائناته.",
-    "searchPlaceholder": "بحث في الاتصالات…",
     "deleteTitle": "حذف الاتصال",
-    "deleteDescription": "حذف “{name}”؟ لن تتأثر الكائنات المخزنة."
+    "deleteDescription": "حذف “{name}”؟ لن تتأثر الكائنات المخزنة.",
+    "emptyReadOnly": "لا توجد اتصالات تخزين بعد. يمكن لعضو يستطيع تعديل هذه البيئة إضافة اتصال.",
+    "instanceBackups": "نسخ المثيل الاحتياطية"
   },
   "newStorage": {
     "title": "اتصال جديد",
@@ -1839,8 +1841,26 @@
     "title": "تعديل {name}",
     "description": "تحديث تفاصيل الاتصال.",
     "formTitle": "تفاصيل الاتصال",
-    "formDescription": "اترك المفتاح السري فارغًا للاحتفاظ بالمخزَّن.",
+    "formDescription": "تُخزَّن بيانات الاعتماد على الخادم ولا تُرسل إلى المتصفح أبدًا.",
     "browseFiles": "تصفح الملفات"
+  },
+  "adminStorage": {
+    "title": "التخزين",
+    "subtitle": "اتصالات لا تملكها أي بيئة. أسندها إلى بيئة أو احذفها.",
+    "emptyTitle": "لا توجد اتصالات غير مسندة",
+    "empty": "كل اتصال تخزين يتبع بيئة.",
+    "colName": "الاسم",
+    "colEndpoint": "نقطة النهاية",
+    "colBucket": "الحاوية",
+    "instanceBackups": "نسخ المثيل الاحتياطية",
+    "assign": "إسناد إلى بيئة",
+    "assignTitle": "إسناد “{name}”",
+    "assignDescription": "اختر البيئة التي ستملك هذا الاتصال. يمكن لمديريها حينها تعديله وتصفحه.",
+    "environment": "البيئة",
+    "environmentPlaceholder": "بحث في البيئات…",
+    "assigned": "أصبح “{name}” تابعًا لـ {environment}",
+    "deleteTitle": "حذف الاتصال",
+    "deleteDescription": "حذف “{name}”؟ لن تتأثر الكائنات المخزنة."
   },
   "s3Form": {
     "name": "الاسم",
@@ -1851,7 +1871,6 @@
     "region": "المنطقة",
     "accessKeyId": "معرّف مفتاح الوصول",
     "secretKey": "المفتاح السري",
-    "secretKeyEdit": "المفتاح السري",
     "secretKeyEditPlaceholder": "اتركه فارغًا للاحتفاظ بالحالي",
     "forcePathStyle": "عنونة بنمط المسار",
     "forcePathStyleDescription": "مطلوب لـ Garage ومعظم خوادم S3 المستضافة ذاتيًا. اتركه مفعّلاً ما لم تستخدم نمط المضيف الافتراضي من AWS.",
@@ -1860,7 +1879,11 @@
     "testFailed": "فشل الاتصال",
     "submitting": "جارٍ الحفظ…",
     "saveChanges": "حفظ التغييرات",
-    "create": "إنشاء"
+    "create": "إنشاء",
+    "keyPrefix": "بادئة المفاتيح",
+    "keyPrefixDescription": "اقصر هذا الاتصال على مجلد من الحاوية. اتركها فارغة لاستخدام الحاوية كاملة.",
+    "secretKeyKeepHint": "اتركه فارغًا للاحتفاظ بالمفتاح السري المخزَّن.",
+    "secretKeyRequiredHint": "أدخل المفتاح السري مجددًا: تغيير نقطة النهاية أو المنطقة أو الحاوية أو بادئة المفاتيح أو مفتاح الوصول أو نمط المسار يتطلبه."
   },
   "projectCreateDialog": {
     "title": "مشروع جديد",

@@ -91,7 +91,8 @@
     "repositories": "Repositorios",
     "variables": "Variables",
     "releases": "Releases",
-    "assistant": "Asistente"
+    "assistant": "Asistente",
+    "storage": "Almacenamiento"
   },
   "commandPalette": {
     "triggerLabel": "Buscar o ir a…",
@@ -1825,9 +1826,10 @@
     "browse": "Explorar archivos",
     "emptyTitle": "Sin conexiones",
     "empty": "Añade una conexión compatible con S3 para explorar sus objetos.",
-    "searchPlaceholder": "Buscar conexiones…",
     "deleteTitle": "Eliminar conexión",
-    "deleteDescription": "¿Eliminar “{name}”? Los objetos almacenados no se ven afectados."
+    "deleteDescription": "¿Eliminar “{name}”? Los objetos almacenados no se ven afectados.",
+    "emptyReadOnly": "Aún no hay conexiones de almacenamiento. Un miembro que pueda editar este entorno puede añadir una.",
+    "instanceBackups": "Copias de la instancia"
   },
   "newStorage": {
     "title": "Nueva conexión",
@@ -1839,8 +1841,26 @@
     "title": "Editar {name}",
     "description": "Actualiza los detalles de la conexión.",
     "formTitle": "Detalles de la conexión",
-    "formDescription": "Deja la clave secreta en blanco para conservar la guardada.",
+    "formDescription": "Las credenciales se guardan en el servidor y nunca se envían al navegador.",
     "browseFiles": "Explorar archivos"
+  },
+  "adminStorage": {
+    "title": "Almacenamiento",
+    "subtitle": "Conexiones que no pertenecen a ningún entorno. Asigna una a un entorno o elimínala.",
+    "emptyTitle": "Sin conexiones sin asignar",
+    "empty": "Todas las conexiones de almacenamiento pertenecen a un entorno.",
+    "colName": "Nombre",
+    "colEndpoint": "Endpoint",
+    "colBucket": "Bucket",
+    "instanceBackups": "Copias de la instancia",
+    "assign": "Asignar a un entorno",
+    "assignTitle": "Asignar «{name}»",
+    "assignDescription": "Elige el entorno que será propietario de esta conexión. Sus responsables podrán entonces editarla y explorarla.",
+    "environment": "Entorno",
+    "environmentPlaceholder": "Buscar entornos…",
+    "assigned": "«{name}» ahora pertenece a {environment}",
+    "deleteTitle": "Eliminar conexión",
+    "deleteDescription": "¿Eliminar «{name}»? Los objetos almacenados no se ven afectados."
   },
   "s3Form": {
     "name": "Nombre",
@@ -1851,7 +1871,6 @@
     "region": "Región",
     "accessKeyId": "ID de clave de acceso",
     "secretKey": "Clave secreta",
-    "secretKeyEdit": "Clave secreta",
     "secretKeyEditPlaceholder": "Déjalo en blanco para conservar la actual",
     "forcePathStyle": "Direccionamiento por ruta",
     "forcePathStyleDescription": "Obligatorio para Garage y para la mayoría de S3 autoalojados. Déjalo activado salvo que uses el estilo de host virtual de AWS.",
@@ -1860,7 +1879,11 @@
     "testFailed": "La conexión falló",
     "submitting": "Guardando…",
     "saveChanges": "Guardar cambios",
-    "create": "Crear"
+    "create": "Crear",
+    "keyPrefix": "Prefijo de claves",
+    "keyPrefixDescription": "Limita esta conexión a una carpeta del bucket. Déjalo vacío para usar todo el bucket.",
+    "secretKeyKeepHint": "Déjalo en blanco para conservar la clave secreta guardada.",
+    "secretKeyRequiredHint": "Vuelve a introducir la clave secreta: cambiar el endpoint, la región, el bucket, el prefijo de claves, la clave de acceso o el estilo de ruta la requiere."
   },
   "projectCreateDialog": {
     "title": "Nuevo proyecto",

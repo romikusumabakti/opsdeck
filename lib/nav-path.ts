@@ -177,6 +177,7 @@ export const PARALLEL_SECTIONS: ReadonlySet<string> = new Set([
   "databases",
   "mock-time",
   "mail",
+  "storage",
   "history",
   "settings",
 ]);

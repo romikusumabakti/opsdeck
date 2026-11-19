@@ -108,29 +108,27 @@ describe("command palette pages", () => {
       ].find((item) => item.textContent === label);
       await act(async () => el?.click());
     };
-    await open(messages.nav.storage);
     await open(messages.nav.repositories);
+    await open(messages.nav.storage);
     await open(messages.nav.ci);
     await open(messages.nav.cloudflare);
     expect(push.mock.calls.map(([path]) => path)).toEqual([
-      "/storage",
       "/admin/repositories",
+      "/admin/storage",
       "/admin/ci",
       "/admin/cloudflare",
     ]);
   });
 
-  it("lists Servers and Storage to an engineer", async () => {
+  it("lists Servers, and no Storage page, to an engineer", async () => {
     await openPalette("engineer", "engineer");
-    expect(labels()).toEqual(
-      expect.arrayContaining([messages.userMenu.servers, messages.nav.storage])
-    );
+    expect(labels()).toContain(messages.userMenu.servers);
+    expect(labels()).not.toContain(messages.nav.storage);
   });
 
-  it("hides Servers and Storage from a QA member", async () => {
+  it("hides Servers from a QA member", async () => {
     await openPalette("qa", "qa");
     expect(labels()).not.toContain(messages.userMenu.servers);
-    expect(labels()).not.toContain(messages.nav.storage);
   });
 
   it("hides Repositories, CI and Cloudflare from a QA member", async () => {

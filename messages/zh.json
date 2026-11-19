@@ -91,7 +91,8 @@
     "repositories": "代码仓库",
     "variables": "变量",
     "releases": "Releases",
-    "assistant": "助手"
+    "assistant": "助手",
+    "storage": "存储"
   },
   "commandPalette": {
     "triggerLabel": "搜索或跳转…",
@@ -1825,9 +1826,10 @@
     "browse": "浏览文件",
     "emptyTitle": "暂无连接",
     "empty": "添加 S3 兼容连接以浏览其对象。",
-    "searchPlaceholder": "搜索连接…",
     "deleteTitle": "删除连接",
-    "deleteDescription": "删除“{name}”？已存储的对象不受影响。"
+    "deleteDescription": "删除“{name}”？已存储的对象不受影响。",
+    "emptyReadOnly": "尚无存储连接。可编辑此环境的成员可以添加。",
+    "instanceBackups": "实例备份"
   },
   "newStorage": {
     "title": "新建连接",
@@ -1839,8 +1841,26 @@
     "title": "编辑 {name}",
     "description": "更新连接详情。",
     "formTitle": "连接详情",
-    "formDescription": "留空密钥以保留已存储的密钥。",
+    "formDescription": "凭证存储在服务器端，绝不会发送到浏览器。",
     "browseFiles": "浏览文件"
+  },
+  "adminStorage": {
+    "title": "存储",
+    "subtitle": "不属于任何环境的连接。可分配给环境或删除。",
+    "emptyTitle": "没有未分配的连接",
+    "empty": "所有存储连接都属于某个环境。",
+    "colName": "名称",
+    "colEndpoint": "端点",
+    "colBucket": "存储桶",
+    "instanceBackups": "实例备份",
+    "assign": "分配给环境",
+    "assignTitle": "分配“{name}”",
+    "assignDescription": "选择将拥有此连接的环境。其管理者随后即可编辑和浏览它。",
+    "environment": "环境",
+    "environmentPlaceholder": "搜索环境…",
+    "assigned": "“{name}”现已属于 {environment}",
+    "deleteTitle": "删除连接",
+    "deleteDescription": "删除“{name}”？已存储的对象不受影响。"
   },
   "s3Form": {
     "name": "名称",
@@ -1851,7 +1871,6 @@
     "region": "区域",
     "accessKeyId": "访问密钥 ID",
     "secretKey": "密钥",
-    "secretKeyEdit": "密钥",
     "secretKeyEditPlaceholder": "留空以保留当前密钥",
     "forcePathStyle": "路径风格寻址",
     "forcePathStyleDescription": "Garage 和大多数自托管 S3 需要。除非使用 AWS 虚拟主机风格，否则保持开启。",
@@ -1860,7 +1879,11 @@
     "testFailed": "连接失败",
     "submitting": "保存中…",
     "saveChanges": "保存更改",
-    "create": "创建"
+    "create": "创建",
+    "keyPrefix": "键前缀",
+    "keyPrefixDescription": "将此连接限制在存储桶的某个文件夹内。留空表示整个存储桶。",
+    "secretKeyKeepHint": "留空以保留已存储的密钥。",
+    "secretKeyRequiredHint": "请重新输入密钥：更改端点、区域、存储桶、键前缀、访问密钥或路径样式时需要密钥。"
   },
   "projectCreateDialog": {
     "title": "新建项目",

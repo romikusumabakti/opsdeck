@@ -1,47 +1,13 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, notFound } from "@tanstack/react-router";
-import { useTranslations } from "use-intl";
-import { FileExplorer } from "@/components/file-explorer";
-import { PageHeader } from "@/components/page-header";
-import { FileExplorerSkeleton } from "@/components/skeletons/file-explorer-skeleton";
-import { getS3ConnectionQuery } from "@/web/api/s3-connections";
-import { orNotFound, requireOrgRole } from "@/web/project-guard";
+import { createFileRoute } from "@tanstack/react-router";
+import { redirect } from "@/i18n/navigation";
+import { legacyStorageConnectionHref } from "./-components/storage-redirect";
 
+// An old file-browser link goes to the same browser under the connection's
+// environment, or to Admin › Storage while no environment owns it.
 export const Route = createFileRoute("/$locale/_app/storage/$id/files")({
-  beforeLoad: async ({ context: { queryClient } }) => {
-    await requireOrgRole(queryClient, { storage: ["files"] });
-  },
-  loader: async ({ params: { id }, context: { queryClient } }) => {
-    const connection = await orNotFound(
-      queryClient.query(getS3ConnectionQuery(id))
-    );
-    if (!connection) throw notFound();
-    // The instance backup bucket takes the org role alone (the API refuses
-    // the engineer grant there too).
-    if (connection.isBackupDestination) {
-      await requireOrgRole(queryClient, { storage: ["files"] }, true);
-    }
-  },
-  pendingComponent: FileExplorerSkeleton,
-  component: StorageFilesPage,
+  beforeLoad: async ({ params: { locale, id }, context: { queryClient } }) =>
+    redirect(
+      await legacyStorageConnectionHref(queryClient, id, "/files"),
+      locale
+    ),
 });
-
-function StorageFilesPage() {
-  const { id } = Route.useParams();
-  const t = useTranslations("explorer");
-  const connection = useSuspenseQuery(getS3ConnectionQuery(id)).data;
-  if (!connection) return null;
-
-  return (
-    <>
-      <PageHeader
-        title={t("storageFilesTitle", { name: connection.name })}
-        subtitle={t("storageFilesSubtitle", { bucket: connection.bucket })}
-      />
-      <FileExplorer
-        source={{ kind: "s3", connectionId: id }}
-        rootLabel={connection.bucket}
-      />
-    </>
-  );
-}

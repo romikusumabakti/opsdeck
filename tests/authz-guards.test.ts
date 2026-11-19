@@ -874,15 +874,6 @@ const ORG_READ_PAGES: Record<string, RegExp[]> = {
     /server: \["manage"\]/,
     /readOnly=\{!canManage\}/,
   ],
-  [`${APP}/storage.index.tsx`]: [
-    /storage: \["manage"\]/,
-    /storage: \["files"\]/,
-  ],
-  [`${APP}/storage.$id.index.tsx`]: [
-    /storage: \["manage"\]/,
-    /storage: \["files"\]/,
-    /readOnly=\{!canManage\}/,
-  ],
   // Zones and local tunnels are sections of the Cloudflare page.
   [`${APP}/admin.cloudflare.index.tsx`]: [/tunnel: \["manage"\]/],
   [`${APP}/admin.cloudflare.local-tunnels.$id.index.tsx`]: [

@@ -1,56 +1,11 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
-import { useTranslations } from "use-intl";
-import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
-import { Link } from "@/i18n/navigation";
-import { canOrg } from "@/lib/permissions";
-import { getS3ConnectionsQuery } from "@/web/api/s3-connections";
-import { useCanOrg, useMe } from "@/web/api/session";
-import { requireOrgRole } from "@/web/project-guard";
-import { loaderQuery } from "@/web/query-client";
-import { ListPending } from "./-components/list-pending";
-import { StorageClient } from "./-components/storage/storage-client";
+import { redirect } from "@/i18n/navigation";
+import { legacyStorageIndexHref } from "./-components/storage-redirect";
 
+// The global Storage page is gone: connections live in their environment
+// (Admin › Storage for the unassigned ones). Old links land on the nearest
+// page the caller can open.
 export const Route = createFileRoute("/$locale/_app/storage/")({
-  beforeLoad: ({ context: { queryClient } }) =>
-    requireOrgRole(queryClient, { storage: ["read"] }),
-  loader: async ({ context: { queryClient } }) => {
-    await loaderQuery(queryClient, getS3ConnectionsQuery());
-  },
-  pendingComponent: () => <ListPending />,
-  component: StoragePage,
+  beforeLoad: async ({ params: { locale }, context: { queryClient } }) =>
+    redirect(await legacyStorageIndexHref(queryClient), locale),
 });
-
-function StoragePage() {
-  const t = useTranslations("storage");
-  const me = useMe();
-  const canAccess = useCanOrg();
-  const connections = useSuspenseQuery(getS3ConnectionsQuery()).data;
-  // storage:read (observers) lists connections; managing them and browsing
-  // their files need their own statements, so those controls are hidden too.
-  const can = {
-    manage: canOrg(me?.orgRole, { storage: ["manage"] }),
-    files: (isBackupDestination: boolean) =>
-      canAccess({ storage: ["files"] }, isBackupDestination),
-  };
-
-  return (
-    <>
-      <PageHeader
-        title={t("title")}
-        subtitle={t("subtitle")}
-        action={
-          can.manage ? (
-            <Button nativeButton={false} render={<Link href="/storage/new" />}>
-              <Plus className="size-4" />
-              {t("addConnection")}
-            </Button>
-          ) : undefined
-        }
-      />
-      <StorageClient connections={connections} can={can} />
-    </>
-  );
-}

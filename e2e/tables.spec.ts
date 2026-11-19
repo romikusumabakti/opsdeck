@@ -4,28 +4,21 @@ import { AUTH_FILE } from "./support";
 test.use({ storageState: AUTH_FILE });
 
 test("a short table hugs its rows and renders no pager", async ({ page }) => {
-  for (const name of ["Archive", "Media"]) {
-    const res = await page.request.post(
-      "/api/s3-connections/create-s3-connection",
-      {
-        data: {
-          data: {
-            name: `E2E ${name}`,
-            endpoint: "http://localhost:9000",
-            region: "us-east-1",
-            bucket: name.toLowerCase(),
-            accessKeyId: "key",
-            secretKey: "secret",
-            forcePathStyle: true,
-          },
-        },
-      }
-    );
+  const created = await page.request.post("/api/project-catalog/add-project", {
+    data: { data: { name: "E2E Short Table", key: "ESHT" } },
+  });
+  const project = (await created.json()) as { data: { id: string } };
+  for (const title of ["Short issue one", "Short issue two"]) {
+    const res = await page.request.post("/api/issues/create-issue", {
+      data: { data: { projectId: project.data.id, title } },
+    });
     expect(res.ok()).toBe(true);
   }
 
-  await page.goto("/en/storage");
-  await expect(page.getByRole("row", { name: /E2E Archive/ })).toBeVisible();
+  await page.goto("/en/issues");
+  await expect(
+    page.getByRole("row", { name: /Short issue one/ })
+  ).toBeVisible();
 
   // The bordered box around the table is the scroll container's parent.
   const box = page

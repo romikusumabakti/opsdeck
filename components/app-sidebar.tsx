@@ -103,6 +103,7 @@ const environmentItems: EnvironmentItem[] = [
     perm: SECTION_PERMS["mock-time"],
   },
   { key: "mail", url: "/mail", icon: Mail, perm: SECTION_PERMS.mail },
+  { key: "storage", url: "/storage", icon: HardDrive },
   { key: "history", url: "/history", icon: History },
   {
     key: "settings",
@@ -135,6 +136,12 @@ const adminItems: AdminItem[] = [
     url: "/admin/repositories",
     icon: Boxes,
     perm: { integration: ["manage"] },
+  },
+  {
+    key: "storage",
+    url: "/admin/storage",
+    icon: HardDrive,
+    perm: { storage: ["manage"] },
   },
   {
     key: "instance",
@@ -241,7 +248,6 @@ export function AppSidebar({
   const pathname = usePathname();
 
   const canSeeServers = canOrgAccess(orgRole, { server: ["read"] });
-  const canSeeStorage = canOrgAccess(orgRole, { storage: ["read"] });
   const canSeeAdmin = canOrg(orgRole, { audit: ["read"] });
   // staff sees no project, so nothing that lists or works on projects.
   const seesProjects = hasProjects(orgRole);
@@ -405,18 +411,6 @@ export function AppSidebar({
                   >
                     <Server />
                     <span>{tNav("servers")}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {canSeeStorage && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    render={<Link href="/storage" />}
-                    isActive={pathname.startsWith("/storage")}
-                    tooltip={tNav("storage")}
-                  >
-                    <HardDrive />
-                    <span>{tNav("storage")}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}

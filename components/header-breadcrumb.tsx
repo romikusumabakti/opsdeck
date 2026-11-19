@@ -133,6 +133,8 @@ function getEnvironmentSubKey(slug: string | undefined): string | null {
       return "breadcrumbs.mockTime";
     case "mail":
       return "breadcrumbs.mail";
+    case "storage":
+      return "breadcrumbs.storage";
     case "history":
       return "breadcrumbs.history";
     case "settings":

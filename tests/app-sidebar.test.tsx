@@ -155,12 +155,13 @@ describe("app sidebar", () => {
     );
   });
 
-  it("admin group: Activity, Users, Repositories, Instance, then Integrations: Jira, CI, Cloudflare, Assistant; no Tunnels", async () => {
+  it("admin group: Activity, Users, Repositories, Storage, Instance, then Integrations: Jira, CI, Cloudflare, Assistant; no Tunnels", async () => {
     await renderSidebar("admin", "/admin/activity");
     expect(groupRows(messages.nav.admin)).toEqual([
       messages.nav.activity,
       messages.nav.users,
       messages.nav.repositories,
+      messages.nav.storage,
       messages.nav.instance,
     ]);
     expect(groupRows(messages.nav.integrations)).toEqual([
@@ -180,20 +181,30 @@ describe("app sidebar", () => {
     expect(hrefs().some((h) => h?.startsWith("/admin/tunnels"))).toBe(false);
   });
 
-  it("keeps Servers and Storage in the main navigation", async () => {
+  it("keeps Servers in the main navigation and has no global Storage entry", async () => {
     await renderSidebar("admin", "/admin/activity");
-    expect(hrefs()).toEqual(expect.arrayContaining(["/servers", "/storage"]));
+    expect(hrefs()).toContain("/servers");
+    expect(hrefs()).not.toContain("/storage");
   });
 
-  it("shows Servers and Storage to an engineer", async () => {
+  it("shows Servers to an engineer, without a global Storage entry", async () => {
     await renderSidebar("engineer", "/", { projectRoles: { p1: "engineer" } });
-    expect(hrefs()).toEqual(expect.arrayContaining(["/servers", "/storage"]));
+    expect(hrefs()).toContain("/servers");
+    expect(hrefs()).not.toContain("/storage");
   });
 
-  it("hides Servers and Storage from a QA", async () => {
+  it("hides Servers from a QA", async () => {
     await renderSidebar("qa", "/", { projectRoles: { p1: "qa" } });
     expect(hrefs()).not.toContain("/servers");
-    expect(hrefs()).not.toContain("/storage");
+  });
+
+  it("lists Admin › Storage for storage managers only", async () => {
+    await renderSidebar("admin", "/admin/activity");
+    expect(hrefs()).toContain("/admin/storage");
+    act(() => root.unmount());
+    container.remove();
+    await renderSidebar("observer", "/admin/activity");
+    expect(hrefs()).not.toContain("/admin/storage");
   });
 
   it("shows an observer only the admin rows its role allows", async () => {
@@ -269,6 +280,25 @@ describe("project group", () => {
     expect(headings.indexOf("Heron Membership")).toBeGreaterThanOrEqual(0);
     expect(headings.indexOf("Heron Membership")).toBeLessThan(
       headings.indexOf("Dev")
+    );
+  });
+
+  it.each(["engineer", "qa", "ba"] as const)(
+    "gives the environment group a Storage entry for %s",
+    async (role) => {
+      await renderSidebar(role, "/HMEM/dev/deploys", {
+        ...scope(true),
+        projectRoles: { p1: role === "engineer" ? "engineer" : "qa" },
+      });
+      expect(groupRows("Dev")).toContain(messages.nav.storage);
+      expect(hrefs()).toContain("/HMEM/dev/storage");
+    }
+  );
+
+  it("marks Storage active on its sub-pages", async () => {
+    await renderSidebar("engineer", "/HMEM/dev/storage/new", scope(true));
+    expect(linkByHref("/HMEM/dev/storage")?.getAttribute("data-active")).toBe(
+      "true"
     );
   });
 
