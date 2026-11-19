@@ -80,9 +80,11 @@ function connection(id: string, isBackupDestination: boolean) {
   return {
     id,
     name: isBackupDestination ? "b-backups" : "a-assets",
+    environmentId: null,
     endpoint: "https://s3.example.com",
     region: "us-east-1",
     bucket: isBackupDestination ? "panel-backups" : "assets",
+    keyPrefix: null,
     accessKeyId: "AKIA",
     forcePathStyle: true,
     hasSecret: true,

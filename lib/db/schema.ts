@@ -912,6 +912,8 @@ export const environmentArchives = pgTable(
     // so download and prune read the bucket it is in, not today's backup
     // destination. set null: an `s3` archive without one is unreachable,
     // and the prune keeps its row.
+    // Archives written before the backup destination got its own
+    // credentials; new ones set inBackupDestination instead.
     s3ConnectionId: uuid("s3_connection_id").references(
       () => s3Connections.id,
       {
@@ -919,6 +921,16 @@ export const environmentArchives = pgTable(
         onDelete: "set null",
       }
     ),
+    // An `s3` archive written to the backup destination (instance_settings
+    // backupS3*) rather than to an S3 connection row. s3Endpoint/s3Bucket
+    // record where that destination pointed, so download and prune can tell
+    // when the setting has since moved to another bucket (the archive is then
+    // unreachable and the prune keeps its row).
+    inBackupDestination: boolean("in_backup_destination")
+      .notNull()
+      .default(false),
+    s3Endpoint: text("s3_endpoint"),
+    s3Bucket: text("s3_bucket"),
     keyPrefix: text("key_prefix").notNull(),
     files: jsonb("files")
       .$type<EnvironmentArchiveFile[]>()
@@ -936,6 +948,10 @@ export const environmentArchives = pgTable(
     index("environment_archives_deleted_by_idx").on(t.deletedById),
     // FK index: "on delete set null" scans by connection.
     index("environment_archives_s3_connection_idx").on(t.s3ConnectionId),
+    check(
+      "environment_archives_backup_destination_check",
+      sql`NOT ${t.inBackupDestination} OR (${t.location} = 's3' AND ${t.s3ConnectionId} IS NULL AND ${t.s3Endpoint} IS NOT NULL AND ${t.s3Bucket} IS NOT NULL)`
+    ),
   ]
 );
 
@@ -1759,25 +1775,49 @@ export const invitations = pgTable(
 // Distinct from the single env-configured bucket in lib/storage.ts (KB
 // attachments): those creds are ops-owned infra config, these are arbitrary
 // targets an admin points the explorer at (Garage, real S3, SeaweedFS, Ceph…).
-// Managing them is admin-only; `secretKey` never crosses the server/client
-// boundary (see SafeS3Connection).
-export const s3Connections = pgTable("s3_connections", {
-  id: uuid("id").primaryKey().default(sql`uuidv7()`),
-  name: text("name").notNull(),
-  endpoint: text("endpoint").notNull(),
-  region: text("region").notNull().default("us-east-1"),
-  bucket: text("bucket").notNull(),
-  accessKeyId: text("access_key_id").notNull(),
-  // Secret credential. Stored like servers.password (plaintext today; see the
-  // at-rest encryption TODO in docs) and stripped before reaching the client.
-  secretKey: text("secret_key").notNull(),
-  // Path-style addressing (bucket in the URL path, not a virtual-host DNS
-  // prefix). Required by Garage and most self-hosted S3; real AWS S3 tolerates
-  // it too, so it defaults on.
-  forcePathStyle: boolean("force_path_style").notNull().default(true),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+// Each one belongs to an environment (its application bucket); one without
+// an environment is "unassigned" and admin-only. `secretKey` never crosses
+// the server/client boundary (see SafeS3Connection).
+export const s3Connections = pgTable(
+  "s3_connections",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    name: text("name").notNull(),
+    // The owning environment; set null when it is deleted, which leaves the
+    // connection unassigned (admin-only) rather than deleting a bucket's
+    // credentials with it.
+    environmentId: uuid("environment_id").references(() => environments.id, {
+      name: "s3_connections_environment_id_fkey",
+      onDelete: "set null",
+    }),
+    endpoint: text("endpoint").notNull(),
+    region: text("region").notNull().default("us-east-1"),
+    bucket: text("bucket").notNull(),
+    // The part of the bucket this connection is confined to: no leading "/",
+    // ends in "/" (e.g. "team-a/"); null = the whole bucket.
+    keyPrefix: text("key_prefix"),
+    accessKeyId: text("access_key_id").notNull(),
+    // Secret credential: an `enc:v1:` envelope (encryptSecret; legacy rows may
+    // still hold plaintext, which decryptSecret passes through), stripped
+    // before reaching the client.
+    secretKey: text("secret_key").notNull(),
+    // Path-style addressing (bucket in the URL path, not a virtual-host DNS
+    // prefix). Required by Garage and most self-hosted S3; real AWS S3
+    // tolerates it too, so it defaults on.
+    forcePathStyle: boolean("force_path_style").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // FK index: lists an environment's connections; "on delete set null"
+    // scans by environment.
+    index("s3_connections_environment_idx").on(t.environmentId),
+    check(
+      "s3_connections_key_prefix_check",
+      sql`${t.keyPrefix} IS NULL OR (${t.keyPrefix} <> '' AND left(${t.keyPrefix}, 1) <> '/' AND right(${t.keyPrefix}, 1) = '/')`
+    ),
+  ]
+);
 
 // =========================
 // Jira integration
@@ -2509,11 +2549,29 @@ export const instanceSettings = pgTable(
   "instance_settings",
   {
     id: integer("id").primaryKey().default(1),
-    // Where instance backups go; null keeps them local only.
+    // Where instance backups went before the backup destination got its own
+    // credentials (backupS3*); the migration copied the chosen connection
+    // into them. Superseded; kept until a later release drops it.
     backupDestinationId: uuid("backup_destination_id").references(
       () => s3Connections.id,
       { onDelete: "set null" }
     ),
+    // The backup destination: the S3 bucket instance backups and archives of
+    // deleted environments go to. All null = none, backups stay local; the
+    // required fields are set together (complete check). Not an environment's
+    // connection, so it is never browsable from an environment.
+    backupS3Endpoint: text("backup_s3_endpoint"),
+    backupS3Region: text("backup_s3_region"),
+    backupS3Bucket: text("backup_s3_bucket"),
+    backupS3AccessKeyId: text("backup_s3_access_key_id"),
+    // Ciphertext (encryptSecret), as s3_connections.secret_key; the backfill
+    // copied that column verbatim, so decryptSecret reads it either way.
+    backupS3SecretKey: text("backup_s3_secret_key"),
+    backupS3ForcePathStyle: boolean("backup_s3_force_path_style")
+      .notNull()
+      .default(true),
+    // Normalised like s3_connections.key_prefix; null = the bucket root.
+    backupS3KeyPrefix: text("backup_s3_key_prefix"),
     // HH:MM in the instance time zone.
     backupTime: text("backup_time").notNull().default("02:30"),
     backupKeepDaily: integer("backup_keep_daily").notNull().default(14),
@@ -2570,6 +2628,14 @@ export const instanceSettings = pgTable(
   },
   (t) => [
     check("instance_settings_singleton", sql`${t.id} = 1`),
+    check(
+      "instance_settings_backup_s3_complete_check",
+      sql`num_nonnulls(${t.backupS3Endpoint}, ${t.backupS3Region}, ${t.backupS3Bucket}, ${t.backupS3AccessKeyId}, ${t.backupS3SecretKey}) in (0, 5)`
+    ),
+    check(
+      "instance_settings_backup_s3_key_prefix_check",
+      sql`${t.backupS3KeyPrefix} IS NULL OR (${t.backupS3KeyPrefix} <> '' AND left(${t.backupS3KeyPrefix}, 1) <> '/' AND right(${t.backupS3KeyPrefix}, 1) = '/')`
+    ),
     check(
       "instance_settings_update_channel_check",
       sql`${t.updateChannel} in ('stable', 'beta')`
