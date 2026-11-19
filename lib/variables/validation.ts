@@ -17,7 +17,17 @@ const NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
  */
 export const RESERVED_NAME_PREFIXES = ["COMPOSE_", "DOCKER_", "BUILDKIT_"];
 
+/**
+ * Names exempt from {@link RESERVED_NAME_PREFIXES}: `COMPOSE_PROFILES` only
+ * selects which services of the project run, so it is stored and rendered
+ * like any other variable (live `.env` files set it; dropping it would stop
+ * profile services from deploying). `COMPOSE_FILE` and the rest stay
+ * Panel-owned.
+ */
+export const RESERVED_PREFIX_EXEMPT_NAMES = ["COMPOSE_PROFILES"];
+
 export function hasReservedPrefix(name: string): boolean {
+  if (RESERVED_PREFIX_EXEMPT_NAMES.includes(name)) return false;
   return RESERVED_NAME_PREFIXES.some((prefix) => name.startsWith(prefix));
 }
 

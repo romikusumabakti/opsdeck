@@ -52,8 +52,8 @@ function quoteValue(value: string): string {
  * `${DOCKER_REGISTRY}/…`. Registry and tag lines stay unquoted (the form the
  * deploy script greps and `sed`s); both are validated to characters that need
  * no quoting. With `opts.composeFiles`, `COMPOSE_FILE=<files joined by ':'>`
- * comes right after the header (the Panel writes `COMPOSE_*` itself; user
- * variables with that prefix stay refused). Throws on an invalid name, value, tag or registry, a duplicate
+ * comes right after the header (the Panel writes `COMPOSE_FILE` itself; user
+ * variables with a `COMPOSE_` prefix stay refused, except `COMPOSE_PROFILES`). Throws on an invalid name, value, tag or registry, a duplicate
  * name, or a variable named like a tag variable.
  */
 export function renderEnvFile(

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parseDotenv as parseComposeDotenv } from "@/lib/variables/dotenv";
 import { ENV_FILE_HEADER, renderEnvFile } from "@/lib/variables/env-file";
 
 // Review Focus 1: every value must reach the container exactly as stored.
@@ -166,6 +167,78 @@ const ROUND_TRIP = [
   "\t tab",
 ];
 
+// The Panel's own parser (lib/variables/dotenv.ts) reads the rendered file
+// back to the stored values too: `parse(renderEnvFile(v)) == v`.
+function parseWithPanelParser(file: string): Record<string, string> {
+  const result = parseComposeDotenv(file);
+  if ("error" in result) throw new Error(`line ${result.error.line}`);
+  for (const entry of result.entries) {
+    expect(entry.unresolvedRefs).toEqual([]);
+    expect(entry.duplicate).toBe(false);
+  }
+  return Object.fromEntries(result.entries.map((e) => [e.name, e.value]));
+}
+
+describe("lib/variables/dotenv round trip", () => {
+  it.each(ROUND_TRIP)("parses the rendered %j back", (value) => {
+    const file = renderEnvFile([{ name: "VALUE", value }], {}, REGISTRY);
+    expect(parseWithPanelParser(file)).toEqual({
+      VALUE: value,
+      DOCKER_REGISTRY: REGISTRY,
+    });
+  });
+
+  it("parses all ROUND_TRIP values in one file, with tags and COMPOSE_FILE", () => {
+    const vars = ROUND_TRIP.map((value, i) => ({ name: `V_${i}`, value }));
+    const file = renderEnvFile(
+      vars,
+      { IMAGE_TAG: "origin-main-abc1234" },
+      REGISTRY,
+      {
+        composeFiles: ["compose.yaml", "compose.menara.yaml"],
+      }
+    );
+    expect(parseWithPanelParser(file)).toEqual({
+      COMPOSE_FILE: "compose.yaml:compose.menara.yaml",
+      ...Object.fromEntries(vars.map((v) => [v.name, v.value])),
+      DOCKER_REGISTRY: REGISTRY,
+      IMAGE_TAG: "origin-main-abc1234",
+    });
+  });
+
+  it("agrees with the reference parser on random risky values", () => {
+    const alphabet = [
+      "a",
+      " ",
+      "#",
+      "=",
+      "'",
+      '"',
+      "$",
+      "\\",
+      "{",
+      "}",
+      ":",
+      "-",
+    ];
+    let seed = 7;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed;
+    };
+    for (let n = 0; n < 500; n++) {
+      let value = "";
+      const length = next() % 14;
+      for (let i = 0; i < length; i++) {
+        value += alphabet[next() % alphabet.length];
+      }
+      const file = renderEnvFile([{ name: "V", value }], {}, REGISTRY);
+      expect(parseWithPanelParser(file)).toEqual(parseDotenv(file));
+      expect(parseWithPanelParser(file).V).toBe(value);
+    }
+  });
+});
+
 describe("renderEnvFile", () => {
   it.each(ROUND_TRIP)("round-trips %j", (value) => {
     const file = renderEnvFile([{ name: "VALUE", value }], {}, REGISTRY);
@@ -304,6 +377,16 @@ describe("renderEnvFile", () => {
       renderEnvFile([], { IMAGE_TAG: "latest" }, REGISTRY)
     ).toThrow();
     expect(() => renderEnvFile([], { "bad name": "t1" }, REGISTRY)).toThrow();
+  });
+
+  it("renders COMPOSE_PROFILES like any other variable", () => {
+    expect(
+      renderEnvFile(
+        [{ name: "COMPOSE_PROFILES", value: "worker" }],
+        {},
+        REGISTRY
+      )
+    ).toContain("\nCOMPOSE_PROFILES='worker'\n");
   });
 
   it("refuses variables with a reserved prefix (rows saved before the rule)", () => {
