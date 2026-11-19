@@ -70,10 +70,7 @@ import {
   canPlaceEnvironment,
   type ProjectRole,
 } from "@/lib/permissions";
-import {
-  ensureProjectSourceIn,
-  recordTargetSourceIn,
-} from "@/lib/project-sources";
+import { recordTargetSourceIn } from "@/lib/project-sources";
 import { projectReleasableSql } from "@/lib/releases/repository";
 import { RESERVED_ENV_SLUGS } from "@/lib/reserved-paths";
 import {
@@ -1106,8 +1103,8 @@ export async function insertEnvironmentIn(
       .returning(),
     "environment"
   );
-  // Silent auto-add (never a refusal, no activity): keeps project_apps in step with environments.app_id.
-  if (extra.appId) await ensureProjectSourceIn(tx, env.id, extra.appId);
+  // No project source is written here: each deploy target adds its service
+  // (insertDeployTargetIn).
   const services = [
     input.hasDatabase ? dbServiceValues(input) : undefined,
     backendServiceValues(input),
@@ -1445,13 +1442,13 @@ export async function updateEnvironment(
             )
           );
       }
-      // Silent, first-wins, like the auto-add on create: the target project
-      // gets the app as a source and any default branch it is missing.
+      // Silent, first-wins, like the auto-add on target create: the target
+      // project gets each target's service and any default branch it is
+      // missing.
       if (
         targetProjectId !== undefined &&
         targetProjectId !== stored.projectId
       ) {
-        if (env.appId) await ensureProjectSourceIn(tx, id, env.appId);
         const targets = await tx
           .select({
             componentKey: deployTargets.componentKey,

@@ -53,9 +53,12 @@ vi.mock("@/lib/activity", () => activity);
 
 const apps = vi.hoisted(() => ({
   getComponent: vi.fn(),
-  assertTargetMatchesEnvironmentApp: vi.fn(),
 }));
 vi.mock("@/lib/apps", () => apps);
+
+// The target's service (its artifact kind decides the target kind).
+const catalog = vi.hoisted(() => ({ getService: vi.fn() }));
+vi.mock("@/lib/service-catalog", () => catalog);
 
 // No teardown under way (lib/teardown/guard has its own tests).
 vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
@@ -65,7 +68,7 @@ vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
 }));
 const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
 
-// The app adoption and the target insert share one transaction.
+// The service lookup and the target insert share one transaction.
 const txState = vi.hoisted(() => ({ tx: { marker: "tx" } }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -75,7 +78,6 @@ vi.mock("@/lib/db", () => ({
 
 const projectSources = vi.hoisted(() => ({
   recordTargetSourceIn: vi.fn(),
-  ensureProjectSourceIn: vi.fn(),
 }));
 vi.mock("@/lib/project-sources", () => projectSources);
 
@@ -110,9 +112,12 @@ const { insertDeployTargetIn } = await import("@/server/services/deploys");
 const OTHER_ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e2";
 const OTHER_ID = "0197f3a0-1b2c-7def-8000-0123456789a2";
 
-/** The component's artifact kind, as assertTargetMatchesEnvironmentApp returns it. */
+/** The service's artifact kind (its build spec's `artifact`), null for a container. */
 function componentArtifact(kind: "jar" | "static" | null) {
-  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(kind);
+  catalog.getService.mockResolvedValue({
+    key: "core-web",
+    buildSpec: kind ? { artifact: { kind, path: "dist" } } : null,
+  });
 }
 
 /** The targets already on the machine (any environment). */
@@ -149,7 +154,7 @@ beforeEach(() => {
     ownerId: null,
   });
   apps.getComponent.mockResolvedValue({ componentKey: "core-web" });
-  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(null);
+  catalog.getService.mockResolvedValue({ key: "core-web", buildSpec: null });
   repo.environmentUsesServer.mockResolvedValue(true);
   repo.listTargetDirsOnMachine.mockResolvedValue([]);
   repo.upsertTarget.mockImplementation(async (input: object) => ({
@@ -528,7 +533,7 @@ describe("update", () => {
     expect(repo.upsertTarget).not.toHaveBeenCalled();
   });
 
-  it("insertDeployTargetIn adds the component's app to the project's sources and seeds its branch, in the same transaction", async () => {
+  it("insertDeployTargetIn adds the service to the project's services and seeds its branch, in the same transaction", async () => {
     componentArtifact(null);
     await insertDeployTargetIn(txState.tx as never, {
       ...base,

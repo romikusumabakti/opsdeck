@@ -1,5 +1,5 @@
-// Creates an app component (and its app when missing), registers a generated
-// artifact component, or rotates a component's CI notify secret.
+// Registers a service (an app component row, without an app), registers a
+// generated artifact service, or rotates a service's CI notify secret.
 // Usage (production): docker compose exec app bun dist/deploy-app.js <create|create-artifact|set-secret|rotate> <componentKey> ...
 // Local dev: bun scripts/deploy-app.ts <create|create-artifact|set-secret|rotate> <componentKey> ...
 // First: create-artifact loads lib/authz, whose auth module (better-auth's
@@ -11,27 +11,25 @@ import { parseArgs } from "node:util";
 import { eq } from "drizzle-orm";
 import type { z } from "zod";
 import { db } from "@/lib/db";
-import { appComponents, apps, ciConnections } from "@/lib/db/schema";
-import {
-  appKeySchema,
-  bundleImageSchema,
-  componentKeySchema,
-} from "@/lib/deploy/validation";
+import { appComponents, ciConnections } from "@/lib/db/schema";
+import { bundleImageSchema, componentKeySchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { encryptSecret } from "@/lib/secrets";
 import { describeDbError } from "@/lib/secrets-migration";
+import { insertServices } from "@/lib/service-catalog";
 
 const USAGE = `Usage:
-  bun dist/deploy-app.js create <componentKey> <bundleImage> --app <appKey> --repo <owner/name> [--ci <connection name>]
-  bun dist/deploy-app.js create-artifact <componentKey> --app <appKey> --repo <owner/name> --spec <path.json> [--ci <connection name>]
+  bun dist/deploy-app.js create <componentKey> <bundleImage> --repo <owner/name> [--ci <connection name>]
+  bun dist/deploy-app.js create-artifact <componentKey> --repo <owner/name> --spec <path.json> [--ci <connection name>]
   bun dist/deploy-app.js set-secret <componentKey> <secretName>   (value on stdin)
-  bun dist/deploy-app.js rotate <componentKey>`;
+  bun dist/deploy-app.js rotate <componentKey>
+--app <appKey> is still accepted by create and create-artifact, but ignored (deprecated).`;
 
 const rawArgs = process.argv.slice(2);
 
 if (rawArgs.includes("--help")) {
   console.log(
-    `${USAGE}\nCreates an app component (and its app when missing), registers a generated artifact component in Woodpecker (its notify secret goes straight there), or rotates a component's CI notify secret.`
+    `${USAGE}\nRegisters a service (no app), registers a generated artifact service in Woodpecker (its notify secret goes straight there), or rotates a service's CI notify secret.`
   );
   process.exit(0);
 }
@@ -70,14 +68,21 @@ if (
 ) {
   usage();
 }
-if (command === "create" && (!bundleImage || !values.app || !values.repo)) {
+if (command === "create" && (!bundleImage || !values.repo)) {
   usage();
 }
 if (
   command === "create-artifact" &&
-  (bundleImage || !values.app || !values.repo || !values.spec)
+  (bundleImage || !values.repo || !values.spec)
 ) {
   usage();
+}
+// Services are registered without an app (Stage 8); the flag stays accepted
+// so existing runbooks keep working.
+if (values.app !== undefined) {
+  console.error(
+    "--app is deprecated and ignored: services are registered without an app"
+  );
 }
 
 // The same rules the hook (component key) and the deploy script (bundle
@@ -93,7 +98,6 @@ function check(schema: z.ZodType<string>, value: string) {
 check(componentKeySchema, componentKey);
 if (command === "create" || command === "create-artifact") {
   if (command === "create") check(bundleImageSchema, bundleImage as string);
-  check(appKeySchema, values.app as string);
   if (!/^[\w.-]+\/[\w.-]+$/.test(values.repo as string)) {
     console.error("Repo must be <owner>/<name>");
     process.exit(1);
@@ -170,7 +174,6 @@ if (command === "create-artifact") {
     // The notify secret goes straight to Woodpecker; it is never printed.
     const registered = await registerArtifactComponent({
       componentKey,
-      appKey: values.app as string,
       repoFullName: values.repo as string,
       ciConnectionName: values.ci,
       spec: spec as Parameters<typeof registerArtifactComponent>[0]["spec"],
@@ -194,26 +197,17 @@ const secret = randomBytes(32).toString("hex");
 const notifySecret = encryptSecret(secret);
 
 if (command === "create") {
-  const appKey = values.app as string;
   const ciConnectionId = await resolveCiConnectionId(values.ci);
   try {
-    await db
-      .insert(apps)
-      .values({ appKey, name: appKey })
-      .onConflictDoNothing({ target: apps.appKey });
-    const [app] = await db
-      .select({ id: apps.id })
-      .from(apps)
-      .where(eq(apps.appKey, appKey));
-    if (!app) throw new Error(`App ${appKey} vanished after insert`);
-    await db.insert(appComponents).values({
-      componentKey,
-      appId: app.id,
-      ciConnectionId,
-      repoFullName: values.repo as string,
-      bundleImage: bundleImage as string,
-      notifySecret,
-    });
+    await insertServices([
+      {
+        componentKey,
+        ciConnectionId,
+        repoFullName: values.repo as string,
+        bundleImage: bundleImage as string,
+        notifySecret,
+      },
+    ]);
   } catch (error) {
     if (!isUniqueViolation(error)) failDb(error);
     console.error(`Component ${componentKey} already exists — use rotate`);

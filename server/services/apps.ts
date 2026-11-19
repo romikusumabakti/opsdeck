@@ -13,8 +13,6 @@ import {
   linkedCiRepos,
   listApps,
   type NewAppComponent,
-  type PublicAppComponent,
-  projectIdsWithAppEnvironment,
   setNotifySecret,
   setPipelineFileCommit,
   takenComponentKeys,
@@ -46,6 +44,7 @@ import {
 import {
   type RegisterAppInput,
   type RegisterComponentInput,
+  type RegisterServicesInput,
   registerAppSchema,
 } from "@/lib/ci/registration";
 import { type CiProvider, CiProviderError, type CiRepo } from "@/lib/ci/types";
@@ -53,6 +52,12 @@ import { branchSchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { canProject, canRegisterApp } from "@/lib/permissions";
 import { encryptSecret } from "@/lib/secrets";
+import {
+  getService,
+  insertServices,
+  listServices,
+  type Service,
+} from "@/lib/service-catalog";
 import {
   badRequest,
   CodedHTTPException,
@@ -66,20 +71,21 @@ import {
 } from "@/server/services/ci-connections";
 
 /**
- * App registration: activates each component's repository in Woodpecker,
+ * Service registration: activates each service's repository in Woodpecker,
  * clears any configuration extension on it, gives it a notify secret, and only
- * then stores the app. A generated component's pipeline lives only in the
- * repo: the generated `.woodpecker.yaml` is committed afterwards to every
- * branch the component builds; a failed branch is recorded, never undone into
- * the rest.
+ * then stores the service (an `app_components` row; see lib/service-catalog).
+ * A generated service's pipeline lives only in the repo: the generated
+ * `.woodpecker.yaml` is committed afterwards to every branch the service
+ * builds; a failed branch is recorded, never undone into the rest.
  *
- * Engineers register custom components only (registerApp,
- * addComponentsToApp); a generated component's build spec is committed with
- * the Panel's forge token, so choosing one needs org integration:manage. The
- * New environment page registers generated components for engineers through
+ * Engineers register custom services only (registerServices); a generated
+ * service's build spec is committed with the Panel's forge token, so choosing
+ * one needs org integration:manage. The New environment page still registers
+ * generated components into an app for engineers through
  * registerSetupApp/addSetupComponents, whose build specs the server derived.
  * Retrying a pipeline file commit and notify secret rotation need org
- * integration:manage.
+ * integration:manage. Every action after registration addresses the service
+ * by its key alone.
  */
 
 const CUSTOM_TIMEOUT_MINUTES = 60;
@@ -141,6 +147,12 @@ async function step<T>(label: string, run: () => Promise<T>): Promise<T> {
 export async function listAllApps(): Promise<AppWithComponents[]> {
   await requireProjectUser();
   return listApps();
+}
+
+/** listAllApps' rule, for every service (with or without an app). */
+export async function listAllServices(): Promise<Service[]> {
+  await requireProjectUser();
+  return listServices();
 }
 
 /** The CI connections a registrant may pick, without URLs or credentials. */
@@ -302,7 +314,7 @@ async function commitPipelineFiles(
       await setPipelineFileCommit(component.componentKey, branch, result);
     } catch (error) {
       // The registration itself succeeded; a lost status is retried from the
-      // app page.
+      // service page.
       console.error("Recording the pipeline file commit failed", error);
     }
     if ("error" in result) {
@@ -319,10 +331,15 @@ async function commitPipelineFiles(
 }
 
 type Prepared = {
-  input: RegisterAppInput["components"][number];
+  input: RegisterComponentInput;
   provider: CiProvider;
-  /** Always the default: a repository that builds a component is refused. */
+  /**
+   * The default for a repository's first service; with repoMayHoldServices,
+   * one named after the service for any later one (notifySecretNameFor).
+   */
   notifySecretName: string;
+  /** Only a repository's first service sets its Woodpecker settings. */
+  appliesRepoSettings: boolean;
   yaml: string | null;
   repo?: CiRepo;
   secret?: string;
@@ -406,7 +423,7 @@ async function registerNewApp(
     input.components,
     (rows) =>
       insertAppWithComponents({ appKey: input.appKey, name: input.name }, rows),
-    environmentBranches
+    { environmentBranches }
   );
   return {
     app: (await getApp(input.appKey)) ?? notFound(),
@@ -429,7 +446,7 @@ async function registerMoreComponents(
   const pipelineFileFailures = await registerComponents(
     parsed.data.components,
     (rows) => insertComponents(app.id, rows),
-    environmentBranches
+    { environmentBranches }
   );
   return {
     app: (await getApp(appKey)) ?? notFound(),
@@ -437,26 +454,36 @@ async function registerMoreComponents(
   };
 }
 
-/** POST /api/apps: registrants; generated components for admins only. */
-export async function registerApp(
-  input: RegisterAppInput
-): Promise<AppWithComponents> {
-  await requireRegistrant();
-  await requirePipelineChoice(input.components);
-  return (await registerNewApp(input)).app;
-}
+export type ServiceRegistration = {
+  services: Service[];
+  pipelineFileFailures: PipelineFileFailure[];
+};
 
 /**
- * Registers more components into an existing app, with registerApp's rules,
- * steps and gate.
+ * POST /api/service-catalog: registers one or more services directly, with no
+ * app (`app_id` null). Registrants; generated services for admins only. A
+ * repository may already build services, and one registration may hold
+ * several of it: each after the repository's first reads its own notify
+ * secret (`menara_notify_<key>`), and only the first sets the repository's
+ * Woodpecker settings.
  */
-export async function addComponentsToApp(
-  appKey: string,
-  components: RegisterComponentInput[]
-): Promise<AppWithComponents> {
+export async function registerServices(
+  input: RegisterServicesInput
+): Promise<ServiceRegistration> {
   await requireRegistrant();
-  await requirePipelineChoice(components);
-  return (await registerMoreComponents(appKey, components)).app;
+  await requirePipelineChoice(input.services);
+  const pipelineFileFailures = await registerComponents(
+    input.services,
+    (rows) => insertServices(rows),
+    { repoMayHoldServices: true }
+  );
+  const services = await Promise.all(
+    input.services.map((s) => getService(s.componentKey))
+  );
+  return {
+    services: services.filter((s): s is Service => s !== null),
+    pipelineFileFailures,
+  };
 }
 
 /**
@@ -484,16 +511,28 @@ export async function addSetupComponents(
   return registerMoreComponents(appKey, components, environmentBranches);
 }
 
+type RegisterOptions = {
+  /** The New environment page's branches: commits to others skip CI. */
+  environmentBranches?: EnvironmentBranches;
+  /**
+   * Services registration: a repository that already builds a service, or
+   * one listed twice, is accepted (see registerServices). Without it (the New
+   * environment page's app) such a repository is refused (409 repoLinked).
+   */
+  repoMayHoldServices?: boolean;
+};
+
 /**
  * The steps every registration runs, validated first: free component keys,
- * no foreign pipeline file, each repo activated and not linked yet, its
- * Woodpecker settings and notify secret, then `insert` stores the rows and
- * the generated pipeline files are committed.
+ * no foreign pipeline file, each repo activated (and, unless
+ * repoMayHoldServices, not linked yet), its Woodpecker settings and notify
+ * secret, then `insert` stores the rows and the generated pipeline files are
+ * committed.
  */
 async function registerComponents(
   components: RegisterComponentInput[],
   insert: (rows: NewAppComponent[]) => Promise<void>,
-  environmentBranches?: EnvironmentBranches
+  { environmentBranches, repoMayHoldServices = false }: RegisterOptions = {}
 ): Promise<PipelineFileFailure[]> {
   // Validate everything the Panel can know before touching Woodpecker.
   const [taken] = await takenComponentKeys(
@@ -511,28 +550,23 @@ async function registerComponents(
       provider = await getProviderForConnection(component.ciConnectionId);
       providers.set(component.ciConnectionId, provider);
     }
-    const notifySecretName = notifySecretNameFor(component.componentKey, false);
     prepared.push({
       input: component,
       provider,
-      notifySecretName,
-      yaml: component.buildSpec
-        ? generateWoodpeckerPipeline(
-            component.componentKey,
-            component.buildSpec,
-            { notifySecretName }
-          )
-        : null,
+      notifySecretName: notifySecretNameFor(component.componentKey, false),
+      appliesRepoSettings: true,
+      yaml: null,
     });
   }
 
   await refuseForeignPipelineFiles(prepared);
 
-  // Activate every repo first (Woodpecker reuses an already active one) and
-  // refuse a repo that already builds a component, before any setting or
-  // secret on it changes: the form registers a repository's first component
-  // only. A second one is registered from the command line
-  // (registerArtifactComponent), under its own notify secret name.
+  // Activate every repo first (Woodpecker reuses an already active one) and,
+  // for the New environment page, refuse a repo that already builds a
+  // component, before any setting or secret on it changes. Services
+  // registration accepts it: a later service of a repository gets its own
+  // notify secret name, like registerArtifactComponent's.
+  const reposSeen = new Set<string>();
   for (const item of prepared) {
     const { componentKey, ciConnectionId, forgeRemoteId } = item.input;
     const repo = await step(
@@ -544,7 +578,7 @@ async function registerComponents(
         (repo.ciRepoId !== "" && l.ciRepoId === repo.ciRepoId) ||
         l.repoFullName === repo.fullName
     );
-    if (linked) {
+    if (linked && !repoMayHoldServices) {
       fail(
         409,
         `Repository ${repo.fullName} is already linked to component ${linked.componentKey}`,
@@ -558,21 +592,38 @@ async function registerComponents(
         "ciUnavailable"
       );
     }
+    const repoHasOtherService =
+      Boolean(linked) ||
+      reposSeen.has(`id:${repo.ciRepoId}`) ||
+      reposSeen.has(`name:${repo.fullName}`);
+    reposSeen.add(`id:${repo.ciRepoId}`).add(`name:${repo.fullName}`);
+    const { componentKey: key, buildSpec } = item.input;
+    item.notifySecretName = notifySecretNameFor(key, repoHasOtherService);
+    item.appliesRepoSettings = !repoHasOtherService;
+    item.yaml = buildSpec
+      ? generateWoodpeckerPipeline(key, buildSpec, {
+          notifySecretName: item.notifySecretName,
+        })
+      : null;
     item.repo = repo;
   }
 
   for (const item of prepared) {
     const { componentKey, buildSpec } = item.input;
     const repo = item.repo as CiRepo;
-    await step(`Updating the Woodpecker settings of ${repo.fullName}`, () =>
-      item.provider.updateRepoSettings(repo.ciRepoId, {
-        timeoutMinutes: buildSpec?.timeoutMinutes ?? CUSTOM_TIMEOUT_MINUTES,
-        cancelPreviousOnPush: true,
-        // The pipeline comes from the committed file only; clear any
-        // extension so Woodpecker never depends on the Panel to build.
-        configExtensionEndpoint: null,
-      })
-    );
+    // The settings (timeout included) are per repository: one that already
+    // builds a service keeps those its first registration applied.
+    if (item.appliesRepoSettings) {
+      await step(`Updating the Woodpecker settings of ${repo.fullName}`, () =>
+        item.provider.updateRepoSettings(repo.ciRepoId, {
+          timeoutMinutes: buildSpec?.timeoutMinutes ?? CUSTOM_TIMEOUT_MINUTES,
+          cancelPreviousOnPush: true,
+          // The pipeline comes from the committed file only; clear any
+          // extension so Woodpecker never depends on the Panel to build.
+          configExtensionEndpoint: null,
+        })
+      );
+    }
     const secret = newNotifySecret();
     await step(
       `Storing the notify secret of ${componentKey} in Woodpecker`,
@@ -607,7 +658,7 @@ async function registerComponents(
       const keys = prepared.map((item) => item.input.componentKey).join(", ");
       fail(
         409,
-        `The app, a component or a repository was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of ${keys} on its app page.`,
+        `A service was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of ${keys} on its service page.`,
         "registrationRace"
       );
     }
@@ -635,10 +686,9 @@ async function registerComponents(
   return failures;
 }
 
-async function requireAppComponent(appKey: string, componentKey: string) {
-  const component = await getComponent(componentKey);
-  if (!component || component.app.appKey !== appKey) notFound();
-  return component as NonNullable<typeof component>;
+/** The service (with or without a legacy app), or 404. */
+async function requireService(componentKey: string) {
+  return (await getComponent(componentKey)) ?? notFound();
 }
 
 /**
@@ -647,11 +697,10 @@ async function requireAppComponent(appKey: string, componentKey: string) {
  * (Review Focus 5).
  */
 export async function rotateNotifySecret(
-  appKey: string,
   componentKey: string
 ): Promise<{ ok: true }> {
   await requireOrgPermission({ ...INTEGRATION_MANAGE });
-  const component = await requireAppComponent(appKey, componentKey);
+  const component = await requireService(componentKey);
   if (!component.ciRepoId) {
     fail(409, "This component has no Woodpecker repository");
   }
@@ -685,12 +734,11 @@ export async function rotateNotifySecret(
  * one given, and records the outcome per branch.
  */
 export async function retryPipelineFileCommit(
-  appKey: string,
   componentKey: string,
   branch?: string
-): Promise<PublicAppComponent> {
+): Promise<Service> {
   await requireOrgPermission({ ...INTEGRATION_MANAGE });
-  const component = await requireAppComponent(appKey, componentKey);
+  const component = await requireService(componentKey);
   if (component.pipelineMode !== "generated" || !component.buildSpec) {
     fail(409, "This component does not use a generated pipeline");
   }
@@ -706,10 +754,7 @@ export async function retryPipelineFileCommit(
       notifySecretName: component.notifySecretName,
     })
   );
-  const updated = (await getApp(appKey))?.components.find(
-    (c) => c.componentKey === componentKey
-  );
-  return updated ?? notFound();
+  return (await getService(componentKey)) ?? notFound();
 }
 
 /**
@@ -792,38 +837,31 @@ export async function ensureComponentBranchFor(
 }
 
 /**
- * Starts a build of the component's branch in Woodpecker (the New app
- * stepper's first build). Admins always may, any branch. Others may build
- * only the source branch of a deploy target of this component in a project
- * where they run deploys; an app with no environment yet
- * (the stepper has just registered it) is open to whoever may register apps,
- * for one hour after the app was created; later it is admins only.
+ * Starts a build of the service's branch in Woodpecker (a first build after
+ * registration). Admins always may, any branch. Others may build only the
+ * source branch of a deploy target of this service in a project where they
+ * run deploys; a service with no deploy target yet (just registered) is open
+ * to whoever may register services, for one hour after it was registered;
+ * later it is admins only.
  */
 export async function triggerComponentBuild(
-  appKey: string,
   componentKey: string,
   branch: string
 ): Promise<{ number: number }> {
   const session = await requireSession();
-  const component = await requireAppComponent(appKey, componentKey);
+  const component = await requireService(componentKey);
   if (!orgGrantAllows(session, { ...INTEGRATION_MANAGE })) {
-    const projectIds = await projectIdsWithAppEnvironment(component.app.id);
-    if (projectIds.length === 0) {
-      // Only the first build of a fresh app: later, admins only.
+    const targets = await componentTargetBranches(component.componentKey);
+    if (targets.length === 0) {
+      // Only the first build of a fresh service: later, admins only.
       await requireRegistrant();
-      if (
-        Date.now() - component.app.createdAt.getTime() >
-        FIRST_BUILD_WINDOW_MS
-      ) {
+      if (Date.now() - component.createdAt.getTime() > FIRST_BUILD_WINDOW_MS) {
         forbidden();
       }
     } else {
-      // Only a branch a deploy target of this component deploys from, in a
+      // Only a branch a deploy target of this service deploys from, in a
       // project where the caller runs deploys.
-      const [access, targets] = await Promise.all([
-        getProjectAccess(),
-        componentTargetBranches(component.componentKey),
-      ]);
+      const access = await getProjectAccess();
       if (
         !targets.some(
           (t) =>
@@ -846,17 +884,13 @@ export async function triggerComponentBuild(
   const pipeline = await step("Starting the build in Woodpecker", () =>
     provider.triggerPipeline(component.ciRepoId as string, branch)
   );
+  // The action keeps its name so the Activity page reads old and new entries
+  // alike; a service key is no uuid, so the entry carries no entity id.
   await recordActivity({
     actorId: session.user.id,
     action: "app.build.trigger",
-    entityType: "app",
-    entityId: component.app.id,
-    data: {
-      app: component.app.appKey,
-      component: componentKey,
-      branch,
-      number: pipeline.number,
-    },
+    entityType: "service",
+    data: { component: componentKey, branch, number: pipeline.number },
   });
   return pipeline;
 }
@@ -872,12 +906,11 @@ export async function triggerComponentBuild(
  * never from the connection's base URL, which may be internal.
  */
 export async function getActiveComponentBuild(
-  appKey: string,
   componentKey: string,
   branch: string
 ): Promise<{ number: number; url: string | null } | null> {
   const session = await requireSession();
-  const component = await requireAppComponent(appKey, componentKey);
+  const component = await requireService(componentKey);
   if (!orgGrantAllows(session, { ...INTEGRATION_MANAGE })) {
     const [access, targets] = await Promise.all([
       getProjectAccess(),

@@ -155,13 +155,15 @@ function message(
       return t("projectSourceAdded", {
         actor,
         project: String(d.project),
-        app: String(d.app),
+        // A service key since Stage 8; older entries name the app.
+        app: String(d.service ?? d.app),
       });
     case "project.sourceRemoved":
       return t("projectSourceRemoved", {
         actor,
         project: String(d.project),
-        app: String(d.app),
+        // A service key since Stage 8; older entries name the app.
+        app: String(d.service ?? d.app),
       });
     case "project.defaultBranchChanged":
       return d.from

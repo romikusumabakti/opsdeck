@@ -89,6 +89,37 @@ describe("build:ops cli.js loads the auth module", () => {
   }, 90_000);
 });
 
+describe("deploy-app registers services directly", () => {
+  const run = (args: string[]) =>
+    spawnSync("bun", ["scripts/deploy-app.ts", ...args], {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+        DATABASE_URL: "postgres://u:p@127.0.0.1:1/none",
+        SECRETS_KEY: Buffer.alloc(32, 1).toString("base64"),
+      },
+    });
+  const create = ["create", "demo-app", "acme/demo-bundle"];
+  const repo = ["--repo", "acme/demo", "--ci", "Woodpecker"];
+
+  it("create needs no --app: it reaches the database without the usage", () => {
+    const result = run([...create, ...repo]);
+    expect(result.stderr).not.toContain("Usage:");
+    expect(result.stderr).not.toContain("--app is deprecated");
+    expect(result.stderr).toContain("Database error (");
+  }, 30_000);
+
+  it("accepts --app as a deprecated alias: warns that it is ignored", () => {
+    const result = run([...create, "--app", "demo", ...repo]);
+    expect(result.stderr).not.toContain("Usage:");
+    expect(result.stderr).toContain(
+      "--app is deprecated and ignored: services are registered without an app"
+    );
+    expect(result.stderr).toContain("Database error (");
+  }, 30_000);
+});
+
 describe("deploy-app database failures", () => {
   it.each([
     [

@@ -423,7 +423,6 @@ describe("POST /api/setup/new-environment", () => {
     expect(deploys.flagDeployNextBuild).not.toHaveBeenCalled();
     expect(apps.triggerComponentBuild).toHaveBeenCalledWith(
       "panel-canary",
-      "panel-canary",
       "main"
     );
   });

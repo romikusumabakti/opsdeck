@@ -1,106 +1,51 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { type DbExecutor, db } from "@/lib/db";
 import {
   appComponents,
-  apps,
   deployTargets,
   environments,
-  projectApps,
   projectComponentBranches,
+  projectServices,
 } from "@/lib/db/schema";
 import { fallbackBranch } from "@/lib/setup/source-branch";
+
+// A project's sources are its services (`project_services`, Stage 8): the
+// components its environments may deploy. Legacy apps play no part here.
 
 export type ProjectSourceEnvironment = {
   id: string;
   name: string;
   slug: string;
-  sourceBranch: string | null;
+  /** The source branch of the environment's target of this service. */
+  sourceBranch: string;
 };
 
-export type ProjectSourceComponent = {
+export type ProjectSource = {
   componentKey: string;
   repoFullName: string;
   defaultBranch: string | null;
   fallbackBranch: string;
+  /** A deploy target of the project deploys it: it cannot be removed. */
+  inUse: boolean;
+  /** The project's environments with a target of this service. */
   environments: ProjectSourceEnvironment[];
 };
 
-export type ProjectSource = {
-  appId: string;
-  appKey: string;
-  name: string;
-  inUse: boolean;
-  components: ProjectSourceComponent[];
-};
-
-/** Environments of the project, and its targets with the app of each target's component. */
-async function usage(projectId: string, executor: DbExecutor) {
-  const envs = await executor
-    .select({
-      id: environments.id,
-      name: environments.name,
-      slug: environments.slug,
-      appId: environments.appId,
-    })
-    .from(environments)
-    .where(eq(environments.projectId, projectId))
-    .orderBy(asc(environments.id));
-  const targets = await executor
-    .select({
-      environmentId: deployTargets.environmentId,
-      componentKey: deployTargets.componentKey,
-      appId: appComponents.appId,
-      sourceBranch: deployTargets.sourceBranch,
-    })
-    .from(deployTargets)
-    .innerJoin(environments, eq(environments.id, deployTargets.environmentId))
-    .innerJoin(
-      appComponents,
-      eq(appComponents.componentKey, deployTargets.componentKey)
-    )
-    .where(eq(environments.projectId, projectId));
-  return { envs, targets };
-}
-
-/** project_apps ∪ environments.app_id ∪ apps of components targeted by the project's environments. */
-export async function projectSourceAppIds(
-  projectId: string
-): Promise<string[]> {
-  const rows = await db
-    .select({ appId: projectApps.appId })
-    .from(projectApps)
-    .where(eq(projectApps.projectId, projectId));
-  const { envs, targets } = await usage(projectId, db);
-  const ids = new Set(rows.map((row) => row.appId));
-  for (const env of envs) if (env.appId) ids.add(env.appId);
-  for (const target of targets) if (target.appId) ids.add(target.appId);
-  return [...ids];
-}
-
-/** Some environment of the project has this app, or a target on one of its components. */
-export async function appInUse(
+/** Some environment of the project has a deploy target of the service. */
+export async function serviceInUse(
   projectId: string,
-  appId: string,
+  componentKey: string,
   executor: DbExecutor = db
 ): Promise<boolean> {
-  const [env] = await executor
-    .select({ id: environments.id })
-    .from(environments)
-    .where(
-      and(eq(environments.projectId, projectId), eq(environments.appId, appId))
-    )
-    .limit(1);
-  if (env) return true;
   const [target] = await executor
     .select({ environmentId: deployTargets.environmentId })
     .from(deployTargets)
     .innerJoin(environments, eq(environments.id, deployTargets.environmentId))
-    .innerJoin(
-      appComponents,
-      eq(appComponents.componentKey, deployTargets.componentKey)
-    )
     .where(
-      and(eq(environments.projectId, projectId), eq(appComponents.appId, appId))
+      and(
+        eq(environments.projectId, projectId),
+        eq(deployTargets.componentKey, componentKey)
+      )
     )
     .limit(1);
   return Boolean(target);
@@ -109,113 +54,108 @@ export async function appInUse(
 export async function loadProjectSources(
   projectId: string
 ): Promise<ProjectSource[]> {
-  const appIds = await projectSourceAppIds(projectId);
-  if (appIds.length === 0) return [];
-
-  const [appRows, componentRows, defaults, { envs, targets }] =
-    await Promise.all([
-      db
-        .select({ id: apps.id, appKey: apps.appKey, name: apps.name })
-        .from(apps)
-        .where(inArray(apps.id, appIds))
-        .orderBy(asc(apps.appKey)),
-      db
-        .select({
-          componentKey: appComponents.componentKey,
-          appId: appComponents.appId,
-          repoFullName: appComponents.repoFullName,
-          buildSpec: appComponents.buildSpec,
-        })
-        .from(appComponents)
-        .where(inArray(appComponents.appId, appIds))
-        .orderBy(asc(appComponents.componentKey)),
-      db
-        .select({
-          componentKey: projectComponentBranches.componentKey,
-          branch: projectComponentBranches.branch,
-        })
-        .from(projectComponentBranches)
-        .where(eq(projectComponentBranches.projectId, projectId)),
-      usage(projectId, db),
-    ]);
+  const [serviceRows, defaults, targets] = await Promise.all([
+    db
+      .select({
+        componentKey: appComponents.componentKey,
+        repoFullName: appComponents.repoFullName,
+        buildSpec: appComponents.buildSpec,
+      })
+      .from(projectServices)
+      .innerJoin(
+        appComponents,
+        eq(appComponents.componentKey, projectServices.componentKey)
+      )
+      .where(eq(projectServices.projectId, projectId))
+      .orderBy(asc(appComponents.componentKey)),
+    db
+      .select({
+        componentKey: projectComponentBranches.componentKey,
+        branch: projectComponentBranches.branch,
+      })
+      .from(projectComponentBranches)
+      .where(eq(projectComponentBranches.projectId, projectId)),
+    db
+      .select({
+        componentKey: deployTargets.componentKey,
+        sourceBranch: deployTargets.sourceBranch,
+        id: environments.id,
+        name: environments.name,
+        slug: environments.slug,
+      })
+      .from(deployTargets)
+      .innerJoin(environments, eq(environments.id, deployTargets.environmentId))
+      .where(eq(environments.projectId, projectId))
+      .orderBy(asc(environments.id)),
+  ]);
+  if (serviceRows.length === 0) return [];
 
   const defaultOf = new Map(
     defaults.map((row) => [row.componentKey, row.branch])
   );
-  const branchOf = new Map(
-    targets.map((t) => [`${t.environmentId}:${t.componentKey}`, t.sourceBranch])
-  );
-
-  return appRows.map((app) => {
-    const appEnvs = envs.filter(
-      (env) =>
-        env.appId === app.id ||
-        targets.some((t) => t.environmentId === env.id && t.appId === app.id)
-    );
+  return serviceRows.map((service) => {
+    const envs = targets
+      .filter((t) => t.componentKey === service.componentKey)
+      .map(({ id, name, slug, sourceBranch }) => ({
+        id,
+        name,
+        slug,
+        sourceBranch,
+      }));
     return {
-      appId: app.id,
-      appKey: app.appKey,
-      name: app.name,
-      inUse: appEnvs.length > 0,
-      components: componentRows
-        .filter((component) => component.appId === app.id)
-        .map((component) => ({
-          componentKey: component.componentKey,
-          repoFullName: component.repoFullName,
-          defaultBranch: defaultOf.get(component.componentKey) ?? null,
-          fallbackBranch: fallbackBranch(component.buildSpec),
-          environments: appEnvs.map((env) => ({
-            id: env.id,
-            name: env.name,
-            slug: env.slug,
-            sourceBranch:
-              branchOf.get(`${env.id}:${component.componentKey}`) ?? null,
-          })),
-        })),
+      componentKey: service.componentKey,
+      repoFullName: service.repoFullName,
+      defaultBranch: defaultOf.get(service.componentKey) ?? null,
+      fallbackBranch: fallbackBranch(service.buildSpec),
+      inUse: envs.length > 0,
+      environments: envs,
     };
   });
 }
 
 /** True when a row was inserted (ON CONFLICT DO NOTHING). */
-export async function insertProjectApp(
+export async function insertProjectService(
   projectId: string,
-  appId: string
+  componentKey: string
 ): Promise<boolean> {
   const rows = await db
-    .insert(projectApps)
-    .values({ projectId, appId })
+    .insert(projectServices)
+    .values({ projectId, componentKey })
     .onConflictDoNothing()
-    .returning({ appId: projectApps.appId });
+    .returning({ componentKey: projectServices.componentKey });
   return rows.length > 0;
 }
 
-/** One transaction: refuse when in use, else delete the app's branch rows and the project_apps row. */
-export async function deleteProjectApp(
+/**
+ * One transaction: refuse when a deploy target of the project uses the
+ * service, else delete its default branch and the project_services row. A
+ * target inserted concurrently re-adds the row (recordTargetSourceIn waits on
+ * the deleted row and then inserts it), so a target never outlives its
+ * project service.
+ */
+export async function deleteProjectService(
   projectId: string,
-  appId: string
+  componentKey: string
 ): Promise<"deleted" | "absent" | "inUse"> {
   return await db.transaction(async (tx) => {
-    if (await appInUse(projectId, appId, tx)) return "inUse";
+    if (await serviceInUse(projectId, componentKey, tx)) return "inUse";
     await tx
       .delete(projectComponentBranches)
       .where(
         and(
           eq(projectComponentBranches.projectId, projectId),
-          inArray(
-            projectComponentBranches.componentKey,
-            tx
-              .select({ key: appComponents.componentKey })
-              .from(appComponents)
-              .where(eq(appComponents.appId, appId))
-          )
+          eq(projectComponentBranches.componentKey, componentKey)
         )
       );
     const removed = await tx
-      .delete(projectApps)
+      .delete(projectServices)
       .where(
-        and(eq(projectApps.projectId, projectId), eq(projectApps.appId, appId))
+        and(
+          eq(projectServices.projectId, projectId),
+          eq(projectServices.componentKey, componentKey)
+        )
       )
-      .returning({ appId: projectApps.appId });
+      .returning({ componentKey: projectServices.componentKey });
     return removed.length > 0 ? "deleted" : "absent";
   });
 }
@@ -263,46 +203,26 @@ export async function upsertComponentBranch(input: {
     });
 }
 
-/** INSERT … SELECT project_id FROM environments WHERE id = environmentId … ON CONFLICT DO NOTHING. */
-export async function ensureProjectSourceIn(
-  executor: DbExecutor,
-  environmentId: string,
-  appId: string
-): Promise<void> {
-  await executor
-    .insert(projectApps)
-    .select(
-      db
-        .select({
-          projectId: environments.projectId,
-          appId: sql<string>`${appId}::uuid`.as("app_id"),
-          createdAt: sql<Date>`now()`.as("created_at"),
-        })
-        .from(environments)
-        .where(eq(environments.id, environmentId))
-    )
-    .onConflictDoNothing();
-}
-
-/** Both inserts, ON CONFLICT DO NOTHING: the component's app as a source, and sourceBranch as the default if none. */
+/**
+ * Both inserts, ON CONFLICT DO NOTHING, for the project of the target's
+ * environment: the target's service as a project service (a deploy target's
+ * service is always one of its project's), and sourceBranch as the service's
+ * default branch if it has none.
+ */
 export async function recordTargetSourceIn(
   executor: DbExecutor,
   target: { environmentId: string; componentKey: string; sourceBranch: string }
 ): Promise<void> {
   await executor
-    .insert(projectApps)
+    .insert(projectServices)
     .select(
       db
         .select({
           projectId: environments.projectId,
-          appId: appComponents.appId,
+          componentKey: sql<string>`${target.componentKey}`.as("component_key"),
           createdAt: sql<Date>`now()`.as("created_at"),
         })
         .from(environments)
-        .innerJoin(
-          appComponents,
-          eq(appComponents.componentKey, target.componentKey)
-        )
         .where(eq(environments.id, target.environmentId))
     )
     .onConflictDoNothing();

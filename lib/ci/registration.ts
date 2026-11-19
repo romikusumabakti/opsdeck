@@ -7,8 +7,9 @@ import {
 } from "@/lib/deploy/validation";
 import { uuidSchema } from "@/lib/validation";
 
-// The app registration payload, shared by the API (server/services/apps.ts)
-// and the register form, so both reject the same input. Client-safe.
+// The registration payloads (services, and the New environment page's app),
+// shared by the API (server/services/apps.ts) and the register forms, so both
+// reject the same input. Client-safe.
 
 /** The image a component's pipeline pushes its deploy bundle to. */
 export function bundleImageFor(componentKey: string): string {
@@ -40,6 +41,7 @@ export const REGISTRATION_ISSUES = [
   "imageIsBundle",
   "duplicateComponentKey",
   "duplicateRepo",
+  "sharedPipelineBranch",
 ] as const;
 export type RegistrationIssue = (typeof REGISTRATION_ISSUES)[number];
 
@@ -123,3 +125,42 @@ export const registerAppSchema = z
 
 export type RegisterAppInput = z.infer<typeof registerAppSchema>;
 export type RegisterComponentInput = z.infer<typeof registerComponentSchema>;
+
+/**
+ * Registers one or more services directly (no app): several may come from one
+ * repository, each under its own notify secret. Generated services of one
+ * repository must build different branches, since a branch holds one
+ * generated `.woodpecker.yaml`.
+ */
+export const registerServicesSchema = z
+  .object({ services: z.array(registerComponentSchema).min(1).max(20) })
+  .superRefine((input, ctx) => {
+    const keys = new Set<string>();
+    const branchesOf = new Map<string, Set<string>>();
+    input.services.forEach((c, index) => {
+      if (keys.has(c.componentKey)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["services", index, "componentKey"],
+          message: "duplicateComponentKey",
+        });
+      }
+      keys.add(c.componentKey);
+      if (!c.buildSpec) return;
+      const repo = `${c.ciConnectionId}\n${c.forgeRemoteId}`;
+      const taken = branchesOf.get(repo) ?? new Set<string>();
+      const branch = c.buildSpec.branches.find((b) => taken.has(b));
+      if (branch !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["services", index, "buildSpec", "branches"],
+          message: "sharedPipelineBranch",
+          params: { branch },
+        });
+      }
+      for (const b of c.buildSpec.branches) taken.add(b);
+      branchesOf.set(repo, taken);
+    });
+  });
+
+export type RegisterServicesInput = z.infer<typeof registerServicesSchema>;

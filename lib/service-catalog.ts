@@ -90,3 +90,23 @@ export async function isProjectService(
     .limit(1);
   return rows.length > 0;
 }
+
+/** A service row to register: no legacy app, no creation time. */
+export type NewService = Omit<
+  typeof appComponents.$inferInsert,
+  "appId" | "createdAt"
+>;
+
+/**
+ * Registers services without an app (`app_id` null), in one statement. A
+ * taken key surfaces as a unique violation.
+ */
+export async function insertServices(
+  rows: NewService[],
+  executor: DbExecutor = db
+): Promise<void> {
+  if (rows.length === 0) return;
+  await executor
+    .insert(appComponents)
+    .values(rows.map((row) => ({ ...row, appId: null })));
+}

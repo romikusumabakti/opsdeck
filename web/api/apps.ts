@@ -1,6 +1,5 @@
-import { keepPreviousData, queryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import type { BuildSpec } from "@/lib/ci/build-spec";
 import { api } from "@/web/api/client";
 
 const routes = api.api.apps;
@@ -40,78 +39,3 @@ export function addEnvironmentHref(
   const query = repo ? `?repo=${encodeURIComponent(repo)}` : "";
   return `/${target.key}/environments/new${query}`;
 }
-
-export async function rotateNotifySecret(appKey: string, componentKey: string) {
-  return parseResponse(
-    routes[":appKey"].components[":componentKey"]["rotate-secret"].$post({
-      param: { appKey, componentKey },
-    })
-  );
-}
-
-/** Starts a build of the component's branch (who may: the service's). */
-export async function startComponentBuild(
-  appKey: string,
-  componentKey: string,
-  branch: string
-) {
-  return parseResponse(
-    routes[":appKey"].components[":componentKey"].build.$post({
-      param: { appKey, componentKey },
-      json: { branch },
-    })
-  );
-}
-
-/** The branch's newest running pipeline, or null (who may: the service's). */
-export async function getActiveBuild(
-  appKey: string,
-  componentKey: string,
-  branch: string
-) {
-  return parseResponse(
-    routes[":appKey"].components[":componentKey"].builds.active.$get({
-      param: { appKey, componentKey },
-      query: { branch },
-    })
-  );
-}
-
-/** Commits the generated pipeline file to every built branch, or to one. */
-export async function commitPipelineFile(
-  appKey: string,
-  componentKey: string,
-  branch?: string
-) {
-  return parseResponse(
-    routes[":appKey"].components[":componentKey"]["commit-pipeline-file"].$post(
-      {
-        param: { appKey, componentKey },
-        query: branch === undefined ? {} : { branch },
-      }
-    )
-  );
-}
-
-export async function getPipelinePreview(
-  componentKey: string,
-  buildSpec: BuildSpec
-) {
-  return parseResponse(
-    routes["pipeline-preview"].$get({
-      query: { q: JSON.stringify({ componentKey, buildSpec }) },
-    })
-  );
-}
-
-/** The generated YAML for a valid spec; keeps the last one while typing. */
-export const pipelinePreviewQuery = (
-  componentKey: string,
-  buildSpec: BuildSpec | null
-) =>
-  queryOptions({
-    queryKey: ["apps", "pipelinePreview", componentKey, buildSpec],
-    queryFn: () => getPipelinePreview(componentKey, buildSpec as BuildSpec),
-    enabled: buildSpec !== null,
-    placeholderData: keepPreviousData,
-  });

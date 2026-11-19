@@ -1,14 +1,5 @@
-import {
-  and,
-  desc,
-  eq,
-  getTableColumns,
-  inArray,
-  isNull,
-  sql,
-} from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
-import { type DbExecutor, db } from "@/lib/db";
+import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
 import {
   type App,
   type AppComponent,
@@ -18,9 +9,6 @@ import {
   deployTargets,
   environments,
 } from "@/lib/db/schema";
-import type { ArtifactKind } from "@/lib/deploy/artifact-script";
-import { COMPONENT_OTHER_APP_MESSAGE } from "@/lib/deploy/errors";
-import { CodedHTTPException } from "@/server/errors";
 
 /** A component as listed to clients: everything but the notify secret. */
 export type PublicAppComponent = Omit<AppComponent, "notifySecret">;
@@ -29,18 +17,19 @@ const { notifySecret: _notifySecret, ...publicComponentColumns } =
   getTableColumns(appComponents);
 
 /**
- * The component and its app, or undefined when the key is unknown.
- * `notifySecret` is still encrypted (see lib/secrets.ts).
+ * The component (a service) by key, or undefined when the key is unknown. Every
+ * deploy-path read (build hook, deploy job, targets) goes through here, so it
+ * never depends on the legacy app: a service registered without one is found
+ * like any other. `notifySecret` is still encrypted (see lib/secrets.ts).
  */
 export async function getComponent(
   componentKey: string
-): Promise<(AppComponent & { app: App }) | undefined> {
+): Promise<AppComponent | undefined> {
   const [row] = await db
-    .select({ component: appComponents, app: apps })
+    .select()
     .from(appComponents)
-    .innerJoin(apps, eq(apps.id, appComponents.appId))
     .where(eq(appComponents.componentKey, componentKey));
-  return row && { ...row.component, app: row.app };
+  return row;
 }
 
 export async function listApps(): Promise<
@@ -58,17 +47,6 @@ export async function listApps(): Promise<
     byId.set(app.id, entry);
   }
   return [...byId.values()];
-}
-
-/** The projects that hold an environment of the app. */
-export async function projectIdsWithAppEnvironment(
-  appId: string
-): Promise<string[]> {
-  const rows = await db
-    .selectDistinct({ projectId: environments.projectId })
-    .from(environments)
-    .where(eq(environments.appId, appId));
-  return rows.map((row) => row.projectId);
 }
 
 /** The component's deploy targets: each one's project and source branch. */
@@ -197,28 +175,6 @@ export async function insertComponents(
 }
 
 /**
- * Inserts a component, creating its app (named after its key) when missing,
- * in one transaction. A taken component key surfaces as a unique violation.
- */
-export async function insertComponentCreatingApp(
-  appKey: string,
-  component: NewAppComponent
-): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(apps)
-      .values({ appKey, name: appKey })
-      .onConflictDoNothing({ target: apps.appKey });
-    const [app] = await tx
-      .select({ id: apps.id })
-      .from(apps)
-      .where(eq(apps.appKey, appKey));
-    if (!app) throw new Error(`App ${appKey} vanished after insert`);
-    await tx.insert(appComponents).values({ ...component, appId: app.id });
-  });
-}
-
-/**
  * Records one branch's attempt to commit the generated pipeline file, merged
  * into `pipeline_file_commits` in one statement so attempts on other branches
  * are never overwritten. A failure keeps that branch's last good sha, so the
@@ -279,48 +235,4 @@ export async function setNotifySecret(
     .where(eq(appComponents.componentKey, componentKey))
     .returning({ componentKey: appComponents.componentKey });
   if (updated.length === 0) throw new Error("Component not found");
-}
-
-/**
- * An environment deploys one app: a target's component must belong to it. An
- * environment with no app yet (managed without deploy, or new) adopts the
- * component's app; the conditional UPDATE keeps two concurrent first targets
- * from setting different apps. Pass the transaction that inserts the target so
- * a failed insert leaves `app_id` unchanged. Returns the component's artifact
- * kind (its build spec's `artifact`), null for a container component.
- */
-export async function assertTargetMatchesEnvironmentApp(
-  environmentId: string,
-  componentKey: string,
-  executor: DbExecutor = db
-): Promise<ArtifactKind | null> {
-  const [component] = await executor
-    .select({ appId: appComponents.appId, buildSpec: appComponents.buildSpec })
-    .from(appComponents)
-    .where(eq(appComponents.componentKey, componentKey));
-  if (!component) {
-    throw new HTTPException(404, { message: "Component not found" });
-  }
-  const adopted = await executor
-    .update(environments)
-    .set({ appId: component.appId })
-    .where(and(eq(environments.id, environmentId), isNull(environments.appId)))
-    .returning({ id: environments.id });
-  const artifactKind = component.buildSpec?.artifact?.kind ?? null;
-  if (adopted.length > 0) return artifactKind;
-  const [environment] = await executor
-    .select({ appId: environments.appId })
-    .from(environments)
-    .where(eq(environments.id, environmentId));
-  if (!environment) {
-    throw new HTTPException(404, { message: "Environment not found" });
-  }
-  if (environment.appId !== component.appId) {
-    throw new CodedHTTPException(
-      409,
-      "componentOtherApp",
-      COMPONENT_OTHER_APP_MESSAGE
-    );
-  }
-  return artifactKind;
 }

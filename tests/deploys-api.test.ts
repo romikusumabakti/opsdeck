@@ -86,14 +86,16 @@ vi.mock("@/lib/activity", () => activity);
 
 const apps = vi.hoisted(() => ({
   getComponent: vi.fn(),
-  assertTargetMatchesEnvironmentApp: vi.fn(),
 }));
 vi.mock("@/lib/apps", () => apps);
+
+// The target's service (its artifact kind decides the target kind).
+const catalog = vi.hoisted(() => ({ getService: vi.fn() }));
+vi.mock("@/lib/service-catalog", () => catalog);
 
 // The silent project-sources insert needs a real tx; its own tests cover it.
 vi.mock("@/lib/project-sources", () => ({
   recordTargetSourceIn: vi.fn(),
-  ensureProjectSourceIn: vi.fn(),
 }));
 
 // No teardown under way (lib/teardown/guard has its own tests).
@@ -158,7 +160,10 @@ beforeEach(() => {
     ownerId: null,
   });
   apps.getComponent.mockResolvedValue({ componentKey: "acme-accounting" });
-  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(null);
+  catalog.getService.mockResolvedValue({
+    key: "acme-accounting",
+    buildSpec: null,
+  });
   repo.listTargetDirsOnMachine.mockResolvedValue([]);
   repo.environmentUsesServer.mockImplementation(
     async (_env: string, server: string) => server === SERVER_ID
@@ -517,29 +522,12 @@ describe("target configuration", () => {
     expect(repo.upsertTarget).not.toHaveBeenCalled();
   });
 
-  it("rejects a component of another app than the environment's with 409", async () => {
-    const { HTTPException } = await import("hono/http-exception");
-    const { COMPONENT_OTHER_APP_MESSAGE } = await import("@/lib/deploy/errors");
-    apps.assertTargetMatchesEnvironmentApp.mockRejectedValue(
-      new HTTPException(409, { message: COMPONENT_OTHER_APP_MESSAGE })
-    );
-    const res = await send("POST", "/api/deploys/targets", newTarget);
-    expect(res.status).toBe(409);
-    // The dialog tells this 409 from the duplicate-target one by this message.
-    expect(await res.json()).toEqual({ error: COMPONENT_OTHER_APP_MESSAGE });
-    expect(apps.assertTargetMatchesEnvironmentApp).toHaveBeenCalledWith(
-      ENV_ID,
-      "acme-accounting",
-      txState.tx
-    );
-    expect(repo.upsertTarget).not.toHaveBeenCalled();
-  });
-
-  it("adopts the app and inserts the target in one transaction", async () => {
+  it("adds a service of any former app: no one-app-per-environment rule", async () => {
     const res = await send("POST", "/api/deploys/targets", newTarget);
     expect(res.status).toBe(200);
-    expect(apps.assertTargetMatchesEnvironmentApp).toHaveBeenCalledWith(
-      ENV_ID,
+    // The service is read in the inserting transaction; no app is compared
+    // or adopted.
+    expect(catalog.getService).toHaveBeenCalledWith(
       "acme-accounting",
       txState.tx
     );
@@ -547,6 +535,13 @@ describe("target configuration", () => {
       expect.objectContaining({ environmentId: ENV_ID }),
       txState.tx
     );
+  });
+
+  it("answers 404 for a service that is not registered, inserting nothing", async () => {
+    catalog.getService.mockResolvedValue(null);
+    const res = await send("POST", "/api/deploys/targets", newTarget);
+    expect(res.status).toBe(404);
+    expect(repo.upsertTarget).not.toHaveBeenCalled();
   });
 
   it("answers a duplicate target with a 409 that differs from the other-app one", async () => {

@@ -29,7 +29,6 @@ import { Link } from "@/i18n/navigation";
 import { branchSchema } from "@/lib/deploy/validation";
 import { branchChip } from "@/lib/setup/source-branch";
 import { cn } from "@/lib/utils";
-import { listAppsQuery } from "@/web/api/apps";
 import {
   addProjectSource,
   listProjectSourcesQuery,
@@ -37,16 +36,16 @@ import {
   removeProjectSource,
   setComponentBranch,
 } from "@/web/api/project-sources";
+import { listServicesQuery } from "@/web/api/service-catalog";
 
 type Project = { id: string; key: string };
-type Component = ProjectSourceRow["components"][number];
 type ActionResult = { success: boolean; message?: string };
 
 /**
- * The Sources tab of Project settings: the apps the project deploys, each
- * component's default branch, and the branch every environment really uses.
- * Adding an app only picks from the catalog; a new repository is registered
- * by creating an environment for it.
+ * The Sources tab of Project settings: the services the project deploys, each
+ * one's default branch, and the branch every environment really uses. Adding
+ * a service only picks from the registered ones; a new repository is
+ * registered by creating an environment for it.
  */
 export function ProjectSourcesTab({
   project,
@@ -58,12 +57,12 @@ export function ProjectSourcesTab({
 }) {
   const t = useTranslations("projectSources");
   const sources = useSuspenseQuery(listProjectSourcesQuery(project.id)).data;
-  const apps = useSuspenseQuery(listAppsQuery()).data;
+  const services = useSuspenseQuery(listServicesQuery()).data;
   const [addOpen, setAddOpen] = useState(false);
   const addable = useMemo(() => {
-    const taken = new Set(sources.map((s) => s.appId));
-    return apps.filter((app) => !taken.has(app.id));
-  }, [apps, sources]);
+    const taken = new Set(sources.map((s) => s.componentKey));
+    return services.filter((service) => !taken.has(service.key));
+  }, [services, sources]);
   const newEnvironment = (
     <Link
       href={`/${project.key}/environments/new`}
@@ -97,7 +96,7 @@ export function ProjectSourcesTab({
           {addButton && <div className="flex justify-end">{addButton}</div>}
           {sources.map((source) => (
             <SourceCard
-              key={source.appId}
+              key={source.componentKey}
               project={project}
               source={source}
               canManageApps={canManageApps}
@@ -106,9 +105,9 @@ export function ProjectSourcesTab({
         </>
       )}
       {canManageApps && (
-        <AddAppDialog
+        <AddServiceDialog
           project={project}
-          apps={addable}
+          services={addable}
           open={addOpen}
           onOpenChange={setAddOpen}
         />
@@ -151,7 +150,7 @@ function SourceCard({
   async function confirmRemove() {
     const ok = await dialog.confirm({
       title: t("removeConfirmTitle", {
-        app: source.name,
+        app: source.componentKey,
         project: project.key,
       }),
       description: t("removeConfirmDescription"),
@@ -160,7 +159,10 @@ function SourceCard({
     });
     if (ok) {
       run(() =>
-        removeProjectSource({ projectId: project.id, appId: source.appId })
+        removeProjectSource({
+          projectId: project.id,
+          componentKey: source.componentKey,
+        })
       );
     }
   }
@@ -180,10 +182,7 @@ function SourceCard({
   return (
     <Card>
       <CardHeader className="flex-row items-center gap-2">
-        <CardTitle>{source.name}</CardTitle>
-        <Badge variant="secondary" className="font-mono">
-          {source.appKey}
-        </Badge>
+        <CardTitle className="font-mono">{source.componentKey}</CardTitle>
         {canManageApps && (
           <div className="ml-auto">
             {source.inUse ? (
@@ -199,14 +198,8 @@ function SourceCard({
           </div>
         )}
       </CardHeader>
-      <CardContent className="flex flex-col divide-y">
-        {source.components.map((component) => (
-          <ComponentRow
-            key={component.componentKey}
-            project={project}
-            component={component}
-          />
-        ))}
+      <CardContent className="flex flex-col">
+        <ComponentRow project={project} component={source} />
       </CardContent>
     </Card>
   );
@@ -217,7 +210,7 @@ function ComponentRow({
   component,
 }: {
   project: Project;
-  component: Component;
+  component: ProjectSourceRow;
 }) {
   const t = useTranslations("projectSources");
   const { run, isPending } = useRun();
@@ -235,7 +228,7 @@ function ComponentRow({
   const effectiveDefault = component.defaultBranch ?? component.fallbackBranch;
 
   return (
-    <div className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0">
+    <div className="flex flex-col gap-3">
       <span className="font-mono text-sm">{component.repoFullName}</span>
       <form
         className="flex flex-col gap-1"
@@ -298,29 +291,32 @@ function ComponentRow({
   );
 }
 
-function AddAppDialog({
+function AddServiceDialog({
   project,
-  apps,
+  services,
   open,
   onOpenChange,
 }: {
   project: Project;
-  apps: { id: string; appKey: string; name: string }[];
+  services: { key: string; repoFullName: string }[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("projectSources");
   const { run, isPending } = useRun();
-  const [appId, setAppId] = useState<string | null>(null);
-  const byId = useMemo(() => new Map(apps.map((a) => [a.id, a])), [apps]);
-  const picked = appId === null ? undefined : byId.get(appId);
+  const [key, setKey] = useState<string | null>(null);
+  const byKey = useMemo(
+    () => new Map(services.map((s) => [s.key, s])),
+    [services]
+  );
+  const picked = key === null ? undefined : byKey.get(key);
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
-        if (!next) setAppId(null);
+        if (!next) setKey(null);
       }}
     >
       <DialogContent>
@@ -330,12 +326,12 @@ function AddAppDialog({
         <div className="flex flex-col gap-3">
           <Combobox
             autoHighlight
-            items={apps.map((a) => a.id)}
-            value={appId}
-            onValueChange={setAppId}
-            itemToStringLabel={(id: string | null) => {
-              const app = id === null ? undefined : byId.get(id);
-              return app ? `${app.name} ${app.appKey}` : "";
+            items={services.map((s) => s.key)}
+            value={key}
+            onValueChange={setKey}
+            itemToStringLabel={(k: string | null) => {
+              const service = k === null ? undefined : byKey.get(k);
+              return service ? `${service.key} ${service.repoFullName}` : "";
             }}
           >
             <ComboboxTrigger
@@ -348,7 +344,7 @@ function AddAppDialog({
               }
             >
               {picked ? (
-                <span className="truncate">{picked.name}</span>
+                <span className="truncate font-mono">{picked.key}</span>
               ) : (
                 <span className="truncate text-muted-foreground">
                   {t("selectApp")}
@@ -358,14 +354,14 @@ function AddAppDialog({
             <ComboboxContent>
               <ComboboxEmpty>{t("noAppsToAdd")}</ComboboxEmpty>
               <ComboboxList>
-                {(id: string) => {
-                  const app = byId.get(id);
-                  if (!app) return null;
+                {(k: string) => {
+                  const service = byKey.get(k);
+                  if (!service) return null;
                   return (
-                    <ComboboxItem key={app.id} value={app.id}>
-                      <span className="truncate">{app.name}</span>
+                    <ComboboxItem key={service.key} value={service.key}>
+                      <span className="truncate font-mono">{service.key}</span>
                       <span className="font-mono text-xs text-muted-foreground">
-                        {app.appKey}
+                        {service.repoFullName}
                       </span>
                     </ComboboxItem>
                   );
@@ -385,11 +381,15 @@ function AddAppDialog({
         </div>
         <DialogFooter>
           <Button
-            disabled={appId === null || isPending}
+            disabled={key === null || isPending}
             onClick={() => {
-              if (appId === null) return;
+              if (key === null) return;
               run(
-                () => addProjectSource({ projectId: project.id, appId }),
+                () =>
+                  addProjectSource({
+                    projectId: project.id,
+                    componentKey: key,
+                  }),
                 () => onOpenChange(false)
               );
             }}

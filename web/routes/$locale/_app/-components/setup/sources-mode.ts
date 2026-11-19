@@ -1,5 +1,6 @@
-// New environment in a project with sources: only the source apps are
-// offered, and a picked component starts on the project's default branch.
+// New environment in a project with sources (its services): only the apps
+// holding them are offered, and a picked component starts on the project's
+// default branch.
 // Pure: the route feeds it the catalog and the project's sources.
 
 export type NewEnvironmentSources = {
@@ -9,25 +10,28 @@ export type NewEnvironmentSources = {
   defaultBranches: Record<string, string>;
 };
 
-/** No sources: the whole catalog and null. Else only the source apps, their keys, and the set defaults by component key. */
-export function sourcesModeProps<A extends { id: string }>(
+/**
+ * No sources: the whole catalog and null. Else only the apps holding one of
+ * the project's services (until Task 3 the wizard still picks an app), their
+ * keys, and the set defaults by service key.
+ */
+export function sourcesModeProps<
+  A extends { appKey: string; components: readonly { componentKey: string }[] },
+>(
   catalog: A[],
-  sources: {
-    appId: string;
-    appKey: string;
-    components: { componentKey: string; defaultBranch: string | null }[];
-  }[]
+  sources: { componentKey: string; defaultBranch: string | null }[]
 ): { apps: A[]; sources: NewEnvironmentSources | null } {
   if (sources.length === 0) return { apps: catalog, sources: null };
-  const sourceAppIds = new Set(sources.map((s) => s.appId));
+  const serviceKeys = new Set(sources.map((s) => s.componentKey));
   const defaultBranches: Record<string, string> = {};
-  for (const source of sources) {
-    for (const c of source.components) {
-      if (c.defaultBranch) defaultBranches[c.componentKey] = c.defaultBranch;
-    }
+  for (const s of sources) {
+    if (s.defaultBranch) defaultBranches[s.componentKey] = s.defaultBranch;
   }
+  const apps = catalog.filter((app) =>
+    app.components.some((c) => serviceKeys.has(c.componentKey))
+  );
   return {
-    apps: catalog.filter((app) => sourceAppIds.has(app.id)),
-    sources: { appKeys: sources.map((s) => s.appKey), defaultBranches },
+    apps,
+    sources: { appKeys: apps.map((app) => app.appKey), defaultBranches },
   };
 }

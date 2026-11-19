@@ -2942,6 +2942,7 @@
       "imageIsBundle": "{bundle} is the deploy bundle's image; choose another name",
       "duplicateComponentKey": "Another component already uses this key",
       "duplicateRepo": "Another component already uses this repository",
+      "sharedPipelineBranch": "Another generated service of this repository already builds branch {branch}",
       "required": "This field is required",
       "atLeastOne": "Add at least one",
       "tooShort": "Use at least {min} characters",

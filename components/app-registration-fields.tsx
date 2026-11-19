@@ -16,8 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { type BuildSpec, buildSpecSchema } from "@/lib/ci/build-spec";
 import { issueMessage } from "@/lib/ci/registration-issues";
 import { cn } from "@/lib/utils";
-import { pipelinePreviewQuery } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
+import { pipelinePreviewQuery } from "@/web/api/service-catalog";
 
 // The build spec editor of a generated pipeline (images, bundle files,
 // checks) with the YAML the Panel will commit to every built branch, and the

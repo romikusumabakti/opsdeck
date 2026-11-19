@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   takenComponentKeys: vi.fn(),
   linkedCiRepos: vi.fn(),
   insertAppWithComponents: vi.fn(),
+  insertServices: vi.fn(),
+  getService: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-session", () => ({ requireSession: mocks.requireSession }));
@@ -39,11 +41,14 @@ vi.mock("@/lib/apps", () => ({
   insertComponents: mocks.insertComponents,
   linkedCiRepos: mocks.linkedCiRepos,
   listApps: vi.fn(),
-  projectIdsWithAppEnvironment: vi.fn(),
   appendBuildSpecBranch: mocks.appendBuildSpecBranch,
   setNotifySecret: vi.fn(),
   setPipelineFileCommit: mocks.setPipelineFileCommit,
   takenComponentKeys: mocks.takenComponentKeys,
+}));
+vi.mock("@/lib/service-catalog", () => ({
+  getService: mocks.getService,
+  insertServices: mocks.insertServices,
 }));
 vi.mock("@/lib/ci/forges/bitbucket", () => ({
   branchExists: mocks.branchExists,
@@ -66,10 +71,9 @@ vi.mock("@/lib/secrets", () => ({ encryptSecret: (s: string) => s }));
 import { buildSpecSchema } from "@/lib/ci/build-spec";
 import { generateWoodpeckerPipeline } from "@/lib/ci/pipeline";
 import {
-  addComponentsToApp,
   addSetupComponents,
   ensureComponentBranch,
-  registerApp,
+  registerServices,
   registerSetupApp,
 } from "@/server/services/apps";
 
@@ -108,7 +112,7 @@ beforeEach(() => {
   mocks.branchExists.mockResolvedValue(true);
   mocks.commitFile.mockResolvedValue({ sha: "abc" });
   mocks.readRepoFile.mockResolvedValue(null);
-  mocks.getComponent.mockResolvedValue({ ...COMPONENT, app: {} });
+  mocks.getComponent.mockResolvedValue({ ...COMPONENT });
   mocks.requireProjectPermission.mockResolvedValue({});
   mocks.appendBuildSpecBranch.mockResolvedValue(true);
   mocks.listRepos.mockResolvedValue([
@@ -127,6 +131,8 @@ beforeEach(() => {
   mocks.takenComponentKeys.mockResolvedValue([]);
   mocks.linkedCiRepos.mockResolvedValue([]);
   mocks.insertAppWithComponents.mockResolvedValue(undefined);
+  mocks.insertServices.mockResolvedValue(undefined);
+  mocks.getService.mockImplementation(async (key: string) => ({ key }));
   mocks.getApp.mockResolvedValue({
     id: "app-1",
     appKey: "hris",
@@ -162,36 +168,40 @@ const CUSTOM = {
   ],
 };
 const BRANCHES = { hris: ["main"] };
+const SERVICES = { services: REGISTER.components };
+const CUSTOM_SERVICES = { services: CUSTOM.components };
 const asAdmin = () =>
   mocks.requireSession.mockResolvedValue({
     user: { role: "admin" },
     session: { signInMethod: "passkey" },
   });
 
-describe("registerApp and addComponentsToApp choose generated for admins only", () => {
-  it("refuses an engineer a generated component (403 pipelineForbidden)", async () => {
-    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+describe("registerServices chooses generated for admins only", () => {
+  it("refuses an engineer a generated service (403 pipelineForbidden)", async () => {
+    await expect(registerServices(SERVICES)).rejects.toMatchObject({
       status: 403,
       code: "pipelineForbidden",
     });
-    await expect(
-      addComponentsToApp("hris", REGISTER.components)
-    ).rejects.toMatchObject({ status: 403, code: "pipelineForbidden" });
     expect(mocks.activateRepo).not.toHaveBeenCalled();
     expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 
-  it("lets an engineer register a custom component", async () => {
-    await expect(registerApp(CUSTOM)).resolves.toBeDefined();
-    await expect(
-      addComponentsToApp("hris", CUSTOM.components)
-    ).resolves.toBeDefined();
+  it("lets an engineer register a custom service, without an app", async () => {
+    await expect(registerServices(CUSTOM_SERVICES)).resolves.toMatchObject({
+      services: [{ key: "hris" }],
+      pipelineFileFailures: [],
+    });
+    expect(mocks.insertServices).toHaveBeenCalledWith([
+      expect.objectContaining({ componentKey: "hris", ciRepoId: "7" }),
+    ]);
+    expect(mocks.insertAppWithComponents).not.toHaveBeenCalled();
+    expect(mocks.insertComponents).not.toHaveBeenCalled();
     expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 
-  it("lets an admin register a generated component", async () => {
+  it("lets an admin register a generated service", async () => {
     asAdmin();
-    await expect(registerApp(REGISTER)).resolves.toBeDefined();
+    await expect(registerServices(SERVICES)).resolves.toBeDefined();
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);
     // No environment: the commit builds as before.
     expect(mocks.commitFile.mock.calls[0]?.[5]).not.toContain("[CI SKIP]");
@@ -268,7 +278,7 @@ describe("generated registration checks", () => {
 
   it("refuses up front (409) when a branch holds a non-Panel pipeline file", async () => {
     mocks.readRepoFile.mockResolvedValue("steps:\n  build:\n    image: x\n");
-    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+    await expect(registerServices(SERVICES)).rejects.toMatchObject({
       status: 409,
       code: "pipelineFileExists",
     });
@@ -283,7 +293,7 @@ describe("generated registration checks", () => {
         panelUrl: "https://panel.example.com",
       })
     );
-    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+    await expect(registerServices(SERVICES)).rejects.toMatchObject({
       code: "pipelineFileExists",
     });
     expect(mocks.activateRepo).not.toHaveBeenCalled();
@@ -291,7 +301,7 @@ describe("generated registration checks", () => {
 
   it("fails closed on a pipeline file too large to read", async () => {
     mocks.readRepoFile.mockResolvedValue(TOO_LARGE);
-    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+    await expect(registerServices(SERVICES)).rejects.toMatchObject({
       code: "pipelineFileExists",
     });
     expect(mocks.activateRepo).not.toHaveBeenCalled();
@@ -299,7 +309,7 @@ describe("generated registration checks", () => {
 
   it("overwrites a Panel-generated pipeline file", async () => {
     mocks.readRepoFile.mockResolvedValue(GENERATED);
-    await registerApp(REGISTER);
+    await registerServices(SERVICES);
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);
   });
 
@@ -312,16 +322,16 @@ describe("generated registration checks", () => {
     );
     expect(legacy).not.toBe(GENERATED);
     mocks.readRepoFile.mockResolvedValue(legacy);
-    await registerApp(REGISTER);
+    await registerServices(SERVICES);
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("registration refusals carry a stable code", () => {
   beforeEach(asAdmin);
-  it("appKeyTaken", async () => {
+  it("appKeyTaken (New environment's app)", async () => {
     mocks.appKeyExists.mockResolvedValue(true);
-    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+    await expect(registerSetupApp(REGISTER, BRANCHES)).rejects.toMatchObject({
       status: 409,
       code: "appKeyTaken",
     });
@@ -329,26 +339,27 @@ describe("registration refusals carry a stable code", () => {
 
   it("componentKeyTaken", async () => {
     mocks.takenComponentKeys.mockResolvedValue(["hris"]);
-    await expect(
-      addComponentsToApp("hris", REGISTER.components)
-    ).rejects.toMatchObject({ status: 409, code: "componentKeyTaken" });
+    await expect(registerServices(SERVICES)).rejects.toMatchObject({
+      status: 409,
+      code: "componentKeyTaken",
+    });
   });
 
-  it("repoLinked", async () => {
+  it("repoLinked (New environment's app; services may share a repository)", async () => {
     mocks.linkedCiRepos.mockResolvedValue([
       { componentKey: "old", ciRepoId: "7", repoFullName: "acme/hris" },
     ]);
-    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+    await expect(registerSetupApp(REGISTER, BRANCHES)).rejects.toMatchObject({
       status: 409,
       code: "repoLinked",
     });
   });
 
   it("registrationRace", async () => {
-    mocks.insertAppWithComponents.mockRejectedValue(
+    mocks.insertServices.mockRejectedValue(
       Object.assign(new Error("dup"), { code: "23505" })
     );
-    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+    await expect(registerServices(SERVICES)).rejects.toMatchObject({
       status: 409,
       code: "registrationRace",
     });
@@ -357,19 +368,19 @@ describe("registration refusals carry a stable code", () => {
   it("ciUnavailable", async () => {
     const { CiProviderError } = await import("@/lib/ci/types");
     mocks.activateRepo.mockRejectedValue(new CiProviderError("down", 503));
-    await expect(registerApp(REGISTER)).rejects.toMatchObject({
+    await expect(registerServices(SERVICES)).rejects.toMatchObject({
       status: 502,
       code: "ciUnavailable",
     });
   });
 });
 
-describe("addComponentsToApp", () => {
+describe("addSetupComponents (New environment, existing app)", () => {
   beforeEach(asAdmin);
   it("registers the components into the existing app", async () => {
     await expect(
-      addComponentsToApp("hris", REGISTER.components)
-    ).resolves.toMatchObject({ appKey: "hris" });
+      addSetupComponents("hris", REGISTER.components, BRANCHES)
+    ).resolves.toMatchObject({ app: { appKey: "hris" } });
     expect(mocks.insertComponents).toHaveBeenCalledWith("app-1", [
       expect.objectContaining({
         componentKey: "hris",
@@ -384,7 +395,7 @@ describe("addComponentsToApp", () => {
   it("refuses a foreign pipeline file before inserting (409)", async () => {
     mocks.readRepoFile.mockResolvedValue("steps:\n  build:\n    image: x\n");
     await expect(
-      addComponentsToApp("hris", REGISTER.components)
+      addSetupComponents("hris", REGISTER.components, BRANCHES)
     ).rejects.toMatchObject({ status: 409, code: "pipelineFileExists" });
     expect(mocks.activateRepo).not.toHaveBeenCalled();
     expect(mocks.insertComponents).not.toHaveBeenCalled();
@@ -392,9 +403,13 @@ describe("addComponentsToApp", () => {
 
   it("rejects an invalid component (400)", async () => {
     await expect(
-      addComponentsToApp("hris", [
-        { ...REGISTER.components[0], bundleImage: "wrong-deploy" },
-      ] as typeof REGISTER.components)
+      addSetupComponents(
+        "hris",
+        [
+          { ...REGISTER.components[0], bundleImage: "wrong-deploy" },
+        ] as typeof REGISTER.components,
+        BRANCHES
+      )
     ).rejects.toMatchObject({ status: 400 });
     expect(mocks.insertComponents).not.toHaveBeenCalled();
   });
@@ -402,7 +417,7 @@ describe("addComponentsToApp", () => {
   it("answers 404 for an unknown app", async () => {
     mocks.getApp.mockResolvedValue(undefined);
     await expect(
-      addComponentsToApp("nope", REGISTER.components)
+      addSetupComponents("nope", REGISTER.components, BRANCHES)
     ).rejects.toMatchObject({ status: 404 });
   });
 
@@ -413,7 +428,7 @@ describe("addComponentsToApp", () => {
     });
     mocks.getProjectAccess.mockResolvedValue({ roles: { p1: "qa" } });
     await expect(
-      addComponentsToApp("hris", CUSTOM.components)
+      addSetupComponents("hris", CUSTOM.components, BRANCHES)
     ).rejects.toMatchObject({ status: 403 });
     expect(mocks.insertComponents).not.toHaveBeenCalled();
   });

@@ -10,7 +10,10 @@ import {
 } from "@/server/services/project-sources";
 import { json, query } from "@/server/validation";
 
-const sourceInput = z.object({ projectId: uuidSchema, appId: uuidSchema });
+const sourceInput = z.object({
+  projectId: uuidSchema,
+  componentKey: componentKeySchema,
+});
 
 export const projectSourcesRouter = sessionRouter()
   .get(

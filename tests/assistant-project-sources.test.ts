@@ -32,15 +32,18 @@ const { resolveProjectSources } = await import(
   "@/lib/assistant/project-sources"
 );
 
+// One project service (Stage 8: sources are services, not apps).
 const component = (
   componentKey: string,
   defaultBranch: string | null,
-  fallbackBranch: string
+  fallbackBranch: string,
+  inUse = true
 ) => ({
   componentKey,
   repoFullName: `acme/${componentKey}`,
   defaultBranch,
   fallbackBranch,
+  inUse,
   environments: [],
 });
 
@@ -52,24 +55,10 @@ beforeEach(() => {
 describe("resolveProjectSources", () => {
   it("reads each component at its project branch, else its fallback, never as deployed", async () => {
     sources.loadProjectSources.mockResolvedValue([
-      {
-        appId: "app-1",
-        appKey: "membership",
-        name: "Membership",
-        inUse: true,
-        components: [
-          component("api", "acme/development", "main"),
-          component("web", null, "develop"),
-        ],
-      },
-      {
-        appId: "app-2",
-        appKey: "portal",
-        name: "Portal",
-        // Linked in Sources but not used by any environment: still listed.
-        inUse: false,
-        components: [component("portal", null, "main")],
-      },
+      component("api", "acme/development", "main"),
+      component("web", null, "develop"),
+      // Linked in Sources but not used by any environment: still listed.
+      component("portal", null, "main", false),
     ]);
     sources.connections = [
       { componentKey: "api", ciConnectionId: "ci-1" },
@@ -118,13 +107,7 @@ describe("resolveProjectSources", () => {
 
   it("lists a component whose connection row is missing as without one", async () => {
     sources.loadProjectSources.mockResolvedValue([
-      {
-        appId: "app-1",
-        appKey: "membership",
-        name: "Membership",
-        inUse: true,
-        components: [component("api", null, "main")],
-      },
+      component("api", null, "main"),
     ]);
     const [api] = await resolveProjectSources("project-1");
     expect(api?.ciConnectionId).toBeNull();

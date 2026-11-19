@@ -87,8 +87,11 @@ vi.mock("@/web/api/project-sources", () => ({
     queryFn: async () => [],
   }),
 }));
-vi.mock("@/web/api/apps", () => ({
-  listAppsQuery: () => ({ queryKey: ["apps"], queryFn: async () => [] }),
+vi.mock("@/web/api/service-catalog", () => ({
+  listServicesQuery: () => ({
+    queryKey: ["services"],
+    queryFn: async () => [],
+  }),
 }));
 vi.mock("@/web/project-guard", () => ({
   requireProjectRole: vi.fn(),

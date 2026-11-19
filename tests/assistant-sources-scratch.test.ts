@@ -246,7 +246,7 @@ describe.skipIf(!enabled)(
       });
     });
 
-    it("resolves the project branches of every linked app, with each component's connection", async () => {
+    it("resolves the project branches of every project service, with each one's connection", async () => {
       const d = drizzle({ client });
       const { resolveProjectSources } = await import(
         "@/lib/assistant/project-sources"
@@ -281,10 +281,6 @@ describe.skipIf(!enabled)(
           .values({ appKey: "unrelated", name: "Unrelated" })
           .returning()
       );
-      await d.insert(schema.projectApps).values({
-        projectId: project.id,
-        appId: app.id,
-      });
       await d.insert(schema.appComponents).values([
         {
           componentKey: "q-api",
@@ -294,9 +290,10 @@ describe.skipIf(!enabled)(
           bundleImage: "q-api",
           notifySecret: "x",
         },
+        // A service registered without an app.
         {
           componentKey: "q-web",
-          appId: app.id,
+          appId: null,
           ciConnectionId: ci.id,
           repoFullName: "org/q-web",
           bundleImage: "q-web",
@@ -311,6 +308,11 @@ describe.skipIf(!enabled)(
           bundleImage: "u-api",
           notifySecret: "x",
         },
+      ]);
+      // The project's services; u-api, of another app, is not one.
+      await d.insert(schema.projectServices).values([
+        { projectId: project.id, componentKey: "q-api" },
+        { projectId: project.id, componentKey: "q-web" },
       ]);
       await d.insert(schema.projectComponentBranches).values({
         projectId: project.id,

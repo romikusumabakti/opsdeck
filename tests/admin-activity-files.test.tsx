@@ -122,9 +122,10 @@ describe("activity page file explorer events", () => {
         project: "Kestrel Membership",
         app: "acme-membership",
       }),
+      // Since Stage 8 the entry names the service.
       row("2", "project.sourceRemoved", {
         project: "Kestrel Membership",
-        app: "acme-membership",
+        service: "acme-membership",
       }),
       row("3", "project.defaultBranchChanged", {
         project: "Kestrel Membership",

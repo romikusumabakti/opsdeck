@@ -135,7 +135,7 @@ Builds do not use the host `docker.sock`, need no `privileged` or `trusted`
 pipeline, and go through a dedicated BuildKit daemon that `docker buildx`
 reaches with the **remote** driver. Registry credentials are Woodpecker
 org-level secrets (`registry_username`, `registry_password`). The notify secret
-is the **repo** secret `menara_notify` (one per app repo; see below).
+is the **repo** secret `menara_notify` (one per repository; see below).
 
 On .113 the builder is the `buildkitd` service of the Woodpecker stack
 (`/opt/woodpecker`, `moby/buildkit:v0.34.2-rootless`, network `ci-build`); the
@@ -207,38 +207,45 @@ Notes:
   runs the older commit while every status is green. Recover with a manual
   deploy of the newest build from the Panel.
 
-## Apps, components and CI connections
+## Services and CI connections
 
-- An **app** is one deployable stack: one `compose.yaml`, one deploy dir, one
-  `.env`. It is built from one or more repositories.
-- A **component** is one repository of an app, with its build spec (bundle
-  image) and its tag variable. A component is addressed by its **component
-  key** everywhere: the hook's `app` field, the Woodpecker secret name, and the
-  deploy target.
+- A **service** (stored as a component) is one buildable, deployable unit of a
+  repository, with its build spec (bundle image). A repository may hold
+  several services. A service is addressed by its **component key**
+  everywhere: the hook's `app` field, the Woodpecker secret name, the registry
+  image and the deploy target.
 - A **CI connection** is one configured instance of a CI provider on a forge
-  (today: "Woodpecker – Bitbucket"). Each component points to one connection.
-- An **environment** deploys one app. Its first deploy target sets the
-  environment's app; after that only components of that app can be added
-  (`409 Component belongs to another app than this environment`). Environments
-  of apps the Panel does not deploy simply have no app.
+  (today: "Woodpecker – Bitbucket"). Each service points to one connection.
+- A **project** has a set of services (its Sources). An **environment** of the
+  project deploys any of them, one deploy target per service; services that
+  used to belong to different apps can share an environment. Adding a target
+  makes its service one of the project's services; a service a target uses
+  cannot be removed from the project (`409 sourceInUse`).
+- Apps are retired: services are registered without one. Older components
+  keep their app row until a later release drops it; nothing reads it for
+  deploys.
 
 ## Registering a component and a target
 
-**Component** (once per repository, by an operator with database access to the
-Panel):
+**Service** (by an operator with database access to the Panel; the admin UI
+registers services too):
 
 ```sh
 docker exec menara-app bun dist/deploy-app.js create <componentKey> <bundleImage> \
-  --app <appKey> --repo <owner/name> [--ci <connection name>]
+  --repo <owner/name> [--ci <connection name>]
 docker exec menara-app bun dist/deploy-app.js rotate <componentKey>
 ```
 
-`create` creates the app (named after its key) when it does not exist yet, and
-registers the component. `--ci` may be omitted when exactly one CI connection
+`create` registers the service, without an app. `--app <appKey>` is still
+accepted by `create` and `create-artifact` so older runbooks keep working, but
+it is deprecated and ignored (the command prints a warning). `--ci` may be omitted when exactly one CI connection
 exists; otherwise the command exits with status 2 and lists the connection
 names. It prints a random notify secret to stdout, once. The secret is
 stored encrypted (`enc:v1:`); the Panel cannot show it again. Put it in the
-Woodpecker repo secret `menara_notify` of that component's repo. Pipe stdout
+Woodpecker repo secret `menara_notify` of that service's repo. A repository's
+later services (registered in the admin UI or with `create-artifact`) read
+their own secret, `menara_notify_<key with - as _>`, so registering one never
+overwrites another's. Pipe stdout
 straight into the Woodpecker API instead of printing it. `rotate` issues a new
 secret and invalidates the old one at once. `<bundleImage>` is a lowercase
 repository path without registry or tag (for example `acme/myapp-bundle`).
@@ -247,7 +254,16 @@ repository path without registry or tag (for example `acme/myapp-bundle`).
 maintainers only): server, source branch, auto deploy on or off, deploy dir,
 services, tag variable, optional pre-start command, optional health URL, health
 timeout, back up before deploy. Viewing is open to any project role; deploy and
-rollback are maintainer-only. A component has at most one target per environment.
+rollback are maintainer-only. A service has at most one target per environment.
+
+**Admin API** (session-authenticated, used by the Panel UI; not for CI): the
+per-component routes under `/api/apps/<appKey>/components/<componentKey>/…`
+(`build`, `builds/active`, `rotate-secret`, `commit-pipeline-file`), `POST
+/api/apps` and `GET /api/apps/pipeline-preview` were removed. They live under
+`/api/service-catalog`, addressed by the key alone:
+`/api/service-catalog/<componentKey>/…`, `POST /api/service-catalog` (body
+`{"services": [...]}`) and `GET /api/service-catalog/pipeline-preview`. The
+build hook above is unchanged.
 
 ## What a deploy does
 

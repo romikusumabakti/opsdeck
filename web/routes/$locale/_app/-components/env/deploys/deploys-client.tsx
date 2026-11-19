@@ -49,7 +49,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Link } from "@/i18n/navigation";
 import { firstLine, runActorLabel } from "@/lib/deploy/run-actor";
-import { getActiveBuild, startComponentBuild } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
 import {
   type DeployTargetState,
@@ -57,6 +56,7 @@ import {
   rollbackTarget,
 } from "@/web/api/deploys";
 import type { EnvironmentWithServers } from "@/web/api/environments";
+import { getActiveBuild, startComponentBuild } from "@/web/api/service-catalog";
 import { ProvisioningPanel } from "../provisioning-panel";
 import { DeployLockPanel, useDeployLock } from "./deploy-lock";
 import { MarkReleaseDialog, type ReleaseSource } from "./mark-release-dialog";
@@ -386,9 +386,8 @@ function TargetCard({
               <p className="text-sm text-muted-foreground">
                 {t("buildsEmpty", { branch: target.sourceBranch })}
               </p>
-              {target.appKey && (
+              {target.repoFullName !== null && (
                 <FirstBuild
-                  appKey={target.appKey}
                   componentKey={target.componentKey}
                   branch={target.sourceBranch}
                   canStart={canRun}
@@ -484,13 +483,11 @@ const ACTIVE_BUILD_POLL_MS = 10_000;
  * callers who run deploys where a target deploys this branch.
  */
 export function FirstBuild({
-  appKey,
   componentKey,
   branch,
   canStart,
   deploysOnArrival,
 }: {
-  appKey: string;
   componentKey: string;
   branch: string;
   canStart: boolean;
@@ -501,10 +498,10 @@ export function FirstBuild({
   const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
   const [starting, setStarting] = React.useState(false);
-  const queryKey = ["activeBuild", appKey, componentKey, branch];
+  const queryKey = ["activeBuild", componentKey, branch];
   const { data: active } = useQuery({
     queryKey,
-    queryFn: () => getActiveBuild(appKey, componentKey, branch),
+    queryFn: () => getActiveBuild(componentKey, branch),
     refetchInterval: (query) =>
       query.state.data ? ACTIVE_BUILD_POLL_MS : false,
   });
@@ -523,11 +520,7 @@ export function FirstBuild({
   async function onStart() {
     setStarting(true);
     try {
-      const { number } = await startComponentBuild(
-        appKey,
-        componentKey,
-        branch
-      );
+      const { number } = await startComponentBuild(componentKey, branch);
       toast.success(t("buildStarted", { number }));
       queryClient.invalidateQueries({ queryKey: ["deploys"] });
       await queryClient.invalidateQueries({ queryKey });

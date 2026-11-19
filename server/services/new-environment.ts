@@ -645,8 +645,7 @@ export type NewEnvironmentCreated = SetupCreated & {
  * deploys the newest build or the one that lands next.
  */
 async function startFirstBuilds(
-  plan: NewEnvironmentPlan,
-  appKey: string
+  plan: NewEnvironmentPlan
 ): Promise<BuildFailure[]> {
   const failures: BuildFailure[] = [];
   const started = new Set<string>();
@@ -655,7 +654,7 @@ async function startFirstBuilds(
     if (started.has(key)) continue;
     started.add(key);
     try {
-      await triggerComponentBuild(appKey, componentKey, branch);
+      await triggerComponentBuild(componentKey, branch);
     } catch (error) {
       if (!(error instanceof HTTPException)) {
         console.error(`First build of ${componentKey} ${branch}:`, error);
@@ -711,7 +710,7 @@ export async function createNewEnvironment(
   }
 
   await saveDefaultServer(ctx, plan.setup.server.serverId, caller);
-  const buildFailures = await startFirstBuilds(plan, plan.appKey);
+  const buildFailures = await startFirstBuilds(plan);
   return { ...created, buildFailures, pipelineFileFailures };
 }
 

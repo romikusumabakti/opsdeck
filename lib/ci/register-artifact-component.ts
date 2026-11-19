@@ -1,10 +1,5 @@
 import { randomBytes } from "node:crypto";
-import {
-  getComponent,
-  insertComponentCreatingApp,
-  linkedCiRepos,
-  takenComponentKeys,
-} from "@/lib/apps";
+import { getComponent, linkedCiRepos, takenComponentKeys } from "@/lib/apps";
 import {
   type BuildSpec,
   buildSpecSchema,
@@ -12,17 +7,18 @@ import {
 } from "@/lib/ci/build-spec";
 import { bundleImageFor } from "@/lib/ci/registration";
 import { CiProviderError, type SecretEvent } from "@/lib/ci/types";
-import { appKeySchema, componentKeySchema } from "@/lib/deploy/validation";
+import { componentKeySchema } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { encryptSecret } from "@/lib/secrets";
+import { insertServices } from "@/lib/service-catalog";
 import {
   getProviderForConnection,
   listConnectionOptions,
 } from "@/server/services/ci-connections";
 
 /**
- * Registers a generated artifact component (a jar or a static site) from the
- * command line (scripts/deploy-app.ts `create-artifact`), with no session: the
+ * Registers a generated artifact service (a jar or a static site), without an
+ * app, from the command line (scripts/deploy-app.ts `create-artifact`), with no session: the
  * caller is an operator inside the Panel's container. Unlike the register
  * form, the repository may already build other components (one per artifact,
  * each on its own branches); each then reads its notify secret from its own
@@ -58,7 +54,6 @@ export class ArtifactRegistrationError extends Error {
 
 export type RegisterArtifactComponentInput = {
   componentKey: string;
-  appKey: string;
   /** The repository on the connection's forge, e.g. `acme/portal`. */
   repoFullName: string;
   /** Needed only when several CI connections exist. */
@@ -102,7 +97,7 @@ async function resolveConnectionId(name: string | undefined): Promise<string> {
 /**
  * Validates everything the Panel knows, activates (or finds) the repository
  * in Woodpecker, applies the repo settings (only for a repository's first
- * component), writes the notify secret to Woodpecker, then stores the component (and its app when missing) with
+ * component), writes the notify secret to Woodpecker, then stores the service (no app) with
  * `pipeline_mode: "generated"`. Commits no pipeline file: the spec has no
  * branch yet, and picking a target's branch commits it.
  */
@@ -113,11 +108,9 @@ export async function registerArtifactComponent(
   ciRepoId: string;
   notifySecretName: string;
 }> {
-  const { componentKey, appKey, repoFullName } = input;
+  const { componentKey, repoFullName } = input;
   const key = componentKeySchema.safeParse(componentKey);
   if (!key.success) refuse(key.error.issues[0]?.message ?? "Invalid key");
-  const app = appKeySchema.safeParse(appKey);
-  if (!app.success) refuse(app.error.issues[0]?.message ?? "Invalid app key");
   if (!REPO_FULL_NAME.test(repoFullName)) refuse("Repo must be <owner>/<name>");
   const parsed = buildSpecSchema.safeParse(input.spec);
   if (!parsed.success) {
@@ -183,17 +176,19 @@ export async function registerArtifactComponent(
   );
 
   try {
-    await insertComponentCreatingApp(appKey, {
-      componentKey,
-      ciConnectionId,
-      repoFullName: repo.fullName,
-      ciRepoId: repo.ciRepoId,
-      bundleImage: bundleImageFor(componentKey),
-      notifySecret: encryptSecret(secret),
-      notifySecretName,
-      pipelineMode: "generated",
-      buildSpec: spec,
-    });
+    await insertServices([
+      {
+        componentKey,
+        ciConnectionId,
+        repoFullName: repo.fullName,
+        ciRepoId: repo.ciRepoId,
+        bundleImage: bundleImageFor(componentKey),
+        notifySecret: encryptSecret(secret),
+        notifySecretName,
+        pipelineMode: "generated",
+        buildSpec: spec,
+      },
+    ]);
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
     refuse(

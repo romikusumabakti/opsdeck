@@ -60,7 +60,6 @@ vi.mock("drizzle-orm", async (importOriginal) => ({
 }));
 
 const projectSources = vi.hoisted(() => ({
-  ensureProjectSourceIn: vi.fn(),
   recordTargetSourceIn: vi.fn(),
 }));
 vi.mock("@/lib/project-sources", () => projectSources);
@@ -165,7 +164,6 @@ beforeEach(() => {
   state.backupTargets = [];
   state.targets = [];
   state.appId = null;
-  projectSources.ensureProjectSourceIn.mockClear();
   projectSources.recordTargetSourceIn.mockClear();
   state.stored = {
     id: ENV_ID,
@@ -320,7 +318,7 @@ describe("insertEnvironmentIn project sources", () => {
   } as never;
   const APP = "22222222-2222-4222-8222-222222222222";
 
-  it("adds the app to the project's sources when the setup sets one", async () => {
+  it("writes no project source on insert, even for a setup app: targets add their services", async () => {
     await db.transaction((tx) =>
       insertEnvironmentIn(tx as never, input, {
         slug: "dev",
@@ -328,21 +326,7 @@ describe("insertEnvironmentIn project sources", () => {
         extra: { appId: APP },
       })
     );
-    expect(projectSources.ensureProjectSourceIn).toHaveBeenCalledWith(
-      expect.anything(),
-      ENV_ID,
-      APP
-    );
-  });
-
-  it("adds nothing without an app", async () => {
-    await db.transaction((tx) =>
-      insertEnvironmentIn(tx as never, input, {
-        slug: "dev",
-        ownerId: "user-1",
-      })
-    );
-    expect(projectSources.ensureProjectSourceIn).not.toHaveBeenCalled();
+    expect(projectSources.recordTargetSourceIn).not.toHaveBeenCalled();
   });
 });
 
@@ -350,7 +334,7 @@ describe("updateEnvironment moving to another project", () => {
   const OTHER = "22222222-2222-4222-8222-222222222222";
   const APP = "33333333-3333-4333-8333-333333333333";
 
-  it("adds the app and seeds each target's branch in the new project", async () => {
+  it("adds each target's service and seeds its branch in the new project", async () => {
     state.appId = APP;
     state.targets = [
       { componentKey: "api", sourceBranch: "main" },
@@ -358,11 +342,6 @@ describe("updateEnvironment moving to another project", () => {
     ];
     const result = await updateEnvironment(ENV_ID, { projectId: OTHER });
     expect(result.success).toBe(true);
-    expect(projectSources.ensureProjectSourceIn).toHaveBeenCalledWith(
-      expect.anything(),
-      ENV_ID,
-      APP
-    );
     expect(
       projectSources.recordTargetSourceIn.mock.calls.map((c) => c[1])
     ).toEqual([
@@ -371,17 +350,11 @@ describe("updateEnvironment moving to another project", () => {
     ]);
   });
 
-  it("skips the app when the environment has none", async () => {
-    await updateEnvironment(ENV_ID, { projectId: OTHER });
-    expect(projectSources.ensureProjectSourceIn).not.toHaveBeenCalled();
-  });
-
   it("calls nothing when the project does not change", async () => {
     state.appId = APP;
     state.targets = [{ componentKey: "api", sourceBranch: "main" }];
     await updateEnvironment(ENV_ID, { name: "Renamed" });
     await updateEnvironment(ENV_ID, { projectId: UUID });
-    expect(projectSources.ensureProjectSourceIn).not.toHaveBeenCalled();
     expect(projectSources.recordTargetSourceIn).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,7 @@ import {
   requireProjectPermissionIn,
 } from "@/lib/access-scope";
 import { recordActivity } from "@/lib/activity";
-import { assertTargetMatchesEnvironmentApp, getComponent } from "@/lib/apps";
+import { getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
 import { type DbTransaction, db } from "@/lib/db";
 import {
@@ -46,6 +46,7 @@ import {
 } from "@/lib/deploy/validation";
 import { isUniqueViolation } from "@/lib/people/names";
 import { recordTargetSourceIn } from "@/lib/project-sources";
+import { getService } from "@/lib/service-catalog";
 import { tearingDownIn } from "@/lib/teardown/guard";
 import { uuidSchema } from "@/lib/validation";
 import { getVariable } from "@/lib/variables/repository";
@@ -465,22 +466,22 @@ async function requireNoStaticRootConflict(
 }
 
 /**
- * Inserts a target inside the caller's transaction, after the environment
- * adopts the component's app (409 when it deploys another app). The kind must
- * be the component's (compose for a container component, else its artifact
- * kind) and its dir clear of static web roots on the machine. A second target
- * for the component surfaces as a unique violation.
+ * Inserts a target inside the caller's transaction. An environment deploys any
+ * service (there is no one-app-per-environment rule); the target's service
+ * becomes one of its project's services in the same transaction. The kind must
+ * be the service's (compose for a container service, else its artifact kind)
+ * and its dir clear of static web roots on the machine. A second target for
+ * the service surfaces as a unique violation.
  */
 export async function insertDeployTargetIn(
   tx: DbTransaction,
   input: z.infer<typeof createTargetSchema>,
   flags: Pick<NewDeployTarget, "deployNextBuild"> = {}
 ): Promise<DeployTarget> {
-  const artifactKind = await assertTargetMatchesEnvironmentApp(
-    input.environmentId,
-    input.componentKey,
-    tx
-  );
+  const service =
+    (await getService(input.componentKey, tx)) ??
+    failTarget("componentNotFound");
+  const artifactKind = service.buildSpec?.artifact?.kind ?? null;
   if ((artifactKind ?? "compose") !== input.kind) {
     failTarget("targetKindMismatch");
   }
@@ -498,7 +499,8 @@ export async function insertDeployTargetIn(
     },
     tx
   );
-  // Silent auto-add (never a refusal, no activity): keeps project_apps in step with the targets.
+  // Silent auto-add (never a refusal, no activity): a target's service is
+  // always one of its project's services.
   await recordTargetSourceIn(tx, {
     environmentId: input.environmentId,
     componentKey: input.componentKey,

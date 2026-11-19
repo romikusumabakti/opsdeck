@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The project sources service: the settled gates (environment:create to add or
-// remove an app, environment:update to set a default branch and to read), the
-// 409 refusals, and which explicit actions reach the activity feed.
+// The project sources service on project services: the settled gates
+// (environment:create to add or remove a service, environment:update to set a
+// default branch and to read), the 409 refusals (Review Focus 4: a service a
+// deploy target uses cannot be removed), and which explicit actions reach the
+// activity feed.
 
 const P = "0197f3a0-1b2c-7def-8000-0123456789f1";
-const A = "0197f3a0-1b2c-7def-8000-0123456789a1";
+const S = "core-web";
 
 const state = vi.hoisted(() => ({
   role: "engineer" as "engineer" | "qa",
   perms: [] as unknown[],
-  // Lookups in call order: add reads the app then the project; remove and set read the project then the app.
+  // Project name lookups, in call order.
   nameRows: [] as unknown[][],
 }));
 
@@ -28,9 +30,8 @@ vi.mock("@/lib/authz", async (importOriginal) => {
 
 const sources = vi.hoisted(() => ({
   loadProjectSources: vi.fn(),
-  projectSourceAppIds: vi.fn(),
-  insertProjectApp: vi.fn(),
-  deleteProjectApp: vi.fn(),
+  insertProjectService: vi.fn(),
+  deleteProjectService: vi.fn(),
   getComponentBranch: vi.fn(),
   upsertComponentBranch: vi.fn(),
 }));
@@ -39,15 +40,18 @@ vi.mock("@/lib/project-sources", () => sources);
 const activity = vi.hoisted(() => ({ recordActivity: vi.fn() }));
 vi.mock("@/lib/activity", () => activity);
 
-const apps = vi.hoisted(() => ({ getComponent: vi.fn() }));
-vi.mock("@/lib/apps", () => apps);
+const catalog = vi.hoisted(() => ({
+  getService: vi.fn(),
+  isProjectService: vi.fn(),
+}));
+vi.mock("@/lib/service-catalog", () => catalog);
 
 vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,
 }));
 
 vi.mock("@/lib/db", () => {
-  // A select ends in .limit(): the project name or the app name lookup.
+  // A select ends in .limit(): the project name lookup.
   const chain = {
     from: () => chain,
     where: () => chain,
@@ -81,31 +85,30 @@ const BRANCH_INPUT = {
 beforeEach(() => {
   state.role = "engineer";
   state.perms = [];
-  state.nameRows = [[{ name: "Kestrel" }], [{ name: "Core" }]];
+  state.nameRows = [[{ name: "Kestrel" }]];
   for (const fn of Object.values(sources)) fn.mockReset();
   activity.recordActivity.mockReset();
-  apps.getComponent.mockReset();
-  apps.getComponent.mockResolvedValue({ appId: A });
-  sources.projectSourceAppIds.mockResolvedValue([A]);
+  for (const fn of Object.values(catalog)) fn.mockReset();
+  catalog.getService.mockResolvedValue({ key: S });
+  catalog.isProjectService.mockResolvedValue(true);
   sources.loadProjectSources.mockResolvedValue([]);
 });
 
 const WRITES = [
-  sources.insertProjectApp,
-  sources.deleteProjectApp,
+  sources.insertProjectService,
+  sources.deleteProjectService,
   sources.upsertComponentBranch,
 ];
 
 describe("project sources service", () => {
   it("list, add, remove and set ask for the settled project permissions", async () => {
-    sources.insertProjectApp.mockResolvedValue(true);
-    sources.deleteProjectApp.mockResolvedValue("deleted");
+    sources.insertProjectService.mockResolvedValue(true);
+    sources.deleteProjectService.mockResolvedValue("deleted");
     sources.getComponentBranch.mockResolvedValue(null);
-    state.nameRows = [[{ name: "Core" }], [{ name: "Kestrel" }]];
+    state.nameRows = [[{ name: "Kestrel" }], [{ name: "Kestrel" }]];
     await listProjectSources(P);
-    await addProjectSource({ projectId: P, appId: A });
-    state.nameRows = [[{ name: "Kestrel" }], [{ name: "Core" }]];
-    await removeProjectSource({ projectId: P, appId: A });
+    await addProjectSource({ projectId: P, componentKey: S });
+    await removeProjectSource({ projectId: P, componentKey: S });
     await setComponentBranch(BRANCH_INPUT);
     expect(state.perms).toEqual([
       { environment: ["update"] },
@@ -119,8 +122,8 @@ describe("project sources service", () => {
     state.role = "qa";
     const calls = [
       () => listProjectSources(P),
-      () => addProjectSource({ projectId: P, appId: A }),
-      () => removeProjectSource({ projectId: P, appId: A }),
+      () => addProjectSource({ projectId: P, componentKey: S }),
+      () => removeProjectSource({ projectId: P, componentKey: S }),
       () => setComponentBranch(BRANCH_INPUT),
     ];
     for (const call of calls) {
@@ -132,18 +135,17 @@ describe("project sources service", () => {
     expect(activity.recordActivity).not.toHaveBeenCalled();
   });
 
-  it("adding an unknown app answers 404 and writes nothing", async () => {
-    state.nameRows = [[]];
+  it("adding an unknown service answers 404 and writes nothing", async () => {
+    catalog.getService.mockResolvedValue(null);
     await expect(
-      addProjectSource({ projectId: P, appId: A })
+      addProjectSource({ projectId: P, componentKey: S })
     ).rejects.toMatchObject({ status: 404 });
-    expect(sources.insertProjectApp).not.toHaveBeenCalled();
+    expect(sources.insertProjectService).not.toHaveBeenCalled();
   });
 
   it("adding logs project.sourceAdded once, re-adding logs nothing", async () => {
-    state.nameRows = [[{ name: "Core" }], [{ name: "Kestrel" }]];
-    sources.insertProjectApp.mockResolvedValueOnce(true);
-    const first = await addProjectSource({ projectId: P, appId: A });
+    sources.insertProjectService.mockResolvedValueOnce(true);
+    const first = await addProjectSource({ projectId: P, componentKey: S });
     expect(first).toEqual({ success: true, message: "addedSuccess" });
     expect(activity.recordActivity).toHaveBeenCalledTimes(1);
     expect(activity.recordActivity).toHaveBeenCalledWith({
@@ -151,58 +153,57 @@ describe("project sources service", () => {
       action: "project.sourceAdded",
       entityType: "project",
       entityId: P,
-      data: { project: "Kestrel", app: "Core" },
+      data: { project: "Kestrel", service: S },
     });
 
-    state.nameRows = [[{ name: "Core" }], [{ name: "Kestrel" }]];
-    sources.insertProjectApp.mockResolvedValueOnce(false);
-    const again = await addProjectSource({ projectId: P, appId: A });
+    sources.insertProjectService.mockResolvedValueOnce(false);
+    const again = await addProjectSource({ projectId: P, componentKey: S });
     expect(again.success).toBe(true);
     expect(activity.recordActivity).toHaveBeenCalledTimes(1);
   });
 
-  it("removing an app in use answers 409 sourceInUse and logs nothing", async () => {
-    sources.deleteProjectApp.mockResolvedValue("inUse");
+  it("removing a service a deploy target uses answers 409 sourceInUse and logs nothing (Review Focus 4)", async () => {
+    sources.deleteProjectService.mockResolvedValue("inUse");
     const error = await removeProjectSource({
       projectId: P,
-      appId: A,
+      componentKey: S,
     }).catch((e) => e);
     expect(error.status).toBe(409);
     expect(errorCode(error)).toBe("sourceInUse");
     expect(activity.recordActivity).not.toHaveBeenCalled();
   });
 
-  it("removing logs project.sourceRemoved with project and app names", async () => {
-    sources.deleteProjectApp.mockResolvedValue("deleted");
-    const result = await removeProjectSource({ projectId: P, appId: A });
+  it("removing logs project.sourceRemoved with the project name and service key", async () => {
+    sources.deleteProjectService.mockResolvedValue("deleted");
+    const result = await removeProjectSource({ projectId: P, componentKey: S });
     expect(result).toEqual({ success: true, message: "removedSuccess" });
     expect(activity.recordActivity).toHaveBeenCalledWith({
       actorId: "actor",
       action: "project.sourceRemoved",
       entityType: "project",
       entityId: P,
-      data: { project: "Kestrel", app: "Core" },
+      data: { project: "Kestrel", service: S },
     });
   });
 
-  it("removing an app that was not a source succeeds and logs nothing", async () => {
-    sources.deleteProjectApp.mockResolvedValue("absent");
+  it("removing a service that was not a source succeeds and logs nothing", async () => {
+    sources.deleteProjectService.mockResolvedValue("absent");
     expect(
-      (await removeProjectSource({ projectId: P, appId: A })).success
+      (await removeProjectSource({ projectId: P, componentKey: S })).success
     ).toBe(true);
     expect(activity.recordActivity).not.toHaveBeenCalled();
   });
 
-  it("setting a branch on an unknown component answers 404", async () => {
-    apps.getComponent.mockResolvedValue(undefined);
+  it("setting a branch on an unknown service answers 404", async () => {
+    catalog.getService.mockResolvedValue(null);
     await expect(setComponentBranch(BRANCH_INPUT)).rejects.toMatchObject({
       status: 404,
     });
     expect(sources.upsertComponentBranch).not.toHaveBeenCalled();
   });
 
-  it("setting a branch on a component outside the sources answers 409 componentNotInSources", async () => {
-    sources.projectSourceAppIds.mockResolvedValue([]);
+  it("setting a branch on a service outside the project's services answers 409 componentNotInSources", async () => {
+    catalog.isProjectService.mockResolvedValue(false);
     const error = await setComponentBranch(BRANCH_INPUT).catch((e) => e);
     expect(error.status).toBe(409);
     expect(errorCode(error)).toBe("componentNotInSources");
@@ -214,6 +215,8 @@ describe("project sources service", () => {
     sources.getComponentBranch.mockResolvedValue(null);
     const result = await setComponentBranch(BRANCH_INPUT);
     expect(result).toEqual({ success: true, message: "branchSaved" });
+    // Membership is the project's services, whatever app the service had.
+    expect(catalog.isProjectService).toHaveBeenCalledWith(P, "core-web");
     expect(sources.upsertComponentBranch).toHaveBeenCalledWith({
       ...BRANCH_INPUT,
       userId: "actor",

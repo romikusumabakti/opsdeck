@@ -11,7 +11,10 @@ vi.mock("@/i18n/navigation", async (importOriginal) => ({
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock("@/web/api/apps", () => ({ startComponentBuild: vi.fn() }));
+vi.mock("@/web/api/service-catalog", () => ({
+  startComponentBuild: vi.fn(),
+  getActiveBuild: vi.fn(),
+}));
 vi.mock("@/components/live-run-dialog", () => ({ LiveRunDialog: () => null }));
 vi.mock(
   "../web/routes/$locale/_app/-components/env/deploys/deploy-lock",

@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   takenComponentKeys: vi.fn(),
   linkedCiRepos: vi.fn(),
-  insertComponentCreatingApp: vi.fn(),
+  insertServices: vi.fn(),
+  getService: vi.fn(),
   getComponent: vi.fn(),
   getApp: vi.fn(),
   appendBuildSpecBranch: vi.fn(),
@@ -31,15 +32,17 @@ vi.mock("@/lib/apps", () => ({
   getApp: mocks.getApp,
   getComponent: mocks.getComponent,
   insertAppWithComponents: vi.fn(),
-  insertComponentCreatingApp: mocks.insertComponentCreatingApp,
   insertComponents: vi.fn(),
   latestComponentPipelineUrl: vi.fn(),
   linkedCiRepos: mocks.linkedCiRepos,
   listApps: vi.fn(),
-  projectIdsWithAppEnvironment: vi.fn(),
   setNotifySecret: mocks.setNotifySecret,
   setPipelineFileCommit: vi.fn(),
   takenComponentKeys: mocks.takenComponentKeys,
+}));
+vi.mock("@/lib/service-catalog", () => ({
+  getService: mocks.getService,
+  insertServices: mocks.insertServices,
 }));
 vi.mock("@/lib/ci/forges/bitbucket", () => ({
   branchExists: async () => true,
@@ -98,7 +101,6 @@ const SPEC: BuildSpec = buildSpecSchema.parse({
 
 const INPUT = {
   componentKey: KEY,
-  appKey: "customer-portal",
   repoFullName: REPO,
   spec: SPEC,
 };
@@ -114,7 +116,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.takenComponentKeys.mockResolvedValue([]);
   mocks.linkedCiRepos.mockResolvedValue([]);
-  mocks.insertComponentCreatingApp.mockResolvedValue(undefined);
+  mocks.insertServices.mockResolvedValue(undefined);
   mocks.listConnectionOptions.mockResolvedValue([
     { id: CONN, name: "woodpecker", forge: "bitbucket", hasForgeToken: true },
   ]);
@@ -173,10 +175,10 @@ describe("registerArtifactComponent", () => {
       expect.stringMatching(/^[0-9a-f]{64}$/),
       ["push", "manual"]
     );
-    expect(mocks.insertComponentCreatingApp).toHaveBeenCalledWith(
-      "customer-portal",
-      expect.objectContaining({ notifySecretName: "menara_notify" })
-    );
+    // A service of its own: no app is created or named.
+    expect(mocks.insertServices).toHaveBeenCalledWith([
+      expect.objectContaining({ notifySecretName: "menara_notify" }),
+    ]);
   });
 
   it("stores a second component on the same Woodpecker repo under its own secret name", async () => {
@@ -193,8 +195,7 @@ describe("registerArtifactComponent", () => {
       "manual",
     ]);
     expect(name).toBe(SUFFIXED);
-    expect(mocks.insertComponentCreatingApp).toHaveBeenCalledWith(
-      "customer-portal",
+    expect(mocks.insertServices).toHaveBeenCalledWith([
       {
         componentKey: KEY,
         ciConnectionId: CONN,
@@ -205,8 +206,8 @@ describe("registerArtifactComponent", () => {
         notifySecretName: SUFFIXED,
         pipelineMode: "generated",
         buildSpec: SPEC,
-      }
-    );
+      },
+    ]);
   });
 
   it("leaves the repo settings of a repository that builds another component alone", async () => {
@@ -249,10 +250,9 @@ describe("registerArtifactComponent", () => {
       ...INPUT,
       ciConnectionName: "woodpecker",
     });
-    expect(mocks.insertComponentCreatingApp).toHaveBeenCalledWith(
-      "customer-portal",
-      expect.objectContaining({ ciConnectionId: CONN })
-    );
+    expect(mocks.insertServices).toHaveBeenCalledWith([
+      expect.objectContaining({ ciConnectionId: CONN }),
+    ]);
   });
 
   it.each([
@@ -305,7 +305,7 @@ describe("registerArtifactComponent", () => {
     await expect(registerArtifactComponent(INPUT)).rejects.toThrow(
       `Woodpecker does not list the repository ${REPO}`
     );
-    expect(mocks.insertComponentCreatingApp).not.toHaveBeenCalled();
+    expect(mocks.insertServices).not.toHaveBeenCalled();
   });
 
   it("names the failed Woodpecker step and stores nothing", async () => {
@@ -315,11 +315,11 @@ describe("registerArtifactComponent", () => {
     expect(error.message).toBe(
       "Storing the Woodpecker secret menara_notify failed: down"
     );
-    expect(mocks.insertComponentCreatingApp).not.toHaveBeenCalled();
+    expect(mocks.insertServices).not.toHaveBeenCalled();
   });
 
   it("reports a registration race without the database error", async () => {
-    mocks.insertComponentCreatingApp.mockRejectedValue(
+    mocks.insertServices.mockRejectedValue(
       Object.assign(new Error("dup enc:secret"), { code: "23505" })
     );
     const error = await registerArtifactComponent(INPUT).catch((e) => e);
@@ -339,12 +339,11 @@ describe("a stored component's notify secret name", () => {
     buildSpec: SPEC,
     notifySecretName: SUFFIXED,
     pipelineFileCommits: null,
-    app: { appKey: "customer-portal" },
   };
 
   beforeEach(() => {
     mocks.getComponent.mockResolvedValue(stored);
-    mocks.getApp.mockResolvedValue({ components: [stored] });
+    mocks.getService.mockResolvedValue({ key: KEY, ...stored });
   });
 
   it("is the secret the pipeline committed on branch pick reads", async () => {
@@ -364,14 +363,14 @@ describe("a stored component's notify secret name", () => {
       ...stored,
       buildSpec: { ...SPEC, branches: ["osprey/production"] },
     });
-    await retryPipelineFileCommit("customer-portal", KEY);
+    await retryPipelineFileCommit(KEY);
     expect(mocks.commitFile.mock.calls[0]?.[4]).toContain(
       `from_secret: ${SUFFIXED}`
     );
   });
 
   it("is the Woodpecker secret a rotation writes", async () => {
-    await rotateNotifySecret("customer-portal", KEY);
+    await rotateNotifySecret(KEY);
     expect(mocks.upsertRepoSecret).toHaveBeenCalledWith(
       "7",
       SUFFIXED,

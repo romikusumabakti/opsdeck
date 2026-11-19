@@ -44,14 +44,16 @@ const apps = vi.hoisted(() => ({
   getComponent: vi.fn(),
   appendBuildSpecBranch: vi.fn(),
   setPipelineFileCommit: vi.fn(),
-  assertTargetMatchesEnvironmentApp: vi.fn(),
 }));
 vi.mock("@/lib/apps", () => apps);
+
+// The target's service (its artifact kind decides the target kind).
+const catalog = vi.hoisted(() => ({ getService: vi.fn() }));
+vi.mock("@/lib/service-catalog", () => catalog);
 
 // The silent project-sources insert needs a real tx; its own tests cover it.
 vi.mock("@/lib/project-sources", () => ({
   recordTargetSourceIn: vi.fn(),
-  ensureProjectSourceIn: vi.fn(),
 }));
 
 const forge = vi.hoisted(() => ({
@@ -165,7 +167,7 @@ beforeEach(() => {
     ...target,
     ...input,
   }));
-  apps.assertTargetMatchesEnvironmentApp.mockResolvedValue(null);
+  catalog.getService.mockResolvedValue({ key: "core-web", buildSpec: null });
   repo.listTargetDirsOnMachine.mockResolvedValue([]);
   apps.appendBuildSpecBranch.mockResolvedValue(true);
   apps.getComponent.mockResolvedValue(component());

@@ -36,12 +36,14 @@ import { Link } from "@/i18n/navigation";
 import {
   type AppComponentRow,
   addEnvironmentHref,
-  commitPipelineFile,
   listAppsQuery,
-  rotateNotifySecret,
 } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
 import { listProjectsWithEnvironmentsQuery } from "@/web/api/project-catalog";
+import {
+  commitPipelineFile,
+  rotateNotifySecret,
+} from "@/web/api/service-catalog";
 import { requireOrgRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import { PipelineFileStatus } from "./-components/apps/pipeline-file-status";
@@ -106,11 +108,7 @@ function AppDetailPage() {
           <p className="text-sm text-muted-foreground">{t("noComponents")}</p>
         )}
         {app.components.map((component) => (
-          <ComponentCard
-            key={component.componentKey}
-            appKey={app.appKey}
-            component={component}
-          />
+          <ComponentCard key={component.componentKey} component={component} />
         ))}
       </div>
     </>
@@ -126,13 +124,7 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function ComponentCard({
-  appKey,
-  component,
-}: {
-  appKey: string;
-  component: AppComponentRow;
-}) {
+function ComponentCard({ component }: { component: AppComponentRow }) {
   const t = useTranslations("apps");
   const tCommon = useTranslations("common");
   // "rotate", "commit" (every branch), or the one branch being committed.
@@ -141,16 +133,12 @@ function ComponentCard({
   >(null);
 
   async function rotate() {
-    await rotateNotifySecret(appKey, component.componentKey);
+    await rotateNotifySecret(component.componentKey);
     toast.success(t("secretRotated"));
   }
 
   async function commit(branch?: string) {
-    const updated = await commitPipelineFile(
-      appKey,
-      component.componentKey,
-      branch
-    );
+    const updated = await commitPipelineFile(component.componentKey, branch);
     const commits = updated.pipelineFileCommits ?? {};
     const tried =
       branch === undefined

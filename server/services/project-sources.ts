@@ -1,28 +1,27 @@
 import { eq } from "drizzle-orm";
 import { recordActivity } from "@/lib/activity";
-import { getComponent } from "@/lib/apps";
 import { requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { apps, projects } from "@/lib/db/schema";
+import { projects } from "@/lib/db/schema";
 import {
-  deleteProjectApp,
+  deleteProjectService,
   getComponentBranch,
-  insertProjectApp,
+  insertProjectService,
   loadProjectSources,
   type ProjectSource,
-  projectSourceAppIds,
   upsertComponentBranch,
 } from "@/lib/project-sources";
+import { getService, isProjectService } from "@/lib/service-catalog";
 import type { ActionResponse } from "@/lib/types";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
-// A project's sources are the apps its environments build from. Reading them
-// is part of the Settings page, which needs environment:update; adding or
-// removing an app is an environment:create decision, and a hand-set default
-// branch is an environment:update one. Only these explicit actions reach the
-// activity feed: the automatic adds on environment and target inserts stay
-// silent.
+// A project's sources are its services (project_services): the services its
+// environments may deploy. Reading them is part of the Settings page, which
+// needs environment:update; adding or removing a service is an
+// environment:create decision, and a hand-set default branch is an
+// environment:update one. Only these explicit actions reach the activity
+// feed: the automatic add on target insert stays silent.
 
 export async function listProjectSources(
   projectId: string
@@ -40,28 +39,18 @@ async function projectName(projectId: string): Promise<string> {
   return row?.name ?? "?";
 }
 
-async function appName(appId: string): Promise<string | undefined> {
-  const [row] = await db
-    .select({ name: apps.name })
-    .from(apps)
-    .where(eq(apps.id, appId))
-    .limit(1);
-  return row?.name;
-}
-
 export async function addProjectSource(input: {
   projectId: string;
-  appId: string;
+  componentKey: string;
 }): Promise<ActionResponse> {
   const { session } = await requireProjectPermission(
     { projectId: input.projectId },
     { environment: ["create"] }
   );
   const t = await getServerTranslator("projectSources");
-  const app = await appName(input.appId);
-  if (app === undefined) notFound();
+  if (!(await getService(input.componentKey))) notFound();
   // Only a row that was really added is logged.
-  if (await insertProjectApp(input.projectId, input.appId)) {
+  if (await insertProjectService(input.projectId, input.componentKey)) {
     await recordActivity({
       actorId: session.user.id,
       action: "project.sourceAdded",
@@ -69,23 +58,27 @@ export async function addProjectSource(input: {
       entityId: input.projectId,
       data: {
         project: await projectName(input.projectId),
-        app,
+        service: input.componentKey,
       },
     });
   }
   return { success: true, message: t("addedSuccess") };
 }
 
+/** 409 sourceInUse while a deploy target of the project uses the service. */
 export async function removeProjectSource(input: {
   projectId: string;
-  appId: string;
+  componentKey: string;
 }): Promise<ActionResponse> {
   const { session } = await requireProjectPermission(
     { projectId: input.projectId },
     { environment: ["create"] }
   );
   const t = await getServerTranslator("projectSources");
-  const outcome = await deleteProjectApp(input.projectId, input.appId);
+  const outcome = await deleteProjectService(
+    input.projectId,
+    input.componentKey
+  );
   if (outcome === "inUse") {
     const tErr = await getServerTranslator("actionErrors");
     throw new CodedHTTPException(409, "sourceInUse", tErr("sourceInUse"));
@@ -98,7 +91,7 @@ export async function removeProjectSource(input: {
       entityId: input.projectId,
       data: {
         project: await projectName(input.projectId),
-        app: (await appName(input.appId)) ?? "?",
+        service: input.componentKey,
       },
     });
   }
@@ -115,12 +108,8 @@ export async function setComponentBranch(input: {
     { environment: ["update"] }
   );
   const t = await getServerTranslator("projectSources");
-  const component = await getComponent(input.componentKey);
-  if (!component) notFound();
-  if (
-    component.appId === null ||
-    !(await projectSourceAppIds(input.projectId)).includes(component.appId)
-  ) {
+  if (!(await getService(input.componentKey))) notFound();
+  if (!(await isProjectService(input.projectId, input.componentKey))) {
     const tErr = await getServerTranslator("actionErrors");
     throw new CodedHTTPException(
       409,

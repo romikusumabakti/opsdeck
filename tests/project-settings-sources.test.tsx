@@ -7,22 +7,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "../messages/en.json";
 
 const PROJECT = "0197f3a0-1b2c-7def-8000-0123456789f1";
-const APP = "0197f3a0-1b2c-7def-8000-0123456789a1";
-const HRIS = "0197f3a0-1b2c-7def-8000-0123456789a2";
 
+// One service per card (Stage 8): the project's services, not apps.
 function sourceFixture(inUse = true) {
   return {
-    appId: APP,
-    appKey: "acme-membership",
-    name: "Acme Membership",
+    componentKey: "acme-membership-backend",
+    repoFullName: "acme/acme-membership",
+    defaultBranch: "kestrel/development",
+    fallbackBranch: "main",
     inUse,
-    components: [
-      {
-        componentKey: "acme-membership-backend",
-        repoFullName: "acme/acme-membership",
-        defaultBranch: "kestrel/development",
-        fallbackBranch: "main",
-        environments: [
+    environments: inUse
+      ? [
           {
             id: "e1",
             name: "Dev 1",
@@ -35,10 +30,8 @@ function sourceFixture(inUse = true) {
             slug: "demo",
             sourceBranch: "kestrel/demo",
           },
-          { id: "e3", name: "QA", slug: "qa", sourceBranch: null },
-        ],
-      },
-    ],
+        ]
+      : [],
   };
 }
 
@@ -63,12 +56,12 @@ vi.mock("@/web/api/project-sources", () => ({
     queryFn: async () => state.sources,
   }),
 }));
-vi.mock("@/web/api/apps", () => ({
-  listAppsQuery: () => ({
-    queryKey: ["apps"],
+vi.mock("@/web/api/service-catalog", () => ({
+  listServicesQuery: () => ({
+    queryKey: ["services"],
     queryFn: async () => [
-      { id: APP, appKey: "acme-membership", name: "Acme Membership" },
-      { id: HRIS, appKey: "hris", name: "HRIS" },
+      { key: "acme-membership-backend", repoFullName: "acme/acme-membership" },
+      { key: "hris-backend", repoFullName: "acme/hris" },
     ],
   }),
 }));
@@ -170,12 +163,11 @@ afterEach(() => {
 });
 
 describe("Project settings Sources tab", () => {
-  it("renders one card per app with its key, repo and environment chips", async () => {
+  it("renders one card per service with its key, repo and environment chips", async () => {
     await render();
-    expect(body()).toContain("acme-membership");
+    expect(body()).toContain("acme-membership-backend");
     expect(body()).toContain("acme/acme-membership");
     expect(body()).toContain("Dev 1 · kestrel/development");
-    expect(body()).toContain(`QA · ${t.noTarget}`);
     expect(link("Dev 1")?.getAttribute("href")).toMatch(
       /\/KMEM\/dev-1\/settings\?tab=source$/
     );
@@ -193,21 +185,13 @@ describe("Project settings Sources tab", () => {
 
   it("compares with the fallback branch when no default is set", async () => {
     const source = sourceFixture();
-    state.sources = [
-      {
-        ...source,
-        components: source.components.map((c) => ({
-          ...c,
-          defaultBranch: null,
-        })),
-      },
-    ];
+    state.sources = [{ ...source, defaultBranch: null }];
     await render();
     // The fallback is "main": both environments with a target differ from it.
     expect(body().split(t.differs)).toHaveLength(3);
   });
 
-  it("Remove is disabled while the app is in use", async () => {
+  it("Remove is disabled while a deploy target uses the service", async () => {
     await render();
     expect(button(t.remove)?.disabled).toBe(true);
     await act(async () => root?.unmount());
@@ -219,7 +203,7 @@ describe("Project settings Sources tab", () => {
     expect(state.confirm).toHaveBeenCalled();
     expect(api.removeProjectSource).toHaveBeenCalledWith({
       projectId: PROJECT,
-      appId: APP,
+      componentKey: "acme-membership-backend",
     });
   });
 
@@ -241,7 +225,7 @@ describe("Project settings Sources tab", () => {
     });
   });
 
-  it("Add app offers only catalog apps that are not sources", async () => {
+  it("Add offers only registered services that are not sources yet", async () => {
     await render();
     await click(button(t.addApp));
     await click(
@@ -253,7 +237,7 @@ describe("Project settings Sources tab", () => {
     const options = [...document.querySelectorAll('[role="option"]')].map(
       (el) => el.textContent
     );
-    expect(options.join(" ")).toContain("hris");
+    expect(options.join(" ")).toContain("hris-backend");
     expect(options.join(" ")).not.toContain("acme-membership");
     expect(body()).toContain(t.registerHint);
     expect(link(t.openNewEnvironment)?.getAttribute("href")).toMatch(

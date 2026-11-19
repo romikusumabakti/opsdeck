@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { sourcesModeProps } from "../web/routes/$locale/_app/-components/setup/sources-mode";
 
-const kmem = { id: "app-kmem", appKey: "kmem" };
-const hris = { id: "app-hris", appKey: "hris" };
+const kmem = {
+  id: "app-kmem",
+  appKey: "kmem",
+  components: [{ componentKey: "kmem-api" }, { componentKey: "kmem-web" }],
+};
+const hris = {
+  id: "app-hris",
+  appKey: "hris",
+  components: [{ componentKey: "hris-api" }],
+};
 const catalog = [kmem, hris];
 
 describe("sourcesModeProps", () => {
@@ -13,17 +21,11 @@ describe("sourcesModeProps", () => {
     });
   });
 
-  it("sources mode keeps only source apps and the set defaults", () => {
+  it("sources mode keeps only apps holding a project service, and the set defaults", () => {
     expect(
       sourcesModeProps(catalog, [
-        {
-          appId: "app-kmem",
-          appKey: "kmem",
-          components: [
-            { componentKey: "kmem-api", defaultBranch: "kestrel/development" },
-            { componentKey: "kmem-web", defaultBranch: null },
-          ],
-        },
+        { componentKey: "kmem-api", defaultBranch: "kestrel/development" },
+        { componentKey: "kmem-web", defaultBranch: null },
       ])
     ).toEqual({
       apps: [kmem],
@@ -31,6 +33,17 @@ describe("sourcesModeProps", () => {
         appKeys: ["kmem"],
         defaultBranches: { "kmem-api": "kestrel/development" },
       },
+    });
+  });
+
+  it("an app-less project service offers no app but keeps its default", () => {
+    expect(
+      sourcesModeProps(catalog, [
+        { componentKey: "billing", defaultBranch: "main" },
+      ])
+    ).toEqual({
+      apps: [],
+      sources: { appKeys: [], defaultBranches: { billing: "main" } },
     });
   });
 });

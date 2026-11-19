@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const CONN = "0197f3a0-1b2c-7def-8000-0123456789c1";
-const APP_ID = "0197f3a0-1b2c-7def-8000-0123456789a1";
 
 type Row = Record<string, unknown>;
 
@@ -11,7 +10,6 @@ const state = vi.hoisted(() => ({
   apps: [] as Row[],
   components: [] as Row[],
   calls: [] as string[],
-  envProjects: [] as string[],
   // The component's deploy targets (componentTargetBranches).
   targetBranches: [] as { projectId: string; sourceBranch: string }[],
   insertError: null as Error | null,
@@ -108,20 +106,6 @@ vi.mock("@/lib/apps", async (importOriginal) => {
           repoFullName: c.repoFullName,
         }))
     ),
-    insertAppWithComponents: vi.fn(
-      async (app: { appKey: string; name: string }, components: Row[]) => {
-        state.calls.push("insert");
-        if (state.insertError) throw state.insertError;
-        state.apps.push({ id: APP_ID, ...app });
-        for (const c of components) {
-          state.components.push({
-            pipelineFileCommits: null,
-            ...c,
-            appId: APP_ID,
-          });
-        }
-      }
-    ),
     // Mirrors the SQL merge: one branch's entry is replaced, a failure keeps
     // that branch's last sha.
     setPipelineFileCommit: vi.fn(
@@ -157,14 +141,12 @@ vi.mock("@/lib/apps", async (importOriginal) => {
       const c = state.components.find((x) => x.componentKey === componentKey);
       if (c) c.notifySecret = value;
     }),
-    projectIdsWithAppEnvironment: vi.fn(async () => [...state.envProjects]),
     componentTargetBranches: vi.fn(async () => [...state.targetBranches]),
     latestComponentPipelineUrl: vi.fn(async () => state.storedPipelineUrl),
-    getComponent: vi.fn(async (componentKey: string) => {
-      const c = state.components.find((x) => x.componentKey === componentKey);
-      const app = c && state.apps.find((a) => a.id === c.appId);
-      return c && app ? { ...c, app } : undefined;
-    }),
+    // A service is found by key alone, with or without a legacy app.
+    getComponent: vi.fn(async (componentKey: string) =>
+      state.components.find((x) => x.componentKey === componentKey)
+    ),
     getApp: vi.fn(async (appKey: string) => {
       const app = state.apps.find((a) => a.appKey === appKey);
       if (!app) return undefined;
@@ -175,6 +157,35 @@ vi.mock("@/lib/apps", async (importOriginal) => {
           .map(strip),
       };
     }),
+  };
+});
+
+// The services layer over the same rows: registration inserts app-less rows.
+vi.mock("@/lib/service-catalog", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/service-catalog")>();
+  const asService = ({ notifySecret: _secret, appId: _app, ...rest }: Row) => ({
+    key: rest.componentKey,
+    ...rest,
+  });
+  return {
+    ...actual,
+    insertServices: vi.fn(async (rows: Row[]) => {
+      state.calls.push("insert");
+      if (state.insertError) throw state.insertError;
+      for (const row of rows) {
+        state.components.push({
+          pipelineFileCommits: null,
+          createdAt: new Date(),
+          ...row,
+          appId: null,
+        });
+      }
+    }),
+    getService: vi.fn(async (key: string) => {
+      const c = state.components.find((x) => x.componentKey === key);
+      return c ? asService(c) : null;
+    }),
+    listServices: vi.fn(async () => state.components.map(asService)),
   };
 });
 
@@ -241,12 +252,7 @@ function component(extra: Row = {}) {
 }
 
 function body(extra: Row = {}, comp: Row = {}) {
-  return {
-    appKey: "hris",
-    name: "HRIS",
-    components: [component(comp)],
-    ...extra,
-  };
+  return { services: [component(comp)], ...extra };
 }
 
 function send(method: string, path: string, payload?: unknown) {
@@ -284,7 +290,6 @@ beforeEach(() => {
   state.apps = [];
   state.components = [];
   state.calls = [];
-  state.envProjects = [];
   state.targetBranches = [];
   state.insertError = null;
   state.secretWriteError = null;
@@ -332,7 +337,9 @@ describe("permissions", () => {
     state.components = [
       existingComponent({ appId: "0197f3a0-1b2c-7def-8000-0123456789a9" }),
     ];
-    expect((await send("POST", "/api/apps", body())).status).toBe(403);
+    expect((await send("POST", "/api/service-catalog", body())).status).toBe(
+      403
+    );
     expect(
       (await send("GET", `/api/ci-connections/${CONN}/repos`)).status
     ).toBe(403);
@@ -341,17 +348,18 @@ describe("permissions", () => {
       q: JSON.stringify({ componentKey: "hris", buildSpec: SPEC }),
     });
     expect(
-      (await send("GET", `/api/apps/pipeline-preview?${preview}`)).status
+      (await send("GET", `/api/service-catalog/pipeline-preview?${preview}`))
+        .status
     ).toBe(403);
     expect(
-      (await send("POST", "/api/apps/a/components/accounting/rotate-secret"))
+      (await send("POST", "/api/service-catalog/accounting/rotate-secret"))
         .status
     ).toBe(403);
     expect(
       (
         await send(
           "POST",
-          "/api/apps/a/components/accounting/commit-pipeline-file"
+          "/api/service-catalog/accounting/commit-pipeline-file"
         )
       ).status
     ).toBe(403);
@@ -365,14 +373,14 @@ describe("permissions", () => {
     state.apps = [{ id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a" }];
     state.components = [existingComponent()];
     expect(
-      (await send("POST", "/api/apps/a/components/accounting/rotate-secret"))
+      (await send("POST", "/api/service-catalog/accounting/rotate-secret"))
         .status
     ).toBe(403);
     expect(
       (
         await send(
           "POST",
-          "/api/apps/a/components/accounting/commit-pipeline-file"
+          "/api/service-catalog/accounting/commit-pipeline-file"
         )
       ).status
     ).toBe(403);
@@ -414,9 +422,46 @@ describe("GET /api/apps", () => {
   });
 });
 
-describe("POST /api/apps", () => {
+describe("GET /api/service-catalog", () => {
+  it("lists every service, with or without an app, never its notify secret", async () => {
+    state.components = [
+      existingComponent(),
+      existingComponent({ componentKey: "billing", appId: null }),
+    ];
+    const res = await send("GET", "/api/service-catalog");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain('"notifySecret"');
+    expect(text).not.toContain("enc:v1:");
+    expect(JSON.parse(text).map((s: Row) => s.key)).toEqual([
+      "accounting",
+      "billing",
+    ]);
+  });
+});
+
+describe("removed /api/apps routes", () => {
+  it.each([
+    ["POST", "/api/apps"],
+    ["GET", "/api/apps/pipeline-preview"],
+    ["POST", "/api/apps/a/components/accounting/build"],
+    ["GET", "/api/apps/a/components/accounting/builds/active?branch=main"],
+    ["POST", "/api/apps/a/components/accounting/rotate-secret"],
+    ["POST", "/api/apps/a/components/accounting/commit-pipeline-file"],
+  ])("%s %s is gone (moved to /api/service-catalog)", async (method, path) => {
+    state.components = [existingComponent()];
+    expect(
+      (await send(method, path, method === "POST" ? {} : undefined)).status
+    ).toBe(404);
+    expect(provider.activateRepo).not.toHaveBeenCalled();
+    expect(provider.upsertRepoSecret).not.toHaveBeenCalled();
+    expect(provider.triggerPipeline).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/service-catalog (register services)", () => {
   it("calls the provider in order and stores an encrypted secret", async () => {
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(201);
     expect(state.calls).toEqual([
       "activate:{abc-123}",
@@ -470,7 +515,7 @@ describe("POST /api/apps", () => {
   it("clears the configuration extension for custom components too", async () => {
     const res = await send(
       "POST",
-      "/api/apps",
+      "/api/service-catalog",
       body({}, { pipelineMode: "custom", buildSpec: undefined })
     );
     expect(res.status).toBe(201);
@@ -482,7 +527,7 @@ describe("POST /api/apps", () => {
   it("refuses an engineer a generated component (403 pipelineForbidden)", async () => {
     state.orgRole = "engineer";
     state.projectRoles = { "project-1": "engineer" };
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ code: "pipelineForbidden" });
     expect(provider.activateRepo).not.toHaveBeenCalled();
@@ -492,7 +537,7 @@ describe("POST /api/apps", () => {
 
   it("refuses infra a generated component (403 pipelineForbidden)", async () => {
     state.orgRole = "infra";
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ code: "pipelineForbidden" });
     expect(provider.activateRepo).not.toHaveBeenCalled();
@@ -503,7 +548,7 @@ describe("POST /api/apps", () => {
     state.projectRoles = { "project-1": "engineer" };
     const res = await send(
       "POST",
-      "/api/apps",
+      "/api/service-catalog",
       body({}, { pipelineMode: "custom", buildSpec: undefined })
     );
     expect(res.status).toBe(201);
@@ -514,7 +559,7 @@ describe("POST /api/apps", () => {
   it("uses a 60 minute timeout and commits nothing for custom components", async () => {
     const res = await send(
       "POST",
-      "/api/apps",
+      "/api/service-catalog",
       body({}, { pipelineMode: "custom", buildSpec: undefined })
     );
     expect(res.status).toBe(201);
@@ -535,7 +580,7 @@ describe("POST /api/apps", () => {
         active: true,
       };
     });
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(201);
     expect(provider.activateRepo).toHaveBeenCalledTimes(1);
     expect(at(provider.updateRepoSettings.mock.calls)[0]).toBe("6");
@@ -550,13 +595,12 @@ describe("POST /api/apps", () => {
         500
       )
     );
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(502);
     const { error } = await res.json();
     expect(error).toContain("notify secret");
     expect(error).toContain("failed with 500");
     expect(state.calls).not.toContain("insert");
-    expect(state.apps).toHaveLength(0);
     expect(state.components).toHaveLength(0);
   });
 
@@ -564,7 +608,7 @@ describe("POST /api/apps", () => {
     provider.activateRepo.mockRejectedValue(
       new CiProviderError("Woodpecker POST /api/repos failed with 500", 500)
     );
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(502);
     expect((await res.json()).error).toMatch(/Activating/);
     expect(provider.updateRepoSettings).not.toHaveBeenCalled();
@@ -584,11 +628,11 @@ describe("POST /api/apps", () => {
         return { sha: `sha-${branch}` };
       }
     );
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(201);
     expect(state.calls).toContain("commit:release/1.x");
     const created = await res.json();
-    expect(created.components[0].pipelineFileCommits).toEqual({
+    expect(created.services[0].pipelineFileCommits).toEqual({
       main: {
         error:
           "Bitbucket POST acme/hris/src failed with 403: branch is protected",
@@ -604,7 +648,7 @@ describe("POST /api/apps", () => {
       async (_auth: unknown, _repo: string, branch: string) =>
         branch !== "release/1.x"
     );
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(201);
     expect(state.calls).toContain("commit:main");
     expect(state.calls).not.toContain("commit:release/1.x");
@@ -627,7 +671,7 @@ describe("POST /api/apps", () => {
         return { sha: `sha-${branch}` };
       }
     );
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(201);
     const commits = at(state.components).pipelineFileCommits as Row;
     expect(commits.main).toMatchObject({
@@ -641,7 +685,7 @@ describe("POST /api/apps", () => {
       forge: "bitbucket",
       auth: null,
     });
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(201);
     expect(forge.commitFile).not.toHaveBeenCalled();
     const commits = at(state.components).pipelineFileCommits as Record<
@@ -653,38 +697,97 @@ describe("POST /api/apps", () => {
     expect(commits["release/1.x"]?.error).toMatch(/forge token/);
   });
 
-  it("answers 409 for an existing app key before calling Woodpecker", async () => {
-    state.apps = [{ id: APP_ID, appKey: "hris", name: "HRIS" }];
-    const res = await send("POST", "/api/apps", body());
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toBe("App hris already exists");
-    expect(provider.activateRepo).not.toHaveBeenCalled();
+  it("registers services without an app: app_id null, no app row (service-first)", async () => {
+    const res = await send("POST", "/api/service-catalog", body());
+    expect(res.status).toBe(201);
+    expect(state.apps).toHaveLength(0);
+    expect(at(state.components)).toMatchObject({
+      componentKey: "hris",
+      appId: null,
+    });
+    const created = await res.json();
+    expect(created.services.map((s: Row) => s.key)).toEqual(["hris"]);
+    expect(created.pipelineFileFailures).toEqual([]);
   });
 
   it("answers 409 for an existing component key", async () => {
     state.components = [existingComponent({ componentKey: "hris" })];
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(409);
     expect(provider.activateRepo).not.toHaveBeenCalled();
   });
 
-  it("answers 409 when the repo is already linked to a component", async () => {
+  it("registers another service of a linked repository under its own notify secret, keeping the repo settings", async () => {
     state.components = [existingComponent({ ciRepoId: "42" })];
-    const res = await send("POST", "/api/apps", body());
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toContain("accounting");
+    const res = await send(
+      "POST",
+      "/api/service-catalog",
+      body({}, { pipelineMode: "custom", buildSpec: undefined })
+    );
+    expect(res.status).toBe(201);
+    // The repository's first service applied the settings; they stay.
     expect(provider.updateRepoSettings).not.toHaveBeenCalled();
-    expect(provider.upsertRepoSecret).not.toHaveBeenCalled();
-    expect(state.calls).not.toContain("insert");
+    const [repoId, name] = at(provider.upsertRepoSecret.mock.calls);
+    expect(repoId).toBe("42");
+    expect(name).toBe("menara_notify_hris");
+    expect(
+      state.components.find((c) => c.componentKey === "hris")
+    ).toMatchObject({ notifySecretName: "menara_notify_hris", appId: null });
+  });
+
+  it("registers several services of one repository in one go, the first under the default secret", async () => {
+    const res = await send("POST", "/api/service-catalog", {
+      services: [
+        component({ pipelineMode: "custom", buildSpec: undefined }),
+        component({
+          componentKey: "hris-worker",
+          bundleImage: "hris-worker-deploy",
+          pipelineMode: "custom",
+          buildSpec: undefined,
+        }),
+      ],
+    });
+    expect(res.status).toBe(201);
+    expect(provider.updateRepoSettings).toHaveBeenCalledTimes(1);
+    expect(provider.upsertRepoSecret.mock.calls.map((call) => call[1])).toEqual(
+      ["menara_notify", "menara_notify_hris_worker"]
+    );
+    expect(
+      state.components.map((c) => [c.componentKey, c.notifySecretName])
+    ).toEqual([
+      ["hris", "menara_notify"],
+      ["hris-worker", "menara_notify_hris_worker"],
+    ]);
+  });
+
+  it("refuses two generated services of one repository on the same branch (400)", async () => {
+    const res = await send("POST", "/api/service-catalog", {
+      services: [
+        component(),
+        component({
+          componentKey: "hris-worker",
+          bundleImage: "hris-worker-deploy",
+          buildSpec: {
+            ...SPEC,
+            branches: ["main"],
+            images: [
+              { name: "hris-worker", dockerfile: "Dockerfile", context: "." },
+            ],
+          },
+        }),
+      ],
+    });
+    expect(res.status).toBe(400);
+    expect(provider.activateRepo).not.toHaveBeenCalled();
   });
 
   it("maps a unique violation on insert to 409 that says to rotate", async () => {
     state.insertError = Object.assign(new Error("dup"), { code: "23505" });
-    const res = await send("POST", "/api/apps", body());
+    const res = await send("POST", "/api/service-catalog", body());
     expect(res.status).toBe(409);
     // The losing request has already replaced the Woodpecker secret.
     expect((await res.json()).error).toBe(
-      "The app, a component or a repository was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of hris on its app page."
+      "A service was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of hris on its service page."
     );
   });
 
@@ -692,7 +795,10 @@ describe("POST /api/apps", () => {
     const preview = new URLSearchParams({
       q: JSON.stringify({ componentKey: "hris", buildSpec: SPEC }),
     });
-    const res = await send("GET", `/api/apps/pipeline-preview?${preview}`);
+    const res = await send(
+      "GET",
+      `/api/service-catalog/pipeline-preview?${preview}`
+    );
     expect(res.status).toBe(200);
     expect((await res.json()).yaml).toContain("hris-deploy");
   });
@@ -700,7 +806,7 @@ describe("POST /api/apps", () => {
   it("rejects a bundle image other than <componentKey>-deploy", async () => {
     const res = await send(
       "POST",
-      "/api/apps",
+      "/api/service-catalog",
       body({}, { bundleImage: "something-else" })
     );
     expect(res.status).toBe(400);
@@ -709,7 +815,7 @@ describe("POST /api/apps", () => {
   it("rejects a build image named like the bundle image", async () => {
     const res = await send(
       "POST",
-      "/api/apps",
+      "/api/service-catalog",
       body(
         {},
         {
@@ -728,12 +834,22 @@ describe("POST /api/apps", () => {
 
   it("requires a build spec exactly when the mode is generated", async () => {
     expect(
-      (await send("POST", "/api/apps", body({}, { buildSpec: undefined })))
-        .status
+      (
+        await send(
+          "POST",
+          "/api/service-catalog",
+          body({}, { buildSpec: undefined })
+        )
+      ).status
     ).toBe(400);
     expect(
-      (await send("POST", "/api/apps", body({}, { pipelineMode: "custom" })))
-        .status
+      (
+        await send(
+          "POST",
+          "/api/service-catalog",
+          body({}, { pipelineMode: "custom" })
+        )
+      ).status
     ).toBe(400);
   });
 });
@@ -786,7 +902,7 @@ describe("GET /api/ci-connections/:id/repos", () => {
 });
 
 describe("POST rotate-secret (Review Focus 5)", () => {
-  const PATH = "/api/apps/a/components/accounting/rotate-secret";
+  const PATH = "/api/service-catalog/accounting/rotate-secret";
 
   beforeEach(() => {
     state.apps = [
@@ -831,13 +947,20 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     );
   });
 
-  it("answers 404 when the component belongs to another app", async () => {
+  it("answers 404 for an unknown service", async () => {
     const res = await send(
       "POST",
-      "/api/apps/other/components/accounting/rotate-secret"
+      "/api/service-catalog/no-such-service/rotate-secret"
     );
     expect(res.status).toBe(404);
     expect(provider.upsertRepoSecret).not.toHaveBeenCalled();
+  });
+
+  it("rotates the secret of a service registered without an app", async () => {
+    state.apps = [];
+    state.components = [existingComponent({ appId: null })];
+    expect((await send("POST", PATH)).status).toBe(200);
+    expect(state.calls).toEqual(["secret:1", "panel-secret"]);
   });
 
   it("answers 409 when the component has no CI repo", async () => {
@@ -847,7 +970,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
 });
 
 describe("POST commit-pipeline-file", () => {
-  const PATH = "/api/apps/a/components/accounting/commit-pipeline-file";
+  const PATH = "/api/service-catalog/accounting/commit-pipeline-file";
 
   beforeEach(() => {
     state.apps = [
@@ -920,7 +1043,7 @@ describe("POST commit-pipeline-file", () => {
 });
 
 describe("POST build", () => {
-  const PATH = "/api/apps/a/components/accounting/build";
+  const PATH = "/api/service-catalog/accounting/build";
   const APP_ROW = {
     id: "0197f3a0-1b2c-7def-8000-0123456789a9",
     appKey: "a",
@@ -953,7 +1076,6 @@ describe("POST build", () => {
   it("lets a maintainer build the branch a target of the component deploys in their project", async () => {
     state.orgRole = "engineer";
     state.projectRoles = { "project-1": "engineer" };
-    state.envProjects = ["project-1"];
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
     expect(provider.triggerPipeline).toHaveBeenCalledWith("1", "main");
@@ -962,7 +1084,6 @@ describe("POST build", () => {
   it("refuses a maintainer a branch no target of the component deploys", async () => {
     state.orgRole = "engineer";
     state.projectRoles = { "project-1": "engineer" };
-    state.envProjects = ["project-1"];
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "feature/x" })).status).toBe(
       403
@@ -973,7 +1094,6 @@ describe("POST build", () => {
   it("refuses a maintainer a branch deployed only in another project", async () => {
     state.orgRole = "engineer";
     state.projectRoles = { "project-1": "engineer" };
-    state.envProjects = ["project-1", "project-2"];
     state.targetBranches = [
       { projectId: "project-1", sourceBranch: "main" },
       { projectId: "project-2", sourceBranch: "release" },
@@ -982,47 +1102,46 @@ describe("POST build", () => {
     expect(provider.triggerPipeline).not.toHaveBeenCalled();
   });
 
-  it("refuses a maintainer when the app's environments have no target of this component", async () => {
+  it("refuses a maintainer a service with no target registered over an hour ago", async () => {
+    state.components = [
+      existingComponent({ createdAt: new Date(Date.now() - 2 * 3600_000) }),
+    ];
     state.orgRole = "engineer";
     state.projectRoles = { "project-1": "engineer" };
-    state.envProjects = ["project-1"];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
   });
 
-  it("lets an admin build any branch once the app has environments", async () => {
-    state.envProjects = ["project-1"];
+  it("lets an admin build any branch once the service has targets", async () => {
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "feature/x" })).status).toBe(
       200
     );
   });
 
-  it("refuses a maintainer of another project once the app has environments", async () => {
+  it("refuses a maintainer of another project once the service has targets", async () => {
     state.orgRole = "engineer";
     state.projectRoles = { "project-2": "engineer" };
-    state.envProjects = ["project-1"];
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
     expect(provider.triggerPipeline).not.toHaveBeenCalled();
   });
 
-  it("refuses a contributor of the app's project", async () => {
+  it("refuses a contributor of the service's project", async () => {
     state.orgRole = "qa";
     state.projectRoles = { "project-1": "qa" };
-    state.envProjects = ["project-1"];
     state.targetBranches = [{ projectId: "project-1", sourceBranch: "main" }];
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
   });
 
-  it("lets a registrant start the first build of a fresh app with no environment", async () => {
+  it("lets a registrant start the first build of a fresh service with no target", async () => {
     state.orgRole = "engineer";
     state.projectRoles = { "project-2": "engineer" };
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
   });
 
-  it("refuses a maintainer for an old app with no environment, but not an admin", async () => {
-    state.apps = [
-      { ...APP_ROW, createdAt: new Date(Date.now() - 2 * 3600_000) },
+  it("refuses a maintainer for an old service with no target, but not an admin", async () => {
+    state.components = [
+      existingComponent({ createdAt: new Date(Date.now() - 2 * 3600_000) }),
     ];
     state.orgRole = "engineer";
     state.projectRoles = { "project-2": "engineer" };
@@ -1033,7 +1152,7 @@ describe("POST build", () => {
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
   });
 
-  it("refuses a non-registrant for an app with no environment", async () => {
+  it("refuses a non-registrant for a service with no target", async () => {
     state.orgRole = "qa";
     state.projectRoles = { "project-2": "qa" };
     expect((await send("POST", PATH, { branch: "main" })).status).toBe(403);
@@ -1050,15 +1169,26 @@ describe("POST build", () => {
     expect(provider.triggerPipeline).not.toHaveBeenCalled();
   });
 
-  it("answers 404 for a component of another app", async () => {
-    const res = await send(
-      "POST",
-      "/api/apps/zzz/components/accounting/build",
-      {
-        branch: "main",
-      }
-    );
+  it("answers 404 for an unknown service", async () => {
+    const res = await send("POST", "/api/service-catalog/zzz/build", {
+      branch: "main",
+    });
     expect(res.status).toBe(404);
+  });
+
+  it("lets a registrant start the first build of a fresh service registered without an app", async () => {
+    state.apps = [];
+    state.components = [existingComponent({ appId: null })];
+    state.orgRole = "engineer";
+    state.projectRoles = { "project-2": "engineer" };
+    expect((await send("POST", PATH, { branch: "main" })).status).toBe(200);
+    expect(activity.recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "app.build.trigger",
+        entityType: "service",
+        data: { component: "accounting", branch: "main", number: 12 },
+      })
+    );
   });
 
   it("names the step when Woodpecker refuses", async () => {
@@ -1071,7 +1201,7 @@ describe("POST build", () => {
 });
 
 describe("GET active build", () => {
-  const PATH = "/api/apps/a/components/accounting/builds/active?branch=main";
+  const PATH = "/api/service-catalog/accounting/builds/active?branch=main";
   const APP_ROW = {
     id: "0197f3a0-1b2c-7def-8000-0123456789a9",
     appKey: "a",
@@ -1195,15 +1325,15 @@ describe("GET active build", () => {
   it("answers 400 without a branch", async () => {
     const res = await send(
       "GET",
-      "/api/apps/a/components/accounting/builds/active"
+      "/api/service-catalog/accounting/builds/active"
     );
     expect(res.status).toBe(400);
   });
 
-  it("answers 404 for a component of another app", async () => {
+  it("answers 404 for an unknown service", async () => {
     const res = await send(
       "GET",
-      "/api/apps/zzz/components/accounting/builds/active?branch=main"
+      "/api/service-catalog/zzz/builds/active?branch=main"
     );
     expect(res.status).toBe(404);
   });

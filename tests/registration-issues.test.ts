@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { REGISTRATION_ISSUES, registerAppSchema } from "@/lib/ci/registration";
+import {
+  REGISTRATION_ISSUES,
+  registerAppSchema,
+  registerServicesSchema,
+} from "@/lib/ci/registration";
 import { ISSUE_KEYS, issueMessage } from "@/lib/ci/registration-issues";
 
 const CONN = "0197f3a0-1b2c-7def-8000-0123456789c1";
@@ -27,9 +31,18 @@ function app(components: unknown[]) {
   return { appKey: "hris", name: "HRIS", components };
 }
 
+/** A services registration (no app). */
+function services(list: unknown[]) {
+  return { services: list };
+}
+
 /** The mapped issues of an input, as "path → key". */
 function mapped(input: unknown): Record<string, string> {
-  const result = registerAppSchema.safeParse(input);
+  const schema =
+    input && typeof input === "object" && "services" in input
+      ? registerServicesSchema
+      : registerAppSchema;
+  const result = schema.safeParse(input);
   if (result.success) return {};
   return Object.fromEntries(
     result.error.issues.map((issue) => [
@@ -62,7 +75,50 @@ const CUSTOM_CASES: Record<(typeof REGISTRATION_ISSUES)[number], unknown> = {
     component(),
     component({ componentKey: "hris-two", bundleImage: "hris-two-deploy" }),
   ]),
+  sharedPipelineBranch: services([
+    component(),
+    component({
+      componentKey: "hris-two",
+      bundleImage: "hris-two-deploy",
+      buildSpec: {
+        ...SPEC,
+        images: [{ name: "hris-two", dockerfile: "Dockerfile", context: "." }],
+      },
+    }),
+  ]),
 };
+
+describe("services registration", () => {
+  it("accepts several services of one repository on different branches", () => {
+    expect(
+      registerServicesSchema.safeParse(
+        services([
+          component(),
+          component({
+            componentKey: "hris-two",
+            bundleImage: "hris-two-deploy",
+            buildSpec: {
+              ...SPEC,
+              branches: ["release"],
+              images: [
+                { name: "hris-two", dockerfile: "Dockerfile", context: "." },
+              ],
+            },
+          }),
+        ])
+      ).success
+    ).toBe(true);
+  });
+
+  it("refuses a duplicate key and an empty list", () => {
+    expect(
+      Object.values(
+        mapped(services([component(), component({ forgeRemoteId: "{b}" })]))
+      )
+    ).toContain("duplicateComponentKey");
+    expect(registerServicesSchema.safeParse(services([])).success).toBe(false);
+  });
+});
 
 describe("registration issue mapping", () => {
   it("has a case for every custom issue the schema raises", () => {

@@ -57,6 +57,7 @@ import { runsRouter } from "@/server/routes/runs";
 import { s3ConnectionsRouter } from "@/server/routes/s3-connections";
 import { savedViewsRouter } from "@/server/routes/saved-views";
 import { serversRouter } from "@/server/routes/servers";
+import { serviceCatalogRouter } from "@/server/routes/service-catalog";
 import { serviceLogsRouter, servicesRouter } from "@/server/routes/services";
 import { sessionInfoRouter } from "@/server/routes/session";
 import { setupRouter } from "@/server/routes/setup";
@@ -155,6 +156,7 @@ export const app = createBaseApp()
   .route("/api/projects", projectReleasesRouter)
   .route("/api/releases", releasesRouter)
   .route("/api/apps", appsRouter)
+  .route("/api/service-catalog", serviceCatalogRouter)
   .route("/api/setup", setupRouter)
   .route("/api/apps", variableTemplatesRouter)
   .route("/api/ci-connections", ciConnectionsRouter)

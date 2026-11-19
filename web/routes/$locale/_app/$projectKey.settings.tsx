@@ -15,7 +15,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { canOrg, canOrgAccess, canProject } from "@/lib/permissions";
-import { listAppsQuery } from "@/web/api/apps";
 import { getJiraConnectionsQuery, getJiraLinkQuery } from "@/web/api/jira";
 import {
   getMyProjectAccessQuery,
@@ -27,6 +26,7 @@ import {
 } from "@/web/api/project-members";
 import { listProjectSourcesQuery } from "@/web/api/project-sources";
 import { getServersQuery } from "@/web/api/servers";
+import { listServicesQuery } from "@/web/api/service-catalog";
 import { meQuery, useCanOrg, useMe } from "@/web/api/session";
 import { projectRoleOf, requireProjectRole } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
@@ -79,7 +79,7 @@ export const Route = createFileRoute("/$locale/_app/$projectKey/settings")({
         : null,
       loaderQuery(queryClient, getJiraLinkQuery(project.id)),
       loaderQuery(queryClient, listProjectSourcesQuery(project.id)),
-      loaderQuery(queryClient, listAppsQuery()),
+      loaderQuery(queryClient, listServicesQuery()),
     ]);
   },
   pendingComponent: SettingsPending,

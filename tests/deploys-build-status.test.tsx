@@ -14,7 +14,7 @@ const api = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: api.toast }));
-vi.mock("@/web/api/apps", () => ({
+vi.mock("@/web/api/service-catalog", () => ({
   startComponentBuild: api.startComponentBuild,
   getActiveBuild: api.getActiveBuild,
 }));
@@ -43,7 +43,9 @@ function target(extra: Record<string, unknown> = {}) {
   return {
     id: "t1",
     componentKey: "hris-be",
-    appKey: "hris",
+    // A service registered without an app still offers its first build.
+    appKey: null,
+    repoFullName: "acme/hris",
     sourceBranch: "feature-x",
     serverId: "s1",
     deployDir: "/srv/hris",
@@ -112,11 +114,7 @@ describe("Deploys page build status for a branch with no builds", () => {
   it("shows the running pipeline with its link instead of Start build", async () => {
     api.getActiveBuild.mockResolvedValue({ number: 14, url: PIPELINE });
     await mount(target());
-    expect(api.getActiveBuild).toHaveBeenCalledWith(
-      "hris",
-      "hris-be",
-      "feature-x"
-    );
+    expect(api.getActiveBuild).toHaveBeenCalledWith("hris-be", "feature-x");
     expect(startButton()).toBeUndefined();
     const link = container.querySelector(`a[href="${PIPELINE}"]`);
     expect(link?.textContent).toContain("Build #14 running…");
@@ -152,7 +150,6 @@ describe("Deploys page build status for a branch with no builds", () => {
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(api.startComponentBuild).toHaveBeenCalledWith(
-      "hris",
       "hris-be",
       "feature-x"
     );
