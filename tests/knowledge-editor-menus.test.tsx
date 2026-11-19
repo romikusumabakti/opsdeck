@@ -300,7 +300,7 @@ describe("selection toolbar", () => {
     );
   });
 
-  it("links the selection to a document (interim home until the / menu)", async () => {
+  it("links the selection to a document from the selection toolbar", async () => {
     const { editor } = await mount({
       value: "Read the guide",
       linkableDocs: [{ title: "Release checklist", slug: "release-checklist" }],
@@ -817,4 +817,68 @@ describe("open without edits", () => {
       expect(onChange).not.toHaveBeenCalled();
     }
   );
+});
+
+// A stored body the editor would serialize differently (Jira wiki `*` list
+// markers, a compact table at the end that TrailingNode follows with a
+// paragraph and the serializer pads) is not an edit until the user edits it.
+describe("non-canonical stored body", () => {
+  const COMPACT_TABLE = "Intro\n\n|a|b|\n|-|-|\n|1|2|";
+  const STAR_LIST = "Steps\n\n* one\n* two";
+
+  async function wait(ms: number) {
+    await act(() => new Promise((r) => setTimeout(r, ms)));
+  }
+
+  function blurToPage(dom: HTMLElement) {
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    dom.dispatchEvent(new FocusEvent("blur", { relatedTarget: outside }));
+    dom.dispatchEvent(
+      new FocusEvent("focusout", { bubbles: true, relatedTarget: outside })
+    );
+  }
+
+  it.each([
+    ["a compact table at the end", COMPACT_TABLE],
+    ["a `*` list", STAR_LIST],
+    ["both", `${STAR_LIST}\n\n${COMPACT_TABLE}`],
+  ])(
+    "opening, clicking and blurring %s reports no change",
+    async (_name, value) => {
+      const onBlur = vi.fn();
+      const { editor, dom, onChange } = await mount({ value, onBlur });
+      // The serializer does rewrite it — the guard below is what matters.
+      expect(editorMarkdown(editor)).not.toBe(value);
+      await act(async () => {
+        editor.chain().focus().setTextSelection(2).run();
+      });
+      await wait(400);
+      await act(async () => blurToPage(dom));
+      await settle();
+      expect(onChange).not.toHaveBeenCalled();
+      expect(onBlur).toHaveBeenCalledTimes(1);
+      expect(onBlur).toHaveBeenCalledWith(value);
+    }
+  );
+
+  it("still emits a real edit, and the stored body after undo", async () => {
+    const { editor, onChange } = await mount({ value: STAR_LIST });
+    await act(async () => {
+      editor.chain().focus().setTextSelection(2).run();
+    });
+    await wait(400);
+    await act(async () => {
+      editor.commands.insertContent("X");
+    });
+    await wait(400);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith("SXteps\n\n- one\n- two");
+    await act(async () => {
+      editor.commands.undo();
+    });
+    await wait(400);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenLastCalledWith(STAR_LIST);
+  });
 });

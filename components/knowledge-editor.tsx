@@ -174,14 +174,27 @@ export function KnowledgeEditor({
   // the sync effect below never clobbers in-flight typing — see there.
   const lastEmittedRef = useRef(value);
 
+  // The body the editor was last given from outside (on mount or by a reset)
+  // and the editor's own serialization of it, taken before any transaction.
+  // The two differ for a body the serializer normalizes (`*` list markers,
+  // compact tables, a TrailingNode paragraph after a final block); until the
+  // user edits it, the editor keeps reporting the body it was given, so merely
+  // opening such a body never marks a form dirty or saves it.
+  const baselineRef = useRef<{ value: string; markdown: string } | null>(null);
+
   // Report a new markdown body upward — only when it differs from the last
   // one, so a transaction that leaves the markdown unchanged (a trailing-node
-  // insert, a mark toggled and untoggled) never marks the form dirty.
-  // Stored bodies saved by the older editor can end in "\n\n" after a final
-  // table/image/code block (its TrailingNode paragraph); editorMarkdown no
-  // longer emits that, so ignore a difference made only of trailing newlines
-  // too — otherwise merely opening such a document would mark it dirty.
-  const emit = (md: string) => {
+  // insert, a mark toggled and untoggled) never marks the form dirty. The
+  // serialization of the baseline stands for the baseline itself, so undoing
+  // back to it reports the original body. Stored bodies saved by the older
+  // editor can end in "\n\n" after a final table/image/code block; a
+  // difference made only of trailing newlines is ignored too.
+  const emit = (serialized: string) => {
+    const baseline = baselineRef.current;
+    const md =
+      baseline && serialized === baseline.markdown
+        ? baseline.value
+        : serialized;
     const last = lastEmittedRef.current;
     if (md === last || md === last.replace(/\n+$/, "")) return;
     lastEmittedRef.current = md;
@@ -237,8 +250,7 @@ export function KnowledgeEditor({
         ),
       },
       // Alt+F10 or Ctrl/⌘+Shift+. moves focus into whichever contextual menu
-      // is showing; with
-      // none up the key falls through to the browser.
+      // is showing; with none up the key falls through to the browser.
       handleKeyDown: (_view, event) => {
         if (!isMenuShortcut(event)) return false;
         if (!focusVisibleMenu(menusRef.current)) return false;
@@ -381,7 +393,11 @@ export function KnowledgeEditor({
   // only ever reset for a value the editor did NOT produce.
   useEffect(() => {
     if (!editor) return;
-    if (value === lastEmittedRef.current) return;
+    if (value === lastEmittedRef.current) {
+      // First run: the editor holds `value` as parsed on mount, untouched.
+      baselineRef.current ??= { value, markdown: editorMarkdown(editor) };
+      return;
+    }
     lastEmittedRef.current = value;
     editor.commands.setContent(value, {
       contentType: "markdown",
@@ -399,6 +415,7 @@ export function KnowledgeEditor({
         plugins: editor.state.plugins,
       })
     );
+    baselineRef.current = { value, markdown: editorMarkdown(editor) };
   }, [value, editor]);
 
   // null only on the first client render, before the editor instance exists.
