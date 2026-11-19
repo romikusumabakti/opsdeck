@@ -76,15 +76,20 @@ const STORAGE_FILES: OrgPermissions = { storage: ["files"] };
 
 /**
  * The environment rights an explorer call on that environment's storage
- * connection needs: viewing the environment to read, editing its settings
- * (lib/permissions project `environment:update`, the right
- * server/services/environments#updateEnvironment checks) to change files.
+ * connection needs. Listing the connections themselves only takes viewing
+ * the environment (server/services/environment-storage), but the objects in
+ * an application bucket are the application's data, like its variables: so
+ * reading them takes project `variable:read`, the engineer-set statement
+ * that reads the environment's secret-bearing data (the managed .env). QA,
+ * BA, PM and observer don't hold it. Changing files takes editing the
+ * environment's settings (`environment:update`, the right
+ * server/services/environments#updateEnvironment checks).
  */
 export const ENVIRONMENT_STORAGE_RIGHTS: Record<
   ExplorerIntent,
   ProjectPermissions
 > = {
-  read: { project: ["read"] },
+  read: { variable: ["read"] },
   write: { environment: ["update"] },
 };
 

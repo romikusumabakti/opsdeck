@@ -1526,6 +1526,11 @@
     "s3SecretRequiredForTest": "La clave secreta es obligatoria para probar la conexión",
     "s3KeyPrefixInvalid": "Introduce un prefijo de claves formado por nombres de carpeta separados por \"/\", sin segmentos \".\" ni \"..\", barras invertidas ni caracteres codificados",
     "s3BackupDestinationNotAssignable": "Esta conexión es el destino de las copias de seguridad de la instancia y no se puede asignar a un entorno",
+    "s3SecretRequiredForLocationChange": "Vuelve a introducir la clave secreta para cambiar el endpoint, la región, el bucket, el prefijo de claves, la clave de acceso o el estilo de ruta",
+    "s3BackupDestinationRestricted": "Esta conexión es el destino de las copias de seguridad de la instancia; gestiónala en Administración › Instancia",
+    "s3ConnectionAlreadyAssigned": "Esta conexión ya pertenece a un entorno",
+    "s3ConnectionHoldsArchives": "Esta conexión aún guarda archivos de entornos eliminados, así que sigue sin asignar hasta que caduquen",
+    "unsupportedObjectName": "Este nombre de objeto no es compatible: contiene un “/”, un “\\” o un segmento de punto codificado o similar",
     "jiraCreated": "Sitio de Jira añadido",
     "jiraCreateFailed": "No se pudo añadir el sitio de Jira",
     "jiraNotFound": "Sitio de Jira no encontrado",
@@ -3552,6 +3557,7 @@
     "errors": {
       "backupAlreadyRunning": "Ya hay una copia en curso.",
       "backupDestinationNotFound": "Esa conexión S3 ya no existe.",
+      "backupDestinationEnvironmentOwned": "El almacenamiento de un entorno no puede ser el destino de las copias. Elige una conexión sin asignar.",
       "backupScheduleFailed": "Los ajustes se guardaron, pero no se pudo actualizar la programación. Se vuelve a configurar cuando el Panel se reinicia."
     },
     "errorCodes": {

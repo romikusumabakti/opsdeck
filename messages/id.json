@@ -1526,6 +1526,11 @@
     "s3SecretRequiredForTest": "Secret key diperlukan untuk menguji koneksi",
     "s3KeyPrefixInvalid": "Masukkan key prefix berupa nama folder biasa yang dipisahkan \"/\", tanpa segmen \".\" atau \"..\", backslash, atau karakter ter-encode",
     "s3BackupDestinationNotAssignable": "Koneksi ini adalah tujuan backup instance dan tidak dapat diberikan ke environment",
+    "s3SecretRequiredForLocationChange": "Masukkan secret key lagi untuk mengubah endpoint, region, bucket, key prefix, access key, atau path style",
+    "s3BackupDestinationRestricted": "Koneksi ini adalah tujuan backup instance; kelola di Admin › Instance",
+    "s3ConnectionAlreadyAssigned": "Koneksi ini sudah dimiliki sebuah environment",
+    "s3ConnectionHoldsArchives": "Arsip environment yang dihapus masih tersimpan di koneksi ini, jadi koneksi tetap tanpa environment sampai arsip kedaluwarsa",
+    "unsupportedObjectName": "Nama objek ini tidak didukung: berisi “/”, “\\”, atau segmen titik yang ter-encode atau mirip",
     "jiraCreated": "Situs Jira ditambahkan",
     "jiraCreateFailed": "Gagal menambahkan situs Jira",
     "jiraNotFound": "Situs Jira tidak ditemukan",
@@ -3552,6 +3557,7 @@
     "errors": {
       "backupAlreadyRunning": "Pencadangan sedang berjalan.",
       "backupDestinationNotFound": "Koneksi S3 itu sudah tidak ada.",
+      "backupDestinationEnvironmentOwned": "Storage milik environment tidak dapat menjadi tujuan backup. Pilih koneksi tanpa environment.",
       "backupScheduleFailed": "Pengaturan sudah disimpan, tetapi jadwal tidak bisa diperbarui. Jadwal dipasang ulang saat Panel dimulai ulang."
     },
     "errorCodes": {

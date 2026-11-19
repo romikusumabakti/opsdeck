@@ -20,6 +20,8 @@ import {
   joinPath,
   moveDestination,
   PathError,
+  UNSUPPORTED_OBJECT_NAME,
+  UnsafeKeyError,
 } from "@/lib/explorer/path";
 import { type Eol, readTextFile, writeTextFile } from "@/lib/explorer/text";
 import {
@@ -118,18 +120,33 @@ function selectionData(paths: string[]): Record<string, string | number> {
 }
 
 // Map a thrown backend error to a user-facing message. PathError (a confinement
-// violation) is surfaced distinctly; everything else is a generic failure so we
-// don't leak remote paths / bucket internals.
+// violation) is surfaced distinctly, and an unsupported object name (a key
+// that decodes or folds into a separator) carries its code so the explorer
+// can word it; everything else is a generic failure so we don't leak remote
+// paths / bucket internals.
 function explain(
   error: unknown,
   t: Awaited<ReturnType<typeof getServerTranslator>>
 ): string {
+  if (error instanceof UnsafeKeyError) return t("unsupportedObjectName");
   if (error instanceof PathError) return t("invalidPath");
   if (error instanceof MissingEntryError) return t("entryGone");
   if (error instanceof TreeTooLargeError) return t("treeTooLarge");
   if (error instanceof HostKeyMismatchError) return t("hostKeyMismatch");
   console.error("Explorer operation failed:", error);
   return t("explorerFailed");
+}
+
+// The failure answer for a thrown backend error: explain's message, plus the
+// code of an unsupported object name.
+function failure(
+  error: unknown,
+  t: Awaited<ReturnType<typeof getServerTranslator>>
+): { success: false; message: string; code?: string } {
+  const message = explain(error, t);
+  return error instanceof UnsafeKeyError
+    ? { success: false, message, code: UNSUPPORTED_OBJECT_NAME }
+    : { success: false, message };
 }
 
 export async function listEntries(
@@ -154,7 +171,7 @@ export async function listEntries(
         code: "hostKeyMismatch",
       };
     }
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -188,7 +205,7 @@ export async function getDownloadTarget(
     }
     return { success: true, target };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -225,7 +242,7 @@ export async function readFileText(
     });
     return { success: true, content: result.content, eol: result.eol };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -259,7 +276,7 @@ export async function saveFileText(
     });
     return { success: true, message: t("fileSaved") };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -290,7 +307,7 @@ export async function createFolder(
     );
     return { success: true, message: t("folderCreated") };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -312,7 +329,7 @@ export async function deleteEntry(
     });
     return { success: true, message: t("entryDeleted") };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -344,7 +361,7 @@ export async function renameEntry(
     });
     return { success: true, message: t("entryRenamed") };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -382,7 +399,7 @@ export async function moveEntry(
     });
     return { success: true, message: t("entryMoved") };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -421,7 +438,7 @@ export async function copyEntry(
     });
     return { success: true, message: t("entryCopied") };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -465,7 +482,7 @@ export async function compressEntries(
     });
     return { success: true, message: t("entriesCompressed") };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }
 
@@ -506,6 +523,6 @@ export async function folderStats(
       },
     };
   } catch (error) {
-    return { success: false, message: explain(error, t) };
+    return failure(error, t);
   }
 }

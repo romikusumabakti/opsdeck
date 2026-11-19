@@ -10,16 +10,23 @@ import {
   s3Connections,
 } from "@/lib/db/schema";
 import { testS3Connection } from "@/lib/explorer/s3";
-import { backupDestinationId } from "@/lib/restricted-targets";
+import {
+  backupDestinationId,
+  isRestrictedSource,
+} from "@/lib/restricted-targets";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import {
   type EnvironmentStorageInput,
   type environmentStorageUpdateSchema,
   normalizeKeyPrefix,
 } from "@/lib/validation";
-import { badRequest, notFound } from "@/server/errors";
+import { badRequest, CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
-import { toSafeS3Connection } from "@/server/services/s3-connections";
+import {
+  changesS3Location,
+  SECRET_REQUIRED_FOR_LOCATION_CHANGE,
+  toSafeS3Connection,
+} from "@/server/services/s3-connections";
 
 // An environment's storage: the S3 connections (application buckets) it owns,
 // each optionally confined to a key prefix. Viewing them takes what viewing
@@ -28,7 +35,11 @@ import { toSafeS3Connection } from "@/server/services/s3-connections";
 // `environment:update`, as updateEnvironment) plus a strong sign-in, since
 // they store or use bucket credentials. An environment the caller can't see,
 // and a connection that is not this environment's, are both a 404. Secrets
-// are never returned (toSafeS3Connection) and never logged.
+// are never returned (toSafeS3Connection) and never logged, and a stored
+// secret is only ever used with the location it was given for
+// (changesS3Location): moving a connection to another endpoint, bucket,
+// prefix, access key or addressing style takes a new secret. The instance
+// backup destination is never handled here, wherever it sits (409).
 
 const VIEW = { project: ["read"] } as const;
 const MANAGE = { environment: ["update"] } as const;
@@ -67,6 +78,26 @@ async function ownedConnection(environmentId: string, connectionId: string) {
     )
     .limit(1);
   return row ?? notFound();
+}
+
+// The instance backup destination (dumps of the Panel database) is Admin ›
+// Instance's: never edited, deleted or probed as an environment's storage.
+async function refuseRestricted(connectionId: string): Promise<void> {
+  if (!(await isRestrictedSource({ kind: "s3", connectionId }))) return;
+  const t = await getServerTranslator("actionErrors");
+  throw new CodedHTTPException(
+    409,
+    "s3BackupDestinationRestricted",
+    t("s3BackupDestinationRestricted")
+  );
+}
+
+async function secretRequiredForLocationChange(): Promise<never> {
+  const t = await getServerTranslator("actionErrors");
+  badRequest(
+    t(SECRET_REQUIRED_FOR_LOCATION_CHANGE),
+    SECRET_REQUIRED_FOR_LOCATION_CHANGE
+  );
 }
 
 // The stored form of a typed prefix, or the coded 400.
@@ -147,11 +178,21 @@ export async function updateEnvironmentStorage(
   data: EnvironmentStorageUpdate
 ): Promise<SafeS3Connection> {
   const { session } = await requireManage(environmentId);
-  await ownedConnection(environmentId, connectionId);
+  const stored = await ownedConnection(environmentId, connectionId);
+  await refuseRestricted(connectionId);
   const { secretKey, keyPrefix: typedPrefix, ...fields } = data;
   // Omitted = unchanged; sent (also blank or null) = set, blank = none.
   const keyPrefix =
     typedPrefix === undefined ? undefined : await keyPrefixOf(typedPrefix);
+  if (
+    !secretKey &&
+    changesS3Location(stored, {
+      ...fields,
+      ...(keyPrefix === undefined ? {} : { keyPrefix }),
+    })
+  ) {
+    await secretRequiredForLocationChange();
+  }
   const environment = await environmentName(environmentId);
   const [updated] = await db
     .update(s3Connections)
@@ -185,6 +226,8 @@ export async function deleteEnvironmentStorage(
   connectionId: string
 ): Promise<void> {
   const { session } = await requireManage(environmentId);
+  await ownedConnection(environmentId, connectionId);
+  await refuseRestricted(connectionId);
   const environment = await environmentName(environmentId);
   const [deleted] = await db
     .delete(s3Connections)
@@ -219,7 +262,8 @@ export type EnvironmentStorageProbe = {
 /**
  * Probe form values without saving them. In edit mode the secret may be
  * omitted: the stored one is used, but only for a connection of this
- * environment. The probe lists under the prefix, as the explorer will.
+ * environment and only with its stored location (else the coded 400). The
+ * probe lists under the prefix, as the explorer will.
  */
 export async function testEnvironmentStorage(
   environmentId: string,
@@ -227,22 +271,28 @@ export async function testEnvironmentStorage(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   await requireManage(environmentId);
   const keyPrefix = await keyPrefixOf(input.keyPrefix);
+  const location = {
+    endpoint: input.endpoint.trim(),
+    region: input.region.trim(),
+    bucket: input.bucket.trim(),
+    accessKeyId: input.accessKeyId.trim(),
+    forcePathStyle: input.forcePathStyle,
+    keyPrefix,
+  };
   let secretKey = input.secretKey;
   if (input.connectionId !== undefined) {
     const stored = await ownedConnection(environmentId, input.connectionId);
-    if (!secretKey) secretKey = decryptSecret(stored.secretKey);
+    await refuseRestricted(input.connectionId);
+    if (!secretKey) {
+      if (changesS3Location(stored, location)) {
+        await secretRequiredForLocationChange();
+      }
+      secretKey = decryptSecret(stored.secretKey);
+    }
   }
   if (!secretKey) {
     const t = await getServerTranslator("actionErrors");
     return { ok: false, message: t("s3SecretRequiredForTest") };
   }
-  return testS3Connection({
-    endpoint: input.endpoint.trim(),
-    region: input.region.trim(),
-    bucket: input.bucket.trim(),
-    accessKeyId: input.accessKeyId.trim(),
-    secretKey,
-    forcePathStyle: input.forcePathStyle,
-    keyPrefix,
-  });
+  return testS3Connection({ ...location, secretKey });
 }

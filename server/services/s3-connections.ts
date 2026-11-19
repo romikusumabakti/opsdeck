@@ -5,6 +5,7 @@ import { requireOrgGrant, requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
+  environmentArchives,
   environments,
   type NewS3Connection,
   type S3Connection,
@@ -41,6 +42,45 @@ async function requireOrgStorage(perms: OrgPermissions) {
   requireOrgGrant(session, perms);
   return session;
 }
+
+type S3Location = Pick<
+  S3Connection,
+  | "endpoint"
+  | "region"
+  | "bucket"
+  | "keyPrefix"
+  | "accessKeyId"
+  | "forcePathStyle"
+>;
+const LOCATION_FIELDS = [
+  "endpoint",
+  "region",
+  "bucket",
+  "keyPrefix",
+  "accessKeyId",
+  "forcePathStyle",
+] as const satisfies readonly (keyof S3Location)[];
+
+/**
+ * Whether `next` points a connection anywhere its stored secret was not given
+ * for: another endpoint, region, bucket, key prefix, access key or addressing
+ * style (an omitted field is unchanged). Such a change, saved or probed, must
+ * bring its own secret; otherwise whoever may edit the connection could aim
+ * the stored credentials at another bucket, another prefix of the same one,
+ * or a host of their own.
+ */
+export function changesS3Location(
+  stored: S3Location,
+  next: Partial<S3Location>
+): boolean {
+  return LOCATION_FIELDS.some(
+    (field) => next[field] !== undefined && next[field] !== stored[field]
+  );
+}
+
+/** The code (and actionErrors key) of that refusal. */
+export const SECRET_REQUIRED_FOR_LOCATION_CHANGE =
+  "s3SecretRequiredForLocationChange";
 
 /** The client-safe projection of a connection row: no secret. */
 export function toSafeS3Connection(
@@ -117,8 +157,24 @@ export async function updateS3Connection(
   if (!parsed.success) {
     return { success: false, message: t("invalidInput") };
   }
-  // Empty/omitted secretKey means "keep the stored one" — drop it from the set.
+  // Empty/omitted secretKey means "keep the stored one" — drop it from the set
+  // — but only while the location stays the one the secret was given for.
   const patch = { ...parsed.data };
+  if (!patch.secretKey) {
+    const [stored] = await db
+      .select()
+      .from(s3Connections)
+      .where(eq(s3Connections.id, id))
+      .limit(1);
+    if (!stored) return { success: false, message: t("s3NotFound") };
+    if (changesS3Location(stored, patch)) {
+      return {
+        success: false,
+        message: t(SECRET_REQUIRED_FOR_LOCATION_CHANGE),
+        code: SECRET_REQUIRED_FOR_LOCATION_CHANGE,
+      };
+    }
+  }
   if (patch.secretKey) patch.secretKey = encryptSecret(patch.secretKey);
   else delete patch.secretKey;
   try {
@@ -150,7 +206,8 @@ export async function deleteS3Connection(id: string): Promise<ActionResponse> {
 }
 
 // Probe a connection without persisting. In edit mode the secret may be omitted;
-// the stored one is loaded by id — mirrors testServerConnection.
+// the stored one is loaded by id — mirrors testServerConnection — and used
+// only with the stored location (changesS3Location).
 export async function testS3ConnectionAction(input: {
   endpoint: string;
   region: string;
@@ -159,18 +216,33 @@ export async function testS3ConnectionAction(input: {
   secretKey?: string;
   forcePathStyle: boolean;
   connectionId?: string;
-}): Promise<{ ok: true } | { ok: false; message: string }> {
+}): Promise<{ ok: true } | { ok: false; message: string; code?: string }> {
   await requireOrgPermission({ storage: ["manage"] });
   const t = await getServerTranslator("actionErrors");
 
   let secretKey = input.secretKey;
   if (!secretKey && input.connectionId != null) {
     const [row] = await db
-      .select({ secretKey: s3Connections.secretKey })
+      .select()
       .from(s3Connections)
       .where(eq(s3Connections.id, input.connectionId))
       .limit(1);
     if (!row) return { ok: false, message: t("s3NotFound") };
+    if (
+      changesS3Location(row, {
+        endpoint: input.endpoint.trim(),
+        region: input.region.trim(),
+        bucket: input.bucket.trim(),
+        accessKeyId: input.accessKeyId.trim(),
+        forcePathStyle: input.forcePathStyle,
+      })
+    ) {
+      return {
+        ok: false,
+        message: t(SECRET_REQUIRED_FOR_LOCATION_CHANGE),
+        code: SECRET_REQUIRED_FOR_LOCATION_CHANGE,
+      };
+    }
     secretKey = decryptSecret(row.secretKey);
   }
   if (!secretKey) {
@@ -189,6 +261,11 @@ export async function testS3ConnectionAction(input: {
 
 const STORAGE_MANAGE: OrgPermissions = { storage: ["manage"] };
 
+async function conflict(code: string): Promise<CodedHTTPException> {
+  const t = await getServerTranslator("actionErrors");
+  return new CodedHTTPException(409, code, t(code));
+}
+
 /** Admin › Storage: the connections no environment owns. */
 export async function listUnassignedS3Connections(): Promise<
   SafeS3Connection[]
@@ -206,9 +283,13 @@ export async function listUnassignedS3Connections(): Promise<
 }
 
 /**
- * Give a connection to an environment (404 when either is missing). The
- * instance backup destination holds dumps of the Panel database, so it is
- * never handed to an environment (409).
+ * Give an unassigned connection to an environment (404 when either is
+ * missing). Refused with a coded 409: a connection an environment already
+ * owns (`s3ConnectionAlreadyAssigned`), the instance backup destination,
+ * which holds dumps of the Panel database (`s3BackupDestinationNotAssignable`),
+ * and a connection old environment archives still live in
+ * (`s3ConnectionHoldsArchives`): their download and prune resolve it by id,
+ * and an environment's managers could then edit or delete it.
  */
 export async function assignS3Connection(
   connectionId: string,
@@ -221,20 +302,36 @@ export async function assignS3Connection(
     .where(eq(environments.id, environmentId))
     .limit(1);
   if (!environment) notFound();
-  if (await isRestrictedSource({ kind: "s3", connectionId })) {
-    const t = await getServerTranslator("actionErrors");
-    throw new CodedHTTPException(
-      409,
-      "s3BackupDestinationNotAssignable",
-      t("s3BackupDestinationNotAssignable")
-    );
+  const [current] = await db
+    .select({ environmentId: s3Connections.environmentId })
+    .from(s3Connections)
+    .where(eq(s3Connections.id, connectionId))
+    .limit(1);
+  if (!current) notFound();
+  if (current.environmentId !== null) {
+    throw await conflict("s3ConnectionAlreadyAssigned");
   }
+  if (await isRestrictedSource({ kind: "s3", connectionId })) {
+    throw await conflict("s3BackupDestinationNotAssignable");
+  }
+  const [archive] = await db
+    .select({ id: environmentArchives.id })
+    .from(environmentArchives)
+    .where(eq(environmentArchives.s3ConnectionId, connectionId))
+    .limit(1);
+  if (archive) throw await conflict("s3ConnectionHoldsArchives");
+  // Still unassigned: a concurrent assignment is not overwritten.
   const [updated] = await db
     .update(s3Connections)
     .set({ environmentId, updatedAt: new Date() })
-    .where(eq(s3Connections.id, connectionId))
+    .where(
+      and(
+        eq(s3Connections.id, connectionId),
+        isNull(s3Connections.environmentId)
+      )
+    )
     .returning();
-  if (!updated) notFound();
+  if (!updated) throw await conflict("s3ConnectionAlreadyAssigned");
   await recordActivity({
     actorId: session.user.id,
     action: "storage.assigned",

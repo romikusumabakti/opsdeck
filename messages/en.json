@@ -1526,6 +1526,11 @@
     "s3SecretRequiredForTest": "Secret key is required to test the connection",
     "s3KeyPrefixInvalid": "Enter a key prefix of plain folder names separated by \"/\", without \".\" or \"..\" segments, backslashes or encoded characters",
     "s3BackupDestinationNotAssignable": "This connection is the instance backup destination and can’t be given to an environment",
+    "s3SecretRequiredForLocationChange": "Enter the secret key again to change the endpoint, region, bucket, key prefix, access key or path style",
+    "s3BackupDestinationRestricted": "This connection is the instance backup destination; manage it in Admin › Instance",
+    "s3ConnectionAlreadyAssigned": "This connection already belongs to an environment",
+    "s3ConnectionHoldsArchives": "Archives of deleted environments are still stored in this connection, so it stays unassigned until they expire",
+    "unsupportedObjectName": "This object name isn’t supported: it contains an encoded or look-alike “/”, “\\” or dot segment",
     "jiraCreated": "Jira site added",
     "jiraCreateFailed": "Failed to add Jira site",
     "jiraNotFound": "Jira site not found",
@@ -3552,6 +3557,7 @@
     "errors": {
       "backupAlreadyRunning": "A backup is already running.",
       "backupDestinationNotFound": "That S3 connection no longer exists.",
+      "backupDestinationEnvironmentOwned": "Environment storage can’t be the backup destination. Choose an unassigned connection.",
       "backupScheduleFailed": "The settings were saved, but the schedule could not be updated. It is set again when the Panel restarts."
     },
     "errorCodes": {

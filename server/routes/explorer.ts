@@ -9,7 +9,14 @@ import {
   type Tree,
   TreeTooLargeError,
 } from "@/lib/explorer/ops";
-import { basename, dirname, joinPath, PathError } from "@/lib/explorer/path";
+import {
+  basename,
+  dirname,
+  joinPath,
+  PathError,
+  UNSUPPORTED_OBJECT_NAME,
+  UnsafeKeyError,
+} from "@/lib/explorer/path";
 import { authorizeExplorerSource } from "@/lib/restricted-targets";
 import {
   explorerEolSchema,
@@ -19,6 +26,7 @@ import {
   explorerSourceSchema,
   MAX_EDITABLE_BYTES,
 } from "@/lib/validation";
+import { getServerTranslator } from "@/server/i18n";
 import { sessionRouter } from "@/server/router";
 import {
   compressEntries,
@@ -47,6 +55,17 @@ const name = z.string().max(1024);
 // message; this is a ceiling on what is parsed at all. UTF-16 length never
 // exceeds the byte count, so nothing the service would accept is refused.
 const content = z.string().max(MAX_EDITABLE_BYTES);
+// A key refused as an unsupported object name (lib/explorer/path
+// UnsafeKeyError): the API's coded `{ error, code }` 400, so the explorer can
+// word it.
+async function unsupportedName(): Promise<Response> {
+  const t = await getServerTranslator("actionErrors");
+  return Response.json(
+    { error: t(UNSUPPORTED_OBJECT_NAME), code: UNSUPPORTED_OBJECT_NAME },
+    { status: 400 }
+  );
+}
+
 const entryQuery = jsonQuery(z.object({ source, path: path.optional() }));
 
 export const explorerRouter = sessionRouter()
@@ -173,6 +192,7 @@ export const explorerRouter = sessionRouter()
       if (error instanceof MissingEntryError) {
         return new Response("Not found", { status: 404 });
       }
+      if (error instanceof UnsafeKeyError) return unsupportedName();
       if (error instanceof PathError) {
         return new Response("Invalid path", { status: 400 });
       }
@@ -241,6 +261,7 @@ export const explorerRouter = sessionRouter()
         },
       });
     } catch (error) {
+      if (error instanceof UnsafeKeyError) return unsupportedName();
       if (error instanceof PathError) {
         return new Response("Invalid path", { status: 400 });
       }
@@ -293,6 +314,7 @@ export const explorerRouter = sessionRouter()
       // can re-read the body after the first attempt consumed it.
       await backend.writeStream(dest, Readable.fromWeb(file.stream() as never));
     } catch (error) {
+      if (error instanceof UnsafeKeyError) return unsupportedName();
       if (error instanceof PathError) {
         return new Response("Invalid path", { status: 400 });
       }

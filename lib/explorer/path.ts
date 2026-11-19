@@ -9,6 +9,15 @@ import { normalizeKeyPrefix, unsafeKeySegment } from "@/lib/validation";
 
 export class PathError extends Error {}
 
+// A key refused only because a segment would become a separator or a dot
+// segment after decoding or NFKC folding (lib/validation#unsafeKeySegment):
+// an object name the explorer does not support, worded apart from a plain
+// traversal attempt.
+export class UnsafeKeyError extends PathError {}
+
+/** The stable code (and actionErrors key) of an UnsafeKeyError refusal. */
+export const UNSUPPORTED_OBJECT_NAME = "unsupportedObjectName";
+
 // Normalize an S3 object key or prefix. S3 has no real directories — keys are
 // opaque strings — but `..` and absolute paths are still rejected so a tampered
 // client can't probe outside the intended prefix layout or emit surprising
@@ -27,7 +36,7 @@ export function normalizeS3Key(input: string, allowDir = false): string {
     throw new PathError("Path must not contain '..'");
   }
   if (segments.some(unsafeKeySegment)) {
-    throw new PathError("Path contains an unsafe segment");
+    throw new UnsafeKeyError("Path contains an unsupported object name");
   }
   const key = segments.join("/");
   if (!allowDir && input.endsWith("/")) {

@@ -138,6 +138,8 @@ export async function getInstanceBackups(): Promise<InstanceBackupsPage> {
         bucket: s3Connections.bucket,
       })
       .from(s3Connections)
+      // Only unassigned connections can be the destination (see save).
+      .where(isNull(s3Connections.environmentId))
       .orderBy(s3Connections.name),
   ]);
   return {
@@ -162,11 +164,17 @@ export async function saveInstanceBackupSettings(
   await requireInstanceManage();
   if (input.destinationId) {
     const [found] = await db
-      .select({ id: s3Connections.id })
+      .select({ environmentId: s3Connections.environmentId })
       .from(s3Connections)
       .where(eq(s3Connections.id, input.destinationId))
       .limit(1);
     if (!found) throw await coded(400, "backupDestinationNotFound");
+    // An environment's bucket is its managers' to browse and edit, so dumps
+    // of the Panel database never go there (until Task 3 gives the backup
+    // destination its own credentials).
+    if (found.environmentId) {
+      throw await coded(400, "backupDestinationEnvironmentOwned");
+    }
   }
   await db
     .update(instanceSettings)

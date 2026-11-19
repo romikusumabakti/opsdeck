@@ -316,14 +316,19 @@ describe("file explorer on restricted targets", () => {
     expect(resolved.sources).toEqual([]);
   });
 
-  it("lets QA browse but not change an environment's bucket", async () => {
+  it("opens an environment's bucket to engineers only, not to QA", async () => {
     as("qa", "p1");
-    expect(
-      await listEntries({ kind: "s3", connectionId: BUCKET_ID }, "")
-    ).toEqual({ success: true, data: [] });
+    await expect(
+      listEntries({ kind: "s3", connectionId: BUCKET_ID }, "")
+    ).rejects.toBeInstanceOf(ForbiddenError);
     await expect(
       deleteEntry({ kind: "s3", connectionId: BUCKET_ID }, "a.txt")
     ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(resolved.sources).toEqual([]);
+    as("engineer", "p1");
+    expect(
+      await deleteEntry({ kind: "s3", connectionId: BUCKET_ID }, "a.txt")
+    ).toMatchObject({ success: false });
     expect(resolved.sources).toHaveLength(1);
   });
 

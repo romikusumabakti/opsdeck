@@ -89,6 +89,8 @@ const { app } = await import("@/server/app");
 const { secretsKeyFingerprint } = await import(
   "@/lib/instance-backup/manifest"
 );
+// The environment an env-owned connection belongs to.
+const ENV_ID = "0196a000-0000-7000-8000-0000000000e1";
 const { instanceBackups, instanceSettings, s3Connections } = await import(
   "@/lib/db/schema"
 );
@@ -241,6 +243,19 @@ describe("PUT /api/instance/backups/settings", () => {
       destinationId: null,
     });
     expect(res.status).toBe(200);
+  });
+
+  it("refuses an environment's connection as the destination", async () => {
+    state.results[`select:${T.connections}`] = [{ environmentId: ENV_ID }];
+    const res = await send(
+      "PUT",
+      "/api/instance/backups/settings",
+      validSettings
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: "backupDestinationEnvironmentOwned",
+    });
   });
 
   it("refuses a destination that does not exist", async () => {

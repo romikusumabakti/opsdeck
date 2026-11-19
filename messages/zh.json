@@ -1526,6 +1526,11 @@
     "s3SecretRequiredForTest": "测试连接需要密钥",
     "s3KeyPrefixInvalid": "请输入由 \"/\" 分隔的普通文件夹名组成的键前缀，不能包含 \".\" 或 \"..\" 段、反斜杠或编码字符",
     "s3BackupDestinationNotAssignable": "此连接是实例备份目标，不能分配给环境",
+    "s3SecretRequiredForLocationChange": "更改端点、区域、存储桶、键前缀、访问密钥或路径样式时需要重新输入密钥",
+    "s3BackupDestinationRestricted": "此连接是实例备份目标，请在 管理 › 实例 中管理",
+    "s3ConnectionAlreadyAssigned": "此连接已属于某个环境",
+    "s3ConnectionHoldsArchives": "此连接中仍存有已删除环境的归档，在其过期前保持未分配",
+    "unsupportedObjectName": "不支持此对象名称：其中包含经过编码或形似的“/”、“\\”或点段",
     "jiraCreated": "已添加 Jira 站点",
     "jiraCreateFailed": "添加 Jira 站点失败",
     "jiraNotFound": "未找到 Jira 站点",
@@ -3552,6 +3557,7 @@
     "errors": {
       "backupAlreadyRunning": "已有备份正在进行。",
       "backupDestinationNotFound": "该 S3 连接已不存在。",
+      "backupDestinationEnvironmentOwned": "环境的存储不能作为备份目标。请选择未分配的连接。",
       "backupScheduleFailed": "设置已保存，但无法更新计划。Panel 重启时会重新设置。"
     },
     "errorCodes": {
