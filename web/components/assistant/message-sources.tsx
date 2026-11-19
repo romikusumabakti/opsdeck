@@ -25,6 +25,7 @@ const PANEL_READ_LABELS = {
   get_environment_status: "panelGetEnvironmentStatus",
   list_deploys: "panelListDeploys",
   get_deploy: "panelGetDeploy",
+  get_service_logs: "panelGetServiceLogs",
   list_builds: "panelListBuilds",
   list_people: "panelListPeople",
   list_servers: "panelListServers",

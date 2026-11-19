@@ -1,3 +1,4 @@
+import type { LanguageModelUsage } from "ai";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { assistantUsage } from "@/lib/db/schema";
@@ -109,4 +110,19 @@ export async function spentTodayUsd(
       )
     );
   return Number(row?.total ?? 0);
+}
+
+/**
+ * The tokens a step reports, split the way they are billed, or null when the
+ * provider reported none.
+ */
+export function reportedUsage(usage: LanguageModelUsage): TokenUsage | null {
+  if (usage.inputTokens == null && usage.outputTokens == null) return null;
+  const details = usage.inputTokenDetails;
+  const cacheRead = details?.cacheReadTokens ?? 0;
+  const cacheWrite = details?.cacheWriteTokens ?? 0;
+  const input =
+    details?.noCacheTokens ??
+    Math.max(0, (usage.inputTokens ?? 0) - cacheRead - cacheWrite);
+  return { input, cacheRead, cacheWrite, output: usage.outputTokens ?? 0 };
 }

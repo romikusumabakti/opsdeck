@@ -132,7 +132,12 @@ export async function getServiceLogsFor(
       cfg.server,
       { follow: false, sinceSeconds: options.sinceSeconds }
     ),
-    { timeoutMs: LOGS_TIMEOUT_MS }
+    // In sudo-password mode the command embeds the password: kept out of a
+    // failure's logged output.
+    {
+      timeoutMs: LOGS_TIMEOUT_MS,
+      secrets: cfg.server.password ? [cfg.server.password] : [],
+    }
   );
   return { found: true, output };
 }

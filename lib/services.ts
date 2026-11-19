@@ -431,7 +431,9 @@ export function buildLogsCommand(
   // `-f` follows the unit. `-n` seeds the initial tail. journalctl reads no
   // stdin so it doesn't conflict with sudo -S consuming the password (in
   // sudo-password mode; otherwise nothing is piped).
-  const sinceFlag = since ? ` --since ${shq(`-${since}s`)}` : "";
+  // `--since=-1800s`: one argument, so the leading "-" can't read as an
+  // option; systemd.time(7) takes a "-"-prefixed span as now minus it.
+  const sinceFlag = since ? ` --since=${shq(`-${since}s`)}` : "";
   const journal = `journalctl -u ${shq(serviceName)} -n ${lines}${sinceFlag}${follow ? " -f" : ""} --no-pager --output=short-iso 2>&1`;
   return `sh -c ${shq(privileged(journal, server))}`;
 }

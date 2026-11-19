@@ -859,6 +859,10 @@ describe("sources", () => {
         meta: { project: "DEMO", environment: "DEMO/dev", checked: true },
       },
       { tool: "list_servers", meta: {} },
+      {
+        tool: "get_service_logs",
+        meta: { project: "DEMO", environment: "DEMO/dev", withheld: 2 },
+      },
       // Issue keys are listed under Issues, not twice.
       { tool: "get_panel_issue", meta: { issueKeys: ["DEMO-1"] } },
     ];
@@ -866,13 +870,16 @@ describe("sources", () => {
       { tool: "list_environments", subject: "DEMO" },
       { tool: "get_environment_status", subject: "DEMO/dev" },
       { tool: "list_servers", subject: null },
+      { tool: "get_service_logs", subject: "DEMO/dev" },
     ]);
+    expect(summarizeReads(calls).withheld).toBe(2);
     await render(<MessageSources sources={null} toolCalls={calls} />);
     await act(async () => button(t.sources)?.click());
     expect(text()).toContain(t.panelRead);
     expect(text()).toContain(`${t.panelGetEnvironmentStatus} · DEMO/dev`);
     expect(text()).toContain(`${t.panelListEnvironments} · DEMO`);
     expect(text()).toContain(t.panelListServers);
+    expect(text()).toContain(`${t.panelGetServiceLogs} · DEMO/dev`);
     expect(text()).toContain("DEMO-1");
   });
 });
@@ -3699,6 +3706,19 @@ describe("context picker", () => {
       const keys = invalidate.mock.calls.map((c) => c[0]?.queryKey);
       expect(keys).toContainEqual(["assistant", "getConversation", [CONV_ID]]);
       expect(keys).toContainEqual(["assistant", "getAllowance"]);
+    });
+
+    it("a question stored with spaces around it, edited only in those spaces, has nothing to send", async () => {
+      await renderWorkspace({ conversationId: CONV_ID }, [
+        ...thread.slice(0, 2),
+        { ...userMessage("u2", null), content: "  Kedua  " },
+        { ...answer, id: "a2" },
+      ]);
+      await act(async () => editButtons()[0]?.click());
+      await typeEdit("Kedua");
+      expect(saveEdit()?.disabled).toBe(true);
+      await typeEdit("Kedua!");
+      expect(saveEdit()?.disabled).toBe(false);
     });
 
     it("stops a running answer first, then resends", async () => {

@@ -31,6 +31,7 @@ import {
   getAllServiceStatusesFor,
   getServiceLogsFor,
 } from "@/server/services/services";
+import { redactPii } from "../pii-filter";
 import { REDACTED_LINE, redactSecretLines } from "../secret-filter";
 import type { AssistantViewer, ProjectEntry } from "../viewer";
 import type { ToolMeta, ToolResult } from "./code";
@@ -255,7 +256,7 @@ const ALWAYS = {
     inputSchema: z.strictObject({ environment: environmentArg }),
   },
   get_service_logs: {
-    description: `The last lines of one running service's logs (docker, kubectl or journalctl, as the Logs page shows them; at most ${SERVICE_LOG_LINES} lines, ${MAX_SERVICE_LOG_BYTES / 1024} KiB), optionally only the recent ones. Needs the Logs page's permission on that environment; a shared database container's logs are limited as on the Logs page. Lines holding credentials are redacted. Use it to see why a service fails at runtime; the deploy's own log is get_deploy.`,
+    description: `The last lines of one running service's logs (docker, kubectl or journalctl, as the Logs page shows them; at most ${SERVICE_LOG_LINES} lines, ${MAX_SERVICE_LOG_BYTES / 1024} KiB), optionally only the recent ones. Needs the Logs page's permission on that environment; a shared database container's logs are limited as on the Logs page. Lines holding credentials are redacted, and personal identifiers (emails, NIK, NPWP, phone and card numbers) are replaced by [redacted …] markers. Use it to see why a service fails at runtime; the deploy's own log is get_deploy.`,
     inputSchema: z.strictObject({
       environment: environmentArg,
       role: z
@@ -837,7 +838,11 @@ export function parseLogSince(raw: string): number | null {
   return seconds >= 1 && seconds <= MAX_LOG_SINCE_SECONDS ? seconds : null;
 }
 
-/** The last `lines` lines of a service log: no ANSI, secrets redacted, byte-capped. */
+/**
+ * The last `lines` lines of a service log: no ANSI, secrets redacted, then
+ * personal identifiers (emails, NIK, NPWP, phone and card numbers), then
+ * byte-capped. `redacted` counts both.
+ */
 export function serviceLogTail(
   output: string,
   lines: number
@@ -848,7 +853,9 @@ export function serviceLogTail(
   const filtered = redactSecretLines(clean.replace(/\n+$/, ""));
   const all = filtered.text.split("\n");
   const tail = all.slice(-lines);
-  const joined = tail.join("\n");
+  // Before the byte cut, so it never splits a value it would have caught.
+  const pii = redactPii(tail.join("\n"));
+  const joined = pii.text;
   const bytes = Buffer.from(joined, "utf8");
   const tooLong = bytes.byteLength > MAX_SERVICE_LOG_BYTES;
   const log = tooLong
@@ -859,7 +866,8 @@ export function serviceLogTail(
   return {
     log,
     truncated: all.length > tail.length || tooLong,
-    redacted: tail.filter((line) => line === REDACTED_LINE).length,
+    redacted:
+      tail.filter((line) => line === REDACTED_LINE).length + pii.redacted,
   };
 }
 

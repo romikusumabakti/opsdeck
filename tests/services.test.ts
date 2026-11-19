@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildControlCommand,
@@ -259,8 +263,70 @@ describe("buildLogsCommand (non-follow)", () => {
       `sh -c ${shq("kubectl logs deploy/'app' --tail=50 --timestamps --since='1800s' 2>&1")}`
     );
     expect(buildLogsCommand("systemd", "app", 50, rootServer, opts)).toBe(
-      `sh -c ${shq("journalctl -u 'app' -n 50 --since '-1800s' --no-pager --output=short-iso 2>&1")}`
+      `sh -c ${shq("journalctl -u 'app' -n 50 --since='-1800s' --no-pager --output=short-iso 2>&1")}`
     );
+  });
+
+  // What each backend's binary receives after the remote shell has parsed
+  // the command: stubs on PATH print their argv, one argument per line.
+  // Flag syntax checked against the upstream docs (2026-11): `docker logs
+  // --since` takes a Go duration or a timestamp, `kubectl logs --since` a
+  // relative duration like 5s, journalctl `--since` a systemd.time(7)
+  // timestamp, where `-<span>` means now minus the span. Not run against a
+  // live docker, kubectl or journalctl.
+  it("hands each backend the exact argv, --since included", () => {
+    const bin = mkdtempSync(join(tmpdir(), "menara-logs-argv-"));
+    try {
+      for (const name of ["docker", "kubectl", "journalctl"]) {
+        const path = join(bin, name);
+        writeFileSync(path, `#!/bin/sh\nprintf '%s\\n' "${name}" "$@"\n`);
+        chmodSync(path, 0o755);
+      }
+      const argv = (command: string) =>
+        execFileSync("sh", ["-c", command], {
+          encoding: "utf8",
+          env: { PATH: `${bin}:/usr/bin:/bin` },
+        })
+          .trimEnd()
+          .split("\n");
+      const opts = { follow: false, sinceSeconds: 3600 } as const;
+      expect(
+        argv(buildLogsCommand("docker", "acme-api", 50, keyServer, opts))
+      ).toEqual([
+        "docker",
+        "logs",
+        "--tail",
+        "50",
+        "--timestamps",
+        "--since",
+        "3600s",
+        "acme-api",
+      ]);
+      expect(
+        argv(buildLogsCommand("kubernetes", "acme-api", 50, keyServer, opts))
+      ).toEqual([
+        "kubectl",
+        "logs",
+        "deploy/acme-api",
+        "--tail=50",
+        "--timestamps",
+        "--since=3600s",
+      ]);
+      expect(
+        argv(buildLogsCommand("systemd", "acme-api", 50, rootServer, opts))
+      ).toEqual([
+        "journalctl",
+        "-u",
+        "acme-api",
+        "-n",
+        "50",
+        "--since=-3600s",
+        "--no-pager",
+        "--output=short-iso",
+      ]);
+    } finally {
+      rmSync(bin, { recursive: true, force: true });
+    }
   });
 
   it("quotes a hostile service name", () => {

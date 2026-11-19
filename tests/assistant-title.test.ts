@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +29,8 @@ vi.mock("@/lib/assistant/conversation-store", () => ({
   }),
 }));
 
-vi.mock("@/lib/assistant/usage", () => ({
+vi.mock("@/lib/assistant/usage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/assistant/usage")>()),
   recordUsage: vi.fn(async (row: Record<string, unknown>) => {
     state.usage.push(row);
     return 0;
@@ -186,5 +188,13 @@ describe("cleanTitle", () => {
     expect(cleanTitle("服务器状态检查")).toBe("服务器状态检查");
     expect(cleanTitle("   ")).toBeNull();
     expect(Array.from(cleanTitle("x".repeat(200)) ?? "")).toHaveLength(80);
+  });
+});
+
+describe("module graph", () => {
+  it("title.ts does not import run-turn.ts, which imports it (no cycle)", () => {
+    expect(readFileSync("lib/assistant/title.ts", "utf8")).not.toMatch(
+      /from "\.\/run-turn"/
+    );
   });
 });

@@ -38,6 +38,7 @@ function CommandDialog({
   className,
   showCloseButton = false,
   shouldFilter,
+  filter,
   ...props
 }: Omit<React.ComponentProps<typeof Dialog>, "children"> & {
   title?: string
@@ -47,6 +48,8 @@ function CommandDialog({
   // Forwarded to the inner cmdk Command — set false when results are filtered
   // server-side (e.g. async full-text search) so cmdk doesn't re-filter them.
   shouldFilter?: boolean
+  // Forwarded to the inner cmdk Command: a custom score per item.
+  filter?: React.ComponentProps<typeof CommandPrimitive>["filter"]
   children: React.ReactNode
 }) {
   return (
@@ -62,7 +65,9 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        <Command shouldFilter={shouldFilter}>{children}</Command>
+        <Command shouldFilter={shouldFilter} filter={filter}>
+          {children}
+        </Command>
       </DialogContent>
     </Dialog>
   )

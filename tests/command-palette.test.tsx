@@ -152,6 +152,63 @@ describe("command palette chats", () => {
     expect(visible).toContain("Chat 11");
   });
 
+  const type = async (value: string) => {
+    const input = document.querySelector<HTMLInputElement>("[cmdk-input]");
+    if (!input) throw new Error("no input");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await settle();
+  };
+
+  it("matches chats by title only, never by their id or the word chat", async () => {
+    chats.fetch.mockResolvedValue({
+      pinned: [],
+      recent: [
+        chat("0197f3a0-1b2c-7def-8000-0123456789c1", "Deploy checklist"),
+        chat("0197f3a0-1b2c-7def-8000-0123456789c2", "Login flow"),
+      ],
+    });
+    await openPalette("engineer", "engineer", true);
+    await settle();
+    await type("0197f3a0");
+    expect(chatItems()?.length ?? 0).toBe(0);
+    await type("chat");
+    expect(chatItems()?.length ?? 0).toBe(0);
+    await type("login");
+    expect([...(chatItems() ?? [])].map((el) => el.textContent)).toEqual([
+      "Login flow",
+    ]);
+  });
+
+  it("Ctrl+K closes it and forgets the search, like every other close", async () => {
+    chats.fetch.mockResolvedValue({ pinned: [], recent: [] });
+    await openPalette("engineer", "engineer", true);
+    await type("deploy");
+    const toggle = () =>
+      act(async () => {
+        document.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "k",
+            ctrlKey: true,
+            bubbles: true,
+          })
+        );
+      });
+    await toggle();
+    await settle();
+    expect(document.querySelector("[cmdk-input]")).toBeNull();
+    await toggle();
+    await settle();
+    expect(
+      document.querySelector<HTMLInputElement>("[cmdk-input]")?.value
+    ).toBe("");
+  });
+
   it("loads no chats while the assistant is off", async () => {
     await openPalette("engineer", "engineer", false);
     await settle();

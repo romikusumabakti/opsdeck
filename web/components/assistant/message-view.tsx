@@ -96,8 +96,9 @@ const hardenTextOnly: Pluggable = [
   { ...hardenOptions, linkBlockPolicy: "text-only" },
 ];
 
-// Streamdown's rehype chain without `raw`: HTML inside an answer is never
-// parsed into elements (it shows as the literal text the model wrote).
+// Streamdown's rehype chain without `raw`, and `skipHtml` on the renderer:
+// HTML inside an answer is never parsed into elements; it is dropped from
+// the output (not shown as text).
 const ANSWER_REHYPE_PLUGINS: Pluggable[] = [
   defaultRehypePlugins.sanitize,
   defaultRehypePlugins.undoubleClobberPrefix,
@@ -227,7 +228,8 @@ function QuestionEditor({
     el.setSelectionRange(el.value.length, el.value.length);
   }, []);
   const text = value.trim();
-  const canSend = !disabled && !saving && text !== "" && text !== initial;
+  const canSend =
+    !disabled && !saving && text !== "" && text !== initial.trim();
   const submit = async () => {
     if (!canSend) return;
     setSaving(true);

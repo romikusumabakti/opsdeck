@@ -17,7 +17,7 @@ import {
 import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import { type AssistantRuntime, loadAssistantRuntime } from "./client";
 import type { UploadSummary } from "./file-store";
-import { CHARS_PER_TOKEN, estimateUsage, type TokenUsage } from "./pricing";
+import { CHARS_PER_TOKEN, estimateUsage } from "./pricing";
 import { resolveProjectSources as defaultResolveProjectSources } from "./project-sources";
 import {
   cacheControlFor,
@@ -61,7 +61,7 @@ import {
   saveSources,
   type TurnContext,
 } from "./turn-store";
-import { recordUsage, spentTodayUsd } from "./usage";
+import { recordUsage, reportedUsage, spentTodayUsd } from "./usage";
 import {
   type AssistantViewer,
   loadAssistantViewer,
@@ -757,21 +757,6 @@ export function mergeProviderOptions(
     merged[provider] = { ...merged[provider], ...options };
   }
   return merged;
-}
-
-/**
- * The tokens a step reports, split the way they are billed, or null when the
- * provider reported none.
- */
-export function reportedUsage(usage: LanguageModelUsage): TokenUsage | null {
-  if (usage.inputTokens == null && usage.outputTokens == null) return null;
-  const details = usage.inputTokenDetails;
-  const cacheRead = details?.cacheReadTokens ?? 0;
-  const cacheWrite = details?.cacheWriteTokens ?? 0;
-  const input =
-    details?.noCacheTokens ??
-    Math.max(0, (usage.inputTokens ?? 0) - cacheRead - cacheWrite);
-  return { input, cacheRead, cacheWrite, output: usage.outputTokens ?? 0 };
 }
 
 /** Characters a step produced: answer, reasoning and tool inputs. */

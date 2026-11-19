@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { defaultFilter } from "cmdk";
 import {
   Activity,
   Ban,
@@ -82,6 +83,26 @@ import {
 // Chats shown before anything is typed; a search matches every chat.
 const IDLE_CHATS = 5;
 
+/** A chat entry's cmdk value: unique, never what is matched. */
+const CHAT_PREFIX = "chat:";
+const chatValue = (id: string) => `${CHAT_PREFIX}${id}`;
+
+/**
+ * cmdk's own score, except that a chat matches by its title (its keywords)
+ * alone: its value only keeps entries apart, so typing "chat" or part of an
+ * id finds nothing.
+ */
+export function paletteFilter(
+  value: string,
+  search: string,
+  keywords?: string[]
+): number {
+  if (value.startsWith(CHAT_PREFIX)) {
+    return defaultFilter((keywords ?? []).join(" "), search);
+  }
+  return defaultFilter(value, search, keywords);
+}
+
 /**
  * The caller's own chats (the list is per user; temporary ones never come)
  * by title: pinned first, then the newest. Until something is typed only
@@ -108,8 +129,9 @@ function ChatEntries({
         {shown.map((c) => (
           <CommandItem
             key={c.id}
-            // Unique (titles may repeat); the title is what is matched.
-            value={`chat ${c.id}`}
+            // Unique (titles may repeat); the title is what is matched
+            // (paletteFilter).
+            value={chatValue(c.id)}
             keywords={[c.title || tAssistant("untitled")]}
             onSelect={() => onOpen(c.id)}
           >
@@ -176,22 +198,28 @@ export function CommandPalette({
     [projects, environments]
   );
 
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setOpen((prev) => !prev);
-      }
-    };
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, []);
-
   // Closing forgets what was typed: the next open starts afresh.
   function close() {
     setOpen(false);
     setSearch("");
   }
+
+  // The shortcut toggles; closing forgets the search, as close() does.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (open) {
+          setOpen(false);
+          setSearch("");
+        } else {
+          setOpen(true);
+        }
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, [open]);
 
   function run(fn: () => void) {
     close();
@@ -242,6 +270,7 @@ export function CommandPalette({
       <CommandDialog
         open={open}
         onOpenChange={(next) => (next ? setOpen(true) : close())}
+        filter={paletteFilter}
         title={t("title")}
         description={t("description")}
       >

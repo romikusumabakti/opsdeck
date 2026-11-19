@@ -280,7 +280,7 @@ export async function setConversationPinned(
     .limit(1);
   if (!row) return "not_found";
   if (row.temporary) return "temporary";
-  await db
+  const updated = await db
     .update(assistantConversations)
     .set({
       pinnedAt: pinned
@@ -293,8 +293,10 @@ export async function setConversationPinned(
         eq(assistantConversations.userId, userId),
         eq(assistantConversations.temporary, false)
       )
-    );
-  return "ok";
+    )
+    .returning({ id: assistantConversations.id });
+  // Deleted (or pruned) between the check and the write.
+  return updated.length > 0 ? "ok" : "not_found";
 }
 
 export type ConversationOwner = {
@@ -834,8 +836,10 @@ export async function replaceLastAnswer(
  * files. "not_found" for another user's or an unknown chat, "busy" while the
  * last answer is queued or streaming, "nothing_to_edit" before any question;
  * nothing written in each case. The old answer goes (its tool calls with it,
- * its usage rows stay with message_id null). An only question still titled
- * from it gets the title of its new text.
+ * its usage rows stay with message_id null). An only question titled from
+ * it, or by the auto title made from it, gets the title of its new text (and
+ * the auto title runs again after the new answer); a title the user gave
+ * stays.
  */
 export async function editLastQuestion(
   userId: string,
@@ -898,8 +902,8 @@ export async function editLastQuestion(
       .update(assistantConversations)
       .set({
         updatedAt: now,
-        ...(onlyQuestion && conversation.titleSource === "first_message"
-          ? { title: titleFrom(text) }
+        ...(onlyQuestion && conversation.titleSource !== "user"
+          ? { title: titleFrom(text), titleSource: "first_message" }
           : {}),
       })
       .where(eq(assistantConversations.id, conversationId));

@@ -28,11 +28,10 @@ import {
   mergeProviderOptions,
   outputCharsOf,
   promptCharsOf,
-  reportedUsage,
   TurnError,
 } from "./run-turn";
 import { GENERIC_ORGANISATION } from "./system-prompt";
-import { recordUsage } from "./usage";
+import { recordUsage, reportedUsage } from "./usage";
 
 /**
  * Drafts: a BRD section or a Jira ticket written from an assistant

@@ -59,6 +59,19 @@ What the design defends against:
   (`script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none';
   frame-ancestors 'none'`). Inline scripts don't run, so the theme script is
   a static file (`public/theme-init.js`) and the client runs Zod without JIT.
+- **The Assistant reading more than it should.** Its tools act with the
+  user's own permissions, read-only. Database queries are off by default and
+  turned on per environment by an admin or infra; each enabled environment
+  gets its own login that can only `SELECT` from that environment's database
+  (never the admin account), dropped again when access is turned off, the
+  environment is torn down, or refused removal while it exists. Queries pass
+  a SQL parser that accepts one `SELECT` only, run read-only with a 10 s
+  timeout and a row cap, and are logged with their literals replaced by `?`.
+  Tool results (code, logs, query rows) are sent to the configured model
+  provider: credentials are filtered out, columns named like personal data
+  are masked, and log lines have emails, NIK, NPWP, phone and card numbers
+  replaced, all best effort. Don't enable database access on an environment
+  with real participant data.
 
 What it does not defend against:
 

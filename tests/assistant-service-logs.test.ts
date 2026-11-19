@@ -95,6 +95,11 @@ describe("getServiceLogsFor", () => {
     expect(command).toContain("docker logs --tail 50 --timestamps --since");
     expect(command).toContain("1800s");
     expect(command).not.toContain("--follow");
+    // The server password (embedded in sudo-password mode) is kept out of
+    // a failure's logged output.
+    expect(ssh.executeRemoteCommand.mock.calls[0]?.[2]).toMatchObject({
+      secrets: ["pw"],
+    });
   });
 
   it("refuses staff, who see no project", async () => {

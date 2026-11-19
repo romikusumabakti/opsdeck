@@ -1157,6 +1157,41 @@ describe.skipIf(!enabled)(
         ).title
       ).toBe("Iuran");
 
+      // An only question with its auto title: the title follows the edit
+      // and goes back to first_message, so the new answer is titled again.
+      // A title the user gave an only question stays.
+      const titled = await store.insertConversation({ userId: user.id });
+      const only = await store.insertTurn({
+        conversationId: titled,
+        text: "Kapan iuran jatuh tempo?",
+        attachmentIds: [],
+        context: { kind: "auto" },
+      });
+      if (typeof only === "string") throw new Error(only);
+      await client`update assistant_messages set status = 'done', content = 'Tanggal 10.' where id = ${only.assistantMessageId}`;
+      await client`update assistant_conversations set title = 'Jatuh tempo iuran', title_source = 'generated' where id = ${titled}`;
+      const retitled = await store.editLastQuestion(
+        user.id,
+        titled,
+        "Kapan iuran tambahan jatuh tempo?"
+      );
+      if (typeof retitled === "string") throw new Error(retitled);
+      expect(
+        await client`select title, title_source from assistant_conversations where id = ${titled}`
+      ).toEqual([
+        {
+          title: "Kapan iuran tambahan jatuh tempo?",
+          title_source: "first_message",
+        },
+      ]);
+      await client`update assistant_messages set status = 'done', content = 'Tanggal 15.' where id = ${retitled.assistantMessageId}`;
+      await store.updateConversationTitle(titled, "Tempo");
+      const kept = await store.editLastQuestion(user.id, titled, "Lagi?");
+      if (typeof kept === "string") throw new Error(kept);
+      expect(
+        await client`select title, title_source from assistant_conversations where id = ${titled}`
+      ).toEqual([{ title: "Tempo", title_source: "user" }]);
+
       // No question yet: nothing to edit.
       const empty = await store.insertConversation({ userId: user.id });
       expect(await store.editLastQuestion(user.id, empty, "Hai")).toBe(
