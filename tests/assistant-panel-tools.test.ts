@@ -80,6 +80,7 @@ function fakeCores(envs: EnvironmentListItem[]): Fakes {
       { role: "backend", state: "running", raw: "Up 3 days" },
     ]),
     getDeployLockState: vi.fn(async () => ({ lock: null, heldCount: 0 })),
+    getServiceLogs: vi.fn(async () => ({ found: true, output: "" })),
     getEnvironmentKpis: vi.fn(async () => ({
       lastBackup: null,
       lastRestore: null,

@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from "node:util";
 import { type FlexibleSchema, jsonSchema } from "ai";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -26,7 +27,10 @@ import {
   type KpiEntry,
 } from "@/server/services/runs";
 import { getServerFor, getServersFor } from "@/server/services/servers";
-import { getAllServiceStatusesFor } from "@/server/services/services";
+import {
+  getAllServiceStatusesFor,
+  getServiceLogsFor,
+} from "@/server/services/services";
 import { REDACTED_LINE, redactSecretLines } from "../secret-filter";
 import type { AssistantViewer, ProjectEntry } from "../viewer";
 import type { ToolMeta, ToolResult } from "./code";
@@ -57,6 +61,11 @@ export const ACTIVITY_LIMIT = 50;
 export const DEFAULT_ACTIVITY_LIMIT = 20;
 export const DEPLOY_LOG_LINES = 200;
 export const MAX_DEPLOY_LOG_BYTES = 32 * 1024;
+export const SERVICE_LOG_LINES = 200;
+export const DEFAULT_SERVICE_LOG_LINES = 100;
+export const MAX_SERVICE_LOG_BYTES = 32 * 1024;
+/** The longest `since` the tool takes (7 days). */
+export const MAX_LOG_SINCE_SECONDS = 7 * 24 * 3600;
 export const MAX_ISSUE_DESCRIPTION_BYTES = 16 * 1024;
 export const MAX_ISSUE_COMMENTS = 50;
 export const MAX_ISSUE_COMMENT_BYTES = 4 * 1024;
@@ -68,6 +77,7 @@ export type PanelCores = {
   getEnvironmentRunning: typeof getEnvironmentRunningFor;
   getServiceStatuses: typeof getAllServiceStatusesFor;
   getDeployLockState: typeof getDeployLockStateFor;
+  getServiceLogs: typeof getServiceLogsFor;
   getEnvironmentKpis: typeof getEnvironmentKpisFor;
   listDeployTargets: typeof listDeployTargetsFor;
   getDeployment: typeof getDeploymentFor;
@@ -99,6 +109,7 @@ export const PANEL_CORES: PanelCores = {
   getEnvironmentRunning: getEnvironmentRunningFor,
   getServiceStatuses: getAllServiceStatusesFor,
   getDeployLockState: getDeployLockStateFor,
+  getServiceLogs: getServiceLogsFor,
   getEnvironmentKpis: getEnvironmentKpisFor,
   listDeployTargets: listDeployTargetsFor,
   getDeployment: getDeploymentFor,
@@ -222,6 +233,8 @@ const nullable = <T extends z.ZodType>(type: T, description: string) =>
   type.nullable().describe(description);
 const empty = z.strictObject({});
 
+const SERVICE_ROLES = ["db", "backend", "frontend"] as const;
+
 const environmentArg = str(
   'Environment as "PROJECTKEY/slug" (from list_environments, e.g. "ACME/uat") or its id.'
 );
@@ -240,6 +253,23 @@ const ALWAYS = {
   get_environment_status: {
     description: `Live state of one environment, as its dashboard shows it: each service running/stopped/not-found/unknown (live check), the version each component runs, an active deploy lock, and the last backup, restore and mock-time runs. At most ${STATUS_PROBES_PER_TURN} environments are checked live per answer; beyond that "checked" is false (reason "limit"). "unknown" means the check failed; an empty services list means no services are registered for the environment in the Panel, so nothing could be checked live.`,
     inputSchema: z.strictObject({ environment: environmentArg }),
+  },
+  get_service_logs: {
+    description: `The last lines of one running service's logs (docker, kubectl or journalctl, as the Logs page shows them; at most ${SERVICE_LOG_LINES} lines, ${MAX_SERVICE_LOG_BYTES / 1024} KiB), optionally only the recent ones. Needs the Logs page's permission on that environment; a shared database container's logs are limited as on the Logs page. Lines holding credentials are redacted. Use it to see why a service fails at runtime; the deploy's own log is get_deploy.`,
+    inputSchema: z.strictObject({
+      environment: environmentArg,
+      role: z
+        .enum(SERVICE_ROLES)
+        .describe("Which service: db, backend or frontend."),
+      lines: nullable(
+        z.number(),
+        `How many lines (whole number, at most ${SERVICE_LOG_LINES}). Default ${DEFAULT_SERVICE_LOG_LINES}.`
+      ),
+      since: nullable(
+        z.string(),
+        'Only entries from the last duration, e.g. "30m", "2h" or "1d" (s, m, h or d; at most 7d); null for no limit.'
+      ),
+    }),
   },
   list_deploys: {
     description: `Deploy history of one environment, newest first, up to ${PANEL_LIST_LIMIT} (as many as the Deploys page keeps): component, tag, status, trigger, who, when, duration, branch and commit; plus each component's current and previous tag.`,
@@ -387,6 +417,12 @@ export const PANEL_INPUTS = {
   list_environments: z.strictObject({ project: z.string().nullish() }),
   get_environment_status: z.strictObject({ environment: z.string() }),
   list_deploys: z.strictObject({ environment: z.string(), limit }),
+  get_service_logs: z.strictObject({
+    environment: z.string(),
+    role: z.string(),
+    lines: limit,
+    since: z.string().nullish(),
+  }),
   get_deploy: z.strictObject({ id: z.string() }),
   list_builds: z.strictObject({ project: z.string(), limit }),
   search_panel_issues: z.strictObject({
@@ -790,6 +826,115 @@ export function deployLogTail(output: string): {
   };
 }
 
+/** "30m", "2h", "1d", "90s" as seconds; null when it is none of those. */
+export function parseLogSince(raw: string): number | null {
+  const match = /^(\d{1,5})\s*([smhd])$/i.exec(raw.trim());
+  if (!match) return null;
+  const unit = { s: 1, m: 60, h: 3600, d: 86400 }[
+    (match[2] as string).toLowerCase() as "s" | "m" | "h" | "d"
+  ];
+  const seconds = Number(match[1]) * unit;
+  return seconds >= 1 && seconds <= MAX_LOG_SINCE_SECONDS ? seconds : null;
+}
+
+/** The last `lines` lines of a service log: no ANSI, secrets redacted, byte-capped. */
+export function serviceLogTail(
+  output: string,
+  lines: number
+): { log: string; truncated: boolean; redacted: number } {
+  // The whole output is filtered before it is cut (a tail starting inside a
+  // pasted key would lose the BEGIN line that marks the block).
+  const clean = stripVTControlCharacters(output).replace(/\r/g, "");
+  const filtered = redactSecretLines(clean.replace(/\n+$/, ""));
+  const all = filtered.text.split("\n");
+  const tail = all.slice(-lines);
+  const joined = tail.join("\n");
+  const bytes = Buffer.from(joined, "utf8");
+  const tooLong = bytes.byteLength > MAX_SERVICE_LOG_BYTES;
+  const log = tooLong
+    ? new TextDecoder()
+        .decode(bytes.subarray(bytes.byteLength - MAX_SERVICE_LOG_BYTES))
+        .replace(/^\uFFFD+/, "")
+    : joined;
+  return {
+    log,
+    truncated: all.length > tail.length || tooLong,
+    redacted: tail.filter((line) => line === REDACTED_LINE).length,
+  };
+}
+
+async function getServiceLogsTool(
+  ctx: PanelContext,
+  input: z.infer<typeof PANEL_INPUTS.get_service_logs>
+) {
+  const env = await environmentByRef(ctx, input.environment);
+  if (!env) return fail(unknownEnvironment(input.environment.trim()));
+  const meta = envMeta(env);
+  const role = SERVICE_ROLES.find((r) => r === input.role.trim().toLowerCase());
+  if (!role) {
+    return fail(
+      `Unknown service ${input.role}. Use db, backend or frontend.`,
+      meta
+    );
+  }
+  if (!env.serviceRoles.includes(role)) {
+    return fail(`${envRef(env)} has no ${role} service.`, meta);
+  }
+  let sinceSeconds: number | undefined;
+  if (input.since?.trim()) {
+    const parsed = parseLogSince(input.since);
+    if (parsed === null) {
+      return fail(
+        'Invalid "since": use a number and s, m, h or d, e.g. "30m", at most 7d.',
+        meta
+      );
+    }
+    sinceSeconds = parsed;
+  }
+  const lines = clamp(
+    input.lines,
+    DEFAULT_SERVICE_LOG_LINES,
+    SERVICE_LOG_LINES
+  );
+  let result: Awaited<ReturnType<PanelCores["getServiceLogs"]>>;
+  try {
+    result = await ctx.panel.cores.getServiceLogs(
+      ctx.viewer.scope,
+      env.id,
+      role,
+      { lines, sinceSeconds }
+    );
+  } catch (error) {
+    if (isRefusal(error)) {
+      return fail(
+        `You can't read the ${role} logs of ${envRef(env)}: the Logs page is not open to this user for it. Say so; do not guess the logs.`,
+        meta
+      );
+    }
+    // The SSH error may echo the command or host details: not for the model.
+    console.error("[assistant] service logs failed", error);
+    return fail(
+      `The ${role} logs of ${envRef(env)} could not be read from its server.`,
+      meta
+    );
+  }
+  if (!result.found) {
+    return fail(`${envRef(env)} has no ${role} service.`, meta);
+  }
+  const tail = serviceLogTail(result.output, lines);
+  return ok(
+    compact({
+      environment: envRef(env),
+      role,
+      lines: tail.log === "" ? 0 : tail.log.split("\n").length,
+      since: sinceSeconds ? input.since?.trim() : null,
+      log: tail.log === "" ? "(no log lines)" : tail.log,
+      truncated: tail.truncated || null,
+    }),
+    withWithheld(meta, tail.redacted)
+  );
+}
+
 async function getDeployTool(ctx: PanelContext, rawId: string) {
   const id = rawId.trim();
   const { scope } = ctx.viewer;
@@ -1119,6 +1264,11 @@ export async function runPanelTool(
       const i = data as z.infer<typeof PANEL_INPUTS.list_deploys>;
       return listDeploysTool(ctx, i.environment, i.limit);
     }
+    case "get_service_logs":
+      return getServiceLogsTool(
+        ctx,
+        data as z.infer<typeof PANEL_INPUTS.get_service_logs>
+      );
     case "get_deploy": {
       const i = data as z.infer<typeof PANEL_INPUTS.get_deploy>;
       return getDeployTool(ctx, i.id);

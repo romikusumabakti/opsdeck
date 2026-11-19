@@ -102,6 +102,7 @@ const STAGE2_TOOLS = [
 const ALWAYS_PANEL_TOOLS = [
   "list_environments",
   "get_environment_status",
+  "get_service_logs",
   "list_deploys",
   "get_deploy",
   "list_builds",

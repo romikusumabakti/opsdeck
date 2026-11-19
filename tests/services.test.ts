@@ -3,6 +3,7 @@ import {
   buildControlCommand,
   buildDbShellCommand,
   buildFollowLogsCommand,
+  buildLogsCommand,
   buildMysqlCommand,
   buildSqlcmdCommand,
   buildStatusCommand,
@@ -231,6 +232,42 @@ describe("buildFollowLogsCommand", () => {
   it("runs journalctl directly as root", () => {
     expect(buildFollowLogsCommand("systemd", "app", 100, rootServer)).toBe(
       `sh -c ${shq(journal)}`
+    );
+  });
+});
+
+describe("buildLogsCommand (non-follow)", () => {
+  it("tails without following, per backend", () => {
+    const opts = { follow: false } as const;
+    expect(buildLogsCommand("docker", "app", 50, keyServer, opts)).toBe(
+      `sh -c ${shq("docker logs --tail 50 --timestamps 'app' 2>&1")}`
+    );
+    expect(buildLogsCommand("kubernetes", "app", 50, keyServer, opts)).toBe(
+      `sh -c ${shq("kubectl logs deploy/'app' --tail=50 --timestamps 2>&1")}`
+    );
+    expect(buildLogsCommand("systemd", "app", 50, rootServer, opts)).toBe(
+      `sh -c ${shq("journalctl -u 'app' -n 50 --no-pager --output=short-iso 2>&1")}`
+    );
+  });
+
+  it("adds a quoted --since", () => {
+    const opts = { follow: false, sinceSeconds: 1800 } as const;
+    expect(buildLogsCommand("docker", "app", 50, keyServer, opts)).toBe(
+      `sh -c ${shq("docker logs --tail 50 --timestamps --since '1800s' 'app' 2>&1")}`
+    );
+    expect(buildLogsCommand("kubernetes", "app", 50, keyServer, opts)).toBe(
+      `sh -c ${shq("kubectl logs deploy/'app' --tail=50 --timestamps --since='1800s' 2>&1")}`
+    );
+    expect(buildLogsCommand("systemd", "app", 50, rootServer, opts)).toBe(
+      `sh -c ${shq("journalctl -u 'app' -n 50 --since '-1800s' --no-pager --output=short-iso 2>&1")}`
+    );
+  });
+
+  it("quotes a hostile service name", () => {
+    expect(
+      buildLogsCommand("docker", "a'; id #", 5, keyServer, { follow: false })
+    ).toBe(
+      `sh -c ${shq(`docker logs --tail 5 --timestamps ${shq("a'; id #")} 2>&1`)}`
     );
   });
 });

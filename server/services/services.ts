@@ -8,6 +8,7 @@ import type { EnvironmentWithServers } from "@/lib/db/schema";
 import { loadEnvironmentWithServers } from "@/lib/environments";
 import { enqueue } from "@/lib/queue";
 import {
+  buildLogsCommand,
   buildStatusCommand,
   getServiceConfig,
   hasService,
@@ -93,6 +94,46 @@ export async function getAllServiceStatusesFor(
   return Promise.all(
     roles.map((role) => probeServiceStatus(environment, role))
   );
+}
+
+export type ServiceLogsResult =
+  | { found: false }
+  | { found: true; output: string };
+
+const LOGS_TIMEOUT_MS = 20_000;
+
+// A non-follow tail of one service's logs for an explicit scope: the Logs
+// page's permission (service:logs on the environment) and its shared
+// database container rule, then the same command as the stream without
+// `--follow`. The output is raw; callers filter it.
+export async function getServiceLogsFor(
+  scope: AccessScope,
+  environmentId: string,
+  role: ServiceRole,
+  options: { lines: number; sinceSeconds?: number }
+): Promise<ServiceLogsResult> {
+  await requireProjectPermissionIn(
+    scope,
+    { environmentId },
+    { service: ["logs"] }
+  );
+  if (!uuidSchema.safeParse(environmentId).success) return { found: false };
+  const environment = await loadEnvironmentWithServers(environmentId);
+  if (!environment || !hasService(environment, role)) return { found: false };
+  await requireSharedDbServiceAccess(environment, scope.orgRole, role);
+  const cfg = getServiceConfig(environment, role);
+  const output = await executeRemoteCommand(
+    sshTarget(cfg.server),
+    buildLogsCommand(
+      cfg.serviceType,
+      cfg.serviceName,
+      options.lines,
+      cfg.server,
+      { follow: false, sinceSeconds: options.sinceSeconds }
+    ),
+    { timeoutMs: LOGS_TIMEOUT_MS }
+  );
+  return { found: true, output };
 }
 
 export async function controlService(

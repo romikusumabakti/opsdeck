@@ -54,6 +54,7 @@ describe("buildSystemPrompt", () => {
       "get_environment_status",
       "list_deploys",
       "get_deploy",
+      "get_service_logs",
       "list_builds",
       "search_panel_issues",
       "get_panel_issue",
@@ -64,6 +65,9 @@ describe("buildSystemPrompt", () => {
       expect(section, tool).toContain(tool);
     }
     expect(section).toContain("read-only");
+    expect(section).toContain(
+      "cannot deploy, restart, lock or change anything"
+    );
     expect(section).toContain('"unknown"');
     expect(section).toContain('"checked": false');
   });

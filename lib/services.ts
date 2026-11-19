@@ -398,17 +398,40 @@ export function buildFollowLogsCommand(
   lines: number,
   server: PrivilegedServer
 ): string {
+  return buildLogsCommand(serviceType, serviceName, lines, server, {
+    follow: true,
+  });
+}
+
+export type LogsCommandOptions = {
+  follow: boolean;
+  /** Only entries newer than this many seconds (non-follow reads). */
+  sinceSeconds?: number;
+};
+
+// The logs pipeline of both modes. `follow` keeps the stream open; otherwise
+// it prints the tail (optionally limited by `sinceSeconds`) and exits.
+export function buildLogsCommand(
+  serviceType: ServiceType,
+  serviceName: string,
+  lines: number,
+  server: PrivilegedServer,
+  options: LogsCommandOptions
+): string {
+  const since = options.sinceSeconds;
+  const follow = options.follow;
   if (serviceType === "docker") {
-    const inner = `docker logs --tail ${lines} --timestamps --follow ${shq(serviceName)} 2>&1`;
-    return `sh -c ${shq(inner)}`;
+    const flags = `--tail ${lines} --timestamps${since ? ` --since ${shq(`${since}s`)}` : ""}${follow ? " --follow" : ""}`;
+    return `sh -c ${shq(`docker logs ${flags} ${shq(serviceName)} 2>&1`)}`;
   }
   if (serviceType === "kubernetes") {
-    const inner = `kubectl logs deploy/${shq(serviceName)} --tail=${lines} --timestamps --follow 2>&1`;
-    return `sh -c ${shq(inner)}`;
+    const flags = `--tail=${lines} --timestamps${since ? ` --since=${shq(`${since}s`)}` : ""}${follow ? " --follow" : ""}`;
+    return `sh -c ${shq(`kubectl logs deploy/${shq(serviceName)} ${flags} 2>&1`)}`;
   }
   // `-f` follows the unit. `-n` seeds the initial tail. journalctl reads no
   // stdin so it doesn't conflict with sudo -S consuming the password (in
   // sudo-password mode; otherwise nothing is piped).
-  const journal = `journalctl -u ${shq(serviceName)} -n ${lines} -f --no-pager --output=short-iso 2>&1`;
+  const sinceFlag = since ? ` --since ${shq(`-${since}s`)}` : "";
+  const journal = `journalctl -u ${shq(serviceName)} -n ${lines}${sinceFlag}${follow ? " -f" : ""} --no-pager --output=short-iso 2>&1`;
   return `sh -c ${shq(privileged(journal, server))}`;
 }
