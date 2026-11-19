@@ -86,19 +86,26 @@ export function UnassignedStorage({
   }
 
   function actionsOf(connection: S3ConnectionRow) {
+    // The instance backup bucket (the legacy connection, or one reaching
+    // into the destination) stays Admin › Instance's: neither given to an
+    // environment nor deleted here.
+    const restricted = connection.isBackupDestination;
+    const disabledReason = restricted ? t("backupDestinationHint") : undefined;
     const items: RowAction[] = [
       {
         label: t("assign"),
         icon: Link2,
         onSelect: () => setAssigning(connection),
-        // The instance backup bucket stays Admin › Instance's.
-        disabled: connection.isBackupDestination,
+        disabled: restricted,
+        disabledReason,
       },
       {
         label: tCommon("delete"),
         icon: Trash2,
         destructive: true,
         onSelect: () => void onDelete(connection),
+        disabled: restricted,
+        disabledReason,
       },
     ];
     return <RowActions label={tCommon("openMenu")} items={items} />;

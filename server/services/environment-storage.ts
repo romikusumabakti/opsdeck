@@ -11,7 +11,6 @@ import {
 } from "@/lib/db/schema";
 import { testS3Connection } from "@/lib/explorer/s3";
 import {
-  backupDestinationId,
   isRestrictedSource,
   overlapsBackupDestination,
 } from "@/lib/restricted-targets";
@@ -27,6 +26,7 @@ import {
   changesS3Location,
   SECRET_REQUIRED_FOR_LOCATION_CHANGE,
   toSafeS3Connection,
+  toSafeS3Connections,
 } from "@/server/services/s3-connections";
 
 // An environment's storage: the S3 connections (application buckets) it owns,
@@ -95,8 +95,8 @@ async function refuseRestricted(connectionId: string): Promise<void> {
 }
 
 // An environment's connection never points into the instance backup
-// destination (same endpoint and bucket, overlapping key prefix): its
-// managers could then browse and edit the Panel's dumps.
+// destination (the same bucket name on any endpoint, overlapping key
+// prefix): its managers could then browse and edit the Panel's dumps.
 async function refuseBackupDestinationOverlap(location: {
   endpoint: string;
   bucket: string;
@@ -133,15 +133,12 @@ export async function listEnvironmentStorage(
   environmentId: string
 ): Promise<SafeS3Connection[]> {
   await requireView(environmentId);
-  const [rows, backupId] = await Promise.all([
-    db
-      .select()
-      .from(s3Connections)
-      .where(eq(s3Connections.environmentId, environmentId))
-      .orderBy(s3Connections.name),
-    backupDestinationId(),
-  ]);
-  return rows.map((row) => toSafeS3Connection(row, backupId));
+  const rows = await db
+    .select()
+    .from(s3Connections)
+    .where(eq(s3Connections.environmentId, environmentId))
+    .orderBy(s3Connections.name);
+  return toSafeS3Connections(rows);
 }
 
 export async function getEnvironmentStorage(
@@ -149,11 +146,10 @@ export async function getEnvironmentStorage(
   connectionId: string
 ): Promise<SafeS3Connection> {
   await requireView(environmentId);
-  const [row, backupId] = await Promise.all([
-    ownedConnection(environmentId, connectionId),
-    backupDestinationId(),
+  const [row] = await toSafeS3Connections([
+    await ownedConnection(environmentId, connectionId),
   ]);
-  return toSafeS3Connection(row, backupId);
+  return row ?? notFound();
 }
 
 export async function createEnvironmentStorage(
@@ -188,8 +184,8 @@ export async function createEnvironmentStorage(
     entityId: created.id,
     data: { name: created.name, environment },
   });
-  // A new connection is never the backup destination.
-  return toSafeS3Connection(created, null);
+  // Never restricted: the overlap check above refused those.
+  return toSafeS3Connection(created, false);
 }
 
 export async function updateEnvironmentStorage(
@@ -243,7 +239,8 @@ export async function updateEnvironmentStorage(
     entityId: updated.id,
     data: { name: updated.name, environment },
   });
-  return toSafeS3Connection(updated, await backupDestinationId());
+  const [safe] = await toSafeS3Connections([updated]);
+  return safe ?? notFound();
 }
 
 export async function deleteEnvironmentStorage(

@@ -591,6 +591,73 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
       expect(created.keyPrefix).toBe("reports/");
     });
 
+    it("restricts the destination's bucket and prefix on any endpoint spelling or alias", async () => {
+      await svc.saveBackupDestination(destination());
+      // An alias of the same store, and the same bucket name on another one.
+      await sql`update s3_connections
+        set endpoint = 'https://alias.example.test:9000' where id = ${CONN_SAME}`;
+      await sql`update s3_connections
+        set endpoint = 'https://192.0.2.44', bucket = ${BUCKET}
+        where id = ${CONN_FREE}`;
+      expect(await refusal(admin.assignS3Connection(CONN_FREE, ENV))).toEqual({
+        status: 409,
+        code: "s3BackupDestinationNotAssignable",
+      });
+      // Pages hide Edit and Browse for it (isBackupDestination).
+      expect(
+        (await admin.listUnassignedS3Connections()).find(
+          (c) => c.id === CONN_FREE
+        )
+      ).toMatchObject({ isBackupDestination: true });
+      as(ENGINEER, "engineer");
+      expect(
+        (await storage.listEnvironmentStorage(ENV)).map((c) => [
+          c.id,
+          c.isBackupDestination,
+        ])
+      ).toEqual(
+        expect.arrayContaining([
+          [CONN_SAME, true],
+          [CONN_OTHER, false],
+        ])
+      );
+      expect(
+        await refusal(explorer.listEntries(src(CONN_SAME), ""))
+      ).toMatchObject({ status: 403 });
+      expect(s3.opened).toEqual([]);
+      for (const endpoint of [
+        "https://OBJECTS.example.test.:443/",
+        "http://someone@objects.example.test:80?x=1",
+        "https://alias.example.test",
+        "https://198.51.100.7:9000",
+      ]) {
+        expect(
+          await refusal(
+            storage.createEnvironmentStorage(ENV, {
+              name: "Sneaky",
+              endpoint,
+              region: "auto",
+              bucket: BUCKET,
+              accessKeyId: "AKSNEAKY",
+              secretKey: "s-sneaky",
+              forcePathStyle: true,
+              keyPrefix: null,
+            })
+          ),
+          endpoint
+        ).toEqual({ status: 409, code: "s3BackupDestinationOverlap" });
+      }
+      expect(
+        await refusal(
+          storage.updateEnvironmentStorage(ENV, CONN_OTHER, {
+            endpoint: "https://alias.example.test",
+            keyPrefix: "panel/sub/",
+            secretKey: "s-other-new",
+          })
+        )
+      ).toEqual({ status: 409, code: "s3BackupDestinationOverlap" });
+    });
+
     it("keeps the legacy backup destination connection restricted after the destination moved", async () => {
       await svc.saveBackupDestination(
         destination({ bucket: "fictional-elsewhere", keyPrefix: null })
@@ -613,49 +680,22 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
           s3_connection_id, key_prefix)
         values ('Heron', 'Heron old', 'old', now() + interval '30 days', 's3',
           ${CONN_FREE}, 'menara-env-archives/menara/old/')`;
-      for (const remove of [
-        (id: string) => admin.deleteS3Connection(id),
-        (id: string) => admin.deleteUnassignedS3Connection(id),
-      ]) {
-        expect(await refusal(remove(CONN_LEGACY))).toEqual({
-          status: 409,
-          code: "s3BackupDestinationRestricted",
-        });
-        expect(await refusal(remove(CONN_FREE))).toEqual({
-          status: 409,
-          code: "s3ConnectionHoldsArchives",
-        });
-      }
+      expect(
+        await refusal(admin.deleteUnassignedS3Connection(CONN_LEGACY))
+      ).toEqual({ status: 409, code: "s3BackupDestinationRestricted" });
+      expect(
+        await refusal(admin.deleteUnassignedS3Connection(CONN_FREE))
+      ).toEqual({ status: 409, code: "s3ConnectionHoldsArchives" });
       const [kept] = await sql<{ count: number }[]>`
         select count(*)::int as count from s3_connections
         where id in (${CONN_LEGACY}, ${CONN_FREE})`;
       expect(kept?.count).toBe(2);
       await sql`delete from environment_archives`;
-      expect(await admin.deleteS3Connection(CONN_FREE)).toMatchObject({
-        success: true,
-      });
-    });
-  });
-
-  describe("the admin connection probe", () => {
-    it("probes under the stored key prefix when it uses the stored secret", async () => {
-      await sql`update s3_connections set key_prefix = 'old-team/'
+      await admin.deleteUnassignedS3Connection(CONN_FREE);
+      const [gone] = await sql<{ count: number }[]>`
+        select count(*)::int as count from s3_connections
         where id = ${CONN_FREE}`;
-      await admin.testS3ConnectionAction({
-        endpoint: ENDPOINT,
-        region: "auto",
-        bucket: "fictional-old",
-        accessKeyId: "AKOLDBUCKET",
-        forcePathStyle: true,
-        connectionId: CONN_FREE,
-      });
-      expect(s3.probes).toEqual([
-        expect.objectContaining({
-          bucket: "fictional-old",
-          keyPrefix: "old-team/",
-          secretKey: "s-free",
-        }),
-      ]);
+      expect(gone?.count).toBe(0);
     });
   });
 });

@@ -2,14 +2,15 @@ import type { QueryClient } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
 import { canOrg } from "@/lib/permissions";
 import { ApiError } from "@/web/api/client";
-import { listEnvironmentsQuery } from "@/web/api/environments";
-import { getS3ConnectionQuery } from "@/web/api/s3-connections";
+import { s3ConnectionLocationQuery } from "@/web/api/s3-connections";
 import { meQuery } from "@/web/api/session";
 
 // Where the removed global Storage URLs (/storage, /storage/new,
-// /storage/<id>, /storage/<id>/files) now lead. An assigned connection goes
-// to its environment's Storage page; an unassigned one to Admin › Storage,
-// for the roles that manage storage, and is a 404 for everyone else.
+// /storage/<id>, /storage/<id>/files) now lead. The server says where a
+// connection is managed (get-s3-connection-location): its environment's
+// Storage page for whoever may view that environment, Admin › Storage for an
+// unassigned one (the instance backup bucket included) for the roles that
+// manage storage, and a 404 for everyone else.
 
 /** The list and create URLs: Admin › Storage for admins, else Home. */
 export async function legacyStorageIndexHref(
@@ -25,26 +26,15 @@ export async function legacyStorageConnectionHref(
   id: string,
   suffix: "" | "/files"
 ): Promise<string> {
-  const me = await queryClient.query(meQuery());
-  const connection = await queryClient
-    .query(getS3ConnectionQuery(id))
+  const location = await queryClient
+    .query(s3ConnectionLocationQuery(id))
     .catch((error: unknown) => {
-      // Roles without the org storage right cannot look a connection up by
-      // id: to them it is as good as missing.
-      if (error instanceof ApiError && [403, 404].includes(error.status)) {
+      // A malformed id, or a connection the caller can't reach.
+      if (error instanceof ApiError && [400, 403, 404].includes(error.status)) {
         throw notFound();
       }
       throw error;
     });
-  if (!connection) throw notFound();
-  if (connection.environmentId) {
-    const environments = await queryClient.query(listEnvironmentsQuery());
-    const environment = environments.find(
-      (e) => e.id === connection.environmentId
-    );
-    if (!environment) throw notFound();
-    return `/${environment.key}/${environment.slug}/storage/${id}${suffix}`;
-  }
-  if (!canOrg(me?.orgRole, { storage: ["manage"] })) throw notFound();
-  return connection.isBackupDestination ? "/admin/instance" : "/admin/storage";
+  if (location.kind === "admin") return "/admin/storage";
+  return `/${location.projectKey}/${location.envSlug}/storage/${id}${suffix}`;
 }

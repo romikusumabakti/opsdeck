@@ -645,35 +645,6 @@ describe.skipIf(!enabled)("environment storage on Postgres", () => {
       expect(row?.name).toBe("Renamed again");
       expect(decryptSecret(row?.secret_key ?? "")).toBe(SECRET_A);
     });
-
-    it("applies the same rule to the admin edit and probe", async () => {
-      as(ADMIN, "admin");
-      expect(
-        await admin.updateS3Connection(CONN_FREE, {
-          bucket: "fictional-other-bucket",
-        })
-      ).toMatchObject({
-        success: false,
-        code: "s3SecretRequiredForLocationChange",
-      });
-      expect(
-        await admin.testS3ConnectionAction({
-          endpoint: "https://collector.example.test",
-          region: "us-east-1",
-          bucket: "fictional-app-bucket",
-          accessKeyId: "AKOLDBUCKET",
-          forcePathStyle: true,
-          connectionId: CONN_FREE,
-        })
-      ).toMatchObject({
-        ok: false,
-        code: "s3SecretRequiredForLocationChange",
-      });
-      expect(s3.probes).toEqual([]);
-      expect(
-        await admin.updateS3Connection(CONN_FREE, { name: "Old bucket 2" })
-      ).toMatchObject({ success: true });
-    });
   });
 
   describe("the instance backup destination", () => {
@@ -820,20 +791,107 @@ describe.skipIf(!enabled)("environment storage on Postgres", () => {
       ).toMatchObject({ status: 403 });
     });
 
-    it("keeps the global list for org storage readers only", async () => {
+    it("has no org-wide list, read, create, edit, delete or probe any more", async () => {
       as(ADMIN, "admin");
-      expect((await admin.getS3Connections()).map((r) => r.id).sort()).toEqual(
-        [CONN_A, CONN_B, CONN_FREE, CONN_BACKUP].sort()
-      );
-      // The engineer grant no longer reaches the global list: it would show
-      // the connections of projects the engineer can't see.
+      for (const [method, path] of [
+        ["GET", "/api/s3-connections/get-s3-connections"],
+        ["GET", `/api/s3-connections/get-s3-connection?id=${CONN_B}`],
+        ["POST", "/api/s3-connections/create-s3-connection"],
+        ["POST", "/api/s3-connections/update-s3-connection"],
+        ["POST", "/api/s3-connections/delete-s3-connection"],
+        ["POST", "/api/s3-connections/test-s3-connection-action"],
+      ] as const) {
+        const res = await app.request(path, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          ...(method === "POST"
+            ? { body: JSON.stringify({ id: CONN_B }) }
+            : {}),
+        });
+        expect(res.status, path).toBe(404);
+      }
+      expect(await connection(CONN_B)).toBeDefined();
+    });
+  });
+
+  describe("where an old /storage/<id> link leads", () => {
+    const location = (id: string) =>
+      app.request(`/api/s3-connections/get-s3-connection-location?id=${id}`);
+
+    it("answers an assigned connection's environment to whoever sees it", async () => {
+      for (const [id, role] of [
+        [ENGINEER, "engineer"],
+        [QA, "qa"],
+        [ADMIN, "admin"],
+      ] as const) {
+        as(id, role);
+        expect(await admin.getS3ConnectionLocation(CONN_A)).toEqual({
+          kind: "environment",
+          projectKey: "KES",
+          envSlug: "qa",
+        });
+      }
       as(ENGINEER, "engineer");
-      expect(await refusal(admin.getS3Connections())).toMatchObject({
+      const res = await location(CONN_A);
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(JSON.parse(body)).toEqual({
+        kind: "environment",
+        projectKey: "KES",
+        envSlug: "qa",
+      });
+      expect(body).not.toContain("fictional-app-bucket");
+    });
+
+    it("answers 404 alike for another project's, an unassigned and a missing connection", async () => {
+      for (const [user, role] of [
+        [ENGINEER, "engineer"],
+        [QA, "qa"],
+      ] as const) {
+        as(user, role);
+        for (const id of [CONN_B, CONN_FREE, CONN_BACKUP, MISSING]) {
+          expect(
+            await refusal(admin.getS3ConnectionLocation(id)),
+            `${role} ${id}`
+          ).toMatchObject({ status: 404 });
+        }
+      }
+      // The observer sees every project, but not the unassigned connections
+      // (no storage:manage).
+      as(OBSERVER, "observer");
+      expect(await admin.getS3ConnectionLocation(CONN_B)).toMatchObject({
+        kind: "environment",
+        projectKey: "HER",
+      });
+      for (const id of [CONN_FREE, CONN_BACKUP, MISSING]) {
+        expect(
+          await refusal(admin.getS3ConnectionLocation(id)),
+          `observer ${id}`
+        ).toMatchObject({ status: 404 });
+      }
+      expect(await refusal(admin.listUnassignedS3Connections())).toMatchObject({
         status: 403,
       });
-      expect(await refusal(admin.getS3Connection(CONN_B))).toMatchObject({
-        status: 403,
-      });
+      as(ENGINEER, "engineer");
+      expect((await location(CONN_B)).status).toBe(404);
+      expect((await location(MISSING)).status).toBe(404);
+    });
+
+    it("sends the storage managers to Admin › Storage for an unassigned one", async () => {
+      for (const [user, role] of [
+        [ADMIN, "admin"],
+        [INFRA, "infra"],
+      ] as const) {
+        as(user, role);
+        for (const id of [CONN_FREE, CONN_BACKUP]) {
+          expect(await admin.getS3ConnectionLocation(id)).toEqual({
+            kind: "admin",
+          });
+        }
+        expect(
+          await refusal(admin.getS3ConnectionLocation(MISSING))
+        ).toMatchObject({ status: 404 });
+      }
     });
   });
 

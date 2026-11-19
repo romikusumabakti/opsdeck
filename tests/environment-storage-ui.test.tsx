@@ -57,8 +57,7 @@ vi.mock("@/web/api/s3-connections", async (importOriginal) => ({
 }));
 
 import { ApiError } from "@/web/api/client";
-import { listEnvironmentsQuery } from "@/web/api/environments";
-import { getS3ConnectionQuery } from "@/web/api/s3-connections";
+import { s3ConnectionLocationQuery } from "@/web/api/s3-connections";
 import { meQuery } from "@/web/api/session";
 import { UnassignedStorage } from "../web/routes/$locale/_app/-components/admin/storage/unassigned-storage";
 import { StorageForm } from "../web/routes/$locale/_app/-components/env/storage/storage-form";
@@ -394,6 +393,41 @@ describe("Admin › Storage", () => {
     expect(container.textContent).toContain("https://s3.example.com");
   });
 
+  it("keeps Assign and Delete off the instance backup bucket, saying why", async () => {
+    await render(
+      <UnassignedStorage
+        connections={[
+          connection({ environmentId: null, isBackupDestination: true }),
+        ]}
+        environments={options}
+      />
+    );
+    await act(async () =>
+      container
+        .querySelector<HTMLElement>(
+          `button[aria-label="${enMessages.common.openMenu}"]`
+        )
+        ?.click()
+    );
+    const items = [
+      ...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ];
+    const item = (label: string) =>
+      items.find((el) => el.textContent?.startsWith(label));
+    for (const label of [
+      enMessages.adminStorage.assign,
+      enMessages.common.delete,
+    ]) {
+      expect(item(label)?.getAttribute("aria-disabled"), label).toBe("true");
+      expect(item(label)?.textContent).toContain(
+        enMessages.adminStorage.backupDestinationHint
+      );
+    }
+    await act(async () => item(enMessages.common.delete)?.click());
+    expect(mocks.confirmTyping).not.toHaveBeenCalled();
+    expect(mocks.removeUnassigned).not.toHaveBeenCalled();
+  });
+
   it("guards the page with the org storage:manage right", () => {
     expect(AdminStorage.options.beforeLoad).toBeTypeOf("function");
   });
@@ -428,14 +462,11 @@ describe("environment storage page guards", () => {
 });
 
 describe("removed global /storage URLs", () => {
-  const OTHER_ENV = "0197f3a0-1b2c-7def-8000-0000000000e9";
-  const environments = [
-    { id: OTHER_ENV, key: "ZZZ", slug: "x" },
-    { id: ENV_ID, key: "HMEM", slug: "dev" },
-  ];
-
-  /** A query client serving the caller's role, the lookup and the environments. */
-  function context(orgRole: string, lookup: unknown | (() => never)) {
+  /**
+   * A query client serving the caller's role and the server's answer for
+   * the connection's location (a value, or a function that throws).
+   */
+  function context(orgRole: string, location: unknown | (() => never)) {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
@@ -443,21 +474,19 @@ describe("removed global /storage URLs", () => {
       id: "u1",
       orgRole,
     } as never);
-    queryClient.setQueryData(
-      listEnvironmentsQuery().queryKey,
-      environments as never
-    );
-    if (typeof lookup === "function") {
+    if (typeof location === "function") {
       queryClient.query = (async (options: { queryKey: unknown }) => {
-        if (JSON.stringify(options.queryKey).includes('getS3Connection"')) {
-          return (lookup as () => never)();
+        if (
+          JSON.stringify(options.queryKey).includes("getS3ConnectionLocation")
+        ) {
+          return (location as () => never)();
         }
         return queryClient.fetchQuery(options as never);
       }) as never;
     } else {
       queryClient.setQueryData(
-        getS3ConnectionQuery(CONN_ID).queryKey,
-        lookup as never
+        s3ConnectionLocationQuery(CONN_ID).queryKey,
+        location as never
       );
     }
     return { queryClient };
@@ -482,80 +511,57 @@ describe("removed global /storage URLs", () => {
     return "no-redirect";
   }
 
-  it("an assigned connection page goes to its environment's page", async () => {
-    expect(
-      await outcome(
-        OldConnection,
-        { id: CONN_ID },
-        context("admin", connection())
-      )
-    ).toBe(`/en/HMEM/dev/storage/${CONN_ID}`);
-  });
+  const inEnvironment = {
+    kind: "environment",
+    projectKey: "HMEM",
+    envSlug: "dev",
+  };
 
-  it("an assigned connection's browser goes to the environment's browser", async () => {
-    expect(
-      await outcome(OldFiles, { id: CONN_ID }, context("infra", connection()))
-    ).toBe(`/en/HMEM/dev/storage/${CONN_ID}/files`);
-  });
-
-  it("an unassigned connection goes to Admin › Storage for an admin", async () => {
-    const ctx = context("admin", connection({ environmentId: null }));
-    expect(await outcome(OldConnection, { id: CONN_ID }, ctx)).toBe(
-      "/en/admin/storage"
-    );
-    expect(await outcome(OldFiles, { id: CONN_ID }, ctx)).toBe(
-      "/en/admin/storage"
-    );
-  });
-
-  it("an unassigned connection is not found for a role that cannot manage storage", async () => {
-    for (const role of ["observer", "engineer"]) {
+  it("an assigned connection page goes to its environment's page, for any role that sees it", async () => {
+    // An engineer: the server answers by the environment, not the org role.
+    for (const role of ["admin", "engineer", "qa"]) {
       expect(
         await outcome(
           OldConnection,
           { id: CONN_ID },
-          context(role, connection({ environmentId: null }))
+          context(role, inEnvironment)
         )
-      ).toBe("not-found");
+      ).toBe(`/en/HMEM/dev/storage/${CONN_ID}`);
     }
   });
 
-  it("the instance backup bucket goes to Admin › Instance", async () => {
+  it("an assigned connection's browser goes to the environment's browser", async () => {
     expect(
       await outcome(
-        OldConnection,
+        OldFiles,
         { id: CONN_ID },
-        context(
-          "admin",
-          connection({ environmentId: null, isBackupDestination: true })
-        )
+        context("engineer", inEnvironment)
       )
-    ).toBe("/en/admin/instance");
+    ).toBe(`/en/HMEM/dev/storage/${CONN_ID}/files`);
   });
 
-  it("a missing connection, or one the caller cannot look up, is not found", async () => {
-    expect(
-      await outcome(OldConnection, { id: CONN_ID }, context("admin", null))
-    ).toBe("not-found");
-    const forbidden = context("engineer", () => {
-      throw new ApiError(403, "Forbidden");
-    });
-    expect(await outcome(OldFiles, { id: CONN_ID }, forbidden)).toBe(
-      "not-found"
-    );
+  it("an unassigned connection, the instance backup bucket included, goes to Admin › Storage", async () => {
+    for (const role of ["admin", "infra"]) {
+      const ctx = context(role, { kind: "admin" });
+      expect(await outcome(OldConnection, { id: CONN_ID }, ctx)).toBe(
+        "/en/admin/storage"
+      );
+      expect(await outcome(OldFiles, { id: CONN_ID }, ctx)).toBe(
+        "/en/admin/storage"
+      );
+    }
   });
 
-  it("an assigned connection whose environment the caller cannot see is not found", async () => {
-    expect(
-      await outcome(
-        OldConnection,
-        { id: CONN_ID },
-        context(
-          "admin",
-          connection({ environmentId: "0197f3a0-1b2c-7def-8000-0000000000ff" })
-        )
-      )
-    ).toBe("not-found");
+  it("a connection the server does not show the caller is not found", async () => {
+    for (const status of [400, 403, 404]) {
+      const ctx = context("engineer", () => {
+        throw new ApiError(status, "Not Found");
+      });
+      expect(await outcome(OldConnection, { id: CONN_ID }, ctx)).toBe(
+        "not-found"
+      );
+      expect(await outcome(OldFiles, { id: CONN_ID }, ctx)).toBe("not-found");
+    }
   });
 
   it("the old list and create URLs go to Admin › Storage for admins, else Home", async () => {

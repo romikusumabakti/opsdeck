@@ -200,7 +200,7 @@ export async function deleteJiraConnection(
 
 /**
  * Probe credentials without persisting them. In edit mode the token may be
- * omitted and the stored one is loaded by id — mirrors testS3ConnectionAction.
+ * omitted and the stored one is loaded by id — mirrors testEnvironmentStorage.
  */
 export async function testJiraConnection(input: {
   baseUrl: string;
