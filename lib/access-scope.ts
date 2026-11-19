@@ -353,3 +353,13 @@ export function requireOrgPermissionIn(
 ): void {
   decideOrgAccess(scope.orgRole, perms, false);
 }
+
+/**
+ * The org grant role a scope carries into checks that honour the strong-only
+ * `server:manage` override (lib/authz#orgGrantRole gives the session's role
+ * only for a strong sign-in). A scope never counts as strong, so it carries
+ * none: the Assistant never gets that override.
+ */
+export function scopeGrantRole(_scope: OrgScope): null {
+  return null;
+}

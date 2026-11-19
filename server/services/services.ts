@@ -2,6 +2,7 @@ import {
   type AccessScope,
   accessScopeFromSession,
   requireProjectPermissionIn,
+  scopeGrantRole,
 } from "@/lib/access-scope";
 import { orgGrantRole, requireAnyProjectPermission } from "@/lib/authz";
 import type { EnvironmentWithServers } from "@/lib/db/schema";
@@ -120,7 +121,7 @@ export async function getServiceLogsFor(
   if (!uuidSchema.safeParse(environmentId).success) return { found: false };
   const environment = await loadEnvironmentWithServers(environmentId);
   if (!environment || !hasService(environment, role)) return { found: false };
-  await requireSharedDbServiceAccess(environment, scope.orgRole, role);
+  await requireSharedDbServiceAccess(environment, scopeGrantRole(scope), role);
   const cfg = getServiceConfig(environment, role);
   const output = await executeRemoteCommand(
     sshTarget(cfg.server),

@@ -105,14 +105,15 @@ describe("getServiceLogsFor", () => {
     expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
   });
 
-  it("refuses a shared database container to a non-manager, like the Logs page", async () => {
+  it("refuses a shared database container, even to an admin (never the strong-only override)", async () => {
     state.dbKind = "shared";
     const scope = scopeOf("engineer", { [PROJECT_ID]: "engineer" });
     await expect(
       getServiceLogsFor(scope, ENV_ID, "db", { lines: 10 })
     ).rejects.toMatchObject({ status: 403 });
     expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
-    // The environment's own backend is fine, and so is an admin on the db.
+    // The environment's own backend is fine; an admin is refused on the
+    // shared db too (a scope never carries the strong-only override).
     await expect(
       getServiceLogsFor(scope, ENV_ID, "backend", { lines: 10 })
     ).resolves.toMatchObject({ found: true });
@@ -121,9 +122,11 @@ describe("getServiceLogsFor", () => {
         scopeOf("admin", { [PROJECT_ID]: "engineer" }),
         ENV_ID,
         "db",
-        { lines: 10 }
+        {
+          lines: 10,
+        }
       )
-    ).resolves.toMatchObject({ found: true });
+    ).rejects.toMatchObject({ status: 403 });
   });
 });
 

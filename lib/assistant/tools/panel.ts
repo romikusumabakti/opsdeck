@@ -906,8 +906,12 @@ async function getServiceLogsTool(
     );
   } catch (error) {
     if (isRefusal(error)) {
+      const why =
+        role === "db"
+          ? "the Logs page is not open to this user for it, or it is a shared database container (its logs show other environments and are not available through the Assistant)"
+          : "the Logs page is not open to this user for it";
       return fail(
-        `You can't read the ${role} logs of ${envRef(env)}: the Logs page is not open to this user for it. Say so; do not guess the logs.`,
+        `You can't read the ${role} logs of ${envRef(env)}: ${why}. Say so; do not guess the logs.`,
         meta
       );
     }
