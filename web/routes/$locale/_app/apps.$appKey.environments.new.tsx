@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { redirect } from "@/i18n/navigation";
-import { addEnvironmentHref, listAppsQuery } from "@/web/api/apps";
-import { listProjectsWithEnvironmentsQuery } from "@/web/api/project-catalog";
+import { legacyAppServices } from "./-components/services/legacy-redirect";
 
-// Add environment to an app is now the project's New environment page with
-// the app's repository preselected: in the one project that holds the app's
-// environments (or `?project=<key>`), else the projects list.
+// Add environment to an app (before Stage 8): the New environment page of
+// `?project=<key>` with the app's first service picked. Without a project the
+// projects list says to pick one.
 export const Route = createFileRoute(
   "/$locale/_app/apps/$appKey/environments/new"
 )({
@@ -16,21 +15,10 @@ export const Route = createFileRoute(
         : undefined,
   }),
   loaderDeps: ({ search: { project } }) => ({ project }),
-  loader: async ({
-    params: { locale, appKey },
-    deps: { project },
-    context: { queryClient },
-  }) => {
-    const [apps, projects] = await Promise.all([
-      queryClient.query(listAppsQuery()),
-      queryClient.query(listProjectsWithEnvironmentsQuery()),
-    ]);
-    const app = apps.find((a) => a.appKey === appKey);
-    redirect(
-      app
-        ? addEnvironmentHref(app, projects, project)
-        : "/projects?newEnvironment=1",
-      locale
-    );
+  loader: async ({ params: { locale, appKey }, deps: { project } }) => {
+    if (!project) redirect("/projects?newEnvironment=1", locale);
+    const [first] = await legacyAppServices(appKey);
+    const query = first ? `?service=${encodeURIComponent(first.key)}` : "";
+    redirect(`/${project.toUpperCase()}/environments/new${query}`, locale);
   },
 });

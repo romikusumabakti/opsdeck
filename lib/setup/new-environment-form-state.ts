@@ -38,7 +38,14 @@ export function groupOf(field: string): FormGroup {
   if (field === "name") return "name";
   if (field === "slug") return "slug";
   if (field === "copyFromEnvironmentId") return "startFrom";
-  if (field === "repos" || field.startsWith("repos.") || field === "targets") {
+  if (
+    field === "repos" ||
+    field.startsWith("repos.") ||
+    // A picked service (services.<index>); `services.<role>` is a compose
+    // service under Advanced.
+    /^services\.\d+$/.test(field) ||
+    field === "targets"
+  ) {
     return "repos";
   }
   if (field === "serverId" || field.startsWith("server")) return "server";
@@ -83,7 +90,7 @@ export function snapshotOf(input: NewEnvironmentInput): FormSnapshot {
     startFrom: input.copyFromEnvironmentId ?? "",
     name: input.name,
     slug: input.slug ?? "",
-    repos: JSON.stringify(input.repos),
+    repos: JSON.stringify([input.services, input.repos]),
     database: JSON.stringify([input.needsDatabase, database ?? null]),
     address: JSON.stringify([input.address, domain ?? null]),
     server: input.serverId ?? "",

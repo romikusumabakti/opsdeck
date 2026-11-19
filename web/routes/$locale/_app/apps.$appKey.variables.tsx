@@ -1,13 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { redirect } from "@/i18n/navigation";
+import { redirectLegacyApp } from "./-components/services/legacy-redirect";
 
-// An app's variable templates moved under admin Repositories; old links land
-// there.
+// An app's variable templates moved to each service's page (Stage 8).
 export const Route = createFileRoute("/$locale/_app/apps/$appKey/variables")({
-  beforeLoad: ({ params: { locale, appKey } }) => {
-    redirect(
-      `/admin/repositories/${encodeURIComponent(appKey)}/variables`,
-      locale
-    );
-  },
+  beforeLoad: redirectLegacyApp,
 });

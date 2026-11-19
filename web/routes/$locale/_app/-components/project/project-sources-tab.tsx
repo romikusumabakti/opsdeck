@@ -49,11 +49,11 @@ type ActionResult = { success: boolean; message?: string };
  */
 export function ProjectSourcesTab({
   project,
-  canManageApps,
+  canManageServices,
 }: {
   project: Project;
-  /** environment:create on the project: Add app and Remove. */
-  canManageApps: boolean;
+  /** environment:create on the project: Add service and Remove. */
+  canManageServices: boolean;
 }) {
   const t = useTranslations("projectSources");
   const sources = useSuspenseQuery(listProjectSourcesQuery(project.id)).data;
@@ -71,10 +71,10 @@ export function ProjectSourcesTab({
       {t("openNewEnvironment")}
     </Link>
   );
-  const addButton = canManageApps && (
+  const addButton = canManageServices && (
     <Button onClick={() => setAddOpen(true)}>
       <Plus className="size-4" />
-      {t("addApp")}
+      {t("addService")}
     </Button>
   );
 
@@ -99,12 +99,12 @@ export function ProjectSourcesTab({
               key={source.componentKey}
               project={project}
               source={source}
-              canManageApps={canManageApps}
+              canManageServices={canManageServices}
             />
           ))}
         </>
       )}
-      {canManageApps && (
+      {canManageServices && (
         <AddServiceDialog
           project={project}
           services={addable}
@@ -137,11 +137,11 @@ function useRun() {
 function SourceCard({
   project,
   source,
-  canManageApps,
+  canManageServices,
 }: {
   project: Project;
   source: ProjectSourceRow;
-  canManageApps: boolean;
+  canManageServices: boolean;
 }) {
   const t = useTranslations("projectSources");
   const dialog = useDialog();
@@ -150,7 +150,7 @@ function SourceCard({
   async function confirmRemove() {
     const ok = await dialog.confirm({
       title: t("removeConfirmTitle", {
-        app: source.componentKey,
+        service: source.componentKey,
         project: project.key,
       }),
       description: t("removeConfirmDescription"),
@@ -183,7 +183,7 @@ function SourceCard({
     <Card>
       <CardHeader className="flex-row items-center gap-2">
         <CardTitle className="font-mono">{source.componentKey}</CardTitle>
-        {canManageApps && (
+        {canManageServices && (
           <div className="ml-auto">
             {source.inUse ? (
               // A disabled button gets no pointer events, so the span hosts
@@ -321,7 +321,7 @@ function AddServiceDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t("addAppTitle")}</DialogTitle>
+          <DialogTitle>{t("addServiceTitle")}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <Combobox
@@ -339,7 +339,7 @@ function AddServiceDialog({
                 <Button
                   variant="outline"
                   className="h-8 w-full justify-between font-normal"
-                  aria-label={t("selectApp")}
+                  aria-label={t("selectService")}
                 />
               }
             >
@@ -347,12 +347,12 @@ function AddServiceDialog({
                 <span className="truncate font-mono">{picked.key}</span>
               ) : (
                 <span className="truncate text-muted-foreground">
-                  {t("selectApp")}
+                  {t("selectService")}
                 </span>
               )}
             </ComboboxTrigger>
             <ComboboxContent>
-              <ComboboxEmpty>{t("noAppsToAdd")}</ComboboxEmpty>
+              <ComboboxEmpty>{t("noServicesToAdd")}</ComboboxEmpty>
               <ComboboxList>
                 {(k: string) => {
                   const service = byKey.get(k);

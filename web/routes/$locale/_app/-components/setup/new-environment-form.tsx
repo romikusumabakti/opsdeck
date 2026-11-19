@@ -90,14 +90,16 @@ import {
   PipelineChoices,
   type PipelineRepo,
 } from "./pipeline-choices";
-import { RepoListRow } from "./repo-list-row";
+import { RepoListRow, ServiceListRow } from "./repo-list-row";
 import { RepoPicker } from "./repo-picker";
 import { SetupReview } from "./review";
+import { ServicePicker } from "./service-picker";
 import type { NewEnvironmentSources } from "./sources-mode";
 import { useApiErrorMessage, useIssueMessage } from "./use-issue-message";
 
-// The New environment page (inside a project): Start from, Name, Repository,
-// "Needs a database", Address and Create, with the rest under Advanced
+// The New environment page (inside a project): Start from, Name, Services
+// (any subset of the project's services, and repositories to register as new
+// ones), "Needs a database", Address and Create, with the rest under Advanced
 // options. The server resolves the short input (POST
 // /api/setup/new-environment/preview); the check runs only on Create, when
 // Advanced options opens and when a repository is picked, never per key.
@@ -118,11 +120,20 @@ export type NewEnvironmentService = {
   buildSpec?: { branches: string[]; artifact?: unknown } | null;
 };
 
+/** A repository no service builds yet: the create registers it. */
 type RepoRow = {
   ciConnectionId: string;
   repoFullName: string;
   branch: string;
 };
+
+/** A registered service the environment deploys, on its branch. */
+type PickedService = { componentKey: string; branch: string };
+
+/** What the environment deploys: registered services and new repositories. */
+type Selection = { services: PickedService[]; repos: RepoRow[] };
+
+const NOTHING: Selection = { services: [], repos: [] };
 
 /** The Advanced sections whose values replace the resolved ones once edited. */
 type AdvancedKey = "targets" | "services" | "database" | "variables" | "domain";
@@ -157,6 +168,7 @@ export function NewEnvironmentForm({
   canChoosePipelines,
   initialFrom,
   initialRepo,
+  initialService,
   sources = null,
 }: {
   project: NewEnvironmentProject;
@@ -170,6 +182,8 @@ export function NewEnvironmentForm({
   initialFrom?: string;
   /** `?repo=`: the repository to start with. */
   initialRepo?: string;
+  /** `?service=`: the service to start with. */
+  initialService?: string;
   /** The project's sources; null (no sources) keeps every service pickable. */
   sources?: NewEnvironmentSources | null;
 }) {
@@ -187,7 +201,11 @@ export function NewEnvironmentForm({
     repoRepresentative(
       components.filter((c) => c.repoFullName === repoFullName)
     );
-  const startComponent = initialRepo ? componentOfRepo(initialRepo) : undefined;
+  const startComponent = initialService
+    ? components.find((c) => c.componentKey === initialService)
+    : initialRepo
+      ? componentOfRepo(initialRepo)
+      : undefined;
   // A component picked without a copy source starts on the project default
   // branch, else its build spec's first branch, the repository's, "main".
   const startBranch = (
@@ -210,23 +228,28 @@ export function NewEnvironmentForm({
     b.id.localeCompare(a.id)
   );
   const defaultFrom =
-    initialFrom ?? (initialRepo ? undefined : copySources[0]?.id) ?? null;
+    initialFrom ??
+    (initialRepo || initialService ? undefined : copySources[0]?.id) ??
+    null;
 
   const [startFrom, setStartFrom] = React.useState<string | null>(defaultFrom);
   const [name, setName] = React.useState("");
   // The URL name as typed; empty = the default the name gives.
   const [slug, setSlug] = React.useState("");
-  const [repos, setRepos] = React.useState<RepoRow[]>(() =>
+  const [selection, setSelection] = React.useState<Selection>(() =>
     !defaultFrom && startComponent
-      ? [
-          {
-            ciConnectionId: startComponent.ciConnectionId,
-            repoFullName: startComponent.repoFullName,
-            branch: startBranch(startComponent),
-          },
-        ]
-      : []
+      ? {
+          services: [
+            {
+              componentKey: startComponent.componentKey,
+              branch: startBranch(startComponent),
+            },
+          ],
+          repos: [],
+        }
+      : NOTHING
   );
+  const { services: picked, repos } = selection;
   const [needsDatabase, setNeedsDatabase] = React.useState(false);
   const [address, setAddress] = React.useState<{ label: string } | null>({
     label: "",
@@ -284,29 +307,20 @@ export function NewEnvironmentForm({
     enabled: advancedOpen,
   }).data;
 
-  // The copy source fills the repositories, branches, database choice and
+  // The copy source fills the services, branches, database choice and
   // address once per source.
   const sourceQuery = useQuery({
     ...copySourceQuery(startFrom ?? ""),
     enabled: startFrom !== null,
   });
   const source = startFrom ? sourceQuery.data : undefined;
-  const sourceRepos = React.useMemo<RepoRow[]>(
+  const sourceServices = React.useMemo<PickedService[]>(
     () =>
-      (source?.targets ?? []).flatMap((target) => {
-        const c = components.find(
-          (x) => x.componentKey === target.componentKey
-        );
-        return c
-          ? [
-              {
-                ciConnectionId: c.ciConnectionId,
-                repoFullName: c.repoFullName,
-                branch: target.sourceBranch,
-              },
-            ]
-          : [];
-      }),
+      (source?.targets ?? []).flatMap((target) =>
+        components.some((x) => x.componentKey === target.componentKey)
+          ? [{ componentKey: target.componentKey, branch: target.sourceBranch }]
+          : []
+      ),
     [source, components]
   );
   const appliedSource = React.useRef<string | null>(null);
@@ -314,11 +328,11 @@ export function NewEnvironmentForm({
   React.useEffect(() => {
     if (!source || appliedSource.current === source.environment.id) return;
     appliedSource.current = source.environment.id;
-    setRepos(sourceRepos);
+    setSelection({ services: sourceServices, repos: [] });
     setEdited((prev) => withoutKeys(prev, "targets", "services"));
     setNeedsDatabase(source.database.kind !== "none");
     setAddress(source.domain.kind === "none" ? null : { label: "" });
-  }, [source, sourceRepos]);
+  }, [source, sourceServices]);
 
   // `?repo=` of a repository no service builds yet: its CI connection and
   // main branch come from the repository search, once.
@@ -334,25 +348,29 @@ export function NewEnvironmentForm({
     const row = pendingRepoRows.find((r) => r.repoFullName === pendingRepo);
     setPendingRepo(null);
     if (row && !row.componentKey) {
-      setRepos([
-        {
-          ciConnectionId: row.ciConnectionId,
-          repoFullName: row.repoFullName,
-          branch: row.defaultBranch,
-        },
-      ]);
+      setSelection({
+        services: [],
+        repos: [
+          {
+            ciConnectionId: row.ciConnectionId,
+            repoFullName: row.repoFullName,
+            branch: row.defaultBranch,
+          },
+        ],
+      });
     }
   }, [pendingRepoRows, pendingRepo]);
 
-  // The input: a copy whose repositories and branches are the source's
-  // sends none (the server takes the source's components).
+  // The input: a copy whose services and branches are the source's sends
+  // none (the server takes the source's services).
   const sameAsSource =
     startFrom !== null &&
-    repos.length === sourceRepos.length &&
-    repos.every(
-      (r, i) =>
-        r.repoFullName === sourceRepos[i]?.repoFullName &&
-        r.branch === sourceRepos[i]?.branch
+    repos.length === 0 &&
+    picked.length === sourceServices.length &&
+    picked.every(
+      (p, i) =>
+        p.componentKey === sourceServices[i]?.componentKey &&
+        p.branch === sourceServices[i]?.branch
     );
   // The URL name the server gives when none is typed: the last check's for
   // this name (it skips slugs the project uses, e.g. `qa-2`), else the
@@ -386,7 +404,7 @@ export function NewEnvironmentForm({
   };
 
   // The admin's pipeline choices, for the repositories still to register.
-  const unregistered = repos.filter((r) => !componentOfRepo(r.repoFullName));
+  const unregistered = repos;
   const chosenPipelines = canChoosePipelines
     ? unregistered.flatMap((r) => {
         const choice = pipelines[r.repoFullName];
@@ -447,6 +465,7 @@ export function NewEnvironmentForm({
       name: nameValue,
       ...(slug ? { slug } : {}),
       copyFromEnvironmentId: startFrom,
+      services: sameAsSource ? [] : picked,
       repos: sameAsSource
         ? []
         : repos.map(({ ciConnectionId, repoFullName, branch }) => ({
@@ -562,34 +581,65 @@ export function NewEnvironmentForm({
     if (advancedOpen && !advanced && checkableNow && !checking) checkNow();
   }, [checkableNow]);
 
-  function changeRepos(update: (rows: RepoRow[]) => RepoRow[], recheck = true) {
+  function changeSelection(
+    update: (selection: Selection) => Selection,
+    recheck = true
+  ) {
     touch("repos");
-    setRepos(update);
+    setSelection(update);
     setEdited((prev) => withoutKeys(prev, "targets", "services"));
     if (recheck) setCheckRequest((n) => n + 1);
   }
+  function addService(componentKey: string, repoDefault?: string) {
+    const component = components.find((c) => c.componentKey === componentKey);
+    const branch = startBranch(component, repoDefault);
+    changeSelection((sel) =>
+      sel.services.some((p) => p.componentKey === componentKey)
+        ? sel
+        : { ...sel, services: [...sel.services, { componentKey, branch }] }
+    );
+  }
+  // A registered repository adds its service; another one is registered.
   function addRepo(row: {
     ciConnectionId: string;
     repoFullName: string;
+    componentKey: string | null;
     defaultBranch?: string;
   }) {
-    const branch = startBranch(
-      componentOfRepo(row.repoFullName),
-      row.defaultBranch
-    );
-    changeRepos((rows) =>
-      rows.some((r) => r.repoFullName === row.repoFullName)
-        ? rows
-        : [
-            ...rows,
-            {
-              ciConnectionId: row.ciConnectionId,
-              repoFullName: row.repoFullName,
-              branch,
-            },
-          ]
+    if (row.componentKey) {
+      addService(row.componentKey, row.defaultBranch);
+      return;
+    }
+    const branch = startBranch(undefined, row.defaultBranch);
+    changeSelection((sel) =>
+      sel.repos.some((r) => r.repoFullName === row.repoFullName)
+        ? sel
+        : {
+            ...sel,
+            repos: [
+              ...sel.repos,
+              {
+                ciConnectionId: row.ciConnectionId,
+                repoFullName: row.repoFullName,
+                branch,
+              },
+            ],
+          }
     );
   }
+  // The repositories the repository search must not offer again: the new
+  // ones, and those whose service (the search's) is picked.
+  const pickedKeys = new Set(picked.map((p) => p.componentKey));
+  const pickedRepos = [
+    ...repos.map((r) => r.repoFullName),
+    ...components
+      .filter(
+        (c) =>
+          pickedKeys.has(c.componentKey) &&
+          componentOfRepo(c.repoFullName)?.componentKey === c.componentKey
+      )
+      .map((c) => c.repoFullName),
+  ];
 
   function onAdvancedOpenChange(open: boolean) {
     setAdvancedOpen(open);
@@ -780,7 +830,7 @@ export function NewEnvironmentForm({
       case "slug":
         return t("slug");
       case "repos":
-        return t("repository");
+        return t("services");
       case "address":
         return t("address");
       case "server":
@@ -840,7 +890,7 @@ export function NewEnvironmentForm({
                   setStartFrom(next);
                   appliedSource.current = null;
                   if (next === null) {
-                    changeRepos(() => [], false);
+                    changeSelection(() => NOTHING, false);
                     setNeedsDatabase(false);
                     setAddress({ label: "" });
                   }
@@ -908,34 +958,76 @@ export function NewEnvironmentForm({
           </Field>
 
           <Field data-invalid={reposIssue ? true : undefined}>
-            <FieldLabel>{t("repository")}</FieldLabel>
+            <FieldLabel>{t("services")}</FieldLabel>
             <FieldContent className="gap-3">
-              {repos.length > 0 && (
+              {(picked.length > 0 || repos.length > 0) && (
                 <ul className="flex flex-col gap-3">
+                  {picked.map((service, index) => {
+                    const component = components.find(
+                      (c) => c.componentKey === service.componentKey
+                    );
+                    return (
+                      <ServiceListRow
+                        key={service.componentKey}
+                        componentKey={service.componentKey}
+                        repoFullName={component?.repoFullName ?? null}
+                        branch={service.branch}
+                        index={index}
+                        plan={detectionPlan}
+                        issue={byField[`services.${index}`]}
+                        message={message}
+                        onBranch={(branch) =>
+                          changeSelection(
+                            (sel) => ({
+                              ...sel,
+                              services: sel.services.map((p, i) =>
+                                i === index ? { ...p, branch } : p
+                              ),
+                            }),
+                            false
+                          )
+                        }
+                        onRemove={() =>
+                          changeSelection(
+                            (sel) => ({
+                              ...sel,
+                              services: sel.services.filter(
+                                (_, i) => i !== index
+                              ),
+                            }),
+                            false
+                          )
+                        }
+                      />
+                    );
+                  })}
                   {repos.map((repo, index) => (
                     <RepoListRow
                       key={repo.repoFullName}
                       repoFullName={repo.repoFullName}
                       branch={repo.branch}
                       index={index}
-                      componentKey={
-                        componentOfRepo(repo.repoFullName)?.componentKey ?? null
-                      }
+                      componentKey={null}
                       plan={detectionPlan}
                       issue={byField[`repos.${index}`]}
                       message={message}
                       onBranch={(branch) =>
-                        changeRepos(
-                          (rows) =>
-                            rows.map((r, i) =>
+                        changeSelection(
+                          (sel) => ({
+                            ...sel,
+                            repos: sel.repos.map((r, i) =>
                               i === index ? { ...r, branch } : r
                             ),
+                          }),
                           false
                         )
                       }
                       onRemove={() =>
-                        changeRepos(
-                          (rows) => rows.filter((_, i) => i !== index),
+                        changeSelection(
+                          (sel) => ({
+                            ...sel,
+                            repos: sel.repos.filter((_, i) => i !== index),
+                          }),
                           false
                         )
                       }
@@ -943,12 +1035,22 @@ export function NewEnvironmentForm({
                   ))}
                 </ul>
               )}
-              <RepoPicker
-                label={repos.length === 0 ? t("chooseRepo") : t("addRepo")}
-                picked={repos.map((r) => r.repoFullName)}
-                sourceServiceKeys={sources?.serviceKeys ?? null}
-                onPick={addRepo}
-              />
+              <div className="flex flex-wrap gap-2">
+                <ServicePicker
+                  label={t("addService")}
+                  services={components.filter(
+                    (c) => !pickedKeys.has(c.componentKey)
+                  )}
+                  onPick={(componentKey) => addService(componentKey)}
+                />
+                <RepoPicker
+                  label={t("addRepo")}
+                  picked={pickedRepos}
+                  sourceServiceKeys={sources?.serviceKeys ?? null}
+                  onPick={addRepo}
+                />
+              </div>
+              <FieldDescription>{t("servicesHint")}</FieldDescription>
               {reposIssue && <FieldError>{message(reposIssue)}</FieldError>}
             </FieldContent>
           </Field>

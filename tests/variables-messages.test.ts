@@ -25,7 +25,6 @@ function leaves(node: unknown, prefix = ""): Map<string, unknown> {
 const SHARED_KEYS = [
   "nav.variables",
   "breadcrumbs.variables",
-  "apps.variableTemplates",
   "activity.variablesRevealed",
   "activity.variableCreated",
   "activity.variableUpdated",

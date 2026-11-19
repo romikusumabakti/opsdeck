@@ -74,36 +74,17 @@ function getStaticSegments(pathname: string): StaticSegment[] {
       { kind: "static", labelKey: "breadcrumbs.edit" },
     ];
   }
-  // /admin/repositories/[appKey]/variables — the app's variable templates.
-  const appVariables = /^\/admin\/repositories\/([^/]+)\/variables$/.exec(
-    pathname
-  );
-  if (appVariables?.[1]) {
+  // /admin/services/[serviceKey] — a service's page; the key is the crumb.
+  if (pathname.startsWith("/admin/services/")) {
     return [
       {
         kind: "static",
-        href: "/admin/repositories",
-        labelKey: "breadcrumbs.repositories",
+        href: "/admin/services",
+        labelKey: "breadcrumbs.serviceCatalog",
       },
       {
         kind: "static",
-        href: `/admin/repositories/${appVariables[1]}`,
-        label: appVariables[1],
-      },
-      { kind: "static", labelKey: "breadcrumbs.variables" },
-    ];
-  }
-  // /admin/repositories/[appKey] — the app's page; the key is the crumb.
-  if (pathname.startsWith("/admin/repositories/")) {
-    return [
-      {
-        kind: "static",
-        href: "/admin/repositories",
-        labelKey: "breadcrumbs.repositories",
-      },
-      {
-        kind: "static",
-        label: pathname.slice("/admin/repositories/".length),
+        label: decodeURIComponent(pathname.slice("/admin/services/".length)),
       },
     ];
   }

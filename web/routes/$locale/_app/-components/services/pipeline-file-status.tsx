@@ -2,10 +2,10 @@ import { Loader2, RotateCw } from "lucide-react";
 import { useTranslations } from "use-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AppComponentRow } from "@/web/api/apps";
+import type { ServiceRow } from "@/web/api/service-catalog";
 
 /**
- * Where a component's pipeline file stands: custom components keep their own
+ * Where a service's pipeline file stands: custom services keep their own
  * file; generated ones show, per built branch, the committed pipeline file or
  * "not committed" with the reason the last commit failed. With `onRetry`, a
  * branch whose last commit failed gets a button to commit it again.
@@ -18,17 +18,17 @@ export function PipelineFileStatus({
   disabled = false,
 }: {
   component: Pick<
-    AppComponentRow,
+    ServiceRow,
     "pipelineMode" | "buildSpec" | "pipelineFileCommits"
   >;
   showReason?: boolean;
   onRetry?: (branch: string) => void;
   /** The branch being committed again (shows a spinner), or null. */
   retrying?: string | null;
-  /** Disables the retry buttons while any action on the component runs. */
+  /** Disables the retry buttons while any action on the service runs. */
   disabled?: boolean;
 }) {
-  const t = useTranslations("apps");
+  const t = useTranslations("serviceCatalog");
   if (component.pipelineMode === "custom") {
     return (
       <span className="text-sm text-muted-foreground">{t("repoFile")}</span>

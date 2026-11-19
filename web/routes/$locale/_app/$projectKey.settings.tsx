@@ -103,7 +103,7 @@ function ProjectSettingsPage() {
   const canManageMembers = canProject(roles[project.id] ?? null, {
     member: ["manage"],
   });
-  const canManageApps = canProject(roles[project.id] ?? null, {
+  const canManageServices = canProject(roles[project.id] ?? null, {
     environment: ["create"],
   });
   const jiraLink = useSuspenseQuery(getJiraLinkQuery(project.id)).data;
@@ -176,7 +176,7 @@ function ProjectSettingsPage() {
             <CardContent>
               <ProjectSourcesTab
                 project={{ id: project.id, key: project.key }}
-                canManageApps={canManageApps}
+                canManageServices={canManageServices}
               />
             </CardContent>
           </Card>

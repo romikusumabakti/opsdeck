@@ -544,8 +544,7 @@ describe("target configuration", () => {
     expect(repo.upsertTarget).not.toHaveBeenCalled();
   });
 
-  it("answers a duplicate target with a 409 that differs from the other-app one", async () => {
-    const { COMPONENT_OTHER_APP_MESSAGE } = await import("@/lib/deploy/errors");
+  it("answers a duplicate target with a 409", async () => {
     repo.upsertTarget.mockRejectedValue(
       Object.assign(new Error("duplicate key value"), { code: "23505" })
     );
@@ -555,7 +554,6 @@ describe("target configuration", () => {
     expect(error).toBe(
       "This component already has a target in the environment"
     );
-    expect(error).not.toBe(COMPONENT_OTHER_APP_MESSAGE);
   });
 
   // The deploy writes the tag variable itself: a variable of the same name

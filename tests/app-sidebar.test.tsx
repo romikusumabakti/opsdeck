@@ -160,7 +160,7 @@ describe("app sidebar", () => {
     expect(groupRows(messages.nav.admin)).toEqual([
       messages.nav.activity,
       messages.nav.users,
-      messages.nav.repositories,
+      messages.nav.serviceCatalog,
       messages.nav.storage,
       messages.nav.instance,
     ]);
@@ -176,7 +176,7 @@ describe("app sidebar", () => {
     expect(headings.indexOf(messages.nav.integrations)).toBe(
       headings.indexOf(messages.nav.admin) + 1
     );
-    expect(hrefs()).toContain("/admin/repositories");
+    expect(hrefs()).toContain("/admin/services");
     expect(hrefs()).toContain("/admin/instance");
     expect(hrefs().some((h) => h?.startsWith("/admin/tunnels"))).toBe(false);
   });

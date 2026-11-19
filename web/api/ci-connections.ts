@@ -31,3 +31,33 @@ export type CiConnectionCheck = Awaited<ReturnType<typeof verifyCiConnection>>;
 export type CiConnectionRow = Awaited<
   ReturnType<typeof listCiConnections>
 >[number];
+
+/** The CI connections a registrant may register from (no URLs or tokens). */
+export const ciConnectionOptionsQuery = () =>
+  queryOptions({
+    queryKey: ["ci-connections", "options"],
+    queryFn: () => parseResponse(routes.options.$get()),
+  });
+
+export type CiConnectionOption = Awaited<
+  ReturnType<
+    NonNullable<ReturnType<typeof ciConnectionOptionsQuery>["queryFn"]>
+  >
+>[number];
+
+/** A connection's repositories, each with a service it already builds. */
+export const registrableReposQuery = (connectionId: string | null) =>
+  queryOptions({
+    queryKey: ["ci-connections", "repos", connectionId],
+    queryFn: () =>
+      parseResponse(
+        routes[":id"].repos.$get({ param: { id: connectionId as string } })
+      ),
+    enabled: connectionId !== null,
+    retry: false,
+    staleTime: 60_000,
+  });
+
+export type RegistrableRepoRow = Awaited<
+  ReturnType<NonNullable<ReturnType<typeof registrableReposQuery>["queryFn"]>>
+>[number];

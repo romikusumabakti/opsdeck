@@ -31,7 +31,7 @@ vi.mock("@/i18n/navigation", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useRouter: () => ({ push: api.push }),
 }));
-vi.mock("@/web/api/apps", async (importOriginal) => ({
+vi.mock("@/web/api/service-catalog", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   pipelinePreviewQuery: (componentKey: string, buildSpec: unknown) => ({
     queryKey: ["pipeline-preview", componentKey, buildSpec],
@@ -348,7 +348,7 @@ describe("New environment page", () => {
     for (const label of [
       messages.newEnvironment.startFrom,
       messages.newEnvironment.name,
-      messages.newEnvironment.repository,
+      messages.newEnvironment.services,
       messages.newEnvironment.needsDatabase,
       messages.newEnvironment.address,
     ]) {
@@ -383,7 +383,7 @@ describe("New environment page", () => {
     await pressCreate();
     expect(api.create).toHaveBeenCalledOnce();
     expect(api.toast.warning).toHaveBeenCalledWith(
-      "The pipeline file was not committed to dev-3 of hris. An admin can commit it again on the repository's page."
+      "The pipeline file was not committed to dev-3 of hris. An admin can commit it again on the service's page."
     );
     expect(api.push).toHaveBeenCalledWith("/KMEM/dev-3/deploys");
   });
@@ -549,12 +549,11 @@ describe("New environment page", () => {
     await act(async () => free?.click());
     await settle();
     expect(api.preview).toHaveBeenCalledOnce();
+    // The copied service by key, the new repository to register.
+    expect(api.preview.mock.calls[0]?.[0].services).toEqual([
+      { componentKey: "kmem-api", branch: "develop" },
+    ]);
     expect(api.preview.mock.calls[0]?.[0].repos).toEqual([
-      {
-        ciConnectionId: CONN,
-        repoFullName: "acme/kmem-api",
-        branch: "develop",
-      },
       // The repository's main branch on the forge.
       {
         ciConnectionId: CONN,
@@ -562,6 +561,53 @@ describe("New environment page", () => {
         branch: "develop",
       },
     ]);
+  });
+
+  it("picks any subset of the services and sends them by key", async () => {
+    await mount();
+    await act(async () =>
+      document.querySelector<HTMLElement>("#env-service-picker")?.click()
+    );
+    await settle();
+    const options = [...document.querySelectorAll('[role="option"]')];
+    expect(options.map((o) => o.textContent)).toEqual([
+      expect.stringContaining("hris"),
+      expect.stringContaining("kmem-api"),
+      expect.stringContaining("kmem-web"),
+    ]);
+    await act(async () => byText('[role="option"]', "kmem-web")?.click());
+    await settle();
+    expect(api.preview).toHaveBeenCalledOnce();
+    expect(api.preview.mock.calls[0]?.[0]).toMatchObject({
+      services: [{ componentKey: "kmem-web", branch: "main" }],
+      repos: [],
+    });
+    // A picked service is not offered again.
+    await act(async () =>
+      document.querySelector<HTMLElement>("#env-service-picker")?.click()
+    );
+    await settle();
+    expect(byText('[role="option"]', "kmem-web")).toBeUndefined();
+  });
+
+  it("starts new with ?service= picked", async () => {
+    await mount({ project: projectWithEnvs, initialService: "hris" });
+    expect(document.querySelector("#env-start-from")?.textContent).toContain(
+      "New"
+    );
+    expect(container.textContent).toContain("acme/hris");
+  });
+
+  it("shows each service's default deploy dir after a check", async () => {
+    await mount({ initialService: "kmem-api" });
+    await act(async () => type(nameInput(), "Dev 3"));
+    await pressCreate();
+    expect(container.textContent).toContain(
+      messages.newEnvironment.deployDir.replace(
+        "{dir}",
+        "/deployments/kmem-dev-3"
+      )
+    );
   });
 
   it("checks when Advanced options opens and sends only edited sections", async () => {
@@ -825,13 +871,10 @@ describe("New environment page", () => {
       );
       await settle();
       expect(api.preview).toHaveBeenCalledOnce();
-      expect(api.preview.mock.calls[0]?.[0].repos).toEqual([
-        {
-          ciConnectionId: CONN,
-          repoFullName: "acme/kmem-api",
-          branch: "kestrel/development",
-        },
-      ]);
+      expect(api.preview.mock.calls[0]?.[0]).toMatchObject({
+        services: [{ componentKey: "kmem-api", branch: "kestrel/development" }],
+        repos: [],
+      });
     });
 
     it("a copy keeps its branches; a repo added to it starts on the project default", async () => {
@@ -867,6 +910,7 @@ describe("New environment page", () => {
       // The copy is faithful: the source's branch, so no repos are sent.
       expect(api.preview.mock.calls[0]?.[0]).toMatchObject({
         copyFromEnvironmentId: OLD_ENV,
+        services: [],
         repos: [],
       });
       await openPicker();
@@ -875,18 +919,27 @@ describe("New environment page", () => {
       );
       await settle();
       expect(api.preview).toHaveBeenCalledTimes(2);
-      expect(api.preview.mock.calls[1]?.[0].repos).toEqual([
-        {
-          ciConnectionId: CONN,
-          repoFullName: "acme/kmem-api",
-          branch: "develop",
-        },
-        {
-          ciConnectionId: CONN,
-          repoFullName: "acme/kmem-web",
-          branch: "kestrel/demo",
-        },
-      ]);
+      expect(api.preview.mock.calls[1]?.[0]).toMatchObject({
+        services: [
+          { componentKey: "kmem-api", branch: "develop" },
+          { componentKey: "kmem-web", branch: "kestrel/demo" },
+        ],
+        repos: [],
+      });
+    });
+
+    it("offers only the project's services in the service picker", async () => {
+      await mount({
+        project: emptyProject,
+        services: services.filter((x) => x.componentKey !== "hris"),
+        sources: { serviceKeys: ["kmem-api", "kmem-web"], defaultBranches: {} },
+      });
+      await act(async () =>
+        document.querySelector<HTMLElement>("#env-service-picker")?.click()
+      );
+      await settle();
+      expect(byText('[role="option"]', "hris")).toBeUndefined();
+      expect(byText('[role="option"]', "kmem-web")).toBeDefined();
     });
 
     it("repositories of services outside the sources are disabled with the Sources hint", async () => {

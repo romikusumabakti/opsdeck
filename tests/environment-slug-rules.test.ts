@@ -190,6 +190,7 @@ describe("only known sites read the environment slug", () => {
     "lib/people/queries.ts": "a person's run links",
     "lib/project-sources.ts": "links of a project's source environments",
     "lib/reserved-paths.ts": "the reserved sub-routes' doc",
+    "lib/service-catalog.ts": "a service page's links to its environments",
     "lib/run-progress.ts": "run progress links",
     "lib/teardown/repository.ts":
       "the archive's snapshot of a deleted environment's names",

@@ -9,7 +9,6 @@ import { locale } from "@/server/middleware/locale";
 import { securityHeaders } from "@/server/middleware/security-headers";
 import { accessRouter } from "@/server/routes/access";
 import { activityRouter } from "@/server/routes/activity";
-import { appsRouter } from "@/server/routes/apps";
 import { assistantRouter } from "@/server/routes/assistant";
 import { assistantSettingsRouter } from "@/server/routes/assistant-settings";
 import { backupsRouter } from "@/server/routes/backups";
@@ -155,7 +154,6 @@ export const app = createBaseApp()
   .route("/api/environments", environmentReleasesRouter)
   .route("/api/projects", projectReleasesRouter)
   .route("/api/releases", releasesRouter)
-  .route("/api/apps", appsRouter)
   .route("/api/service-catalog", serviceCatalogRouter)
   .route("/api/service-catalog", variableTemplatesRouter)
   .route("/api/setup", setupRouter)

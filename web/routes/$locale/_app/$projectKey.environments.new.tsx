@@ -26,18 +26,23 @@ const SOURCES_READ = { environment: ["update"] } as const;
 
 // New environment, inside a project: one page from a repository to a
 // running environment. `?from=<environmentId>` starts from a copy of that
-// environment, `?repo=<owner/name>` with that repository. In a project with
+// environment, `?repo=<owner/name>` with that repository, `?service=<key>`
+// with that service. In a project with
 // sources only its services are offered (see sources-mode.ts).
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/environments/new"
 )({
   validateSearch: (
     search: Record<string, unknown>
-  ): { from?: string; repo?: string } => ({
+  ): { from?: string; repo?: string; service?: string } => ({
     from:
       typeof search.from === "string" && search.from ? search.from : undefined,
     repo:
       typeof search.repo === "string" && search.repo ? search.repo : undefined,
+    service:
+      typeof search.service === "string" && search.service
+        ? search.service
+        : undefined,
   }),
   // Engineers of the project (QA and viewers get the not-found page); the
   // server checks placement per server.
@@ -70,7 +75,7 @@ export const Route = createFileRoute(
 
 function NewEnvironmentPage() {
   const { projectKey } = Route.useParams();
-  const { from, repo } = Route.useSearch();
+  const { from, repo, service } = Route.useSearch();
   const t = useTranslations("newEnvironment");
   const me = useMe();
   const project = useSuspenseQuery(
@@ -104,6 +109,7 @@ function NewEnvironmentPage() {
         })}
         initialFrom={from}
         initialRepo={repo}
+        initialService={service}
       />
     </>
   );

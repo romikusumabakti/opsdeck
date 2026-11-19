@@ -3,7 +3,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { canOrg, canProject, SETUP_PERMISSIONS } from "@/lib/permissions";
-import { listAppsQuery } from "@/web/api/apps";
 import { listDeployTargetsQuery } from "@/web/api/deploys";
 import { environmentDomainQuery } from "@/web/api/environment-domains";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
@@ -46,8 +45,6 @@ export const Route = createFileRoute(
       loaderQuery(queryClient, listDeployTargetsQuery(environmentId)),
       loaderQuery(queryClient, getMailpitSettingsQuery(environmentId)),
       loaderQuery(queryClient, environmentDomainQuery(environmentId)),
-      // The add-target dialog picks the component from the environment's app.
-      environment?.appId ? loaderQuery(queryClient, listAppsQuery()) : null,
     ]);
   },
   pendingComponent: SettingsPending,

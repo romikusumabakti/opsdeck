@@ -1,20 +1,12 @@
-import { and, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
-  type App,
   type AppComponent,
   appComponents,
-  apps,
   builds,
   deployTargets,
   environments,
 } from "@/lib/db/schema";
-
-/** A component as listed to clients: everything but the notify secret. */
-export type PublicAppComponent = Omit<AppComponent, "notifySecret">;
-
-const { notifySecret: _notifySecret, ...publicComponentColumns } =
-  getTableColumns(appComponents);
 
 /**
  * The component (a service) by key, or undefined when the key is unknown. Every
@@ -30,28 +22,6 @@ export async function getComponent(
     .from(appComponents)
     .where(eq(appComponents.componentKey, componentKey));
   return row;
-}
-
-/**
- * LEGACY (Stage 8, services model): the retired `apps` grouping, read only
- * for GET /api/apps while screens still list services by app; removed with
- * that route (Task 4). Nothing else reads or writes `apps`.
- */
-export async function listApps(): Promise<
-  (App & { components: PublicAppComponent[] })[]
-> {
-  const rows = await db
-    .select({ app: apps, component: publicComponentColumns })
-    .from(apps)
-    .leftJoin(appComponents, eq(appComponents.appId, apps.id))
-    .orderBy(apps.appKey, appComponents.componentKey);
-  const byId = new Map<string, App & { components: PublicAppComponent[] }>();
-  for (const { app, component } of rows) {
-    const entry = byId.get(app.id) ?? { ...app, components: [] };
-    if (component) entry.components.push(component);
-    byId.set(app.id, entry);
-  }
-  return [...byId.values()];
 }
 
 /** The component's deploy targets: each one's project and source branch. */

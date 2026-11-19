@@ -94,7 +94,7 @@ const t = messages.projectSources;
 let container: HTMLDivElement | undefined;
 let root: ReturnType<typeof createRoot> | undefined;
 
-async function render(canManageApps = true) {
+async function render(canManageServices = true) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -108,7 +108,7 @@ async function render(canManageApps = true) {
         <IntlProvider locale="en" messages={messages} timeZone="UTC">
           <ProjectSourcesTab
             project={{ id: PROJECT, key: "KMEM" }}
-            canManageApps={canManageApps}
+            canManageServices={canManageServices}
           />
         </IntlProvider>
       </QueryClientProvider>
@@ -227,7 +227,7 @@ describe("Project settings Sources tab", () => {
 
   it("Add offers only registered services that are not sources yet", async () => {
     await render();
-    await click(button(t.addApp));
+    await click(button(t.addService));
     await click(
       document.querySelector('[data-slot="combobox-trigger"]') ?? undefined
     );
@@ -257,7 +257,7 @@ describe("Project settings Sources tab", () => {
 
   it("without environment:create, Add app and Remove are hidden", async () => {
     await render(false);
-    expect(button(t.addApp)).toBeUndefined();
+    expect(button(t.addService)).toBeUndefined();
     expect(button(t.remove)).toBeUndefined();
     await type(input() as HTMLInputElement, "kestrel/release");
     await click(button(t.save));

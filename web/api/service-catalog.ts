@@ -18,6 +18,49 @@ export const listServicesQuery = () =>
 
 export type ServiceRow = Awaited<ReturnType<typeof listServices>>[number];
 
+/** Admin › Services: every service with its usage and last build. */
+export async function listServicesOverview() {
+  return parseResponse(routes.overview.$get());
+}
+
+export const listServicesOverviewQuery = () =>
+  queryOptions({
+    queryKey: ["service-catalog", "overview"],
+    queryFn: listServicesOverview,
+  });
+
+export type ServiceOverviewRow = Awaited<
+  ReturnType<typeof listServicesOverview>
+>[number];
+
+export async function getService(componentKey: string) {
+  return parseResponse(
+    routes[":componentKey"].$get({ param: { componentKey } })
+  );
+}
+
+export const getServiceQuery = (componentKey: string) =>
+  queryOptions({
+    queryKey: ["service-catalog", "service", componentKey],
+    queryFn: () => getService(componentKey),
+  });
+
+export type ServiceDetail = Awaited<ReturnType<typeof getService>>;
+
+/** Registers one or more services from repositories (no app). */
+export async function registerServices(
+  json: Parameters<(typeof routes)["$post"]>[0]["json"]
+) {
+  return parseResponse(routes.$post({ json }));
+}
+
+/** The services an old app URL stands for (see legacyAppServices). */
+export async function resolveLegacyApp(appKey: string) {
+  return parseResponse(
+    routes["legacy-apps"][":appKey"].$get({ param: { appKey } })
+  );
+}
+
 export async function rotateNotifySecret(componentKey: string) {
   return parseResponse(
     routes[":componentKey"]["rotate-secret"].$post({ param: { componentKey } })

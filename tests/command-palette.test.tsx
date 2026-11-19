@@ -84,7 +84,7 @@ describe("command palette pages", () => {
     expect(labels()).toEqual(
       expect.arrayContaining([
         messages.nav.storage,
-        messages.nav.repositories,
+        messages.nav.serviceCatalog,
         messages.nav.ci,
         messages.nav.cloudflare,
         messages.header.createEnvironment,
@@ -108,12 +108,12 @@ describe("command palette pages", () => {
       ].find((item) => item.textContent === label);
       await act(async () => el?.click());
     };
-    await open(messages.nav.repositories);
+    await open(messages.nav.serviceCatalog);
     await open(messages.nav.storage);
     await open(messages.nav.ci);
     await open(messages.nav.cloudflare);
     expect(push.mock.calls.map(([path]) => path)).toEqual([
-      "/admin/repositories",
+      "/admin/services",
       "/admin/storage",
       "/admin/ci",
       "/admin/cloudflare",
@@ -135,7 +135,7 @@ describe("command palette pages", () => {
     await openPalette("qa", "qa");
     const shown = labels();
     for (const label of [
-      messages.nav.repositories,
+      messages.nav.serviceCatalog,
       messages.nav.ci,
       messages.nav.cloudflare,
       messages.nav.storage,

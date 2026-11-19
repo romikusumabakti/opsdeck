@@ -13,13 +13,12 @@ const OTHER_SERVER = "0197f3a0-1b2c-7def-8000-0123456789c2";
 const HOST = "0197f3a0-1b2c-7def-8000-0123456789d2";
 const ZONE = "0197f3a0-1b2c-7def-8000-0123456789b1";
 const TARGET = "0197f3a0-1b2c-7def-8000-0123456789a9";
-const APP = "0197f3a0-1b2c-7def-8000-0123456789f9";
 
 const api = vi.hoisted(() => ({
   updateEnvironment: vi.fn(),
   updateDeployTarget: vi.fn(),
   createDeployTarget: vi.fn(),
-  listApps: vi.fn(),
+  listSources: vi.fn(),
   listVariables: vi.fn(),
   checkEnvironmentSlug: vi.fn(),
   replace: vi.fn(),
@@ -54,10 +53,19 @@ vi.mock("@/web/api/deploys", () => ({
   updateDeployTarget: api.updateDeployTarget,
   createDeployTarget: api.createDeployTarget,
 }));
-vi.mock("@/web/api/apps", () => ({
-  listAppsQuery: () => ({
-    queryKey: ["apps", "listApps"],
-    queryFn: () => api.listApps(),
+// The add-target dialog picks from the project's services (its Sources);
+// the catalog gives each one's build spec.
+vi.mock("@/web/api/project-sources", () => ({
+  listProjectSourcesQuery: (projectId: string) => ({
+    queryKey: ["project-sources", projectId],
+    queryFn: () => api.listSources(),
+  }),
+}));
+vi.mock("@/web/api/service-catalog", () => ({
+  listServicesQuery: () => ({
+    queryKey: ["service-catalog"],
+    queryFn: async () =>
+      COMPONENTS.map((c) => ({ key: c.componentKey, buildSpec: null })),
   }),
 }));
 vi.mock("@/web/api/variables", () => ({
@@ -339,13 +347,10 @@ const COMPONENTS = [
   { componentKey: "kmem-api", repoFullName: "acme/kmem-api" },
   { componentKey: "kmem-web", repoFullName: "acme/kmem-web" },
 ];
-const appsWith = (components: typeof COMPONENTS) => [
-  { id: APP, appKey: "kmem", components },
-];
 
 beforeEach(() => {
   api.listVariables.mockResolvedValue({ variables: [], hasApp: false });
-  api.listApps.mockImplementation(async () => appsWith(COMPONENTS));
+  api.listSources.mockImplementation(async () => COMPONENTS);
   api.orgRole = "admin";
   api.updateEnvironment.mockResolvedValue({
     success: true,
@@ -727,7 +732,6 @@ describe("adding a deploy target from Source & Deploy", () => {
       (b) => b.textContent?.trim() === tDeploys.addTarget
     );
   const dialog = () => document.querySelector('[role="dialog"]');
-  const withApp = { ...environment, appId: APP } as Props["environment"];
 
   it("offers Add target under the empty state, without opening Advanced options", async () => {
     await mount({ targets: [] });
@@ -763,17 +767,16 @@ describe("adding a deploy target from Source & Deploy", () => {
     expect(onAddingTargetChange).toHaveBeenLastCalledWith(false);
   });
 
-  it("asks for the component as free text when the environment has no app", async () => {
+  it("never asks for a service key as free text", async () => {
     await mount({ targets: [] });
     await openTab(t.tabSourceDeploy);
     await click(addButtons()[0]);
-    expect(
-      dialog()?.querySelector('input[name="componentKey"]')
-    ).not.toBeNull();
+    expect(dialog()?.querySelector('input[name="componentKey"]')).toBeNull();
+    expect(dialog()?.querySelector("#target-component")).not.toBeNull();
   });
 
-  it("picks the component from the environment's app and preselects the one not yet targeted", async () => {
-    await mount({ environment: withApp });
+  it("picks the service from the project's services and preselects the one not yet targeted", async () => {
+    await mount();
     await openTab(t.tabSourceDeploy);
     await click(addButtons()[0]);
     expect(dialog()?.querySelector('input[name="componentKey"]')).toBeNull();
@@ -794,13 +797,13 @@ describe("adding a deploy target from Source & Deploy", () => {
       (b) => b.textContent?.trim() === tDeploys.form.create
     );
   const openDialog = async (props: Partial<Props>) => {
-    await mount({ environment: withApp, ...props });
+    await mount(props);
     await openTab(t.tabSourceDeploy);
     await click(addButtons()[0]);
   };
 
-  it("says the app has no repositories instead of an empty Select", async () => {
-    api.listApps.mockImplementation(async () => appsWith([]));
+  it("says the project has no services instead of an empty Select", async () => {
+    api.listSources.mockImplementation(async () => []);
     await openDialog({ targets: [] });
     expect(dialog()?.textContent).toContain(tDeploys.form.noComponents);
     expect(dialog()?.querySelector("#target-component")).toBeNull();
@@ -808,8 +811,8 @@ describe("adding a deploy target from Source & Deploy", () => {
     expect(submit()?.disabled).toBe(true);
   });
 
-  it("says every repository already has a target", async () => {
-    api.listApps.mockImplementation(async () => appsWith([COMPONENTS[0]!]));
+  it("says every service already has a target", async () => {
+    api.listSources.mockImplementation(async () => [COMPONENTS[0]!]);
     await openDialog({});
     expect(dialog()?.textContent).toContain(
       tDeploys.form.allComponentsTargeted
@@ -818,8 +821,8 @@ describe("adding a deploy target from Source & Deploy", () => {
     expect(submit()?.disabled).toBe(true);
   });
 
-  it("shows a disabled Select, not free text, while the app's components load", async () => {
-    api.listApps.mockImplementation(() => new Promise(() => {}));
+  it("shows a disabled Select, not free text, while the project's services load", async () => {
+    api.listSources.mockImplementation(() => new Promise(() => {}));
     await openDialog({ targets: [] });
     const trigger = dialog()?.querySelector<HTMLElement>("#target-component");
     expect(trigger).not.toBeNull();
@@ -829,14 +832,14 @@ describe("adding a deploy target from Source & Deploy", () => {
   });
 
   it("shows a load error with Retry instead of falling back to free text", async () => {
-    api.listApps.mockImplementation(async () => {
+    api.listSources.mockImplementation(async () => {
       throw new Error("boom");
     });
     await openDialog({ targets: [] });
     expect(dialog()?.textContent).toContain(tDeploys.form.componentsLoadFailed);
     expect(dialog()?.querySelector('input[name="componentKey"]')).toBeNull();
     expect(submit()?.disabled).toBe(true);
-    api.listApps.mockImplementation(async () => appsWith(COMPONENTS));
+    api.listSources.mockImplementation(async () => COMPONENTS);
     await click(
       [...(dialog()?.querySelectorAll<HTMLElement>("button") ?? [])].find(
         (b) => b.textContent?.trim() === tDeploys.form.componentsRetry
@@ -846,8 +849,8 @@ describe("adding a deploy target from Source & Deploy", () => {
     expect(submit()?.disabled).toBe(false);
   });
 
-  it("preselects nothing when more than one component is free", async () => {
-    await mount({ environment: withApp, targets: [] });
+  it("preselects nothing when more than one service is free", async () => {
+    await mount({ targets: [] });
     await openTab(t.tabSourceDeploy);
     await click(addButtons()[0]);
     const trigger = dialog()?.querySelector<HTMLElement>("#target-component");

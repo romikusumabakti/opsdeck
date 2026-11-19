@@ -257,13 +257,21 @@ services, tag variable, optional pre-start command, optional health URL, health
 timeout, back up before deploy. Viewing is open to any project role; deploy and
 rollback are maintainer-only. A service has at most one target per environment.
 
-**Admin API** (session-authenticated, used by the Panel UI; not for CI): the
-per-component routes under `/api/apps/<appKey>/components/<componentKey>/…`
-(`build`, `builds/active`, `rotate-secret`, `commit-pipeline-file`), `POST
-/api/apps` and `GET /api/apps/pipeline-preview` were removed. They live under
-`/api/service-catalog`, addressed by the key alone:
-`/api/service-catalog/<componentKey>/…`, `POST /api/service-catalog` (body
-`{"services": [...]}`) and `GET /api/service-catalog/pipeline-preview`.
+**Admin API** (session-authenticated, used by the Panel UI; not for CI):
+`/api/apps` is gone, `GET /api/apps` included. The per-component routes under
+`/api/apps/<appKey>/components/<componentKey>/…` (`build`, `builds/active`,
+`rotate-secret`, `commit-pipeline-file`), `POST /api/apps` and `GET
+/api/apps/pipeline-preview` live under `/api/service-catalog`, addressed by the
+key alone: `/api/service-catalog/<componentKey>/…`, `POST /api/service-catalog`
+(body `{"services": [...]}`) and `GET /api/service-catalog/pipeline-preview`.
+`GET /api/service-catalog` lists every service; `GET
+/api/service-catalog/overview` (with where each is used and its last build)
+and `GET /api/service-catalog/<componentKey>` (a service's page) are for
+admins (integration:manage). `GET /api/service-catalog/legacy-apps/<appKey>`
+answers the services of a retired app, only so that old UI links
+(`/admin/repositories/<appKey>…`, `/apps/<appKey>…`) redirect: to the service
+of a one-service app, else to Admin › Services filtered by the app's
+repositories.
 Variable templates belong to a service: `/api/apps/<appKey>/variable-templates…`
 moved to `/api/service-catalog/<componentKey>/variable-templates…`. An
 environment's "Fill from template" (`POST

@@ -30,6 +30,9 @@ describe("groupOf", () => {
     expect(groupOf("name")).toBe("name");
     expect(groupOf("copyFromEnvironmentId")).toBe("startFrom");
     expect(groupOf("repos.1")).toBe("repos");
+    // A picked service; compose service roles stay under Advanced.
+    expect(groupOf("services.0")).toBe("repos");
+    expect(groupOf("services.backend")).toBe("advanced");
     expect(groupOf("targets")).toBe("repos");
     expect(groupOf("serverId")).toBe("server");
     expect(groupOf("server.serverId")).toBe("server");
@@ -60,6 +63,15 @@ describe("snapshotOf and changedSince", () => {
     // An Advanced issue may hang on any part.
     expect(changedSince(b, a, "advanced")).toBe(true);
     expect(changedSince(a, null, "name")).toBe(true);
+  });
+
+  it("counts picked services with the repositories", () => {
+    const a = snapshotOf(input());
+    const b = snapshotOf(
+      input({ services: [{ componentKey: "kmem-api", branch: "main" }] })
+    );
+    expect(changedSince(b, a, "repos")).toBe(true);
+    expect(changedSince(b, a, "name")).toBe(false);
   });
 
   it("counts Advanced database and domain with their simple fields", () => {

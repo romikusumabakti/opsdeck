@@ -25,10 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import {
-  COMPONENT_OTHER_APP_MESSAGE,
-  TAG_VARIABLE_IS_VARIABLE_MESSAGE,
-} from "@/lib/deploy/errors";
+import { TAG_VARIABLE_IS_VARIABLE_MESSAGE } from "@/lib/deploy/errors";
 import {
   branchSchema,
   componentKeySchema,
@@ -42,10 +39,11 @@ import {
   systemdUnitSchema,
 } from "@/lib/deploy/validation";
 import { hasReservedPrefix } from "@/lib/variables/validation";
-import { listAppsQuery } from "@/web/api/apps";
 import { ApiError } from "@/web/api/client";
 import { createDeployTarget, type DeployTargetState } from "@/web/api/deploys";
 import type { EnvironmentWithServers } from "@/web/api/environments";
+import { listProjectSourcesQuery } from "@/web/api/project-sources";
+import { listServicesQuery } from "@/web/api/service-catalog";
 
 /**
  * The servers an environment's services run on, once each. A deploy target
@@ -278,11 +276,10 @@ export function useTargetSchema<S extends z.ZodRawShape>(extra?: S) {
 
 /**
  * Adds a deploy target. Existing targets are edited on the environment's
- * Settings → Source & Deploy tab. With an app on the environment the
- * component is picked from the app's components (the one not yet targeted
- * preselected when it is the only one; a hint instead when nothing is left
- * to pick, an error with Retry when the list fails to load); a legacy
- * environment without an app types the component key.
+ * Settings → Source & Deploy tab. The service is any of the project's
+ * services (its Sources) that has no target here yet: the one left
+ * preselected when it is the only one, a hint when none is left, an error
+ * with Retry when the list fails to load.
  */
 export function TargetFormDialog({
   open,
@@ -293,28 +290,40 @@ export function TargetFormDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  environment: Pick<EnvironmentWithServers, "id" | "appId">;
+  environment: Pick<EnvironmentWithServers, "id" | "projectId">;
   // The servers the environment's services run on (environmentServers).
   servers: { id: string; name: string }[];
-  // The component keys that already have a target in this environment.
+  // The service keys that already have a target in this environment.
   targetedKeys?: string[];
 }) {
   const t = useTranslations("deploys.form");
   const tCommon = useTranslations("common");
   const noticePipelineFailures = usePipelineFailureNotice();
-  const appId = environment.appId ?? null;
-  const fromApp = appId !== null;
-  // Apps and their public components are listed for every signed-in user.
-  const apps = useQuery({ ...listAppsQuery(), enabled: fromApp });
-  const components =
-    fromApp && apps.data
-      ? (apps.data.find((app) => app.id === appId)?.components ?? [])
-      : undefined;
+  const sources = useQuery({
+    ...listProjectSourcesQuery(environment.projectId),
+    enabled: open,
+  });
+  // The build spec decides a service's kind (jar, static or Compose).
+  const catalog = useQuery({ ...listServicesQuery(), enabled: open });
+  const components = React.useMemo(
+    () =>
+      sources.data && catalog.data
+        ? sources.data.map((source) => ({
+            componentKey: source.componentKey,
+            repoFullName: source.repoFullName,
+            buildSpec:
+              catalog.data.find((s) => s.key === source.componentKey)
+                ?.buildSpec ?? null,
+          }))
+        : undefined,
+    [sources.data, catalog.data]
+  );
   const taken = new Set(targetedKeys);
   const free = components?.filter((c) => !taken.has(c.componentKey)) ?? [];
-  // Picking from the app: still loading, failed, or nothing left to pick.
-  const loading = fromApp && apps.isPending;
-  const failed = fromApp && !apps.data && apps.isError;
+  // Still loading, failed, or nothing left to pick.
+  const failed =
+    components === undefined && (sources.isError || catalog.isError);
+  const loading = components === undefined && !failed;
   const nothingToPick = components
     ? components.length === 0
       ? t("noComponents")
@@ -384,12 +393,7 @@ export function TargetFormDialog({
       ) {
         form.setError("deployDir", { message: t(error.code) });
       } else if (error instanceof ApiError && error.status === 409) {
-        form.setError("componentKey", {
-          message:
-            error.message === COMPONENT_OTHER_APP_MESSAGE
-              ? t("otherApp")
-              : t("duplicateComponent"),
-        });
+        form.setError("componentKey", { message: t("duplicateComponent") });
       } else {
         toast.error(
           error instanceof Error ? error.message : tCommon("errorGeneric")
@@ -469,9 +473,7 @@ export function TargetFormDialog({
           className="flex flex-col gap-4"
         >
           <FieldGroup>
-            {!fromApp ? (
-              text("componentKey", { placeholder: "acme-accounting" })
-            ) : failed ? (
+            {failed ? (
               <div className="flex flex-col items-start gap-2">
                 <p role="alert" className="text-sm text-destructive">
                   {t("componentsLoadFailed")}
@@ -480,7 +482,10 @@ export function TargetFormDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => void apps.refetch()}
+                  onClick={() => {
+                    void sources.refetch();
+                    void catalog.refetch();
+                  }}
                 >
                   {t("componentsRetry")}
                 </Button>

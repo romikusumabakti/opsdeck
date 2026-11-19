@@ -14,7 +14,6 @@ const state = vi.hoisted(() => ({
   targetBranches: [] as { projectId: string; sourceBranch: string }[],
   insertError: null as Error | null,
   secretWriteError: null as Error | null,
-  selectedFields: [] as unknown[],
   // The newest stored pipeline URL of the component's builds.
   storedPipelineUrl: null as string | null,
 }));
@@ -55,33 +54,12 @@ vi.mock("@/lib/authz", async (importOriginal) => {
   };
 });
 
-// Only listApps reaches the database: it projects the component columns, and
-// the fake honours that projection, so a select of the whole row would leak
-// the secret into the response exactly as production would.
+// Nothing here reaches the database: lib/apps and lib/service-catalog are
+// faked over `state` below.
 vi.mock("@/lib/db", () => ({
   db: {
-    select: (fields: { component: Record<string, unknown> }) => {
-      state.selectedFields.push(fields);
-      const keys = Object.keys(fields.component);
-      return {
-        from: () => ({
-          leftJoin: () => ({
-            orderBy: async () =>
-              state.apps.flatMap(
-                (app): { app: Row; component: Row | null }[] => {
-                  const comps = state.components.filter(
-                    (c) => c.appId === app.id
-                  );
-                  const project = (c: Row) =>
-                    Object.fromEntries(keys.map((k) => [k, c[k]]));
-                  return comps.length === 0
-                    ? [{ app, component: null }]
-                    : comps.map((c) => ({ app, component: project(c) }));
-                }
-              ),
-          }),
-        }),
-      };
+    select: () => {
+      throw new Error("no database in this test");
     },
   },
 }));
@@ -186,6 +164,38 @@ vi.mock("@/lib/service-catalog", async (importOriginal) => {
       return c ? asService(c) : null;
     }),
     listServices: vi.fn(async () => state.components.map(asService)),
+    // The usage queries are covered on a real Postgres (services-scratch).
+    listServiceOverview: vi.fn(async () =>
+      state.components.map((c) => ({
+        ...asService(c),
+        ciConnectionName: "Woodpecker",
+        projectCount: 2,
+        environmentCount: 3,
+        lastBuild: {
+          branch: "main",
+          tag: "main-abc1234",
+          receivedAt: new Date(),
+        },
+      }))
+    ),
+    getServiceDetail: vi.fn(async (key: string) => {
+      const c = state.components.find((x) => x.componentKey === key);
+      return c
+        ? {
+            ...asService(c),
+            ciConnectionName: "Woodpecker",
+            lastBuild: null,
+            projects: [{ id: "p1", key: "KES", name: "Kestrel" }],
+            environments: [],
+          }
+        : null;
+    }),
+    legacyAppServices: vi.fn(async (key: string) => {
+      const app = state.apps.find((a) => a.appKey === key);
+      return state.components
+        .filter((c) => (app ? c.appId === app.id : c.componentKey === key))
+        .map((c) => ({ key: c.componentKey, repoFullName: c.repoFullName }));
+    }),
   };
 });
 
@@ -293,7 +303,6 @@ beforeEach(() => {
   state.targetBranches = [];
   state.insertError = null;
   state.secretWriteError = null;
-  state.selectedFields = [];
   state.storedPipelineUrl = null;
   connections.getProviderForConnection.mockResolvedValue(provider);
   connections.getForgeCredentials.mockResolvedValue({
@@ -388,36 +397,70 @@ describe("permissions", () => {
     expect(forge.commitFile).not.toHaveBeenCalled();
   });
 
-  it("any signed-in user may list apps", async () => {
+  it("any signed-in user may list services and resolve an old app URL", async () => {
+    state.orgRole = "qa";
     state.projectRoles = {};
-    expect((await send("GET", "/api/apps")).status).toBe(200);
+    expect((await send("GET", "/api/service-catalog")).status).toBe(200);
+    expect(
+      (await send("GET", "/api/service-catalog/legacy-apps/acme")).status
+    ).toBe(200);
+  });
+
+  it("a maintainer gets 403 on the overview and a service's page", async () => {
+    state.orgRole = "engineer";
+    state.components = [existingComponent()];
+    expect((await send("GET", "/api/service-catalog/overview")).status).toBe(
+      403
+    );
+    expect((await send("GET", "/api/service-catalog/accounting")).status).toBe(
+      403
+    );
   });
 });
 
-describe("GET /api/apps", () => {
-  it("never returns notifySecret and includes pipeline file state", async () => {
-    const commits = {
-      main: { sha: "abc1234", at: "2026-11-05T01:00:00.000Z" },
-      "release/1.x": {
-        error: "Bitbucket POST failed with 403",
-        at: "2026-11-05T01:00:00.000Z",
-      },
-    };
-    state.apps = [
-      { id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "a", name: "A" },
-    ];
-    state.components = [existingComponent({ pipelineFileCommits: commits })];
-    const res = await send("GET", "/api/apps");
+describe("GET /api/service-catalog/overview and /:componentKey", () => {
+  it("lists usage and the last build for an admin, never a notify secret", async () => {
+    state.components = [existingComponent()];
+    const res = await send("GET", "/api/service-catalog/overview");
     expect(res.status).toBe(200);
     const text = await res.text();
-    // The secret's Woodpecker name (notifySecretName) is public.
     expect(text).not.toContain('"notifySecret"');
     expect(text).not.toContain("enc:v1:");
-    const [entry] = JSON.parse(text);
-    expect(entry.components[0]).toMatchObject({
-      componentKey: "accounting",
-      pipelineMode: "generated",
-      pipelineFileCommits: commits,
+    expect(JSON.parse(text)).toEqual([
+      expect.objectContaining({
+        key: "accounting",
+        projectCount: 2,
+        environmentCount: 3,
+        lastBuild: expect.objectContaining({ tag: "main-abc1234" }),
+      }),
+    ]);
+  });
+
+  it("answers a service's page, or 404 for an unknown key", async () => {
+    state.components = [existingComponent()];
+    const res = await send("GET", "/api/service-catalog/accounting");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      key: "accounting",
+      projects: [{ key: "KES" }],
+    });
+    expect((await send("GET", "/api/service-catalog/nope")).status).toBe(404);
+  });
+});
+
+describe("GET /api/service-catalog/legacy-apps/:appKey", () => {
+  it("answers the old app's services by key and repository", async () => {
+    state.apps = [
+      { id: "0197f3a0-1b2c-7def-8000-0123456789a9", appKey: "acme", name: "A" },
+    ];
+    state.components = [
+      existingComponent(),
+      existingComponent({ componentKey: "billing", appId: null }),
+    ];
+    const res = await send("GET", "/api/service-catalog/legacy-apps/acme");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      services: [{ key: "accounting", repoFullName: "acme/acme-accounting" }],
     });
   });
 });
@@ -442,6 +485,7 @@ describe("GET /api/service-catalog", () => {
 
 describe("removed /api/apps routes", () => {
   it.each([
+    ["GET", "/api/apps"],
     ["POST", "/api/apps"],
     ["GET", "/api/apps/pipeline-preview"],
     ["POST", "/api/apps/a/components/accounting/build"],

@@ -15,17 +15,28 @@ const api = vi.hoisted(() => ({
   createDeployTarget: vi.fn(),
   getActiveBuild: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-  apps: [] as unknown[],
+  // The project's services (its Sources) and their build specs.
+  sources: [] as { componentKey: string; repoFullName: string }[],
+  services: [] as { key: string; buildSpec: unknown }[],
 }));
 vi.mock("sonner", () => ({ toast: api.toast }));
 vi.mock("@/web/api/deploys", () => ({
   createDeployTarget: api.createDeployTarget,
   updateDeployTarget: vi.fn(),
 }));
-vi.mock("@/web/api/apps", () => ({
-  listAppsQuery: () => ({ queryKey: ["apps"], queryFn: async () => api.apps }),
+vi.mock("@/web/api/service-catalog", () => ({
+  listServicesQuery: () => ({
+    queryKey: ["service-catalog"],
+    queryFn: async () => api.services,
+  }),
   getActiveBuild: api.getActiveBuild,
   startComponentBuild: vi.fn(),
+}));
+vi.mock("@/web/api/project-sources", () => ({
+  listProjectSourcesQuery: () => ({
+    queryKey: ["project-sources"],
+    queryFn: async () => api.sources,
+  }),
 }));
 vi.mock("@/web/api/variables", () => ({ setEnvFileManaged: vi.fn() }));
 vi.mock("@/i18n/navigation", async (importOriginal) => ({
@@ -89,7 +100,8 @@ beforeEach(() => {
   root = createRoot(container);
 });
 afterEach(() => {
-  api.apps = [];
+  api.sources = [];
+  api.services = [];
   act(() => root.unmount());
   container.remove();
   document.body.innerHTML = "";
@@ -128,35 +140,46 @@ async function pickKind(label: string) {
   await settle();
 }
 
+const PROJECT = "0197f3a0-1b2c-7def-8000-0123456789a1";
+
+/** The project has one service: the dialog preselects it. */
+function oneService(componentKey = "core-web") {
+  api.sources = [{ componentKey, repoFullName: `acme/${componentKey}` }];
+  api.services = [{ key: componentKey, buildSpec: { branches: ["main"] } }];
+}
+
 const dialog = () => (
   <TargetFormDialog
     open
     onOpenChange={() => {}}
-    environment={{ id: ENV, appId: null }}
+    environment={{ id: ENV, projectId: PROJECT }}
     servers={[{ id: SERVER, name: ".10.129" }]}
   />
 );
-
-const APP = "0197f3a0-1b2c-7def-8000-0123456789a1";
 const checkedKind = () =>
   document
     .querySelector('[role="radio"][aria-checked="true"]')
     ?.closest("label")
     ?.textContent?.trim();
 
-describe("the kind follows the component", () => {
-  const component = (componentKey: string, artifact?: string) => ({
-    componentKey,
-    repoFullName: `acme/${componentKey}`,
-    buildSpec: artifact
-      ? { artifact: { kind: artifact, path: "x" } }
-      : { branches: ["main"] },
-  });
+describe("the kind follows the service", () => {
+  const withServices = (...services: { key: string; artifact?: string }[]) => {
+    api.sources = services.map(({ key }) => ({
+      componentKey: key,
+      repoFullName: `acme/${key}`,
+    }));
+    api.services = services.map(({ key, artifact }) => ({
+      key,
+      buildSpec: artifact
+        ? { artifact: { kind: artifact, path: "x" } }
+        : { branches: ["main"] },
+    }));
+  };
   const appDialog = (targetedKeys: string[]) => (
     <TargetFormDialog
       open
       onOpenChange={() => {}}
-      environment={{ id: ENV, appId: APP }}
+      environment={{ id: ENV, projectId: PROJECT }}
       servers={[{ id: SERVER, name: ".10.129" }]}
       targetedKeys={targetedKeys}
     />
@@ -166,31 +189,43 @@ describe("the kind follows the component", () => {
     ["Jar for a jar component", "jar", f.kindJar],
     ["Static web for a static component", "static", f.kindStatic],
   ])("preselects %s", async (_label, artifact, kindLabel) => {
-    api.apps = [
-      {
-        id: APP,
-        components: [component("core"), component("core-web", artifact)],
-      },
-    ];
+    withServices({ key: "core" }, { key: "core-web", artifact });
     await render(appDialog(["core"]));
     expect(checkedKind()).toBe(kindLabel);
     expect(hasLabel(f.services)).toBe(false);
   });
 
   it("keeps Compose for a container component", async () => {
-    api.apps = [
-      {
-        id: APP,
-        components: [component("core"), component("core-web", "jar")],
-      },
-    ];
+    withServices({ key: "core" }, { key: "core-web", artifact: "jar" });
     await render(appDialog(["core-web"]));
     expect(checkedKind()).toBe(f.kindCompose);
+  });
+
+  it("offers every project service, the targeted ones disabled", async () => {
+    withServices({ key: "core" }, { key: "cms-web" }, { key: "billing" });
+    await render(appDialog(["core"]));
+    const trigger = document.getElementById("target-component");
+    await act(async () => trigger?.click());
+    await settle();
+    const options = [...document.querySelectorAll('[role="option"]')];
+    expect(options.map((o) => o.textContent)).toEqual([
+      expect.stringContaining("core"),
+      expect.stringContaining("cms-web"),
+      expect.stringContaining("billing"),
+    ]);
+    expect(options[0]?.getAttribute("aria-disabled")).toBe("true");
+    expect(options[1]?.getAttribute("aria-disabled")).not.toBe("true");
+  });
+
+  it("says so when the project has no service yet", async () => {
+    await render(appDialog([]));
+    expect(document.body.textContent).toContain(f.noComponents);
   });
 });
 
 describe("target form kinds", () => {
   it("choosing Jar hides the compose fields and shows the jar fields", async () => {
+    oneService();
     await render(dialog());
     expect(hasLabel(f.services)).toBe(true);
     expect(hasLabel(f.tagVariable)).toBe(true);
@@ -209,6 +244,7 @@ describe("target form kinds", () => {
   });
 
   it("Static web shows the web root and the health timeout only", async () => {
+    oneService();
     await render(dialog());
     await pickKind(f.kindStatic);
     expect(hasLabel(f.webRoot)).toBe(true);
@@ -220,9 +256,9 @@ describe("target form kinds", () => {
 
   it("a jar submit sends kind, jarName and systemdUnit, and no compose fields", async () => {
     api.createDeployTarget.mockResolvedValue({ pipelineFileFailures: [] });
+    oneService();
     await render(dialog());
     await pickKind(f.kindJar);
-    await type("componentKey", "core-web");
     await type("sourceBranch", "kestrel/development");
     await type("deployDir", "/opt/core-web");
     await type("jarName", "core-web-service.jar");
@@ -247,11 +283,12 @@ describe("target form kinds", () => {
   });
 
   it("empty submit marks the required fields", async () => {
+    oneService();
     await render(
       <TargetFormDialog
         open
         onOpenChange={() => {}}
-        environment={{ id: ENV, appId: null }}
+        environment={{ id: ENV, projectId: PROJECT }}
         servers={[
           { id: SERVER, name: ".10.129" },
           { id: "0197f3a0-1b2c-7def-8000-0123456789c2", name: ".10.130" },
@@ -289,9 +326,9 @@ describe("target form kinds", () => {
     api.createDeployTarget.mockResolvedValue({
       pipelineFileFailures: [{ branch: "main", componentKey: "core-web" }],
     });
+    oneService();
     await render(dialog());
     await pickKind(f.kindStatic);
-    await type("componentKey", "core-web");
     await type("sourceBranch", "main");
     await type("deployDir", "/var/www/core-web");
     await act(async () => {
@@ -433,7 +470,7 @@ describe("target summary", () => {
     });
     expect(text).toContain(
       messages.deploys.deployConfirmDescriptionJar
-        .replace("{app}", "core-web")
+        .replace("{service}", "core-web")
         .replace("{tag}", "abc1234")
         .replace("{unit}", "core-web")
     );
@@ -444,7 +481,7 @@ describe("target summary", () => {
     const text = await confirmText({ kind: "static" });
     expect(text).toContain(
       messages.deploys.deployConfirmDescriptionStatic
-        .replace("{app}", "core-web")
+        .replace("{service}", "core-web")
         .replace("{tag}", "abc1234")
     );
     expect(text).not.toContain("These services restart");

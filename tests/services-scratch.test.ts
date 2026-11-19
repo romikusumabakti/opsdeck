@@ -323,6 +323,75 @@ describe.skipIf(!enabled)("services model on a real Postgres", () => {
     });
   });
 
+  describe("Admin › Services queries", () => {
+    it("lists each service's projects, environments and newest build", async () => {
+      const { listServiceOverview } = await import("@/lib/service-catalog");
+      const rows = await listServiceOverview();
+      expect(
+        rows.map((r) => [
+          r.key,
+          r.ciConnectionName,
+          r.projectCount,
+          r.environmentCount,
+          r.lastBuild?.tag ?? null,
+        ])
+      ).toEqual([
+        [
+          "billing-api",
+          "Woodpecker",
+          1,
+          1,
+          `origin-kestrel-development-${"billing-api".length}abc123`,
+        ],
+        ["cms-web", "Woodpecker", 1, 1, null],
+        [
+          "core-backend",
+          "Woodpecker",
+          1,
+          1,
+          `origin-kestrel-development-${"core-backend".length}abc123`,
+        ],
+      ]);
+      expect(JSON.stringify(rows)).not.toContain('"notifySecret"');
+    });
+
+    it("details a service's projects and environments", async () => {
+      const { getServiceDetail } = await import("@/lib/service-catalog");
+      expect(await getServiceDetail("cms-web")).toMatchObject({
+        key: "cms-web",
+        ciConnectionName: "Woodpecker",
+        lastBuild: null,
+        projects: [{ id: PROJECT, key: "KES", name: "Kestrel" }],
+        environments: [
+          { id: ENV, name: "Dev 1", slug: "dev-1", projectKey: "KES" },
+        ],
+      });
+      expect(await getServiceDetail("no-such-service")).toBeNull();
+    });
+
+    it("resolves an old app key to its services, else a service key (Review Focus 5)", async () => {
+      const { legacyAppServices } = await import("@/lib/service-catalog");
+      await sql`insert into app_components
+      (component_key, app_id, ci_connection_id, repo_full_name, ci_repo_id, bundle_image, notify_secret, notify_secret_name)
+      values ('core-web', ${APP_CORE}, ${CI}, 'team/core-web', '10', 'core-web-deploy', 'x', 'menara_notify')`;
+      try {
+        expect(await legacyAppServices("core")).toEqual([
+          { key: "core-backend", repoFullName: "team/core" },
+          { key: "core-web", repoFullName: "team/core-web" },
+        ]);
+        expect(await legacyAppServices("cms")).toEqual([
+          { key: "cms-web", repoFullName: "team/cms" },
+        ]);
+        expect(await legacyAppServices("billing-api")).toEqual([
+          { key: "billing-api", repoFullName: "team/billing" },
+        ]);
+        expect(await legacyAppServices("nothing")).toEqual([]);
+      } finally {
+        await sql`delete from app_components where component_key = 'core-web'`;
+      }
+    });
+  });
+
   describe("project services (Review Focus 4)", () => {
     it("lists the project's services with the environments that deploy them", async () => {
       const { loadProjectSources } = await import("@/lib/project-sources");

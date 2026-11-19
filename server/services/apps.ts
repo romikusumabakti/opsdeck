@@ -7,7 +7,6 @@ import {
   getComponent,
   latestComponentPipelineUrl,
   linkedCiRepos,
-  listApps,
   type NewAppComponent,
   setNotifySecret,
   setPipelineFileCommit,
@@ -48,9 +47,14 @@ import { canProject, canRegisterApp } from "@/lib/permissions";
 import { encryptSecret } from "@/lib/secrets";
 import {
   getService,
+  getServiceDetail,
   insertServices,
+  legacyAppServices,
+  listServiceOverview,
   listServices,
   type Service,
+  type ServiceDetail,
+  type ServiceOverview,
 } from "@/lib/service-catalog";
 import {
   badRequest,
@@ -99,9 +103,6 @@ const PIPELINE_FILE_SKIP_MESSAGE = `[CI SKIP] ${PIPELINE_FILE_MESSAGE}`;
 const FIRST_BUILD_WINDOW_MS = 60 * 60 * 1000;
 const INTEGRATION_MANAGE = { integration: ["manage"] } as const;
 
-/** LEGACY: an app of GET /api/apps (see listApps). */
-export type AppWithComponents = Awaited<ReturnType<typeof listApps>>[number];
-
 const fail = (
   status: 403 | 404 | 409 | 500 | 502,
   message: string,
@@ -136,18 +137,41 @@ async function step<T>(label: string, run: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Any signed-in user who works with projects (not staff): apps and
- * components, never their notify secrets.
+ * Any signed-in user who works with projects (not staff): every service,
+ * never its notify secret.
  */
-export async function listAllApps(): Promise<AppWithComponents[]> {
-  await requireProjectUser();
-  return listApps();
-}
-
-/** listAllApps' rule, for every service (with or without an app). */
 export async function listAllServices(): Promise<Service[]> {
   await requireProjectUser();
   return listServices();
+}
+
+/**
+ * Admin › Services (org integration:manage, as the pipeline actions): every
+ * service with where it is used and its last build.
+ */
+export async function listServicesOverview(): Promise<ServiceOverview[]> {
+  await requireOrgPermission({ ...INTEGRATION_MANAGE });
+  return listServiceOverview();
+}
+
+/** A service's page (org integration:manage), or 404. */
+export async function getServicePage(
+  componentKey: string
+): Promise<ServiceDetail> {
+  await requireOrgPermission({ ...INTEGRATION_MANAGE });
+  return (await getServiceDetail(componentKey)) ?? notFound();
+}
+
+/**
+ * Where an old app URL leads (see legacyAppServices): for any signed-in user
+ * who works with projects, as the retired apps list was. Keys and
+ * repositories only.
+ */
+export async function resolveLegacyApp(
+  appKey: string
+): Promise<{ services: { key: string; repoFullName: string }[] }> {
+  await requireProjectUser();
+  return { services: await legacyAppServices(appKey) };
 }
 
 /** The CI connections a registrant may pick, without URLs or credentials. */

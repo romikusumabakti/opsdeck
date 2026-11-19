@@ -42,7 +42,7 @@ beforeEach(() => {
 
 const REFUSED = [
   "/api/users/people",
-  "/api/apps",
+  "/api/service-catalog",
   "/api/database-hosts",
   "/api/users/list-assignable-users-across-projects",
 ];

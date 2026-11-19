@@ -118,7 +118,7 @@ export function RepoPicker({
                   (notInSources ? (
                     // The longer hint wraps rather than squeezing the name.
                     <span className="max-w-[60%] text-right text-xs text-muted-foreground">
-                      {t("notInSources", { app: row.componentKey })}
+                      {t("notInSources", { service: row.componentKey })}
                     </span>
                   ) : (
                     <span className="shrink-0 font-mono text-xs text-muted-foreground">

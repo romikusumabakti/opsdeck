@@ -279,11 +279,11 @@ export function CommandPalette({
             )}
             {canOrg(orgRole, { integration: ["manage"] }) && (
               <CommandItem
-                value="repositories repos apps pipelines"
-                onSelect={() => run(() => router.push("/admin/repositories"))}
+                value="services repositories repos apps pipelines builds"
+                onSelect={() => run(() => router.push("/admin/services"))}
               >
                 <Boxes />
-                {tNav("repositories")}
+                {tNav("serviceCatalog")}
               </CommandItem>
             )}
             {canOrg(orgRole, { storage: ["manage"] }) && (

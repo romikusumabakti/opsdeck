@@ -45,6 +45,10 @@ import {
 import { EnvFilePreviewDialog } from "./env-file-preview-dialog";
 import { ImportEnvDialog } from "./import-env-dialog";
 import {
+  type TemplateConflict,
+  TemplateConflictsDialog,
+} from "./template-conflicts-dialog";
+import {
   useVariableErrorText,
   VariableFormDialog,
 } from "./variable-form-dialog";
@@ -71,6 +75,9 @@ export function VariablesClient({
     deploy: ["configure"],
   });
   const [previewing, setPreviewing] = React.useState(false);
+  const [conflicts, setConflicts] = React.useState<TemplateConflict[] | null>(
+    null
+  );
   const canClearEscrow = canOrg(useMe()?.orgRole, {
     integration: ["manage"],
   });
@@ -116,15 +123,22 @@ export function VariablesClient({
     });
   }
 
-  function onApplyTemplate() {
+  // Fill from template; names the services define differently open the
+  // conflict picker, whose choices fill them in a second call.
+  function onApplyTemplate(choices?: Record<string, string>) {
     void run("template", async () => {
-      const { added, missing, conflicts } =
-        await applyVariableTemplate(environmentId);
+      const { added, missing, conflicts } = choices
+        ? await applyVariableTemplate(environmentId, choices)
+        : await applyVariableTemplate(environmentId);
       toast.success(t("templateApplied", { count: added.length }));
-      if (missing.length > 0) {
-        toast.warning(t("templateMissing", { names: missing.join(", ") }));
+      // An unresolved conflict is reported by the picker, not as missing.
+      const unresolved = new Set(conflicts.map((c) => c.name));
+      const stillMissing = missing.filter((name) => !unresolved.has(name));
+      if (stillMissing.length > 0) {
+        toast.warning(t("templateMissing", { names: stillMissing.join(", ") }));
       }
-      if (conflicts.length > 0) {
+      setConflicts(choices || conflicts.length === 0 ? null : conflicts);
+      if (choices && conflicts.length > 0) {
         toast.warning(
           t("templateConflicts", {
             names: conflicts.map((c) => c.name).join(", "),
@@ -194,7 +208,7 @@ export function VariablesClient({
               variant="outline"
               disabled={busy !== null || !listing.hasServices}
               title={listing.hasServices ? undefined : t("noServicesHint")}
-              onClick={onApplyTemplate}
+              onClick={() => onApplyTemplate()}
             >
               {busy === "template" ? (
                 <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -327,6 +341,15 @@ export function VariablesClient({
           initialText={importing?.initialText}
         />
       )}
+
+      <TemplateConflictsDialog
+        conflicts={conflicts}
+        busy={busy === "template"}
+        onFill={(choices) => onApplyTemplate(choices)}
+        onOpenChange={(open) => {
+          if (!open) setConflicts(null);
+        }}
+      />
     </>
   );
 }

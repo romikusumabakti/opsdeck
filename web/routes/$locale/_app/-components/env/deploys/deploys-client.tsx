@@ -257,18 +257,18 @@ function TargetCard({
   // What the deploy restarts: the compose services, the jar's unit, or
   // (static) nothing but an nginx reload.
   function deployConfirmDescription(tag: string): string {
-    const app = target.componentKey;
+    const service = target.componentKey;
     if (target.kind === "jar") {
       return t("deployConfirmDescriptionJar", {
         tag,
-        app,
+        service,
         unit: target.systemdUnit ?? "",
       });
     }
     if (target.kind === "static") {
-      return t("deployConfirmDescriptionStatic", { tag, app });
+      return t("deployConfirmDescriptionStatic", { tag, service });
     }
-    return t("deployConfirmDescription", { tag, app, services });
+    return t("deployConfirmDescription", { tag, service, services });
   }
 
   async function onDeploy(tag: string) {
@@ -290,7 +290,7 @@ function TargetCard({
       title: t("rollbackConfirmTitle", { tag }),
       description: t("rollbackConfirmDescription", {
         tag,
-        app: target.componentKey,
+        service: target.componentKey,
       }),
       confirmText: t("rollbackTo", { tag }),
       cancelText: tCommon("cancel"),
@@ -304,6 +304,14 @@ function TargetCard({
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2">
           <span className="font-mono">{target.componentKey}</span>
+          {target.repoFullName && (
+            <span
+              className="font-mono text-sm font-normal text-muted-foreground"
+              title={t("serviceRepo")}
+            >
+              {target.repoFullName}
+            </span>
+          )}
           {target.autoDeploy && (
             <Badge variant="secondary">{t("autoDeploy")}</Badge>
           )}

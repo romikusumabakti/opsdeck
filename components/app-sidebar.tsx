@@ -132,8 +132,8 @@ const adminItems: AdminItem[] = [
   },
   { key: "users", url: "/admin/users", icon: Users, perm: { user: ["list"] } },
   {
-    key: "repositories",
-    url: "/admin/repositories",
+    key: "serviceCatalog",
+    url: "/admin/services",
     icon: Boxes,
     perm: { integration: ["manage"] },
   },
