@@ -17,6 +17,7 @@ import {
   type IssueType,
   TypeIcon,
 } from "@/components/issues-board";
+import type { EditorHandle } from "@/components/knowledge-editor";
 import { MarkdownContent } from "@/components/markdown-content";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { MentionTextarea } from "@/components/mention-textarea";
@@ -78,18 +79,16 @@ const baseOf = (row: {
  * page to copy. Every update — property changes included — goes through one
  * queue, so each request sees the `updatedAt` the previous one returned.
  * Without `canEdit` (`issue: write`) everything is read-only.
+ *
+ * Keyed by the issue: the router keeps the page mounted when only the params
+ * change (a Subtasks link), and no local state — text, labels, the base
+ * version — may carry over to another issue.
  */
-export function IssueDetailClient({
-  issue,
-  users,
-  environments,
-  siblings,
-  attachments,
-  testRuns,
-  allLabels,
-  canEdit,
-  onReload,
-}: {
+export function IssueDetailClient(props: IssueDetailProps) {
+  return <IssueDetailView key={props.issue.id} {...props} />;
+}
+
+type IssueDetailProps = {
   issue: IssueDetail;
   users: AssignableUser[];
   environments: EnvOption[];
@@ -101,7 +100,19 @@ export function IssueDetailClient({
   canEdit: boolean;
   /** Loads the issue's current server version (Reload after a conflict). */
   onReload: () => Promise<IssueDetail | null>;
-}) {
+};
+
+function IssueDetailView({
+  issue,
+  users,
+  environments,
+  siblings,
+  attachments,
+  testRuns,
+  allLabels,
+  canEdit,
+  onReload,
+}: IssueDetailProps) {
   const t = useTranslations("issueDetail");
   const tIssues = useTranslations("issues");
   const router = useRouter();
@@ -110,14 +121,18 @@ export function IssueDetailClient({
   const [description, setDescription] = React.useState(issue.description);
   const [labelIds, setLabelIds] = React.useState(issue.labels.map((l) => l.id));
   // The label set the server last confirmed (a successful toggle, or a
-  // refetch), which a failed toggle falls back to: with toggles in flight a
-  // snapshot taken at click time may be a set the server never had.
+  // refetch). Once no toggle is waiting, the page shows it: a failed toggle
+  // falls back to it, and a refetch brings in someone else's change.
   const serverLabelsRef = React.useRef(labelIds);
+  const pendingLabelsRef = React.useRef(0);
   const issueLabelKey = issue.labels.map((l) => l.id).join(",");
   React.useEffect(() => {
-    serverLabelsRef.current = issueLabelKey ? issueLabelKey.split(",") : [];
+    const ids = issueLabelKey ? issueLabelKey.split(",") : [];
+    serverLabelsRef.current = ids;
+    if (pendingLabelsRef.current === 0) setLabelIds(ids);
   }, [issueLabelKey]);
   const titleRef = React.useRef<HTMLInputElement>(null);
+  const descriptionRef = React.useRef<EditorHandle>(null);
   const keptRef = React.useRef<HTMLDivElement>(null);
   // Set by Reload; the effect below moves focus once the new state is drawn.
   const [focusAfterReload, setFocusAfterReload] = React.useState(false);
@@ -158,21 +173,32 @@ export function IssueDetailClient({
     return next;
   }
 
-  // Someone changed only properties (the refetch after any write brings it
-  // in): the text is the one ours is based on, so its `updatedAt` is safe to
-  // send. A changed title/description is not adopted — the next save is
-  // refused and Reload shows it, never overwriting either side.
+  // A newer server version (the refetch after any write brings it in) is
+  // adopted — its text shown, its `updatedAt` sent next — when it changes no
+  // field the user has edited here: only properties, or text the page still
+  // shows unedited. Otherwise it is not adopted; the next save is refused and
+  // Reload shows it, never overwriting either side. The description is read
+  // through `flush()`, so keystrokes still in the editor's debounce count.
   const issueUpdatedAt = new Date(issue.updatedAt).toISOString();
   React.useEffect(() => {
     const base = baseRef.current;
-    if (
-      issue.title === base.title &&
-      issue.description === base.description &&
-      issueUpdatedAt > base.updatedAt
-    ) {
-      baseRef.current = { ...base, updatedAt: issueUpdatedAt };
+    if (conflictRef.current || issueUpdatedAt <= base.updatedAt) return;
+    const currentDescription = descriptionRef.current?.flush() ?? description;
+    const titleFree = issue.title === base.title || title === base.title;
+    const descriptionFree =
+      issue.description === base.description ||
+      currentDescription === base.description;
+    if (!titleFree || !descriptionFree) return;
+    if (issue.title !== base.title) setTitle(issue.title);
+    if (issue.description !== base.description) {
+      setDescription(issue.description);
     }
-  }, [issue.title, issue.description, issueUpdatedAt]);
+    baseRef.current = {
+      title: issue.title,
+      description: issue.description,
+      updatedAt: issueUpdatedAt,
+    };
+  }, [issue.title, issue.description, issueUpdatedAt, title, description]);
 
   function saveText(field: TextField, raw: string) {
     if (!canEdit) return;
@@ -275,15 +301,24 @@ export function IssueDetailClient({
     });
   }
 
-  async function onLabelsChange(ids: string[]) {
+  // Shown at once, saved in the update queue (in order with every other
+  // write); when the last waiting toggle is done the page shows the set the
+  // server confirmed.
+  function onLabelsChange(ids: string[]) {
     setLabelIds(ids);
-    const result = await setIssueLabels(issue.id, ids);
-    if (result.success) {
-      serverLabelsRef.current = ids;
-      return;
-    }
-    setLabelIds(serverLabelsRef.current);
-    toast.error(t("saveFailed"));
+    pendingLabelsRef.current += 1;
+    void enqueue(async () => {
+      try {
+        const result = await setIssueLabels(issue.id, ids);
+        if (result.success) serverLabelsRef.current = ids;
+        else toast.error(t("saveFailed"));
+      } finally {
+        pendingLabelsRef.current -= 1;
+        if (pendingLabelsRef.current === 0) {
+          setLabelIds(serverLabelsRef.current);
+        }
+      }
+    });
   }
 
   // A parent can't be self (already excluded server-side) or one of this issue's
@@ -474,6 +509,7 @@ export function IssueDetailClient({
           {canEdit ? (
             <>
               <MarkdownEditor
+                ref={descriptionRef}
                 borderless
                 value={description}
                 onChange={onDescriptionChange}

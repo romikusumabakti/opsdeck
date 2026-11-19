@@ -398,7 +398,7 @@ describe("saving the title and description", () => {
     });
   });
 
-  it("adopts a refetched updatedAt only when the text is the one it edits", async () => {
+  it("adopts a refetched version only when it changes no text edited here", async () => {
     updateIssue.mockResolvedValue(saved({ title: "Edited" }, T2));
     await mount();
     // Someone changed a property: same text, newer updatedAt — safe to adopt.
@@ -414,8 +414,14 @@ describe("saving the title and description", () => {
       expectedUpdatedAt: T1,
     });
 
-    // Someone changed the description: not adopted, so the next description
-    // save is refused (409) instead of overwriting theirs.
+    // Someone changed the description while the user's own edit is still
+    // unsaved: not adopted, so the save is refused (409) instead of
+    // overwriting theirs.
+    await act(async () => {
+      editor().commands.focus();
+      editor().commands.setContent("Mine", { contentType: "markdown" });
+    });
+    await act(() => new Promise((r) => setTimeout(r, 400)));
     await act(async () => {
       root.render(
         ui({
@@ -427,7 +433,12 @@ describe("saving the title and description", () => {
         })
       );
     });
-    await editDescription("Mine");
+    expect(editorDom().textContent).toBe("Mine");
+    await act(async () => {
+      editor().commands.blur();
+      editorDom().blur();
+    });
+    await act(async () => {});
     expect(updateIssue.mock.calls[1]?.[1]).toEqual({
       description: "Mine",
       expectedUpdatedAt: T2,
@@ -570,16 +581,19 @@ describe("label toggles", () => {
       allLabels: twoLabels,
       issue: issueFixture({ labels: [] }),
     });
-    // First toggle still in flight when the second one fails.
+    // The second toggle waits in the queue behind the first.
     await toggle("regression");
     expect(pressed("regression")).toBe("true");
     await toggle("checkout");
-    await vi.waitFor(() => expect(setIssueLabels).toHaveBeenCalledTimes(2));
-    // The server never confirmed "regression": back to none, not to the
-    // ["regression"] the second toggle started from.
-    await vi.waitFor(() => expect(pressed("checkout")).toBe("false"));
-    expect(pressed("regression")).toBe("false");
+    expect(setIssueLabels).toHaveBeenCalledTimes(1);
+    expect(pressed("checkout")).toBe("true");
+    // The first fails while the second still waits: no flicker yet.
     await act(async () => failFirst({ success: false }));
+    await vi.waitFor(() => expect(setIssueLabels).toHaveBeenCalledTimes(2));
+    expect(setIssueLabels.mock.calls[1]?.[1]).toEqual([LABEL, SECOND]);
+    // Both failed: the server never confirmed "regression" either, so back
+    // to none, not to the ["regression"] the second toggle started from.
+    await vi.waitFor(() => expect(pressed("checkout")).toBe("false"));
     expect(pressed("regression")).toBe("false");
   });
 
@@ -614,5 +628,211 @@ describe("without issue: write", () => {
     // Writes the server would refuse are not offered either.
     expect(button("Attach")).toBeUndefined();
     expect(button("Comment")).toBeUndefined();
+  });
+});
+
+describe("a description the editor would rewrite", () => {
+  it("is not saved (nor pushed to Jira) when only clicked and left", async () => {
+    // Jira wiki markup lists and a compact table at the end.
+    const description = "Steps\n\n* open cart\n* pay\n\n|a|b|\n|-|-|\n|1|2|";
+    await mount({ issue: issueFixture({ description }) });
+    await act(async () => {
+      editor().chain().focus().setTextSelection(2).run();
+    });
+    await act(() => new Promise((r) => setTimeout(r, 400)));
+    await act(async () => {
+      editor().commands.blur();
+      editorDom().blur();
+    });
+    await act(async () => {});
+    expect(updateIssue).not.toHaveBeenCalled();
+    expect(
+      document.querySelector(
+        '[data-slot="save-status"][data-field="description"]'
+      )?.textContent ?? ""
+    ).toBe("");
+  });
+});
+
+describe("following a link to another issue", () => {
+  const CHILD = "00000000-0000-4000-8000-0000000000a2";
+  const SECOND = "00000000-0000-4000-8000-0000000000c2";
+  const twoLabels = [
+    { id: LABEL, name: "regression", color: "#dc2626" },
+    { id: SECOND, name: "checkout", color: "#2563eb" },
+  ];
+  const parent = issueFixture({
+    labels: [{ id: LABEL, name: "regression", color: "#dc2626" }],
+    children: [
+      {
+        id: CHILD,
+        number: 13,
+        title: "Rounding",
+        status: "open",
+        type: "task",
+      },
+    ],
+  });
+  const child = issueFixture({
+    id: CHILD,
+    number: 13,
+    title: "Rounding in the cart total",
+    description: "Only for discounted items",
+    labels: [],
+    updatedAt: T1,
+  });
+
+  it("shows the new issue's text and labels and saves against it", async () => {
+    await mount({ issue: parent, allLabels: twoLabels });
+    // Same route, new params: the router re-renders the page with the child.
+    await act(async () => {
+      root.render(ui({ issue: child, allLabels: twoLabels }));
+    });
+    await act(async () => {});
+    expect(titleInput().value).toBe("Rounding in the cart total");
+    expect(editorDom().textContent).toContain("Only for discounted items");
+
+    const trigger = Array.from(sidebar().querySelectorAll("button")).find((b) =>
+      spoken(b).startsWith("Labels")
+    ) as HTMLElement;
+    await click(trigger);
+    const option = await vi.waitFor(() => {
+      const found = Array.from(
+        document.querySelectorAll<HTMLElement>("[aria-pressed]")
+      ).find((o) => (o.textContent ?? "").includes("checkout"));
+      if (!found) throw new Error("no checkout label");
+      return found;
+    });
+    expect(
+      Array.from(document.querySelectorAll<HTMLElement>("[aria-pressed]"))
+        .find((o) => (o.textContent ?? "").includes("regression"))
+        ?.getAttribute("aria-pressed")
+    ).toBe("false");
+    await click(option);
+    await vi.waitFor(() => expect(setIssueLabels).toHaveBeenCalledTimes(1));
+    expect(setIssueLabels).toHaveBeenCalledWith(CHILD, [SECOND]);
+
+    updateIssue.mockResolvedValue(saved({ id: CHILD, title: "Rounding" }, T2));
+    await typeTitle("Rounding");
+    await blurTitle();
+    expect(updateIssue).toHaveBeenCalledWith(CHILD, {
+      title: "Rounding",
+      expectedUpdatedAt: T1,
+    });
+  });
+});
+
+describe("a refetch with someone else's text", () => {
+  it("is adopted while the page's own text is unedited", async () => {
+    await mount();
+    await act(async () => {
+      root.render(
+        ui({
+          issue: issueFixture({
+            title: "Total off by one cent",
+            description: "Seen on staging and demo",
+            updatedAt: T1,
+          }),
+        })
+      );
+    });
+    await act(async () => {});
+    expect(titleInput().value).toBe("Total off by one cent");
+    expect(editorDom().textContent).toContain("Seen on staging and demo");
+    updateIssue.mockResolvedValue(saved({ title: "Total off" }, T2));
+    await typeTitle("Total off");
+    await blurTitle();
+    expect(updateIssue).toHaveBeenCalledWith(ISSUE_ID, {
+      title: "Total off",
+      expectedUpdatedAt: T1,
+    });
+  });
+
+  it("is not adopted over the user's unsaved text", async () => {
+    await mount();
+    await typeTitle("My unsaved title");
+    await act(async () => {
+      root.render(
+        ui({
+          issue: issueFixture({ title: "Their title", updatedAt: T1 }),
+        })
+      );
+    });
+    await act(async () => {});
+    expect(titleInput().value).toBe("My unsaved title");
+    updateIssue.mockResolvedValue({ success: false, code: "issueChanged" });
+    await blurTitle();
+    // Based on the version it was typed over: refused, never overwrites.
+    expect(updateIssue).toHaveBeenCalledWith(ISSUE_ID, {
+      title: "My unsaved title",
+      expectedUpdatedAt: T0,
+    });
+  });
+});
+
+describe("label saves", () => {
+  async function openLabels() {
+    const trigger = Array.from(sidebar().querySelectorAll("button")).find((b) =>
+      spoken(b).startsWith("Labels")
+    ) as HTMLElement;
+    if (trigger.getAttribute("aria-expanded") !== "true") await click(trigger);
+  }
+
+  it("wait for an earlier update in the same queue", async () => {
+    let finish: (v: unknown) => void = () => {};
+    updateIssue.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    await mount();
+    await editDescription("Steps then result");
+    expect(updateIssue).toHaveBeenCalledTimes(1);
+    await openLabels();
+    const option = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLElement>("[aria-pressed]");
+      if (!found) throw new Error("no label option");
+      return found;
+    });
+    await click(option);
+    await act(async () => {});
+    expect(setIssueLabels).not.toHaveBeenCalled();
+    await act(async () =>
+      finish(saved({ description: "Steps then result" }, T1))
+    );
+    await vi.waitFor(() =>
+      expect(setIssueLabels).toHaveBeenCalledWith(ISSUE_ID, [LABEL])
+    );
+  });
+
+  it("follow the issue's labels on a refetch", async () => {
+    await mount();
+    await act(async () => {
+      root.render(
+        ui({
+          issue: issueFixture({
+            labels: [{ id: LABEL, name: "regression", color: "#dc2626" }],
+            updatedAt: T1,
+          }),
+        })
+      );
+    });
+    await act(async () => {});
+    await openLabels();
+    const option = await vi.waitFor(() => {
+      const found = document.querySelector<HTMLElement>("[aria-pressed]");
+      if (!found) throw new Error("no label option");
+      return found;
+    });
+    expect(option.getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
+describe("no labels in the instance", () => {
+  it("hides the Labels row and chip when none is set", async () => {
+    await mount({ allLabels: [] });
+    expect(spoken(sidebar())).not.toContain("Labels");
+    expect(spoken(chipRow() as HTMLElement)).not.toContain("Labels");
   });
 });

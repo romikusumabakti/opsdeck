@@ -42,7 +42,8 @@ type PropertiesProps = {
 };
 
 /** The issue's properties as triggers of one variant, in the sidebar's
- *  order. Parent only when set or when there is something to pick. */
+ *  order. Labels and Parent only when set or when there is something to
+ *  pick. */
 function PropertyList({
   variant,
   issue,
@@ -79,12 +80,14 @@ function PropertyList({
         value={issue.type as IssueType}
         onChange={(type) => onPatch({ type })}
       />
-      <LabelsProperty
-        {...common}
-        allLabels={allLabels}
-        value={labelIds}
-        onChange={onLabelsChange}
-      />
+      {allLabels.length > 0 || labelIds.length > 0 ? (
+        <LabelsProperty
+          {...common}
+          allLabels={allLabels}
+          value={labelIds}
+          onChange={onLabelsChange}
+        />
+      ) : null}
       <EnvironmentProperty
         {...common}
         environments={environments}
