@@ -2921,6 +2921,87 @@
       "clearEscrowConfirmDescription": "Its value can then be changed, regenerated or deleted. Make sure a copy is kept outside the Panel.",
       "escrowCleared": "Escrow removed from {name}",
       "valueRequiredForPlain": "Enter a value: a secret turned plain does not keep its stored value"
+    },
+    "import": {
+      "button": "Import .env",
+      "title": "Import .env",
+      "description": "Paste, upload or read a .env, check each variable, then import the ones you pick.",
+      "sourcePaste": "Paste",
+      "sourceUpload": "Upload",
+      "sourceServer": "From server",
+      "pasteLabel": ".env contents",
+      "pastePlaceholder": "APP_PORT=8080\nLOG_LEVEL=info",
+      "parsedCount": "{count, plural, =0 {No variables found} one {# variable found} other {# variables found}}",
+      "parsedError": "Line {line} can't be read",
+      "review": "Review",
+      "uploadLabel": "File",
+      "uploadHint": "A .env or text file up to {kib} KiB. It is read in your browser.",
+      "uploadTooLarge": "The file is larger than {kib} KiB.",
+      "uploadReadFailed": "The file couldn't be read.",
+      "uploadedFile": "Read {name}",
+      "serverHint": "Reads the live .env in each deploy dir. Nothing on the servers changes.",
+      "serverLoading": "Reading the servers…",
+      "reload": "Read again",
+      "dirStatus": {
+        "ok": "Read",
+        "dirMissing": "Folder not found",
+        "fileMissing": "No .env file",
+        "tooLarge": "Larger than {kib} KiB, not read",
+        "parseError": "Can't be read at line {line}",
+        "unreachable": "Server unreachable",
+        "hostKeyMismatch": "Host key changed: check the server first"
+      },
+      "colImport": "Import",
+      "colState": "State",
+      "colSource": "Value from",
+      "selectRow": "Import {name}",
+      "kindOf": "Kind of {name}",
+      "dirOf": "Deploy dir for {name}",
+      "chooseDir": "Choose a dir",
+      "valueHidden": "Hidden value",
+      "state": {
+        "new": "New",
+        "conflict": "Replaces stored value",
+        "unimportable": "Can't import"
+      },
+      "reason": {
+        "invalidName": "Invalid name",
+        "multiLine": "Value has line breaks",
+        "tooLong": "Value is too long",
+        "invalidValue": "Value has a NUL character",
+        "escrowed": "Escrowed: can't be changed"
+      },
+      "flag": {
+        "differsAcrossDirs": "The deploy dirs disagree: choose one",
+        "unresolvedRefs": "Refers to names not in the file: {names}",
+        "duplicate": "Defined more than once: the last line counts"
+      },
+      "sameGroup": "{count, plural, one {# variable already has this value} other {# variables already have these values}}",
+      "skippedGroup": "{count, plural, one {# variable is skipped} other {# variables are skipped}}",
+      "skipReason": {
+        "tagVariable": "Image tag: the deploy writes it",
+        "dockerRegistry": "The Panel writes it",
+        "reserved": "Reserved prefix"
+      },
+      "notKept": "Comments and order are not kept: only names, values and kinds are imported.",
+      "nothing": "There is nothing to import.",
+      "submit": "{count, plural, =0 {Import variables} one {Import # variable} other {Import # variables}}",
+      "imported": "{count, plural, one {# variable imported} other {# variables imported}}{overwritten, plural, =0 {} other {, # replaced}}",
+      "errors": {
+        "envTextTooLarge": "The .env text is larger than {kib} KiB.",
+        "envParseError": "The .env can't be read at line {line}.",
+        "envTooManyEntries": "The .env defines more than {max} variables.",
+        "importSourceRequired": "Choose which deploy dir's value to import for {name}.",
+        "importSourceUnknown": "The value chosen for {name} is gone: read the files again.",
+        "importRowUnknown": "{name} is no longer in the .env: review it again.",
+        "importRowDuplicate": "{name} is listed twice.",
+        "importRowSame": "{name} already has this value.",
+        "importRowUnimportable": "{name} can't be imported.",
+        "envFileChanged": "A .env changed since the review, so it was read again. Check the rows and import again.",
+        "variableEscrowed": "A variable was escrowed in the meantime. Nothing was imported.",
+        "variableImportFailed": "The variables couldn't be imported. Nothing was changed.",
+        "envFileInvalid": "The environment's variables can't be written to .env. Check them here first."
+      }
     }
   },
   "variableTemplates": {

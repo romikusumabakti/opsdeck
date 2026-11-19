@@ -48,6 +48,7 @@ import {
 } from "@/lib/variables/validation";
 import { ApiError } from "@/web/api/client";
 import { putVariable, type VariableRow } from "@/web/api/variables";
+import { looksLikeEnvText } from "./import-env-dialog";
 
 export const VARIABLE_KINDS = ["plain", "secret", "generated"] as const;
 type Kind = (typeof VARIABLE_KINDS)[number];
@@ -98,12 +99,18 @@ export function VariableFormDialog({
   environmentId,
   variable,
   canClearEscrow,
+  onPasteEnv,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   environmentId: string;
   variable: VariableRow | null;
   canClearEscrow: boolean;
+  /**
+   * A `.env` pasted into the new variable's name (several lines, or a line
+   * with `=`): the caller opens the import on it. A plain name pastes as usual.
+   */
+  onPasteEnv?: (text: string) => void;
 }) {
   const t = useTranslations("variables");
   const tForm = useTranslations("variables.form");
@@ -262,6 +269,13 @@ export function VariableFormDialog({
                     {...field}
                     id="variable-name"
                     aria-invalid={fieldState.invalid}
+                    onPaste={(event) => {
+                      if (!onPasteEnv || variable !== null) return;
+                      const text = event.clipboardData.getData("text");
+                      if (!looksLikeEnvText(text)) return;
+                      event.preventDefault();
+                      onPasteEnv(text);
+                    }}
                   />
                   <FieldDescription>{tForm("nameHint")}</FieldDescription>
                   <FieldError errors={[fieldState.error]} />

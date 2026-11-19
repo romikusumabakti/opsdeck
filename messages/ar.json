@@ -2921,6 +2921,87 @@
       "clearEscrowConfirmDescription": "يمكن بعدها تغيير قيمته أو إعادة توليدها أو حذفها. تأكد من وجود نسخة خارج اللوحة.",
       "escrowCleared": "أُزيل الإيداع عن {name}",
       "valueRequiredForPlain": "أدخل قيمة: المتغير السري الذي يتحول إلى عادي لا يحتفظ بقيمته المحفوظة"
+    },
+    "import": {
+      "button": "استيراد ‎.env",
+      "title": "استيراد ‎.env",
+      "description": "الصق ملف ‎.env أو ارفعه أو اقرأه من الخادم، وراجع كل متغير، ثم استورد ما تختاره.",
+      "sourcePaste": "لصق",
+      "sourceUpload": "رفع",
+      "sourceServer": "من الخادم",
+      "pasteLabel": "محتوى ‎.env",
+      "pastePlaceholder": "APP_PORT=8080\nLOG_LEVEL=info",
+      "parsedCount": "{count, plural, =0 {لم يُعثر على متغيرات} one {عُثر على متغير واحد} two {عُثر على متغيرين} few {عُثر على # متغيرات} many {عُثر على # متغيرًا} other {عُثر على # متغير}}",
+      "parsedError": "تتعذر قراءة السطر {line}",
+      "review": "مراجعة",
+      "uploadLabel": "الملف",
+      "uploadHint": "ملف ‎.env أو ملف نصي حتى {kib} كيلوبايت، يُقرأ في متصفحك.",
+      "uploadTooLarge": "حجم الملف أكبر من {kib} كيلوبايت.",
+      "uploadReadFailed": "تعذرت قراءة الملف.",
+      "uploadedFile": "تمت قراءة {name}",
+      "serverHint": "يقرأ ملف ‎.env الحالي في كل مجلد نشر. لا يتغير شيء على الخوادم.",
+      "serverLoading": "جارٍ قراءة الخوادم…",
+      "reload": "اقرأ مجددًا",
+      "dirStatus": {
+        "ok": "تمت القراءة",
+        "dirMissing": "المجلد غير موجود",
+        "fileMissing": "لا يوجد ملف ‎.env",
+        "tooLarge": "أكبر من {kib} كيلوبايت، لم يُقرأ",
+        "parseError": "تتعذر القراءة عند السطر {line}",
+        "unreachable": "يتعذر الوصول إلى الخادم",
+        "hostKeyMismatch": "تغير مفتاح المضيف: افحص الخادم أولًا"
+      },
+      "colImport": "استيراد",
+      "colState": "الحالة",
+      "colSource": "القيمة من",
+      "selectRow": "استيراد {name}",
+      "kindOf": "نوع {name}",
+      "dirOf": "مجلد النشر لـ {name}",
+      "chooseDir": "اختر مجلدًا",
+      "valueHidden": "قيمة مخفية",
+      "state": {
+        "new": "جديد",
+        "conflict": "يستبدل القيمة المحفوظة",
+        "unimportable": "لا يمكن استيراده"
+      },
+      "reason": {
+        "invalidName": "اسم غير صالح",
+        "multiLine": "القيمة تحتوي على أسطر جديدة",
+        "tooLong": "القيمة طويلة جدًا",
+        "invalidValue": "القيمة تحتوي على محرف NUL",
+        "escrowed": "مودَع: لا يمكن تغييره"
+      },
+      "flag": {
+        "differsAcrossDirs": "تختلف مجلدات النشر: اختر واحدًا",
+        "unresolvedRefs": "يشير إلى أسماء غير موجودة في الملف: {names}",
+        "duplicate": "معرّف أكثر من مرة: يُعتمد السطر الأخير"
+      },
+      "sameGroup": "{count, plural, one {متغير واحد له القيمة نفسها} two {متغيران لهما القيم نفسها} few {# متغيرات لها القيم نفسها} many {# متغيرًا لها القيم نفسها} other {# متغير لها القيم نفسها}}",
+      "skippedGroup": "{count, plural, one {تم تخطي متغير واحد} two {تم تخطي متغيرين} few {تم تخطي # متغيرات} many {تم تخطي # متغيرًا} other {تم تخطي # متغير}}",
+      "skipReason": {
+        "tagVariable": "وسم الصورة: يكتبه النشر",
+        "dockerRegistry": "تكتبه اللوحة",
+        "reserved": "بادئة محجوزة"
+      },
+      "notKept": "لا يُحتفظ بالتعليقات ولا بالترتيب: تُستورد الأسماء والقيم والأنواع فقط.",
+      "nothing": "لا يوجد ما يمكن استيراده.",
+      "submit": "{count, plural, =0 {استيراد المتغيرات} one {استيراد متغير واحد} two {استيراد متغيرين} few {استيراد # متغيرات} many {استيراد # متغيرًا} other {استيراد # متغير}}",
+      "imported": "{count, plural, one {تم استيراد متغير واحد} two {تم استيراد متغيرين} few {تم استيراد # متغيرات} many {تم استيراد # متغيرًا} other {تم استيراد # متغير}}{overwritten, plural, =0 {} other {، واستُبدل #}}",
+      "errors": {
+        "envTextTooLarge": "نص ‎.env أكبر من {kib} كيلوبايت.",
+        "envParseError": "تتعذر قراءة ‎.env عند السطر {line}.",
+        "envTooManyEntries": "يعرّف ‎.env أكثر من {max} متغير.",
+        "importSourceRequired": "اختر مجلد النشر الذي تُستورد منه قيمة {name}.",
+        "importSourceUnknown": "القيمة المختارة لـ {name} لم تعد موجودة: اقرأ الملفات مجددًا.",
+        "importRowUnknown": "لم يعد {name} موجودًا في ‎.env: راجعه مجددًا.",
+        "importRowDuplicate": "ورد {name} مرتين.",
+        "importRowSame": "{name} له القيمة نفسها بالفعل.",
+        "importRowUnimportable": "لا يمكن استيراد {name}.",
+        "envFileChanged": "تغير ملف ‎.env منذ المراجعة، فأُعيدت قراءته. راجع الصفوف واستورد مجددًا.",
+        "variableEscrowed": "أُودع متغير في أثناء ذلك. لم يُستورد شيء.",
+        "variableImportFailed": "تعذر استيراد المتغيرات. لم يتغير شيء.",
+        "envFileInvalid": "لا يمكن كتابة متغيرات هذه البيئة في ‎.env. افحصها هنا أولًا."
+      }
     }
   },
   "variableTemplates": {

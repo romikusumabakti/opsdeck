@@ -2921,6 +2921,87 @@
       "clearEscrowConfirmDescription": "Nilainya lalu dapat diubah, dibuat ulang, atau dihapus. Pastikan salinannya tersimpan di luar Panel.",
       "escrowCleared": "Escrow dilepas dari {name}",
       "valueRequiredForPlain": "Isi nilainya: rahasia yang diubah menjadi biasa tidak mempertahankan nilai tersimpannya"
+    },
+    "import": {
+      "button": "Impor .env",
+      "title": "Impor .env",
+      "description": "Tempel, unggah, atau baca .env, periksa tiap variabel, lalu impor yang Anda pilih.",
+      "sourcePaste": "Tempel",
+      "sourceUpload": "Unggah",
+      "sourceServer": "Dari server",
+      "pasteLabel": "Isi .env",
+      "pastePlaceholder": "APP_PORT=8080\nLOG_LEVEL=info",
+      "parsedCount": "{count, plural, =0 {Tidak ada variabel} other {# variabel ditemukan}}",
+      "parsedError": "Baris {line} tidak dapat dibaca",
+      "review": "Tinjau",
+      "uploadLabel": "Berkas",
+      "uploadHint": "Berkas .env atau teks hingga {kib} KiB. Dibaca di peramban Anda.",
+      "uploadTooLarge": "Berkas lebih besar dari {kib} KiB.",
+      "uploadReadFailed": "Berkas tidak dapat dibaca.",
+      "uploadedFile": "{name} dibaca",
+      "serverHint": "Membaca .env aktif di setiap direktori deploy. Tidak ada yang berubah di server.",
+      "serverLoading": "Membaca server…",
+      "reload": "Baca ulang",
+      "dirStatus": {
+        "ok": "Terbaca",
+        "dirMissing": "Folder tidak ditemukan",
+        "fileMissing": "Tidak ada berkas .env",
+        "tooLarge": "Lebih dari {kib} KiB, tidak dibaca",
+        "parseError": "Tidak dapat dibaca di baris {line}",
+        "unreachable": "Server tidak terjangkau",
+        "hostKeyMismatch": "Host key berubah: periksa server dulu"
+      },
+      "colImport": "Impor",
+      "colState": "Status",
+      "colSource": "Nilai dari",
+      "selectRow": "Impor {name}",
+      "kindOf": "Jenis {name}",
+      "dirOf": "Direktori deploy untuk {name}",
+      "chooseDir": "Pilih direktori",
+      "valueHidden": "Nilai disembunyikan",
+      "state": {
+        "new": "Baru",
+        "conflict": "Mengganti nilai tersimpan",
+        "unimportable": "Tidak dapat diimpor"
+      },
+      "reason": {
+        "invalidName": "Nama tidak valid",
+        "multiLine": "Nilai berisi baris baru",
+        "tooLong": "Nilai terlalu panjang",
+        "invalidValue": "Nilai berisi karakter NUL",
+        "escrowed": "Escrow: tidak dapat diubah"
+      },
+      "flag": {
+        "differsAcrossDirs": "Direktori deploy berbeda nilai: pilih salah satu",
+        "unresolvedRefs": "Merujuk nama yang tidak ada di berkas: {names}",
+        "duplicate": "Didefinisikan lebih dari sekali: baris terakhir yang berlaku"
+      },
+      "sameGroup": "{count, plural, other {# variabel sudah bernilai sama}}",
+      "skippedGroup": "{count, plural, other {# variabel dilewati}}",
+      "skipReason": {
+        "tagVariable": "Tag image: ditulis oleh deploy",
+        "dockerRegistry": "Ditulis oleh Panel",
+        "reserved": "Awalan khusus"
+      },
+      "notKept": "Komentar dan urutan tidak disimpan: hanya nama, nilai, dan jenis yang diimpor.",
+      "nothing": "Tidak ada yang dapat diimpor.",
+      "submit": "{count, plural, =0 {Impor variabel} other {Impor # variabel}}",
+      "imported": "{count, plural, other {# variabel diimpor}}{overwritten, plural, =0 {} other {, # diganti}}",
+      "errors": {
+        "envTextTooLarge": "Teks .env lebih besar dari {kib} KiB.",
+        "envParseError": ".env tidak dapat dibaca di baris {line}.",
+        "envTooManyEntries": ".env berisi lebih dari {max} variabel.",
+        "importSourceRequired": "Pilih nilai dari direktori deploy mana yang diimpor untuk {name}.",
+        "importSourceUnknown": "Nilai yang dipilih untuk {name} sudah tidak ada: baca ulang berkasnya.",
+        "importRowUnknown": "{name} sudah tidak ada di .env: tinjau ulang.",
+        "importRowDuplicate": "{name} tercantum dua kali.",
+        "importRowSame": "{name} sudah bernilai sama.",
+        "importRowUnimportable": "{name} tidak dapat diimpor.",
+        "envFileChanged": "Sebuah .env berubah sejak ditinjau, jadi dibaca ulang. Periksa barisnya lalu impor lagi.",
+        "variableEscrowed": "Sebuah variabel di-escrow sementara itu. Tidak ada yang diimpor.",
+        "variableImportFailed": "Variabel tidak dapat diimpor. Tidak ada yang berubah.",
+        "envFileInvalid": "Variabel environment ini tidak dapat ditulis ke .env. Periksa di sini dulu."
+      }
     }
   },
   "variableTemplates": {

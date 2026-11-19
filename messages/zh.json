@@ -2921,6 +2921,87 @@
       "clearEscrowConfirmDescription": "之后其值可以被更改、重新生成或删除。请确保在面板之外保存了副本。",
       "escrowCleared": "已移除 {name} 的托管",
       "valueRequiredForPlain": "请输入值：机密变量改为普通后不会保留已存储的值"
+    },
+    "import": {
+      "button": "导入 .env",
+      "title": "导入 .env",
+      "description": "粘贴、上传或读取 .env，逐个检查变量，然后导入所选的变量。",
+      "sourcePaste": "粘贴",
+      "sourceUpload": "上传",
+      "sourceServer": "从服务器",
+      "pasteLabel": ".env 内容",
+      "pastePlaceholder": "APP_PORT=8080\nLOG_LEVEL=info",
+      "parsedCount": "{count, plural, =0 {未找到变量} other {找到 # 个变量}}",
+      "parsedError": "第 {line} 行无法读取",
+      "review": "检查",
+      "uploadLabel": "文件",
+      "uploadHint": "不超过 {kib} KiB 的 .env 或文本文件，在浏览器中读取。",
+      "uploadTooLarge": "文件超过 {kib} KiB。",
+      "uploadReadFailed": "无法读取该文件。",
+      "uploadedFile": "已读取 {name}",
+      "serverHint": "读取每个部署目录中的当前 .env，不会更改服务器上的任何内容。",
+      "serverLoading": "正在读取服务器…",
+      "reload": "重新读取",
+      "dirStatus": {
+        "ok": "已读取",
+        "dirMissing": "未找到目录",
+        "fileMissing": "没有 .env 文件",
+        "tooLarge": "超过 {kib} KiB，未读取",
+        "parseError": "第 {line} 行无法读取",
+        "unreachable": "无法连接服务器",
+        "hostKeyMismatch": "主机密钥已更改：请先检查服务器"
+      },
+      "colImport": "导入",
+      "colState": "状态",
+      "colSource": "取值来源",
+      "selectRow": "导入 {name}",
+      "kindOf": "{name} 的类型",
+      "dirOf": "{name} 的部署目录",
+      "chooseDir": "选择目录",
+      "valueHidden": "已隐藏的值",
+      "state": {
+        "new": "新建",
+        "conflict": "替换已存储的值",
+        "unimportable": "无法导入"
+      },
+      "reason": {
+        "invalidName": "名称无效",
+        "multiLine": "值包含换行",
+        "tooLong": "值过长",
+        "invalidValue": "值包含 NUL 字符",
+        "escrowed": "已托管：无法更改"
+      },
+      "flag": {
+        "differsAcrossDirs": "各部署目录的值不同：请选择一个",
+        "unresolvedRefs": "引用了文件中没有的名称：{names}",
+        "duplicate": "定义了多次：以最后一行为准"
+      },
+      "sameGroup": "{count, plural, other {# 个变量的值已相同}}",
+      "skippedGroup": "{count, plural, other {跳过 # 个变量}}",
+      "skipReason": {
+        "tagVariable": "镜像标签：由部署写入",
+        "dockerRegistry": "由 Panel 写入",
+        "reserved": "保留前缀"
+      },
+      "notKept": "不保留注释和顺序：只导入名称、值和类型。",
+      "nothing": "没有可导入的内容。",
+      "submit": "{count, plural, =0 {导入变量} other {导入 # 个变量}}",
+      "imported": "{count, plural, other {已导入 # 个变量}}{overwritten, plural, =0 {} other {，替换 # 个}}",
+      "errors": {
+        "envTextTooLarge": ".env 文本超过 {kib} KiB。",
+        "envParseError": ".env 第 {line} 行无法读取。",
+        "envTooManyEntries": ".env 定义了超过 {max} 个变量。",
+        "importSourceRequired": "请选择 {name} 要导入哪个部署目录的值。",
+        "importSourceUnknown": "为 {name} 选择的值已不存在：请重新读取文件。",
+        "importRowUnknown": "{name} 已不在 .env 中：请重新检查。",
+        "importRowDuplicate": "{name} 出现了两次。",
+        "importRowSame": "{name} 的值已相同。",
+        "importRowUnimportable": "{name} 无法导入。",
+        "envFileChanged": "检查之后有 .env 发生了变化，已重新读取。请核对后再次导入。",
+        "variableEscrowed": "期间有变量被托管，未导入任何内容。",
+        "variableImportFailed": "无法导入变量，未做任何更改。",
+        "envFileInvalid": "此环境的变量无法写入 .env，请先在此处检查。"
+      }
     }
   },
   "variableTemplates": {

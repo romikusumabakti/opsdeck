@@ -1,6 +1,7 @@
 import {
   Eye,
   EyeOff,
+  FileInput,
   KeyRound,
   ListPlus,
   Loader2,
@@ -40,6 +41,7 @@ import {
   type VariableRow,
   type VariablesListing,
 } from "@/web/api/variables";
+import { ImportEnvDialog } from "./import-env-dialog";
 import {
   useVariableErrorText,
   VariableFormDialog,
@@ -61,10 +63,15 @@ export function VariablesClient({
   const dialog = useDialog();
   const errorText = useVariableErrorText();
   const canWrite = useProjectCan({ variable: ["write"] });
+  const canImport = useProjectCan({ variable: ["read", "write"] });
   const canClearEscrow = canOrg(useMe()?.orgRole, {
     integration: ["manage"],
   });
   const [form, setForm] = React.useState<FormState>(null);
+  // Open with the text pasted into the name field, if any.
+  const [importing, setImporting] = React.useState<{
+    initialText?: string;
+  } | null>(null);
   // Decrypted values by name, only after an explicit reveal, only in memory.
   const [revealed, setRevealed] = React.useState<Map<string, string> | null>(
     null
@@ -182,6 +189,16 @@ export function VariablesClient({
               {t("applyTemplate")}
             </Button>
           )}
+          {canImport && (
+            <Button
+              variant="outline"
+              disabled={busy !== null}
+              onClick={() => setImporting({})}
+            >
+              <FileInput data-icon="inline-start" />
+              {t("import.button")}
+            </Button>
+          )}
           {canWrite && (
             <Button onClick={() => setForm({ variable: null })}>
               <Plus data-icon="inline-start" />
@@ -250,7 +267,26 @@ export function VariablesClient({
         environmentId={environmentId}
         variable={form?.variable ?? null}
         canClearEscrow={canClearEscrow}
+        onPasteEnv={
+          canImport
+            ? (text) => {
+                setForm(null);
+                setImporting({ initialText: text });
+              }
+            : undefined
+        }
       />
+
+      {canImport && (
+        <ImportEnvDialog
+          open={importing !== null}
+          onOpenChange={(open) => {
+            if (!open) setImporting(null);
+          }}
+          environmentId={environmentId}
+          initialText={importing?.initialText}
+        />
+      )}
     </>
   );
 }
