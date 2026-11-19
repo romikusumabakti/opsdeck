@@ -7,9 +7,11 @@ import {
   outputTokenLimitFor,
   PROVIDER_LABEL_KEYS,
   PROVIDERS,
+  type Prices,
   probeOptionsFor,
   providerOptionsFor,
   suggestedModels,
+  titleModelFor,
 } from "@/lib/assistant/providers";
 import { encryptSecret } from "@/lib/secrets";
 
@@ -319,5 +321,68 @@ describe("openai without server-side storage", () => {
       })
     );
     expect(input.some((item) => item.type === "item_reference")).toBe(false);
+  });
+});
+
+// The configured model's stored prices in the titleModelFor cases.
+const PRICES: Prices = { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 };
+
+describe("titleModelFor", () => {
+  it("picks the provider's cheapest known model when it is cheaper", () => {
+    expect(
+      titleModelFor({
+        provider: "anthropic",
+        modelId: "claude-opus-5-5",
+        prices: PRICES,
+        baseUrl: null,
+      })
+    ).toEqual({
+      modelId: "claude-sonnet-5-5",
+      prices: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
+    });
+    expect(
+      titleModelFor({
+        provider: "openai",
+        modelId: "gpt-6.1-sol",
+        prices: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
+        baseUrl: null,
+      }).modelId
+    ).toBe("gpt-6-luna");
+    expect(
+      titleModelFor({
+        provider: "google",
+        modelId: "gemini-4-carbon",
+        prices: PRICES,
+        baseUrl: null,
+      }).modelId
+    ).toBe("gemini-4-hydrogen");
+  });
+
+  it("keeps the configured model when nothing known is cheaper, for a custom endpoint, or an OpenAI-compatible one", () => {
+    const cheap = { input: 0.05, output: 0.2, cacheRead: 0, cacheWrite: 0 };
+    expect(
+      titleModelFor({
+        provider: "anthropic",
+        modelId: "claude-mini-custom",
+        prices: cheap,
+        baseUrl: null,
+      })
+    ).toEqual({ modelId: "claude-mini-custom", prices: cheap });
+    expect(
+      titleModelFor({
+        provider: "anthropic",
+        modelId: "claude-opus-5-5",
+        prices: PRICES,
+        baseUrl: "https://llm-proxy.example.invalid/v1",
+      })
+    ).toEqual({ modelId: "claude-opus-5-5", prices: PRICES });
+    expect(
+      titleModelFor({
+        provider: "openai-compatible",
+        modelId: "local-model",
+        prices: PRICES,
+        baseUrl: "https://llm.example.invalid/v1",
+      })
+    ).toEqual({ modelId: "local-model", prices: PRICES });
   });
 });

@@ -184,3 +184,40 @@ export function probeOptionsFor(
 export function readsFilesNatively(provider: Provider): boolean {
   return provider !== "openai-compatible";
 }
+
+/**
+ * The model the title is asked of: the provider's cheapest KNOWN_MODELS entry
+ * when it is cheaper (input + output price) than the configured model, else
+ * the configured model. As of the 2026-11-17 list:
+ *
+ *   anthropic          claude-opus-5-5   → claude-sonnet-5-5
+ *   openai             gpt-6.1-sol       → gpt-6-luna
+ *   google             gemini-4-carbon   → gemini-4-hydrogen
+ *   openai-compatible  configured model (it may front any model)
+ *
+ * A custom endpoint (baseUrl set) keeps the configured model too: it may not
+ * serve the sibling. A sibling is charged at its list prices, the configured
+ * model at the stored ones.
+ */
+export function titleModelFor(config: {
+  provider: Provider;
+  modelId: string;
+  prices: Prices;
+  baseUrl: string | null;
+}): { modelId: string; prices: Prices } {
+  const configured = { modelId: config.modelId, prices: config.prices };
+  if (config.provider === "openai-compatible" || config.baseUrl) {
+    return configured;
+  }
+  const weight = (prices: Prices) => prices.input + prices.output;
+  const cheapest = suggestedModels(config.provider).reduce<
+    (typeof configured & { weight: number }) | null
+  >((best, model) => {
+    const w = weight(model.prices);
+    return !best || w < best.weight
+      ? { modelId: model.id, prices: model.prices, weight: w }
+      : best;
+  }, null);
+  if (!cheapest || cheapest.weight >= weight(config.prices)) return configured;
+  return { modelId: cheapest.modelId, prices: cheapest.prices };
+}

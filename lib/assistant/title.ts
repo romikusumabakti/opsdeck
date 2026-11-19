@@ -11,7 +11,7 @@ import {
   type Prices,
   type Provider,
   probeOptionsFor,
-  suggestedModels,
+  titleModelFor,
 } from "./providers";
 import { reportedUsage } from "./run-turn";
 import { recordUsage, spentTodayUsd } from "./usage";
@@ -21,7 +21,9 @@ import { recordUsage, spentTodayUsd } from "./usage";
  * done, one small request names the chat in at most six words, in the
  * question's language. Never for a temporary chat or one the user renamed
  * (conversation-store loadTitleInput / saveGeneratedTitle); a failure keeps
- * the title taken from the first question. Metered like every call.
+ * the title taken from the first question. Metered like every call. The
+ * model is the provider's cheaper sibling when one is known (titleModelFor
+ * in providers.ts).
  */
 
 export const TITLE_MAX_WORDS = 6;
@@ -30,43 +32,6 @@ export const TITLE_MAX_WORDS = 6;
 const QUESTION_CHARS = 2000;
 const ANSWER_CHARS = 1000;
 const TITLE_TIMEOUT_MS = 30_000;
-
-/**
- * The model the title is asked of: the provider's cheapest KNOWN_MODELS entry
- * when it is cheaper (input + output price) than the configured model, else
- * the configured model. As of the 2026-11-17 list:
- *
- *   anthropic          claude-opus-5-5   → claude-sonnet-5-5
- *   openai             gpt-6.1-sol       → gpt-6-luna
- *   google             gemini-4-carbon   → gemini-4-hydrogen
- *   openai-compatible  configured model (it may front any model)
- *
- * A custom endpoint (baseUrl set) keeps the configured model too: it may not
- * serve the sibling. A sibling is charged at its list prices, the configured
- * model at the stored ones.
- */
-export function titleModelFor(config: {
-  provider: Provider;
-  modelId: string;
-  prices: Prices;
-  baseUrl: string | null;
-}): { modelId: string; prices: Prices } {
-  const configured = { modelId: config.modelId, prices: config.prices };
-  if (config.provider === "openai-compatible" || config.baseUrl) {
-    return configured;
-  }
-  const weight = (prices: Prices) => prices.input + prices.output;
-  const cheapest = suggestedModels(config.provider).reduce<
-    (typeof configured & { weight: number }) | null
-  >((best, model) => {
-    const w = weight(model.prices);
-    return !best || w < best.weight
-      ? { modelId: model.id, prices: model.prices, weight: w }
-      : best;
-  }, null);
-  if (!cheapest || cheapest.weight >= weight(config.prices)) return configured;
-  return { modelId: cheapest.modelId, prices: cheapest.prices };
-}
 
 /**
  * The model's reply as a title: its first line, without a "Title:" label,
@@ -166,7 +131,7 @@ export async function generateConversationTitle(
       instructions: INSTRUCTIONS,
       prompt,
       // Room for a reasoning model to think a little before it answers, as
-      // in the connection test (lowest reasoning, none for Anthropic).
+      // in the connection test (probeOptionsFor: the lowest reasoning).
       maxOutputTokens: 512,
       maxRetries: 0,
       providerOptions: probeOptionsFor(runtime.provider),

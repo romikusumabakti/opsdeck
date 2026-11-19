@@ -1,6 +1,5 @@
 import { MockLanguageModelV4 } from "ai/test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Prices } from "@/lib/assistant/providers";
 
 // The auto title (lib/assistant/title.ts) over a mocked store, usage and
 // model: no provider is ever called.
@@ -37,12 +36,11 @@ vi.mock("@/lib/assistant/usage", () => ({
   spentTodayUsd: vi.fn(async () => state.spent),
 }));
 
-const { generateConversationTitle, titleModelFor, cleanTitle } = await import(
+const { generateConversationTitle, cleanTitle } = await import(
   "@/lib/assistant/title"
 );
 
 const CHAT = "0197f3a0-1b2c-7def-8000-0000000c0001";
-const PRICES: Prices = { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 };
 
 function textModel(text: string) {
   return new MockLanguageModelV4({
@@ -66,8 +64,8 @@ function textModel(text: string) {
 function runtime(model: MockLanguageModelV4) {
   return {
     model,
-    provider: "anthropic" as const,
-    modelId: "claude-sonnet-5-5",
+    provider: "openai-compatible" as const,
+    modelId: "title-model",
     prices: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
     dailyCapUsd: 1.5,
   };
@@ -111,7 +109,7 @@ describe("generateConversationTitle", () => {
       expect.objectContaining({
         messageId: null,
         userId: "user-1",
-        modelId: "claude-sonnet-5-5",
+        modelId: "title-model",
         prices: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
         usage: { input: 120, cacheRead: 0, cacheWrite: 0, output: 6 },
         estimated: false,
@@ -188,65 +186,5 @@ describe("cleanTitle", () => {
     expect(cleanTitle("服务器状态检查")).toBe("服务器状态检查");
     expect(cleanTitle("   ")).toBeNull();
     expect(Array.from(cleanTitle("x".repeat(200)) ?? "")).toHaveLength(80);
-  });
-});
-
-describe("titleModelFor", () => {
-  it("picks the provider's cheapest known model when it is cheaper", () => {
-    expect(
-      titleModelFor({
-        provider: "anthropic",
-        modelId: "claude-opus-5-5",
-        prices: PRICES,
-        baseUrl: null,
-      })
-    ).toEqual({
-      modelId: "claude-sonnet-5-5",
-      prices: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
-    });
-    expect(
-      titleModelFor({
-        provider: "openai",
-        modelId: "gpt-6.1-sol",
-        prices: { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
-        baseUrl: null,
-      }).modelId
-    ).toBe("gpt-6-luna");
-    expect(
-      titleModelFor({
-        provider: "google",
-        modelId: "gemini-4-carbon",
-        prices: PRICES,
-        baseUrl: null,
-      }).modelId
-    ).toBe("gemini-4-hydrogen");
-  });
-
-  it("keeps the configured model when nothing known is cheaper, for a custom endpoint, or an OpenAI-compatible one", () => {
-    const cheap = { input: 0.05, output: 0.2, cacheRead: 0, cacheWrite: 0 };
-    expect(
-      titleModelFor({
-        provider: "anthropic",
-        modelId: "claude-mini-custom",
-        prices: cheap,
-        baseUrl: null,
-      })
-    ).toEqual({ modelId: "claude-mini-custom", prices: cheap });
-    expect(
-      titleModelFor({
-        provider: "anthropic",
-        modelId: "claude-opus-5-5",
-        prices: PRICES,
-        baseUrl: "https://llm-proxy.example.invalid/v1",
-      })
-    ).toEqual({ modelId: "claude-opus-5-5", prices: PRICES });
-    expect(
-      titleModelFor({
-        provider: "openai-compatible",
-        modelId: "local-model",
-        prices: PRICES,
-        baseUrl: "https://llm.example.invalid/v1",
-      })
-    ).toEqual({ modelId: "local-model", prices: PRICES });
   });
 });
