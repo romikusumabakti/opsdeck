@@ -262,31 +262,61 @@ export const databaseHosts = pgTable(
   ]
 );
 
+// An organisational group for projects (a client, a team). Managed by admins;
+// grants no permissions. Names are unique ignoring case and surrounding spaces
+// (the lower(trim(name)) unique index). The 80-character limit is enforced by
+// the service, not a CHECK: legacy `client` values are backfilled untruncated.
+export const projectGroups = pgTable(
+  "project_groups",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    name: text("name").notNull(),
+    // Fractional-index rank, C-collated (see migration) like knowledge_collections.
+    rank: text("rank").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("project_groups_name_unique_idx").using(
+      "btree",
+      sql`lower(trim(${t.name}))`
+    ),
+  ]
+);
+
 // The real, logical project — one application (e.g. "Common Membership",
 // "OSPREY Portal"), independent of how many times it is deployed. An issue
 // tracker, knowledge, and members hang off THIS, not off a deployment. Each
 // project owns one or more `environments` (the concrete server/db/backend/
 // frontend triples that used to each be a top-level "project" row).
-export const projects = pgTable("projects", {
-  id: uuid("id").primaryKey().default(sql`uuidv7()`),
-  name: text("name").notNull(),
-  // Short stable identifier used as the issue-key prefix (e.g. "CMEM" -> CMEM-42)
-  // and in URLs. Uppercase, unique across all projects.
-  key: text("key").notNull().unique("projects_key_unique"),
-  // Optional grouping label for the owning client/tenant (e.g. "DPLK", "OSPREY").
-  // A plain nullable column, not a table — promote to `clients` only if per-client
-  // access control is ever needed. Keeps the model two-level, not three.
-  client: text("client"),
-  description: text("description"),
-  // The server new environments of this project deploy to by default. Cleared
-  // when the server is deleted.
-  defaultServerId: uuid("default_server_id").references(() => servers.id, {
-    name: "projects_default_server_id_fkey",
-    onDelete: "set null",
-  }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    name: text("name").notNull(),
+    // Short stable identifier used as the issue-key prefix (e.g. "CMEM" -> CMEM-42)
+    // and in URLs. Uppercase, unique across all projects.
+    key: text("key").notNull().unique("projects_key_unique"),
+    // Legacy free-text client label, superseded by `groupId`. No longer written;
+    // kept for the rolling update and dropped in a later contract migration.
+    client: text("client"),
+    // Organisational group; null = ungrouped. Ungrouped when the group is deleted.
+    groupId: uuid("group_id").references(() => projectGroups.id, {
+      name: "projects_group_id_fkey",
+      onDelete: "set null",
+    }),
+    description: text("description"),
+    // The server new environments of this project deploy to by default. Cleared
+    // when the server is deleted.
+    defaultServerId: uuid("default_server_id").references(() => servers.id, {
+      name: "projects_default_server_id_fkey",
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("projects_group_idx").on(t.groupId)]
+);
 
 // A concrete deployment of a project — the server/db/backend/frontend triple a
 // QA, a frontend dev, or devops runs. This is what used to be a top-level
