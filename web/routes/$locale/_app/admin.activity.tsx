@@ -256,6 +256,16 @@ function message(
         names: String(d.names),
         environment: String(d.environment),
       });
+    case "variables.imported":
+      return t("variablesImported", {
+        actor,
+        environment: String(d.environment),
+        source: String(d.source),
+        dirs: String(d.dirs ?? ""),
+        names: String(d.names),
+        replaced: d.overwritten ? "yes" : "no",
+        overwritten: String(d.overwritten ?? ""),
+      });
     case "variableTemplate.saved":
       return t("variableTemplateSaved", {
         actor,

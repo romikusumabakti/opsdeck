@@ -226,3 +226,29 @@ describe("activity page assistant events", () => {
     );
   });
 });
+
+describe("activity page variable import events", () => {
+  it("renders variables.imported from text and from server, names only", async () => {
+    const text = await renderEvents([
+      row("1", "variables.imported", {
+        environment: "Kestrel Dev",
+        source: "text",
+        names: "APP_NAME, DB_PASSWORD",
+        overwritten: "APP_NAME",
+      }),
+      row("2", "variables.imported", {
+        environment: "Kestrel Dev",
+        source: "server",
+        names: "LOG_LEVEL",
+        overwritten: "",
+        dirs: "kestrel-app:/srv/kestrel",
+      }),
+    ]);
+    expect(text).toContain(
+      "Rina imported variables into Kestrel Dev from pasted or uploaded text (APP_NAME, DB_PASSWORD; replaced: APP_NAME)"
+    );
+    expect(text).toContain(
+      "Rina imported variables into Kestrel Dev from the server .env in kestrel-app:/srv/kestrel (LOG_LEVEL)"
+    );
+  });
+});

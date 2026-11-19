@@ -6,6 +6,14 @@
 export const RESERVED_PREFIX_MESSAGE =
   "Variable names must not start with COMPOSE_, DOCKER_ or BUILDKIT_, except COMPOSE_PROFILES (the Panel writes DOCKER_REGISTRY itself)";
 
+/**
+ * 400 for a deploy target's tag variable with a reserved prefix. Strict, with
+ * no exemption: the deploy writes the tag line itself, and a tag written as
+ * `COMPOSE_PROFILES=<tag>` would disable the profiled services.
+ */
+export const TAG_VARIABLE_RESERVED_PREFIX_MESSAGE =
+  "Tag variable names must not start with COMPOSE_, DOCKER_ or BUILDKIT_";
+
 /** Prefix of the 409 for turning on env_file_managed; the names follow it. */
 export const MISSING_REQUIRED_PREFIX = "Missing required variables: ";
 

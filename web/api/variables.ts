@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { parseResponse } from "hono/client";
-import { api } from "@/web/api/client";
+import { api, NO_REFETCH } from "@/web/api/client";
 
 const environments = api.api.environments[":id"];
 const variable = environments.variables[":name"];
@@ -68,6 +68,43 @@ export async function applyVariableTemplate(environmentId: string) {
     environments.variables["apply-template"].$post({
       param: { id: environmentId },
     })
+  );
+}
+
+const importRoute = environments.variables.import;
+
+type SaveImportBody = Parameters<typeof importRoute.$post>[0]["json"];
+
+/**
+ * The "Import .env from server" review: each deploy dir's status and the
+ * rows. Every call reads the servers over SSH, so it is not a cached query:
+ * the dialog calls it on open and on reload.
+ */
+export async function readServerImport(environmentId: string) {
+  return parseResponse(importRoute.$get({ param: { id: environmentId } }));
+}
+
+export type ServerImportReview = Awaited<ReturnType<typeof readServerImport>>;
+export type ImportReviewRow = ServerImportReview["rows"][number];
+export type ImportReviewDir = ServerImportReview["dirs"][number];
+
+/**
+ * The review of pasted or uploaded `.env` text, compared with the stored
+ * values server-side. Writes nothing, so it skips the refetch after a POST.
+ */
+export async function previewTextImport(environmentId: string, text: string) {
+  return parseResponse(
+    importRoute.preview.$post(
+      { param: { id: environmentId }, json: { source: "text", text } },
+      NO_REFETCH
+    )
+  );
+}
+
+/** Saves the reviewed rows (`source: "server"` or `"text"`). */
+export async function saveImport(environmentId: string, body: SaveImportBody) {
+  return parseResponse(
+    importRoute.$post({ param: { id: environmentId }, json: body })
   );
 }
 

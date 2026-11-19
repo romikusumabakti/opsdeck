@@ -2214,6 +2214,7 @@
     "envFileManagedOn": "{actor} 允许面板写入 {environment} 的 .env",
     "envFileManagedOff": "{actor} 停止面板写入 {environment} 的 .env",
     "variablesTemplateApplied": "{actor} 向 {environment} 添加了模板变量（{names}）",
+    "variablesImported": "{actor} 向 {environment} 导入了变量{source, select, server {（来自服务器 {dirs} 中的 .env）} other {（来自粘贴或上传的文本）}}（{names}{replaced, select, yes {；已替换：{overwritten}} other {}}）",
     "variableTemplateSaved": "{actor} 保存了 {app} 的变量模板 {name}",
     "variableTemplateDeleted": "{actor} 删除了 {app} 的变量模板 {name}",
     "deployLockLocked": "{actor} 锁定了 {environment} 的部署（{reason}）",

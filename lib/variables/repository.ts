@@ -1,6 +1,6 @@
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { type DbExecutor, db } from "@/lib/db";
+import { type DbExecutor, type DbTransaction, db } from "@/lib/db";
 import {
   type AppVariableTemplate,
   apps,
@@ -262,6 +262,42 @@ export async function deleteVariable(
     )
     .returning({ id: environmentVariables.id });
   return rows.length > 0;
+}
+
+/**
+ * Inserts the variables or replaces their kind, value and escrow flag, in one
+ * statement inside the caller's transaction (an import). An existing escrowed
+ * row is never replaced, also against a concurrent writer: it is left out of
+ * the result, and the caller rolls the transaction back. Returns the names
+ * written, each with whether it replaced a stored row.
+ */
+export async function importVariables(
+  tx: DbTransaction,
+  writes: readonly VariableWrite[]
+): Promise<{ name: string; overwritten: boolean }[]> {
+  if (writes.length === 0) return [];
+  return (
+    tx
+      .insert(environmentVariables)
+      .values([...writes])
+      .onConflictDoUpdate({
+        target: [environmentVariables.environmentId, environmentVariables.name],
+        set: {
+          kind: sql`excluded.kind`,
+          value: sql`excluded.value`,
+          escrow: sql`excluded.escrow`,
+          updatedBy: sql`excluded.updated_by`,
+          updatedAt: sql`now()`,
+        },
+        setWhere: eq(environmentVariables.escrow, false),
+      })
+      // xmax is 0 for a row this statement inserted, else the updating
+      // transaction's id (the documented upsert idiom).
+      .returning({
+        name: environmentVariables.name,
+        overwritten: sql<boolean>`(xmax <> 0)`,
+      })
+  );
 }
 
 /**

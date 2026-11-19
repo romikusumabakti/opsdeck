@@ -2214,6 +2214,7 @@
     "envFileManagedOn": "{actor} let the Panel write the .env of {environment}",
     "envFileManagedOff": "{actor} stopped the Panel writing the .env of {environment}",
     "variablesTemplateApplied": "{actor} added template variables to {environment} ({names})",
+    "variablesImported": "{actor} imported variables into {environment} {source, select, server {from the server .env in {dirs}} other {from pasted or uploaded text}} ({names}{replaced, select, yes {; replaced: {overwritten}} other {}})",
     "variableTemplateSaved": "{actor} saved variable template {name} of {app}",
     "variableTemplateDeleted": "{actor} deleted variable template {name} of {app}",
     "deployLockLocked": "{actor} locked deploys to {environment} ({reason})",

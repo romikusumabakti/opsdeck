@@ -2214,6 +2214,7 @@
     "envFileManagedOn": "{actor} سمح للوحة بكتابة ملف ‎.env الخاص بـ {environment}",
     "envFileManagedOff": "{actor} أوقف كتابة اللوحة لملف ‎.env الخاص بـ {environment}",
     "variablesTemplateApplied": "{actor} أضاف متغيرات القالب إلى {environment} ({names})",
+    "variablesImported": "استورد {actor} متغيرات إلى {environment} {source, select, server {من ملف .env على الخادم في {dirs}} other {من نص ملصق أو مرفوع}} ({names}{replaced, select, yes {؛ استُبدلت: {overwritten}} other {}})",
     "variableTemplateSaved": "{actor} حفظ قالب المتغير {name} للتطبيق {app}",
     "variableTemplateDeleted": "{actor} حذف قالب المتغير {name} للتطبيق {app}",
     "deployLockLocked": "قفل {actor} عمليات النشر إلى {environment} ({reason})",

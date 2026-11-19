@@ -1,7 +1,17 @@
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { appKeySchema } from "@/lib/deploy/validation";
 import { uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
+import {
+  envTextTooLarge,
+  IMPORT_BODY_LIMIT,
+  importPreviewInputSchema,
+  importSaveInputSchema,
+  previewTextImport,
+  readServerImport,
+  saveImport,
+} from "@/server/services/variable-import";
 import {
   applyTemplate,
   deleteVariable,
@@ -23,8 +33,17 @@ const nameParam = z.string().min(1).max(128);
 const envParam = param(z.object({ id: uuidSchema }));
 const variableParam = param(z.object({ id: uuidSchema, name: nameParam }));
 
-// A revealed listing holds decrypted secrets: never cache it.
+// A revealed listing holds decrypted secrets, an import review plain values
+// read from a server: never cache them.
 const NO_STORE = { "Cache-Control": "no-store" };
+
+// Caps a body carrying `.env` text before it is parsed (a coded 413).
+const importBodyLimit = bodyLimit({
+  maxSize: IMPORT_BODY_LIMIT,
+  onError: () => {
+    throw envTextTooLarge();
+  },
+});
 
 /**
  * An environment's variables, mounted at /api/environments. Each service
@@ -44,6 +63,34 @@ export const environmentVariablesRouter = sessionRouter()
   // Before /:name routes of the same method, so the literal path wins.
   .post("/:id/variables/apply-template", envParam, async (c) =>
     c.json(await applyTemplate(c.req.valid("param").id))
+  )
+  // Import .env: the review of the deploy dirs' live files (SSH reads), the
+  // review of pasted or uploaded text, and the save of either.
+  .get("/:id/variables/import", envParam, async (c) =>
+    c.json(await readServerImport(c.req.valid("param").id), 200, NO_STORE)
+  )
+  .post(
+    "/:id/variables/import/preview",
+    envParam,
+    importBodyLimit,
+    json(importPreviewInputSchema),
+    async (c) =>
+      c.json(
+        await previewTextImport(
+          c.req.valid("param").id,
+          c.req.valid("json").text
+        ),
+        200,
+        NO_STORE
+      )
+  )
+  .post(
+    "/:id/variables/import",
+    envParam,
+    importBodyLimit,
+    json(importSaveInputSchema),
+    async (c) =>
+      c.json(await saveImport(c.req.valid("param").id, c.req.valid("json")))
   )
   .put(
     "/:id/variables/:name",

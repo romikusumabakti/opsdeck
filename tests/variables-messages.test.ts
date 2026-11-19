@@ -35,6 +35,7 @@ const SHARED_KEYS = [
   "activity.envFileManagedOn",
   "activity.envFileManagedOff",
   "activity.variablesTemplateApplied",
+  "activity.variablesImported",
   "activity.variableTemplateSaved",
   "activity.variableTemplateDeleted",
   "activity.environmentDeletedWithVariables",

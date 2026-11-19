@@ -2214,6 +2214,7 @@
     "envFileManagedOn": "{actor} mengizinkan Panel menulis .env {environment}",
     "envFileManagedOff": "{actor} menghentikan Panel menulis .env {environment}",
     "variablesTemplateApplied": "{actor} menambahkan variabel templat ke {environment} ({names})",
+    "variablesImported": "{actor} mengimpor variabel ke {environment} {source, select, server {dari .env server di {dirs}} other {dari teks yang ditempel atau diunggah}} ({names}{replaced, select, yes {; diganti: {overwritten}} other {}})",
     "variableTemplateSaved": "{actor} menyimpan templat variabel {name} milik {app}",
     "variableTemplateDeleted": "{actor} menghapus templat variabel {name} milik {app}",
     "deployLockLocked": "{actor} mengunci deploy ke {environment} ({reason})",

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
+import { TAG_VARIABLE_RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
 import { hasReservedPrefix } from "@/lib/variables/validation";
 
 // Input validation for the deploy feature. Every value here ends up in a shell
@@ -58,11 +58,12 @@ export const envVarNameSchema = z
     "Variable name must be uppercase letters, digits or '_'"
   );
 
-// The deploy writes the tag line into the project's `.env`, so the name
-// follows the same reserved-prefix rule as the variables there.
+// The deploy writes the tag line into the project's `.env`, so the name may
+// not take a reserved prefix either, strictly: unlike a stored variable, a tag
+// variable gets no COMPOSE_PROFILES exemption.
 export const tagVariableSchema = envVarNameSchema.refine(
   (name) => !hasReservedPrefix(name),
-  RESERVED_PREFIX_MESSAGE
+  TAG_VARIABLE_RESERVED_PREFIX_MESSAGE
 );
 
 /**

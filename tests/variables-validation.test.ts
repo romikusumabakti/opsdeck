@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { tagVariableSchema } from "@/lib/deploy/validation";
-import { RESERVED_PREFIX_MESSAGE } from "@/lib/variables/errors";
+import {
+  RESERVED_PREFIX_MESSAGE,
+  TAG_VARIABLE_RESERVED_PREFIX_MESSAGE,
+} from "@/lib/variables/errors";
 import {
   generateValue,
   hasReservedPrefix,
@@ -81,7 +84,13 @@ describe("variableNameSchema", () => {
     expect(hasReservedPrefix("COMPOSE_PROFILES")).toBe(true);
     const tag = tagVariableSchema.safeParse("COMPOSE_PROFILES");
     expect(tag.success).toBe(false);
-    expect(tag.error?.issues[0]?.message).toBe(RESERVED_PREFIX_MESSAGE);
+    // Tag names have no exemption, so their refusal must not promise one.
+    expect(tag.error?.issues[0]?.message).toBe(
+      TAG_VARIABLE_RESERVED_PREFIX_MESSAGE
+    );
+    expect(TAG_VARIABLE_RESERVED_PREFIX_MESSAGE).not.toContain(
+      "COMPOSE_PROFILES"
+    );
   });
 
   it("rejects the environment's tag variable names", () => {

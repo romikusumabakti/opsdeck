@@ -117,7 +117,8 @@ export type VariableView = {
 
 const isPlain = (kind: VariableKind) => kind === "plain";
 
-function encode(kind: VariableKind, value: string): string {
+/** A value in stored form: plain as is, else encrypted (lib/secrets). */
+export function encode(kind: VariableKind, value: string): string {
   return isPlain(kind) ? value : encryptSecret(value);
 }
 
@@ -145,7 +146,7 @@ function parseOr400<T>(schema: z.ZodType<T>, value: unknown): T {
  * One activity entry for a change to an environment's variables: the names
  * involved, never a value.
  */
-async function audit(
+export async function audit(
   actorId: string,
   env: EnvironmentContext,
   action: string,
@@ -160,7 +161,7 @@ async function audit(
   });
 }
 
-async function requireEnvironment(
+export async function requireEnvironment(
   environmentId: string
 ): Promise<EnvironmentContext> {
   return (await getEnvironmentContext(environmentId)) ?? notFound();
