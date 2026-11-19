@@ -86,6 +86,8 @@ export const newEnvironmentInputSchema = z
   .object({
     projectId: z.uuid(),
     name: z.string().trim().min(1).max(200),
+    // The URL name, when the caller edited it; else the name gives one.
+    slug: setupShape.slug,
     copyFromEnvironmentId: z.uuid().nullish(),
     // Empty with a copy source: the source's components and branches.
     repos: z
@@ -134,7 +136,7 @@ export type NewEnvironmentContext = {
   }[];
   /** The app of the copy source, else of the first registered repo. */
   app: { id: string; key: string } | null;
-  /** The environment's unique URL name (uniqueEnvSlug of the input's name). */
+  /** The input's URL name, else the unique one its name gives (uniqueEnvSlug). */
   slug: string;
   /** Already filtered by the copy rules (secrets only with variable:read). */
   copySource: CopySourceLike | null;
@@ -552,6 +554,7 @@ export function resolveNewEnvironment(
     setup: {
       projectId: input.projectId,
       name: input.name,
+      ...(input.slug !== undefined ? { slug: input.slug } : {}),
       kind,
       ownerId: advanced.ownerId ?? null,
       copyFromEnvironmentId:

@@ -103,6 +103,13 @@ vi.mock("@/lib/authz", async (importOriginal) => {
 const activity = vi.hoisted(() => ({ recordActivity: vi.fn() }));
 vi.mock("@/lib/activity", () => activity);
 
+// Never renamed: the slug it was created with is its current one (the
+// alias lookup has its own scratch suite, environment-slug-scratch).
+vi.mock("@/lib/environment-slug", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/environment-slug")>()),
+  originalEnvironmentSlug: async (env: { slug: string }) => env.slug,
+}));
+
 vi.mock("@/lib/variables/repository", () => {
   let seq = 0;
   const id = () => `0197f3a0-1b2c-7def-8000-${String(++seq).padStart(12, "0")}`;

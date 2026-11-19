@@ -54,6 +54,7 @@ import {
   servers,
   users as userTable,
 } from "@/lib/db/schema";
+import { pgErrorCode } from "@/lib/domains/errors";
 import {
   projectSlugsInUse,
   resolveEnvironmentBySlug,
@@ -448,14 +449,15 @@ export async function uniqueEnvSlug(
  * project sub-route (400 environmentSlugReserved), another environment's
  * current slug (409 environmentSlugTaken) or one it had before a rename (409
  * environmentSlugAliasTaken). The environment's own old slug is free:
- * renaming back reuses it. `format: false` skips the URL-name rules, for a
- * slug the environment already has (one older than the 40-character cap
- * stays valid until renamed).
+ * renaming back reuses it; a new environment passes `environmentId` null.
+ * `format: false` skips the URL-name rules, for a slug the environment
+ * already has (one older than the 40-character cap stays valid until
+ * renamed).
  */
 export async function requireAvailableEnvSlug(
   projectId: string,
   slug: string,
-  environmentId: string,
+  environmentId: string | null,
   {
     format = true,
     executor = db,
@@ -477,11 +479,33 @@ export async function requireAvailableEnvSlug(
   throw new CodedHTTPException(problem ? 400 : 409, code, t(code));
 }
 
+/**
+ * The forms' live check of a URL name: the code requireAvailableEnvSlug
+ * would refuse `slug` with in the project, else null. `environmentId` is the
+ * environment being renamed (its own old slugs are free). Needs project read:
+ * the slugs in use are what the project's environment links show anyway.
+ */
+export async function checkEnvSlug(
+  projectId: string,
+  slug: string,
+  environmentId: string | null
+): Promise<{ code: string | null }> {
+  await requireProjectPermission({ projectId }, { project: ["read"] });
+  try {
+    await requireAvailableEnvSlug(projectId, slug, environmentId);
+    return { code: null };
+  } catch (error) {
+    if (error instanceof CodedHTTPException) return { code: error.code };
+    throw error;
+  }
+}
+
 // The transaction-scoped advisory lock on a project's slugs: renames and
 // moves into the project take it before their final check, so two of them
 // can't both claim one slug (one as a current slug, one as an alias, which
-// no unique index sees). In a fixed order, so two never deadlock.
-async function holdProjectSlugs(
+// no unique index sees). Creates with a slug take it too. In a fixed order,
+// so two never deadlock.
+export async function holdProjectSlugs(
   tx: DbTransaction,
   projectIds: string[]
 ): Promise<void> {
@@ -490,6 +514,32 @@ async function holdProjectSlugs(
       sql`select pg_advisory_xact_lock(hashtextextended(${`environment-slug:${projectId}`}, 0))`
     );
   }
+}
+
+// The unique indexes a slug write can run into when another rename, move or
+// create took the slug after the checks (one without the slug lock).
+const SLUG_UNIQUE_CONSTRAINTS = new Set([
+  "environments_project_slug_idx",
+  "environment_slug_aliases_pkey",
+]);
+
+/** The coded 409 of a slug lost to a concurrent write, else null. */
+export async function slugRaceRefusal(
+  error: unknown
+): Promise<CodedHTTPException | null> {
+  if (pgErrorCode(error) !== "23505") return null;
+  const e = error as {
+    constraint_name?: string;
+    cause?: { constraint_name?: string };
+  };
+  const constraint = e.constraint_name ?? e.cause?.constraint_name ?? "";
+  if (!SLUG_UNIQUE_CONSTRAINTS.has(constraint)) return null;
+  const t = await getServerTranslator("actionErrors");
+  return new CodedHTTPException(
+    409,
+    "environmentSlugTaken",
+    t("environmentSlugTaken")
+  );
 }
 
 // An owner must be someone who can be assigned issues in the environment's
@@ -1313,19 +1363,34 @@ export async function updateEnvironment(
       ({ patch }) => Object.keys(patch).length > 0
     );
 
+    // The slug the rename replaced, read under the slug lock; null when the
+    // slug did not change.
+    let slugChangedFrom: string | null = null;
     const updatedEnvironment = await db.transaction(async (tx) => {
       // A service edited while a teardown takes the environment apart would
       // not be undone by it (its steps were planned from the old rows).
       if (await tearingDownIn(tx, id)) return "teardownRunning" as const;
       if (slugChecked) {
         await holdProjectSlugs(tx, [stored.projectId, slugProjectId]);
+        // Another rename (or move) may have committed since `stored` was
+        // read: the slug that becomes an alias is the one the row has now.
+        const [current] = await tx
+          .select({
+            slug: environments.slug,
+            projectId: environments.projectId,
+          })
+          .from(environments)
+          .where(eq(environments.id, id))
+          .for("update");
+        if (!current) return undefined;
         await slugCheck(tx);
-        if (renamedSlug !== undefined) {
+        if (renamedSlug !== undefined && current.slug !== renamedSlug) {
           await tx.insert(environmentSlugAliases).values({
-            projectId: stored.projectId,
-            slug: stored.slug,
+            projectId: current.projectId,
+            slug: current.slug,
             environmentId: id,
           });
+          slugChangedFrom = current.slug;
         }
         // Renaming back to an old slug makes it current again: its alias goes.
         await tx
@@ -1402,7 +1467,7 @@ export async function updateEnvironment(
     if (!updatedEnvironment) {
       return { success: false, message: "Environment not found" };
     }
-    if (renamedSlug !== undefined) {
+    if (slugChangedFrom !== null) {
       await recordActivity({
         actorId: session.user.id,
         action: "environment.slugChanged",
@@ -1410,7 +1475,7 @@ export async function updateEnvironment(
         entityId: id,
         data: {
           environment: updatedEnvironment.name,
-          from: stored.slug,
+          from: slugChangedFrom,
           to: updatedEnvironment.slug,
         },
       });
@@ -1427,6 +1492,8 @@ export async function updateEnvironment(
     };
   } catch (error) {
     if (error instanceof CodedHTTPException) throw error;
+    const slugTaken = await slugRaceRefusal(error);
+    if (slugTaken) throw slugTaken;
     console.error(`Failed to update environment ${id}:`, error);
     return { success: false, message: "Failed to update environment" };
   }

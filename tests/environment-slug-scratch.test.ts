@@ -398,6 +398,168 @@ describe.skipIf(!enabled)("environment slug renames on Postgres", () => {
     });
   });
 
+  describe("races", () => {
+    // Both read the slug `qa` before either commits; the second renames the
+    // slug the row has under the lock (qa-1 or qa-2), not the stale `qa`.
+    it("two renames of one environment both land, each old slug an alias", async () => {
+      const results = await Promise.all([
+        rename(ENV_A, "qa-1"),
+        rename(ENV_A, "qa-2"),
+      ]);
+      expect(results).toMatchObject([{ success: true }, { success: true }]);
+      const final = await slugOf(ENV_A);
+      const between = final === "qa-1" ? "qa-2" : "qa-1";
+      expect(await aliases()).toEqual([
+        `A:qa->${ENV_A}`,
+        `A:${between}->${ENV_A}`,
+      ]);
+      const changes = await sql<{ data: { from: string; to: string } }[]>`
+        select data from activity_log where action = 'environment.slugChanged'
+        order by created_at`;
+      expect(changes.map((r) => `${r.data.from}>${r.data.to}`)).toEqual([
+        `qa>${between}`,
+        `${between}>${final}`,
+      ]);
+    });
+
+    it("two environments racing for one slug: one wins, the other gets the coded 409", async () => {
+      const outcomes = await Promise.all(
+        [ENV_A, ENV_B].map((id) =>
+          rename(id, "shared").then(
+            () => "renamed",
+            (error) =>
+              error instanceof HTTPException
+                ? `${error.status} ${(error as { code?: string }).code}`
+                : String(error)
+          )
+        )
+      );
+      expect(outcomes.sort()).toEqual(["409 environmentSlugTaken", "renamed"]);
+    });
+  });
+
+  describe("applyTemplate", () => {
+    it("fills {envSlug} with the slug the environment was created with", async () => {
+      await sql`delete from app_variable_templates`;
+      await sql`insert into app_variable_templates (app_id, name, kind, default_value)
+        values (${APP}, 'STACK_NAME', 'plain', 'kes-{envSlug}')`;
+      await rename(ENV_A, "qa-1");
+      await rename(ENV_A, "qa-2");
+      const { applyTemplate } = await import("@/server/services/variables");
+      expect(await applyTemplate(ENV_A)).toMatchObject({
+        added: ["STACK_NAME"],
+      });
+      const [row] = await sql<{ value: string }[]>`
+        select value from environment_variables
+        where environment_id = ${ENV_A} and name = 'STACK_NAME'`;
+      expect(row?.value).toBe("kes-qa");
+      await sql`delete from app_variable_templates`;
+    });
+
+    it("uses the current slug of an environment never renamed", async () => {
+      await sql`delete from app_variable_templates`;
+      await sql`insert into app_variable_templates (app_id, name, kind, default_value)
+        values (${APP}, 'STACK_NAME', 'plain', 'kes-{envSlug}')`;
+      const { applyTemplate } = await import("@/server/services/variables");
+      await applyTemplate(ENV_A);
+      const [row] = await sql<{ value: string }[]>`
+        select value from environment_variables
+        where environment_id = ${ENV_A} and name = 'STACK_NAME'`;
+      expect(row?.value).toBe("kes-qa");
+      await sql`delete from app_variable_templates`;
+    });
+  });
+
+  describe("/check-slug", () => {
+    const check = async (slug: string, environmentId?: string) => {
+      const res = await app.request(
+        `/api/environments/check-slug?projectId=${PROJECT_A}&slug=${encodeURIComponent(slug)}${environmentId ? `&environmentId=${environmentId}` : ""}`
+      );
+      return { status: res.status, body: await res.json() };
+    };
+
+    it("answers each rule's code, and null for a free slug", async () => {
+      await rename(ENV_A, "qa-1");
+      expect((await check("kes-west")).body).toEqual({ code: null });
+      expect((await check("uat")).body).toEqual({
+        code: "environmentSlugTaken",
+      });
+      expect((await check("qa")).body).toEqual({
+        code: "environmentSlugAliasTaken",
+      });
+      // The environment's own old slug is free for it.
+      expect((await check("qa", ENV_A)).body).toEqual({ code: null });
+      expect((await check("issues")).body).toEqual({
+        code: "environmentSlugReserved",
+      });
+      expect((await check("Kes_West")).body).toEqual({
+        code: "environmentSlugInvalid",
+      });
+    });
+
+    it("is 404 for a caller who can't see the project", async () => {
+      as(OUTSIDER, "engineer");
+      expect((await check("kes-west")).status).toBe(404);
+    });
+  });
+
+  describe("a new environment's chosen URL name", () => {
+    const input = (slug: string) => ({
+      projectId: PROJECT_A,
+      appId: APP,
+      name: "Kestrel West",
+      slug,
+      server: { serverId: SERVER },
+      targets: [
+        {
+          componentKey: "kestrel-api",
+          sourceBranch: "main",
+          deployDir: "/deployments/kes-west",
+          services: ["api"],
+        },
+      ],
+      services: [{ role: "backend", serviceName: "kes-west-api-1" }],
+      database: { kind: "none" },
+      domain: { kind: "none" },
+    });
+
+    it("is refused at `slug` when another environment had it", async () => {
+      as(ADMIN, "admin");
+      await rename(ENV_A, "qa-1");
+      const { environmentSetupInputSchema } = await import(
+        "@/lib/setup/schema"
+      );
+      const setup = await import("@/server/services/environment-setup");
+      const preview = await setup.previewEnvironmentSetup(
+        environmentSetupInputSchema.parse(input("qa"))
+      );
+      expect(preview.issues).toContainEqual({
+        field: "slug",
+        code: "environmentSlugAliasTaken",
+      });
+      expect(
+        await refusal(
+          setup.createEnvironmentSetup(
+            environmentSetupInputSchema.parse(input("qa"))
+          )
+        )
+      ).toEqual({ status: 409, code: "environmentSlugAliasTaken" });
+    });
+
+    it("is the new environment's slug when free", async () => {
+      as(ADMIN, "admin");
+      const { environmentSetupInputSchema } = await import(
+        "@/lib/setup/schema"
+      );
+      const setup = await import("@/server/services/environment-setup");
+      const created = await setup.createEnvironmentSetup(
+        environmentSetupInputSchema.parse(input("kes-west"))
+      );
+      expect(created.envSlug).toBe("kes-west");
+      expect(await slugOf(created.environmentId)).toBe("kes-west");
+    });
+  });
+
   describe("uniqueEnvSlug", () => {
     it("skips current and old slugs and stays within 40 characters", async () => {
       await rename(ENV_A, "qa-1");

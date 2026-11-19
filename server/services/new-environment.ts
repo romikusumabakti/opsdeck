@@ -95,12 +95,27 @@ function defaultAccessPolicyName(): string | null {
 const REPO_SEARCH_LIMIT = 50;
 
 // The unique-index races of a create (and the same checks seen just before
-// it), under the codes the New environment page knows.
+// it), under the codes the New environment page knows. A slug the name gave
+// is the name's refusal; a slug the caller chose keeps its own code.
 const TAKEN_CODES: Record<string, "nameTaken" | "domainTaken"> = {
   environmentNameTaken: "nameTaken",
   environmentSlugTaken: "nameTaken",
+  environmentSlugAliasTaken: "nameTaken",
   domainHostnameTaken: "domainTaken",
 };
+const SLUG_CODES = new Set([
+  "environmentSlugTaken",
+  "environmentSlugAliasTaken",
+]);
+
+/** The code a taken name, slug or hostname is refused with on this page. */
+function takenCode(
+  code: string,
+  input: NewEnvironmentInput
+): string | undefined {
+  if (input.slug !== undefined && SLUG_CODES.has(code)) return code;
+  return TAKEN_CODES[code];
+}
 
 type Caller = {
   orgRole: string | null | undefined;
@@ -314,7 +329,7 @@ async function loadContext(
         .orderBy(asc(databaseHosts.label)),
       listApps(),
       listZones(),
-      uniqueEnvSlug(input.projectId, input.name),
+      input.slug ?? uniqueEnvSlug(input.projectId, input.name),
     ]);
   if (!project) notFound();
 
@@ -484,8 +499,11 @@ export async function previewNewEnvironment(
 }
 
 /** The refusal of an issue found before anything is written. */
-function issueRefusal(issue: SetupIssue): CodedHTTPException {
-  const taken = TAKEN_CODES[issue.code];
+function issueRefusal(
+  issue: SetupIssue,
+  input: NewEnvironmentInput
+): CodedHTTPException {
+  const taken = takenCode(issue.code, input);
   return taken
     ? new CodedHTTPException(409, taken, `${issue.field} is already taken`)
     : new CodedHTTPException(
@@ -664,10 +682,10 @@ export async function createNewEnvironment(
   const ctx = await loadContext(input, caller);
   const plan = resolveNewEnvironment(input, ctx);
   const [planIssue] = plan.issues;
-  if (planIssue) throw issueRefusal(planIssue);
+  if (planIssue) throw issueRefusal(planIssue, input);
   // Every check of the setup before a repo is registered or a branch added.
   const [setupIssue] = (await previewPlan(plan, ctx)).issues;
-  if (setupIssue) throw issueRefusal(setupIssue);
+  if (setupIssue) throw issueRefusal(setupIssue, input);
 
   const { appId, pipelineFileFailures } = await registerRepos(plan, ctx);
   const registered = new Set(plan.registrations.map((r) => r.componentKey));
@@ -685,7 +703,7 @@ export async function createNewEnvironment(
   try {
     created = await createEnvironmentSetup({ ...plan.setup, appId });
   } catch (error) {
-    const taken = TAKEN_CODES[errorCode(error) ?? ""];
+    const taken = takenCode(errorCode(error) ?? "", input);
     if (taken && error instanceof HTTPException) {
       throw new CodedHTTPException(409, taken, error.message);
     }

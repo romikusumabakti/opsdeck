@@ -166,3 +166,59 @@ describe("runtime code never derives a name from the current slug", () => {
     }
   });
 });
+
+// Everywhere else in lib/ and server/: only these files may read an
+// environment's slug (or fill the `{envSlug}` placeholder), each for a link,
+// a lookup or a name fixed at creation. A new reader must be added here with
+// its reason — and must not materialise a name from the current slug.
+describe("only known sites read the environment slug", () => {
+  const SLUG_READ =
+    /environments\.slug|\benvSlug\b|resolvePlaceholders|\b(?:env|environment|stored|current|e)\.slug\b/;
+  const ALLOWED: Record<string, string> = {
+    "lib/assistant/tools/panel.ts": "KEY/slug references in answers (links)",
+    "lib/canonical-path.ts": "the URL casing and the old-slug redirect path",
+    "lib/db/schema.ts": "the column and the template placeholder's doc",
+    "lib/environment-slug.ts": "the resolver, aliases, the original slug",
+    "lib/env-url.ts": "/KEY/slug resolution for the API",
+    "lib/home/queries.ts": "Home's environment links",
+    "lib/nav-path.ts": "breadcrumb and switcher links",
+    "lib/notifications.ts": "notification links",
+    "lib/project-sources.ts": "links of a project's source environments",
+    "lib/reserved-paths.ts": "the reserved sub-routes' doc",
+    "lib/run-progress.ts": "run progress links",
+    "lib/teardown/repository.ts":
+      "the archive's snapshot of a deleted environment's names",
+    "lib/variables/repository.ts": "the environment context (names for audit)",
+    "lib/variables/validation.ts": "the {envSlug} placeholder itself",
+    "server/routes/environments.ts": "the /resolve endpoint",
+    "server/services/environment-setup.ts":
+      "creation: names fixed when the environment is created",
+    "server/services/environments.ts": "the rename and its checks",
+    "server/services/s3-connections.ts": "storage page links",
+    "server/services/servers.ts": "server page links to environments",
+    "server/services/variables.ts":
+      "applyTemplate, with the original slug (originalEnvironmentSlug)",
+  };
+
+  it("lists every reader in lib/ and server/, and only readers", async () => {
+    const { globSync } = await import("node:fs");
+    const files = ["lib", "server"].flatMap((root) =>
+      globSync(`${root}/**/*.{ts,tsx}`)
+    );
+    expect(files.length).toBeGreaterThan(200);
+    const readers = files
+      .filter((file) => SLUG_READ.test(readFileSync(file, "utf8")))
+      .sort();
+    expect(readers).toEqual(Object.keys(ALLOWED).sort());
+  });
+
+  it("applyTemplate fills {envSlug} with the original slug, not the current one", () => {
+    const source = readFileSync("server/services/variables.ts", "utf8");
+    const body = source.slice(
+      source.indexOf("export async function applyTemplate")
+    );
+    const fn = body.slice(0, body.indexOf("\n}\n"));
+    expect(fn).toContain("originalEnvironmentSlug(env)");
+    expect(fn).not.toMatch(/envSlug:\s*env\.slug/);
+  });
+});

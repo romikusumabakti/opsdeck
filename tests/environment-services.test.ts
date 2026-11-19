@@ -102,6 +102,8 @@ vi.mock("@/lib/db", () => {
           ? query(call, state.targets)
           : chain,
       limit: async () => rows,
+      // The row lock a slug change re-reads the environment under.
+      for: () => chain,
       returning: async () => [
         { id: ENV_ID, projectId: UUID, appId: state.appId },
       ],
@@ -381,5 +383,41 @@ describe("updateEnvironment moving to another project", () => {
     await updateEnvironment(ENV_ID, { projectId: UUID });
     expect(projectSources.ensureProjectSourceIn).not.toHaveBeenCalled();
     expect(projectSources.recordTargetSourceIn).not.toHaveBeenCalled();
+  });
+});
+
+// A rename racing another rename, move or create loses the slug at a unique
+// index; it is the same coded 409 as the checks give, not a generic failure.
+describe("slugRaceRefusal", () => {
+  it("maps a lost slug to 409 environmentSlugTaken", async () => {
+    const { slugRaceRefusal } = await import("@/server/services/environments");
+    for (const constraint of [
+      "environments_project_slug_idx",
+      "environment_slug_aliases_pkey",
+    ]) {
+      expect(
+        await slugRaceRefusal({
+          cause: { code: "23505", constraint_name: constraint },
+        }),
+        constraint
+      ).toMatchObject({ status: 409, code: "environmentSlugTaken" });
+    }
+  });
+
+  it("leaves every other failure alone", async () => {
+    const { slugRaceRefusal } = await import("@/server/services/environments");
+    expect(
+      await slugRaceRefusal({
+        code: "23505",
+        constraint_name: "environments_project_name_idx",
+      })
+    ).toBeNull();
+    expect(
+      await slugRaceRefusal({
+        code: "23503",
+        constraint_name: "environment_slug_aliases_pkey",
+      })
+    ).toBeNull();
+    expect(await slugRaceRefusal(new Error("connection lost"))).toBeNull();
   });
 });

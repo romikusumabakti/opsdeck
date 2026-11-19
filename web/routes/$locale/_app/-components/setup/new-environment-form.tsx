@@ -75,6 +75,7 @@ import {
 } from "@/web/api/setup";
 import { listAssignableUsersQuery } from "@/web/api/users";
 import type { ProvisioningLookups } from "../env/provisioning-step-sentence";
+import { useEnvSlugCheck } from "../env/use-env-slug-check";
 import {
   DatabaseSection,
   DeploySection,
@@ -229,6 +230,8 @@ export function NewEnvironmentForm({
 
   const [startFrom, setStartFrom] = React.useState<string | null>(defaultFrom);
   const [name, setName] = React.useState("");
+  // The URL name as typed; empty = the default the name gives.
+  const [slug, setSlug] = React.useState("");
   const [repos, setRepos] = React.useState<RepoRow[]>(() =>
     !defaultFrom && startComponent
       ? [
@@ -279,6 +282,7 @@ export function NewEnvironmentForm({
     setTouched((prev) => (prev.has(group) ? prev : new Set(prev).add(group)));
 
   const options = useQuery(setupOptionsQuery(project.id)).data;
+  const slugCheck = useEnvSlugCheck(project.id, slug || null);
   const databaseHosts = useQuery(listDatabaseHostsQuery()).data ?? [];
   const plan = checked?.plan ?? null;
   // The policies name the address's policy (after a check) and fill the
@@ -378,7 +382,7 @@ export function NewEnvironmentForm({
   const draftCtx: DraftContext = {
     appId: currentApp?.id ?? "",
     projectKey: project.key,
-    slug: baseEnvSlug(name || PROBE_NAME),
+    slug: slug || baseEnvSlug(name || PROBE_NAME),
     suggestedServices: [],
     suggestedEntryPort: plan?.summary.port ?? null,
     defaultZoneId: options?.zones[0]?.id ?? "",
@@ -445,6 +449,7 @@ export function NewEnvironmentForm({
     return {
       projectId: project.id,
       name: nameValue,
+      ...(slug ? { slug } : {}),
       copyFromEnvironmentId: startFrom,
       repos: sameAsSource
         ? []
@@ -784,6 +789,8 @@ export function NewEnvironmentForm({
         return t("startFrom");
       case "name":
         return t("name");
+      case "slug":
+        return t("slug");
       case "repos":
         return t("repository");
       case "address":
@@ -796,6 +803,8 @@ export function NewEnvironmentForm({
   }
 
   const nameIssue = byField.name;
+  // The live check while typing, else the last check's (a create refused).
+  const slugIssue = slugCheck.code ?? byField.slug;
   const reposIssue = byField.repos ?? byField.targets;
   const databaseIssue = firstOf("database");
   const addressIssue = firstOf("address");
@@ -878,6 +887,35 @@ export function NewEnvironmentForm({
                 }}
               />
               {nameIssue && <FieldError>{message(nameIssue)}</FieldError>}
+            </FieldContent>
+          </Field>
+
+          <Field data-invalid={slugIssue ? true : undefined}>
+            <FieldLabel htmlFor="env-slug">{t("slug")}</FieldLabel>
+            <FieldContent>
+              {/* A path reads left to right in every locale. */}
+              <InputGroup dir="ltr">
+                <InputGroupAddon>
+                  <InputGroupText className="font-mono">
+                    /{project.key}/
+                  </InputGroupText>
+                </InputGroupAddon>
+                <InputGroupInput
+                  id="env-slug"
+                  className="font-mono"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={baseEnvSlug(name || PROBE_NAME)}
+                  value={slug}
+                  aria-invalid={slugIssue ? true : undefined}
+                  onChange={(e) => {
+                    touch("slug");
+                    setSlug(e.target.value.trim().toLowerCase());
+                  }}
+                />
+              </InputGroup>
+              <FieldDescription>{t("slugHint")}</FieldDescription>
+              {slugIssue && <FieldError>{message(slugIssue)}</FieldError>}
             </FieldContent>
           </Field>
 

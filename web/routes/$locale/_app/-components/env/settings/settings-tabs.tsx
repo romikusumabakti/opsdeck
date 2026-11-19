@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRouter } from "@/i18n/navigation";
 import { domainUrl } from "@/lib/domains/validation";
 import type { DeployTargetState } from "@/web/api/deploys";
 import type { EnvironmentDomain } from "@/web/api/environment-domains";
@@ -119,6 +120,23 @@ export function EnvironmentSettingsTabs({
     hasDomain: domain.domain !== null,
   });
   const options = serverOptions(environment, servers);
+  const router = useRouter();
+
+  // A new URL name or project moves the page: open Settings at the new
+  // address in place of the old one (which keeps redirecting there).
+  async function saveGeneral() {
+    const before = { projectId: environment.projectId, slug: environment.slug };
+    const saved = await saveTab("general");
+    if (
+      !saved ||
+      (saved.projectId === before.projectId && saved.slug === before.slug)
+    ) {
+      return;
+    }
+    const key =
+      projects.find((p) => p.id === saved.projectId)?.key ?? projectKey;
+    await router.replace(`/${key}/${saved.slug}/settings`);
+  }
   // Mirrors the server's rebinding rule: any deployment row of the
   // environment (every one belongs to a target) freezes it for engineers.
   const deployed = targets.some(
@@ -152,7 +170,7 @@ export function EnvironmentSettingsTabs({
             projects={projects}
             projectKey={projectKey}
             canDuplicate={canDuplicate}
-            onSave={() => saveTab("general")}
+            onSave={saveGeneral}
           />
         </TabsContent>
 
@@ -170,7 +188,9 @@ export function EnvironmentSettingsTabs({
             deployed={deployed}
             adding={addingTarget}
             onAddingChange={onAddingTargetChange}
-            onSave={() => saveTab("source")}
+            onSave={async () => {
+              await saveTab("source");
+            }}
           />
         </TabsContent>
 
@@ -180,7 +200,9 @@ export function EnvironmentSettingsTabs({
             servers={options}
             projectKey={projectKey}
             canManageServers={canManageServers}
-            onSave={() => saveTab("database")}
+            onSave={async () => {
+              await saveTab("database");
+            }}
           />
         </TabsContent>
 
@@ -193,7 +215,9 @@ export function EnvironmentSettingsTabs({
             environment={environment}
             mailpit={mailpit}
             canManageServers={canManageServers}
-            onSave={() => saveTab("mail")}
+            onSave={async () => {
+              await saveTab("mail");
+            }}
           />
         </TabsContent>
 

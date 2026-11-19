@@ -24,6 +24,7 @@ const api = vi.hoisted(() => ({
   repos: vi.fn(),
   options: vi.fn(),
   push: vi.fn(),
+  checkSlug: vi.fn(),
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
 
@@ -71,6 +72,17 @@ vi.mock("@/web/api/setup", () => ({
   }),
   previewNewEnvironment: api.preview,
   createNewEnvironment: api.create,
+}));
+vi.mock("@/web/api/environments", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  checkEnvironmentSlugQuery: (
+    projectId: string,
+    slug: string,
+    environmentId?: string
+  ) => ({
+    queryKey: ["check-slug", projectId, slug, environmentId],
+    queryFn: () => api.checkSlug(projectId, slug, environmentId),
+  }),
 }));
 vi.mock("@/web/api/project-sources", () => ({
   listProjectSourcesQuery: (projectId: string) => ({
@@ -301,6 +313,7 @@ beforeEach(() => {
     tunnels: [],
   });
   api.preview.mockResolvedValue(cleanPreview);
+  api.checkSlug.mockResolvedValue({ code: null });
   api.copySource.mockImplementation(async (id: string) => copySource(id));
   api.repos.mockResolvedValue([
     {
@@ -968,5 +981,92 @@ describe("New environment page", () => {
     role = "engineer";
     await expect(run()).resolves.toEqual({ projectId: PROJECT });
     expect(SETUP_PERMISSIONS.environment).toEqual(["create"]);
+  });
+});
+
+describe("the URL name field", () => {
+  const slugInput = () =>
+    document.querySelector<HTMLInputElement>("#env-slug") as HTMLInputElement;
+  const errors = messages.actionErrors;
+  // Past the live check's debounce.
+  const pause = () =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    });
+
+  it("defaults to the name's URL name and leaves it to the server", async () => {
+    await mount({ project: projectWithEnvs });
+    await act(async () => type(nameInput(), "Dev 3 (West)"));
+    await settle();
+    expect(slugInput().value).toBe("");
+    expect(slugInput().placeholder).toBe("dev-3-west");
+    expect(container.textContent).toContain("/KMEM/");
+    await pressCreate();
+    expect(api.preview.mock.calls[0]?.[0]).not.toHaveProperty("slug");
+    expect(api.create.mock.calls[0]?.[0]).not.toHaveProperty("slug");
+    expect(api.checkSlug).not.toHaveBeenCalled();
+  });
+
+  it("caps the default at 40 characters", async () => {
+    await mount();
+    await act(async () => type(nameInput(), "Kestrel ".repeat(8)));
+    await settle();
+    expect(slugInput().placeholder.length).toBeLessThanOrEqual(40);
+    expect(slugInput().placeholder).toMatch(/^kestrel(-kestrel)*$/);
+  });
+
+  it("sends an edited URL name once checked free", async () => {
+    await mount({ project: projectWithEnvs });
+    await act(async () => type(nameInput(), "Dev 3"));
+    await act(async () => type(slugInput(), "KMEM-West"));
+    expect(slugInput().value).toBe("kmem-west");
+    await pause();
+    await settle();
+    expect(api.checkSlug).toHaveBeenCalledWith(PROJECT, "kmem-west", undefined);
+    expect(alerts()).toHaveLength(0);
+    await pressCreate();
+    expect(api.preview.mock.calls[0]?.[0]).toMatchObject({
+      slug: "kmem-west",
+    });
+    expect(api.create.mock.calls[0]?.[0]).toMatchObject({ slug: "kmem-west" });
+  });
+
+  it("shows a URL name the project already uses while typing", async () => {
+    api.checkSlug.mockResolvedValue({ code: "environmentSlugTaken" });
+    await mount();
+    await act(async () => type(nameInput(), "Dev 3"));
+    await act(async () => type(slugInput(), "dev-1"));
+    await pause();
+    await settle();
+    expect(container.textContent).toContain(errors.environmentSlugTaken);
+    expect(slugInput().getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("refuses a malformed or reserved URL name without asking the server", async () => {
+    await mount();
+    await act(async () => type(slugInput(), "dev 3"));
+    await settle();
+    expect(container.textContent).toContain(errors.environmentSlugInvalid);
+    await act(async () => type(slugInput(), "settings"));
+    await settle();
+    expect(container.textContent).toContain(errors.environmentSlugReserved);
+    await pause();
+    expect(api.checkSlug).not.toHaveBeenCalled();
+  });
+
+  it("shows a slug lost between the check and the create at the field", async () => {
+    const { ApiError } = await import("@/web/api/client");
+    api.create.mockRejectedValueOnce(
+      new ApiError(409, "taken", "environmentSlugAliasTaken")
+    );
+    await mount({ project: projectWithEnvs });
+    await act(async () => type(nameInput(), "Dev 3"));
+    await act(async () => type(slugInput(), "qa"));
+    await pause();
+    await pressCreate();
+    expect(api.create).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain(errors.environmentSlugAliasTaken);
+    expect(api.toast.error).not.toHaveBeenCalled();
+    expect(api.push).not.toHaveBeenCalled();
   });
 });

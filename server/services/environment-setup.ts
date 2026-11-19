@@ -57,7 +57,9 @@ import {
   type EnvironmentBinding,
   type EnvironmentServiceValues,
   environmentNameTaken,
+  holdProjectSlugs,
   insertEnvironmentIn,
+  requireAvailableEnvSlug,
   uniqueEnvSlug,
   validateNewEnvironment,
 } from "@/server/services/environments";
@@ -594,7 +596,16 @@ async function checkSetup(
       )
     : undefined;
 
-  const slug = await uniqueEnvSlug(input.projectId, input.name);
+  // A URL name the caller chose must be free (refused at `slug`); else the
+  // name gives the first free one.
+  const chosenSlug = input.slug;
+  if (chosenSlug !== undefined) {
+    await checks.run(
+      () => "slug",
+      () => requireAvailableEnvSlug(input.projectId, chosenSlug, null)
+    );
+  }
+  const slug = chosenSlug ?? (await uniqueEnvSlug(input.projectId, input.name));
   const [templates, sourceVariables] = await Promise.all([
     app ? listTemplates(app.id) : Promise.resolve([]),
     source ? listVariableRows(source.id) : Promise.resolve(null),
@@ -898,6 +909,13 @@ export async function createEnvironmentSetup(
   let created: { id: string; name: string; slug: string };
   try {
     created = await db.transaction(async (tx) => {
+      // Under the project's slug lock a rename can't make the slug an alias
+      // between the check and the insert (no unique index sees that).
+      await holdProjectSlugs(tx, [input.projectId]);
+      await requireAvailableEnvSlug(input.projectId, prepared.slug, null, {
+        format: false,
+        executor: tx,
+      });
       const env = await insertEnvironmentIn(tx, environment, {
         slug: prepared.slug,
         ownerId: environment.ownerId ?? caller.userId,

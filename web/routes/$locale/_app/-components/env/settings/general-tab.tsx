@@ -21,6 +21,12 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -31,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Link } from "@/i18n/navigation";
 import { listAssignableUsersQuery } from "@/web/api/users";
+import { useEnvSlugCheck } from "../use-env-slug-check";
 import { Hint, SaveButton } from "./fields";
 import {
   ENV_KINDS,
@@ -66,6 +73,7 @@ export function GeneralTab({
   const t = useTranslations("environmentForm");
   const tSettings = useTranslations("environmentSettings");
   const tKinds = useTranslations("environmentKinds");
+  const tErrors = useTranslations("actionErrors");
   const form = useSettingsFormContext();
   const hasDomain = domainUrl !== null;
   const { errors } = form.formState;
@@ -96,6 +104,17 @@ export function GeneralTab({
       form.setValue("ownerId", "", { shouldDirty: true });
     }
   }, [eligibleOwners, ownerId, extraOwner?.id, form]);
+
+  // The URL name: checked live once changed, in the project it will be in.
+  const slug = useWatch({ control: form.control, name: "slug" });
+  const slugChanged = slug !== environment.slug;
+  const slugProjectKey =
+    projects.find((p) => p.id === projectId)?.key ?? projectKey;
+  const slugCheck = useEnvSlugCheck(
+    projectId,
+    slugChanged || projectId !== environment.projectId ? slug : null,
+    environment.id
+  );
 
   // With a domain the server keeps the URL at the domain's address, so the
   // derived address is shown (also for a URL never stored).
@@ -217,19 +236,61 @@ export function GeneralTab({
 
               <AdvancedOptions
                 attempt={form.formState.submitCount}
-                invalid={!!(errors.projectId || (!hasDomain && errors.url))}
+                invalid={
+                  !!(
+                    errors.projectId ||
+                    errors.slug ||
+                    (!hasDomain && errors.url)
+                  )
+                }
               >
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="env-slug">{tSettings("slug")}</Label>
-                  <Input
-                    id="env-slug"
-                    className="font-mono"
-                    value={environment.slug}
-                    disabled
-                    readOnly
-                  />
-                  <Hint>{tSettings("slugHint")}</Hint>
-                </div>
+                <Controller
+                  name="slug"
+                  control={form.control}
+                  render={({ field, fieldState }) => {
+                    const error =
+                      fieldState.error ??
+                      (slugCheck.code
+                        ? { message: tErrors(slugCheck.code) }
+                        : undefined);
+                    return (
+                      <Field data-invalid={!!error}>
+                        <FieldLabel htmlFor="env-slug">
+                          {tSettings("slug")}
+                        </FieldLabel>
+                        {/* A path reads left to right in every locale. */}
+                        <InputGroup dir="ltr">
+                          <InputGroupAddon>
+                            <InputGroupText className="font-mono">
+                              /{slugProjectKey}/
+                            </InputGroupText>
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            {...field}
+                            id="env-slug"
+                            className="font-mono"
+                            autoComplete="off"
+                            spellCheck={false}
+                            aria-invalid={!!error}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value.trim().toLowerCase()
+                              )
+                            }
+                          />
+                        </InputGroup>
+                        <Hint>
+                          {slugChanged
+                            ? tSettings("slugPreview", {
+                                path: `/${slugProjectKey}/${slug}`,
+                              })
+                            : tSettings("slugHint")}
+                        </Hint>
+                        <FieldError errors={[error]} />
+                      </Field>
+                    );
+                  }}
+                />
                 {!hasDomain && urlField}
                 <Controller
                   name="projectId"

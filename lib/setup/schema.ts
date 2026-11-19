@@ -114,6 +114,9 @@ export const environmentSetupInputSchema = z
     projectId: z.uuid(),
     appId: z.uuid(),
     name: z.string().trim().min(1).max(200),
+    // The URL name; left out, the name gives one. Only shaped here: the
+    // setup refuses a bad or taken one at `slug` (requireAvailableEnvSlug).
+    slug: z.string().trim().max(64).optional(),
     kind: z.enum(["qa", "dev", "release", "sandbox", "prod"]).nullish(),
     ownerId: z.uuid().nullish(),
     copyFromEnvironmentId: z.uuid().nullish(),

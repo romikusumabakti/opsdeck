@@ -17,6 +17,7 @@ import { TAG_VARIABLE_IS_VARIABLE_MESSAGE } from "@/lib/deploy/errors";
 import type { DB_KINDS } from "@/lib/environment-database-binding";
 import { buildEnvironmentPayload } from "@/lib/environment-submit-payload";
 import { findService } from "@/lib/services";
+import { envSlugProblem } from "@/lib/setup/slug";
 import { sharedDatabaseNameSchema } from "@/lib/validation";
 import { ApiError, type Serialized } from "@/web/api/client";
 import { type DeployTargetState, updateDeployTarget } from "@/web/api/deploys";
@@ -58,6 +59,8 @@ export type SettingsTarget = TargetValues & {
 export type SettingsValues = {
   projectId: string;
   name: string;
+  // The URL name (`/<KEY>/<slug>`); sent only when changed.
+  slug: string;
   kind: (typeof ENV_KINDS)[number] | "";
   ownerId: string;
   url: string;
@@ -95,7 +98,7 @@ type FieldName = Exclude<keyof SettingsValues, "targets">;
 // The fields each tab edits; each field belongs to one tab. The database's
 // server and service live on the Database tab.
 const TAB_FIELDS: Record<SettingsTab, FieldName[]> = {
-  general: ["projectId", "name", "kind", "ownerId", "url"],
+  general: ["projectId", "name", "slug", "kind", "ownerId", "url"],
   source: [
     "backendServerId",
     "backendServiceType",
@@ -151,6 +154,7 @@ export function settingsValues(
   return {
     projectId: environment.projectId,
     name: environment.name,
+    slug: environment.slug,
     kind: environment.kind ?? "",
     ownerId: environment.ownerId ?? "",
     url: environment.url ?? "",
@@ -186,7 +190,14 @@ export function settingsValues(
   };
 }
 
-const INFO_FIELDS = ["projectId", "name", "kind", "ownerId", "url"] as const;
+const INFO_FIELDS = [
+  "projectId",
+  "name",
+  "slug",
+  "kind",
+  "ownerId",
+  "url",
+] as const;
 const SERVER_FIELDS = [
   "backendServerId",
   "frontendServerId",
@@ -198,15 +209,18 @@ const SERVER_FIELDS = [
  * only when typed). Without it, the info fields plus the server ids that
  * changed: the only bindings such a caller may rebind (before the first
  * deploy), and re-sent stored bindings must not count as edits. With a domain
- * the URL is left out: the server derives it from the domain.
+ * the URL is left out: the server derives it from the domain. The slug is
+ * sent only when it changed (a rename), so an older slug longer than today's
+ * limit never fails another edit.
  */
 export function environmentPayload(
   values: SettingsValues,
   saved: SettingsValues,
   { canManageServers, hasDomain }: PayloadOptions
 ) {
-  const { targets: _targets, ...environment } = values;
-  const { url, ...payload } = buildEnvironmentPayload(environment, "edit");
+  const { targets: _targets, slug, ...environment } = values;
+  const { url, ...built } = buildEnvironmentPayload(environment, "edit");
+  const payload = slug !== saved.slug ? { ...built, slug } : built;
   // An environment without a backend service has blank backend fields, which
   // the update schema rejects; leave them out so the other tabs still save.
   const {
@@ -247,8 +261,17 @@ function targetChanges(next: SettingsTarget, saved: SettingsTarget) {
   ) as Partial<typeof after>;
 }
 
+/** The refusal codes of a URL name, each worded in `actionErrors`. */
+const SLUG_CODES = new Set([
+  "environmentSlugInvalid",
+  "environmentSlugReserved",
+  "environmentSlugTaken",
+  "environmentSlugAliasTaken",
+]);
+
 function useTabSchemas(environment: SettingsEnvironment) {
   const t = useTranslations("environmentForm");
+  const tErrors = useTranslations("actionErrors");
   const tCommon = useTranslations("common");
   const required = tCommon("required");
   const targetSchema = useTargetSchema();
@@ -267,6 +290,13 @@ function useTabSchemas(environment: SettingsEnvironment) {
     general: z.object({
       projectId: z.string().min(1, t("projectRequired")),
       name: z.string().trim().min(1, required),
+      // The shared rules (lib/setup/slug) for a new slug; the stored one
+      // stays valid even when older than the length limit.
+      slug: z.string().superRefine((slug, ctx) => {
+        const problem = slug === environment.slug ? null : envSlugProblem(slug);
+        if (problem)
+          ctx.addIssue({ code: "custom", message: tErrors(problem) });
+      }),
       url: z
         .string()
         .trim()
@@ -373,6 +403,7 @@ export function useSettingsForm(
   const t = useTranslations("environmentForm");
   const tDeploys = useTranslations("deploys.form");
   const tCommon = useTranslations("common");
+  const tErrors = useTranslations("actionErrors");
   const noticePipelineFailures = usePipelineFailureNotice();
   const schemas = useTabSchemas(environment);
   const initial = settingsValues(environment, targets);
@@ -454,7 +485,12 @@ export function useSettingsForm(
     return ok;
   }
 
-  async function saveTab(tab: SettingsTab): Promise<void> {
+  /**
+   * Saves one tab; resolves with where the environment lives now (its
+   * project and slug, which a General save may change), or null when
+   * nothing was saved.
+   */
+  async function saveTab(tab: SettingsTab): Promise<SavedLocation | null> {
     const values = form.getValues();
     // The one server picker owns moving an own-container database with the
     // app; Source & Deploy saves that move.
@@ -473,7 +509,7 @@ export function useSettingsForm(
           message: issue.message,
         });
       }
-      return;
+      return null;
     }
     const tabValues = Object.fromEntries(
       fields.map((field) => [field, values[field]])
@@ -489,9 +525,20 @@ export function useSettingsForm(
       )
     );
     if (!result.success || !result.data) {
+      // A URL name refused (taken meanwhile, an old slug of another
+      // environment): shown at the field, worded here.
+      const code = "code" in result ? result.code : undefined;
+      if (code && SLUG_CODES.has(code)) {
+        form.setError("slug", { message: tErrors(code) });
+        return null;
+      }
       toast.error(result.message ?? t("submitFailed"));
-      return;
+      return null;
     }
+    const location = {
+      projectId: result.data.projectId,
+      slug: result.data.slug,
+    };
     // Re-baseline the saved fields; secrets go back to blank ("keep").
     saved.current = {
       ...saved.current,
@@ -502,12 +549,16 @@ export function useSettingsForm(
     for (const field of fields) {
       form.resetField(field, { defaultValue: saved.current[field] });
     }
-    if (tab === "source" && !(await saveTargets(values))) return;
+    if (tab === "source" && !(await saveTargets(values))) return location;
     toast.success(t("savedSuccess"));
+    return location;
   }
 
   return { form, saveTab };
 }
+
+/** Where an environment lives after a save: its project and URL name. */
+export type SavedLocation = { projectId: string; slug: string };
 
 export function useSettingsFormContext() {
   return useFormContext<SettingsValues>();

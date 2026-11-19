@@ -51,6 +51,16 @@ export const ENVIRONMENT_ISSUE_CODES = [
   "environmentOwnerIneligible",
 ] as const;
 
+/**
+ * A URL name the caller chose (requireAvailableEnvSlug, at field `slug`);
+ * `environmentSlugTaken` is listed with the setup refusals.
+ */
+export const SLUG_ISSUE_CODES = [
+  "environmentSlugInvalid",
+  "environmentSlugReserved",
+  "environmentSlugAliasTaken",
+] as const;
+
 /** Variable rules (VARIABLE_ERRORS). */
 export const VARIABLE_ISSUE_CODES = [
   "variableNameInvalid",
@@ -105,6 +115,7 @@ export const SETUP_ISSUE_MESSAGE_CODES: readonly string[] = [
   ...SETUP_ISSUE_CODES,
   ...TARGET_ISSUE_CODES,
   ...ENVIRONMENT_ISSUE_CODES,
+  ...SLUG_ISSUE_CODES,
   ...(Object.keys(DOMAIN_ERRORS) as (keyof typeof DOMAIN_ERRORS)[]),
   ...VARIABLE_ISSUE_CODES,
   ...PLAN_ISSUE_CODES,
@@ -143,6 +154,8 @@ const ACTION_ERROR_CODES: readonly string[] = [
   "placementDatabaseHostContainer",
   "sharedDatabaseNamePrefix",
   "databaseHostNotFound",
+  "environmentSlugTaken",
+  ...SLUG_ISSUE_CODES,
 ];
 
 /**

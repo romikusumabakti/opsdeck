@@ -26,3 +26,17 @@ export function canonicalProjectPath(stripped: string): string | null {
     "/"
   );
 }
+
+/**
+ * A localized environment path (`/<locale>/<KEY>/<envSlug>/…rest`) with the
+ * environment's current key and slug in place of the ones it was opened by
+ * (an old slug, or the project it moved from). The rest stays as it is.
+ */
+export function withEnvironmentPath(
+  pathname: string,
+  projectKey: string,
+  envSlug: string
+): string {
+  const [, locale = "", , , ...rest] = pathname.split("/");
+  return ["", locale, projectKey, envSlug, ...rest].join("/");
+}

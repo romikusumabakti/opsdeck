@@ -16,6 +16,7 @@ import {
   startTeardownSchema,
 } from "@/server/services/environment-teardown";
 import {
+  checkEnvSlug,
   createEnvironment,
   deleteEnvironment,
   getEnvironmentById,
@@ -67,6 +68,24 @@ export const environmentsRouter = sessionRouter()
         projectKey: resolved.projectKey,
         envSlug: resolved.envSlug,
       });
+    }
+  )
+  /**
+   * The URL-name fields' live check: the refusal code of `slug` in the
+   * project (environmentId = the environment being renamed), or null.
+   */
+  .get(
+    "/check-slug",
+    query(
+      z.object({
+        projectId: uuidSchema,
+        slug: z.string().max(64),
+        environmentId: uuidSchema.optional(),
+      })
+    ),
+    async (c) => {
+      const { projectId, slug, environmentId } = c.req.valid("query");
+      return c.json(await checkEnvSlug(projectId, slug, environmentId ?? null));
     }
   )
   .post(

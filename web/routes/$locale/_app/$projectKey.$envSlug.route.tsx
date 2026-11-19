@@ -1,6 +1,12 @@
-import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  notFound,
+  Outlet,
+  redirect,
+} from "@tanstack/react-router";
 import * as React from "react";
 import { ProjectRoleProvider } from "@/components/project-role";
+import { withEnvironmentPath } from "@/lib/canonical-path";
 import { ApiError } from "@/web/api/client";
 import {
   recordEnvironmentAccess,
@@ -12,20 +18,40 @@ import { TeardownBanner } from "./-components/env/teardown-banner";
 // The environment area (the port of `[projectKey]/[envSlug]/layout.tsx`).
 // `/<KEY>/<envSlug>` resolves to an environment id and the caller's role on
 // its project; an unknown key or slug, or an invisible project, is a 404. The
-// server enforces the same rules on every endpoint, regardless.
+// server enforces the same rules on every endpoint, regardless. An old slug
+// (renamed since, maybe in a project the environment left) resolves too: the
+// page replaces it with the environment's current `/<KEY>/<slug>`, keeping
+// the rest of the path, the query and the hash, before anything renders.
 export const Route = createFileRoute("/$locale/_app/$projectKey/$envSlug")({
   beforeLoad: async ({
     params: { projectKey, envSlug },
     context: { queryClient },
+    location,
   }) => {
-    try {
-      return await queryClient.query(
-        resolveEnvironmentQuery(projectKey, envSlug)
+    const resolved = await queryClient
+      .query(resolveEnvironmentQuery(projectKey, envSlug))
+      .catch((error: unknown) => {
+        if (error instanceof ApiError && error.status === 404) throw notFound();
+        throw error;
+      });
+    // Only a full answer moves the page (a server from before renames sends
+    // no key/slug).
+    const moved =
+      !!resolved.projectKey &&
+      !!resolved.envSlug &&
+      (resolved.projectKey !== projectKey || resolved.envSlug !== envSlug);
+    if (moved) {
+      const path = withEnvironmentPath(
+        location.pathname,
+        resolved.projectKey,
+        resolved.envSlug
       );
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 404) throw notFound();
-      throw error;
+      throw redirect({
+        href: `${path}${location.searchStr}${location.hash ? `#${location.hash}` : ""}`,
+        replace: true,
+      });
     }
+    return resolved;
   },
   // Another environment (picked in the breadcrumb) is another page: remount,
   // so forms and local state never carry the previous environment's values.

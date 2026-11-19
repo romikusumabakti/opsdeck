@@ -551,6 +551,7 @@ describe("POST /api/setup/new-environment", () => {
     for (const [refusal, code] of [
       ["environmentNameTaken", "nameTaken"],
       ["environmentSlugTaken", "nameTaken"],
+      ["environmentSlugAliasTaken", "nameTaken"],
       ["domainHostnameTaken", "domainTaken"],
     ] as const) {
       setup.createEnvironmentSetup.mockRejectedValueOnce(
@@ -560,6 +561,61 @@ describe("POST /api/setup/new-environment", () => {
       expect(res.status, refusal).toBe(409);
       expect(await res.json(), refusal).toMatchObject({ code });
     }
+  });
+
+  it("passes a chosen URL name to the setup instead of deriving one", async () => {
+    const { uniqueEnvSlug } = await import("@/server/services/environments");
+    vi.mocked(uniqueEnvSlug).mockClear();
+    const res = await post("/api/setup/new-environment", {
+      ...freshInput,
+      slug: "canary-west",
+    });
+    expect(res.status).toBe(201);
+    expect(uniqueEnvSlug).not.toHaveBeenCalled();
+    expect(setup.previewEnvironmentSetup.mock.calls[0]?.[0]).toMatchObject({
+      slug: "canary-west",
+    });
+    expect(setup.createEnvironmentSetup.mock.calls[0]?.[0]).toMatchObject({
+      slug: "canary-west",
+    });
+  });
+
+  it("leaves the slug out of the setup when none is chosen", async () => {
+    await post("/api/setup/new-environment", freshInput);
+    expect(setup.createEnvironmentSetup.mock.calls[0]?.[0]).not.toHaveProperty(
+      "slug"
+    );
+  });
+
+  it("a chosen URL name's refusals keep their codes", async () => {
+    for (const [code, status] of [
+      ["environmentSlugInvalid", 400],
+      ["environmentSlugReserved", 400],
+      ["environmentSlugTaken", 409],
+      ["environmentSlugAliasTaken", 409],
+    ] as const) {
+      setup.previewEnvironmentSetup.mockResolvedValueOnce({
+        ...emptyPreview,
+        issues: [{ field: "slug", code }],
+      });
+      const res = await post("/api/setup/new-environment", {
+        ...freshInput,
+        slug: "canary-west",
+      });
+      expect(res.status, code).toBe(status);
+      expect(await res.json(), code).toMatchObject({ code });
+    }
+    expect(setup.createEnvironmentSetup).not.toHaveBeenCalled();
+    // Taken between the check and the insert: still the slug's refusal.
+    setup.createEnvironmentSetup.mockRejectedValueOnce(
+      new CodedHTTPException(409, "environmentSlugTaken", "taken")
+    );
+    const res = await post("/api/setup/new-environment", {
+      ...freshInput,
+      slug: "canary-west",
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "environmentSlugTaken" });
   });
 
   it("refuses before registering when the setup checks fail", async () => {

@@ -13,6 +13,7 @@ import type { SetupIssue } from "@/lib/setup/schema";
 export type FormGroup =
   | "startFrom"
   | "name"
+  | "slug"
   | "repos"
   | "database"
   | "address"
@@ -25,6 +26,7 @@ export type FormSnapshot = Record<FormGroup, string>;
 const GROUPS: readonly FormGroup[] = [
   "startFrom",
   "name",
+  "slug",
   "repos",
   "database",
   "address",
@@ -34,6 +36,7 @@ const GROUPS: readonly FormGroup[] = [
 
 export function groupOf(field: string): FormGroup {
   if (field === "name") return "name";
+  if (field === "slug") return "slug";
   if (field === "copyFromEnvironmentId") return "startFrom";
   if (field === "repos" || field.startsWith("repos.") || field === "targets") {
     return "repos";
@@ -69,6 +72,7 @@ const REPO_CODES = new Set([
  */
 export function fieldOfCode(code: string): string {
   if (code === "nameTaken" || code === "environmentNameTaken") return "name";
+  if (code.startsWith("environmentSlug")) return "slug";
   if (code === "domainTaken" || code === "domainHostnameTaken") {
     return "domain.label";
   }
@@ -81,6 +85,7 @@ export function snapshotOf(input: NewEnvironmentInput): FormSnapshot {
   return {
     startFrom: input.copyFromEnvironmentId ?? "",
     name: input.name,
+    slug: input.slug ?? "",
     repos: JSON.stringify(input.repos),
     database: JSON.stringify([input.needsDatabase, database ?? null]),
     address: JSON.stringify([input.address, domain ?? null]),

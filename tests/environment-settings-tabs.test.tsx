@@ -21,6 +21,8 @@ const api = vi.hoisted(() => ({
   createDeployTarget: vi.fn(),
   listApps: vi.fn(),
   listVariables: vi.fn(),
+  checkEnvironmentSlug: vi.fn(),
+  replace: vi.fn(),
   orgRole: "admin" as string,
   toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
@@ -29,7 +31,7 @@ vi.mock("sonner", () => ({ toast: api.toast }));
 vi.mock("@/hooks/use-unsaved-changes", () => ({ useUnsavedChanges: () => {} }));
 vi.mock("@/i18n/navigation", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: api.replace }),
   Link: ({ href, children }: { href: string; children?: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),
@@ -39,6 +41,14 @@ vi.mock("@/web/api/session", () => ({
 }));
 vi.mock("@/web/api/environments", () => ({
   updateEnvironment: api.updateEnvironment,
+  checkEnvironmentSlugQuery: (
+    projectId: string,
+    slug: string,
+    environmentId?: string
+  ) => ({
+    queryKey: ["check-slug", projectId, slug, environmentId],
+    queryFn: () => api.checkEnvironmentSlug(projectId, slug, environmentId),
+  }),
 }));
 vi.mock("@/web/api/deploys", () => ({
   updateDeployTarget: api.updateDeployTarget,
@@ -342,6 +352,7 @@ beforeEach(() => {
     data: { id: ENV },
   });
   api.updateDeployTarget.mockResolvedValue({ pipelineFileFailures: [] });
+  api.checkEnvironmentSlug.mockResolvedValue({ code: null });
 });
 
 afterEach(async () => {
@@ -884,5 +895,122 @@ describe("environmentPayload", () => {
       url: null,
       backendServerId: OTHER_SERVER,
     });
+  });
+});
+
+describe("the URL name field", () => {
+  const slugInput = () =>
+    document.querySelector<HTMLInputElement>("#env-slug") as HTMLInputElement;
+  const save = () =>
+    click(byText("button", messages.environmentForm.saveChanges));
+  const errors = messages.actionErrors;
+  // Past the live check's debounce.
+  const pause = () =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    });
+
+  it("renames, previews the new address and opens Settings there", async () => {
+    api.updateEnvironment.mockResolvedValue({
+      success: true,
+      data: { id: ENV, projectId: PROJECT, slug: "dev-west" },
+    });
+    await mount();
+    await openAdvanced();
+    expect(slugInput().value).toBe("dev-1");
+    expect(slugInput().disabled).toBe(false);
+    await act(async () => type(slugInput(), "Dev-West "));
+    expect(slugInput().value).toBe("dev-west");
+    expect(document.body.textContent).toContain(
+      t.slugPreview.replace("{path}", "/KMEM/dev-west")
+    );
+    await pause();
+    await settle();
+    expect(api.checkEnvironmentSlug).toHaveBeenCalledWith(
+      PROJECT,
+      "dev-west",
+      ENV
+    );
+    await save();
+    const [, payload] = api.updateEnvironment.mock.calls[0] ?? [];
+    expect(payload).toMatchObject({ slug: "dev-west" });
+    expect(api.replace).toHaveBeenCalledWith("/KMEM/dev-west/settings");
+  });
+
+  it("sends no slug and stays put when it is unchanged", async () => {
+    api.updateEnvironment.mockResolvedValue({
+      success: true,
+      data: { id: ENV, projectId: PROJECT, slug: "dev-1" },
+    });
+    await mount();
+    const name = document.querySelector<HTMLInputElement>(
+      "#env-name"
+    ) as HTMLInputElement;
+    await act(async () => type(name, "Dev One"));
+    await save();
+    const [, payload] = api.updateEnvironment.mock.calls[0] ?? [];
+    expect(payload).not.toHaveProperty("slug");
+    expect(api.replace).not.toHaveBeenCalled();
+    expect(api.checkEnvironmentSlug).not.toHaveBeenCalled();
+  });
+
+  it("checks the shared rules before saving", async () => {
+    await mount();
+    await openAdvanced();
+    for (const [typed, code] of [
+      ["dev 1", "environmentSlugInvalid"],
+      ["-dev", "environmentSlugInvalid"],
+      ["issues", "environmentSlugReserved"],
+    ] as const) {
+      await act(async () => type(slugInput(), typed));
+      await settle();
+      expect(document.body.textContent, typed).toContain(errors[code]);
+      await save();
+      expect(api.updateEnvironment, typed).not.toHaveBeenCalled();
+    }
+    expect(api.checkEnvironmentSlug).not.toHaveBeenCalled();
+  });
+
+  it("shows a slug another environment uses or used while typing", async () => {
+    api.checkEnvironmentSlug.mockResolvedValue({
+      code: "environmentSlugAliasTaken",
+    });
+    await mount();
+    await openAdvanced();
+    await act(async () => type(slugInput(), "qa"));
+    expect(document.body.textContent).not.toContain(
+      errors.environmentSlugAliasTaken
+    );
+    await pause();
+    await settle();
+    expect(document.body.textContent).toContain(
+      errors.environmentSlugAliasTaken
+    );
+  });
+
+  it("shows the server's refusal at the field", async () => {
+    api.updateEnvironment.mockResolvedValue({
+      success: false,
+      message: "taken",
+      code: "environmentSlugTaken",
+    });
+    await mount();
+    await openAdvanced();
+    await act(async () => type(slugInput(), "uat"));
+    await save();
+    expect(document.body.textContent).toContain(errors.environmentSlugTaken);
+    expect(api.toast.error).not.toHaveBeenCalled();
+    expect(api.replace).not.toHaveBeenCalled();
+  });
+
+  it("an older slug over today's limit doesn't block other edits", async () => {
+    const legacy = "kmem-dev-1-on-the-old-server-in-the-west-wing";
+    await mount({ environment: { ...environment, slug: legacy } });
+    const name = document.querySelector<HTMLInputElement>(
+      "#env-name"
+    ) as HTMLInputElement;
+    await act(async () => type(name, "Dev One"));
+    await save();
+    expect(api.updateEnvironment).toHaveBeenCalledTimes(1);
   });
 });

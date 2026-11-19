@@ -62,6 +62,7 @@ export async function recordEnvironmentAccess(
   );
 }
 
+/** A refused update carries the refusal's `code` (a URL name taken, …). */
 export async function updateEnvironment(
   id: Body<"update-environment">["id"],
   data: Body<"update-environment">["data"]
@@ -69,9 +70,33 @@ export async function updateEnvironment(
   return orFailure(
     () =>
       parseResponse(routes["update-environment"].$post({ json: { id, data } })),
-    (message) => ({ success: false, message }) as const
+    (message, error) => ({ success: false, message, code: error.code }) as const
   );
 }
+
+/**
+ * The live check of a URL name: the code a save would refuse `slug` with
+ * in the project (`environmentId` = the environment being renamed), or null.
+ */
+export async function checkEnvironmentSlug(
+  projectId: string,
+  slug: string,
+  environmentId?: string
+) {
+  return parseResponse(
+    routes["check-slug"].$get({
+      query: { projectId, slug, ...(environmentId ? { environmentId } : {}) },
+    })
+  );
+}
+
+export const checkEnvironmentSlugQuery = (
+  ...args: Parameters<typeof checkEnvironmentSlug>
+) =>
+  queryOptions({
+    queryKey: ["environments", "checkEnvironmentSlug", args],
+    queryFn: () => checkEnvironmentSlug(...args),
+  });
 
 /**
  * "Remove from Panel only" (org server:manage): deletes the rows, nothing on

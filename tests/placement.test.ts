@@ -246,6 +246,8 @@ vi.mock("@/lib/db", async () => {
       leftJoin: () => chain,
       orderBy: () => chain,
       limit: () => chain,
+      // The row lock a slug change re-reads the environment under.
+      for: () => chain,
       returning: () => chain,
       // biome-ignore lint/suspicious/noThenProperty: awaitable query builder
       then: (resolve: (rows: unknown[]) => unknown, reject: () => unknown) =>

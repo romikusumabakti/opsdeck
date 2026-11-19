@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { environmentSlugAliases, environments } from "@/lib/db/schema";
 
@@ -81,4 +81,22 @@ export async function projectSlugsInUse(
       .where(eq(environmentSlugAliases.projectId, projectId)),
   ]);
   return new Set([...current, ...aliases].map((row) => row.slug));
+}
+
+/**
+ * The slug the environment was created with: its oldest alias when it was
+ * renamed since, else its current slug. Names materialised from the slug
+ * (template variables) use it, so they never follow a rename.
+ */
+export async function originalEnvironmentSlug(
+  environment: { id: string; slug: string },
+  executor: Executor = db
+): Promise<string> {
+  const [oldest] = await executor
+    .select({ slug: environmentSlugAliases.slug })
+    .from(environmentSlugAliases)
+    .where(eq(environmentSlugAliases.environmentId, environment.id))
+    .orderBy(asc(environmentSlugAliases.createdAt))
+    .limit(1);
+  return oldest?.slug ?? environment.slug;
 }
