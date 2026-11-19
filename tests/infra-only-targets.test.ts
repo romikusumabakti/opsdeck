@@ -1,13 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Restricted targets (lib/restricted-targets): the engineer grant opens the
-// terminal and the file explorer fleet-wide, but not on an infra-only server
-// or the instance backup bucket. The database is a fake that answers by table.
+// terminal and the server file explorer fleet-wide, but not on an infra-only
+// server or the instance backup bucket. A bucket belongs to an environment
+// and takes that environment's rights; an unassigned one is admin/infra only.
+// The database is a fake that answers by table.
 
 const NORMAL_ID = "0197f3a0-1b2c-7def-8000-000000000001";
 const INFRA_ID = "0197f3a0-1b2c-7def-8000-000000000002";
 const BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b1";
 const BACKUP_BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b2";
+// A bucket of an environment in p2, a project the members below don't see,
+// and one no environment owns.
+const OTHER_BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b3";
+const FREE_BUCKET_ID = "0197f3a0-1b2c-7def-8000-0000000000b4";
+const ENV_P1 = "0197f3a0-1b2c-7def-8000-0000000000e1";
+const ENV_P2 = "0197f3a0-1b2c-7def-8000-0000000000e2";
 
 const state = vi.hoisted(() => ({
   session: {
@@ -66,7 +74,28 @@ vi.mock("@/lib/db", async () => {
     db: {
       select: () => ({
         from: (table: unknown) => {
-          if (table === schema.projects) return answer(() => [{ id: "p1" }]);
+          if (table === schema.projects) {
+            return answer(() => [{ id: "p1" }, { id: "p2" }]);
+          }
+          if (table === schema.s3Connections) {
+            return answer(() => {
+              const id = whereId()?.toLowerCase();
+              if (id === BUCKET_ID) return [{ environmentId: ENV_P1 }];
+              if (id === OTHER_BUCKET_ID) return [{ environmentId: ENV_P2 }];
+              if (id === BACKUP_BUCKET_ID || id === FREE_BUCKET_ID) {
+                return [{ environmentId: null }];
+              }
+              return [];
+            });
+          }
+          if (table === schema.environments) {
+            return answer(() => {
+              const id = whereId()?.toLowerCase();
+              if (id === ENV_P1) return [{ projectId: "p1" }];
+              if (id === ENV_P2) return [{ projectId: "p2" }];
+              return [];
+            });
+          }
           if (table === schema.projectMembers) {
             return answer(() => state.memberships);
           }
@@ -122,7 +151,7 @@ vi.mock("@/server/i18n", () => ({
 
 const { app } = await import("@/server/app");
 const { ForbiddenError } = await import("@/lib/authz");
-const { listEntries } = await import("@/server/services/explorer");
+const { deleteEntry, listEntries } = await import("@/server/services/explorer");
 
 function as(role: string, ...projectIds: string[]) {
   state.session = {
@@ -262,12 +291,40 @@ describe("file explorer on restricted targets", () => {
     ).toEqual({ success: true, data: [] });
   });
 
-  it("treats no backup destination as no restricted bucket", async () => {
-    as("engineer", "p1");
+  it("keeps an unassigned bucket to admin and infra, backup destination or not", async () => {
     state.backupId = null;
+    as("engineer", "p1");
+    await expect(
+      listEntries({ kind: "s3", connectionId: FREE_BUCKET_ID }, "")
+    ).rejects.toMatchObject({ status: 404 });
+    as("infra");
     expect(
-      await listEntries({ kind: "s3", connectionId: BACKUP_BUCKET_ID }, "")
+      await listEntries({ kind: "s3", connectionId: FREE_BUCKET_ID }, "")
     ).toEqual({ success: true, data: [] });
+    expect(resolved.sources).toHaveLength(1);
+  });
+
+  it("answers 404 for the bucket of an environment the caller can't see", async () => {
+    for (const role of ["engineer", "qa"]) {
+      as(role, "p1");
+      await expect(
+        listEntries({ kind: "s3", connectionId: OTHER_BUCKET_ID }, "")
+      ).rejects.toMatchObject({ status: 404 });
+      const res = await download({ kind: "s3", connectionId: OTHER_BUCKET_ID });
+      expect(res.status).toBe(404);
+    }
+    expect(resolved.sources).toEqual([]);
+  });
+
+  it("lets QA browse but not change an environment's bucket", async () => {
+    as("qa", "p1");
+    expect(
+      await listEntries({ kind: "s3", connectionId: BUCKET_ID }, "")
+    ).toEqual({ success: true, data: [] });
+    await expect(
+      deleteEntry({ kind: "s3", connectionId: BUCKET_ID }, "a.txt")
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(resolved.sources).toHaveLength(1);
   });
 
   it("still refuses a QA without the grant by the central guard", async () => {

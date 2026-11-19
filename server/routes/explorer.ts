@@ -141,7 +141,7 @@ export const explorerRouter = sessionRouter()
     } catch {
       return new Response("Invalid source", { status: 400 });
     }
-    const session = await authorizeExplorerSource(src);
+    const session = await authorizeExplorerSource(src, "read");
     // No `path` at all means the root folder, which is also the empty string.
     const requested = c.req.queries("path") ?? [];
     const parsedPaths = z
@@ -215,7 +215,7 @@ export const explorerRouter = sessionRouter()
     } catch {
       return new Response("Invalid source", { status: 400 });
     }
-    const session = await authorizeExplorerSource(src);
+    const session = await authorizeExplorerSource(src, "read");
     const parsedPath = explorerPathSchema.safeParse(c.req.query("path") ?? "");
     if (!parsedPath.success || !parsedPath.data) {
       return new Response("Invalid path", { status: 400 });
@@ -267,7 +267,7 @@ export const explorerRouter = sessionRouter()
     } catch {
       return new Response("Invalid source", { status: 400 });
     }
-    const session = await authorizeExplorerSource(src);
+    const session = await authorizeExplorerSource(src, "write");
     const parsedDir = explorerPathSchema.safeParse(form.get("path") ?? "");
     // Where the file lands under the destination directory. A folder upload
     // sends the browser's relative path ("dist/assets/app.js"); a plain file

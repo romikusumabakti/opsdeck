@@ -11,7 +11,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { S3Connection } from "@/lib/db/schema";
-import { basename, normalizeS3Key } from "./path";
+import { basename, normalizeS3Key, PathError, storedKeyPrefix } from "./path";
 import type { DownloadTarget, ExplorerEntry, StorageBackend } from "./types";
 
 // How long a presigned GET stays valid. Short by design: the URL embeds signed
@@ -27,6 +27,9 @@ export type S3ConnectionProbe = {
   accessKeyId: string;
   secretKey: string;
   forcePathStyle: boolean;
+  // The part of the bucket the connection is confined to: the probe lists
+  // under it, since a key may only be granted that prefix.
+  keyPrefix?: string | null;
 };
 
 // Verify creds + bucket reachability with a bounded, read-only 1-key list. Never
@@ -45,7 +48,11 @@ export async function testS3Connection(
   });
   try {
     await client.send(
-      new ListObjectsV2Command({ Bucket: probe.bucket, MaxKeys: 1 })
+      new ListObjectsV2Command({
+        Bucket: probe.bucket,
+        MaxKeys: 1,
+        ...(probe.keyPrefix ? { Prefix: probe.keyPrefix } : {}),
+      })
     );
     return { ok: true };
   } catch (error) {
@@ -58,7 +65,26 @@ export async function testS3Connection(
 // S3-compatible backend. One instance per connection row. `Delimiter: "/"` turns
 // a flat key namespace into a directory view: keys sharing a prefix up to the
 // next slash collapse into a `CommonPrefix` (a "folder"), the rest are files.
-export function createS3Backend(conn: S3Connection): StorageBackend {
+//
+// A connection with a key prefix is confined to it: the prefix is the
+// explorer's root, every path the client sends is normalised (normalizeS3Key:
+// no "..", no encoded or lookalike separators) and then put under the prefix,
+// and every key handed back has the prefix taken off again. The prefix root
+// itself can be listed but never deleted, renamed, copied or written as a
+// file.
+export function createS3Backend(
+  conn: Pick<
+    S3Connection,
+    | "endpoint"
+    | "region"
+    | "bucket"
+    | "accessKeyId"
+    | "secretKey"
+    | "forcePathStyle"
+  > & { keyPrefix?: string | null }
+): StorageBackend {
+  // Checked before the client exists: a bad stored prefix opens nothing.
+  const root = storedKeyPrefix(conn.keyPrefix);
   const client = new S3Client({
     endpoint: conn.endpoint,
     region: conn.region,
@@ -70,11 +96,28 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
   });
   const Bucket = conn.bucket;
 
-  // A prefix for listing: normalized, and ending in "/" (or empty for root).
+  // A prefix for listing: normalized, ending in "/", under the root (the root
+  // itself for "").
   const dirPrefix = (p: string): string => {
     const key = normalizeS3Key(p, true).replace(/\/+$/, "");
-    return key.length > 0 ? `${key}/` : "";
+    return key.length > 0 ? `${root}${key}/` : root;
   };
+
+  // The full key for a client path: a file key, or a folder key ending in "/"
+  // when `allowDir`. Never the root itself: an empty relative path would make
+  // the whole prefix the target of a delete, rename or write.
+  const keyOf = (p: string, allowDir = false): string => {
+    const key = normalizeS3Key(p, allowDir);
+    if (key.length === 0) throw new PathError("Expected a key, got the root");
+    return `${root}${key}`;
+  };
+
+  // The client path for a listed key; null when the store answered a key
+  // outside the root (never expected, so it is dropped rather than shown).
+  const relative = (key: string): string | null =>
+    key.startsWith(root) && key.length > root.length
+      ? key.slice(root.length)
+      : null;
 
   // Every key under a prefix, paginated and WITHOUT a delimiter so the whole
   // subtree comes back flat. Used by the recursive folder operations below.
@@ -150,18 +193,21 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
           })
         );
         for (const cp of res.CommonPrefixes ?? []) {
-          if (!cp.Prefix) continue;
+          const path = cp.Prefix ? relative(cp.Prefix) : null;
+          if (!path) continue;
           entries.push({
-            name: basename(cp.Prefix),
-            path: cp.Prefix,
+            name: basename(path),
+            path,
             type: "dir",
           });
         }
         for (const obj of res.Contents ?? []) {
           if (!obj.Key || obj.Key === Prefix) continue; // skip the folder marker
+          const path = relative(obj.Key);
+          if (!path) continue;
           entries.push({
-            name: basename(obj.Key),
-            path: obj.Key,
+            name: basename(path),
+            path,
             type: "file",
             sizeBytes: obj.Size,
             modifiedAt: obj.LastModified,
@@ -183,12 +229,13 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
     },
 
     async stat(pathInput) {
-      const Key = normalizeS3Key(pathInput);
+      const Key = keyOf(pathInput);
+      const path = Key.slice(root.length);
       try {
         const res = await client.send(new HeadObjectCommand({ Bucket, Key }));
         return {
-          name: basename(Key),
-          path: Key,
+          name: basename(path),
+          path,
           type: "file",
           sizeBytes: res.ContentLength,
           modifiedAt: res.LastModified,
@@ -199,7 +246,7 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
     },
 
     async readStream(pathInput) {
-      const Key = normalizeS3Key(pathInput);
+      const Key = keyOf(pathInput);
       const res = await client.send(new GetObjectCommand({ Bucket, Key }));
       // The SDK returns a web/Node stream depending on runtime; on Node it is a
       // Readable already. Guard for the union type.
@@ -209,12 +256,12 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
     },
 
     async writeStream(pathInput, body) {
-      const Key = normalizeS3Key(pathInput);
+      const Key = keyOf(pathInput);
       await client.send(new PutObjectCommand({ Bucket, Key, Body: body }));
     },
 
     async downloadTarget(pathInput): Promise<DownloadTarget> {
-      const Key = normalizeS3Key(pathInput);
+      const Key = keyOf(pathInput);
       const url = await getSignedUrl(
         client,
         new GetObjectCommand({ Bucket, Key }),
@@ -224,7 +271,7 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
     },
 
     async remove(pathInput) {
-      const Key = normalizeS3Key(pathInput, true);
+      const Key = keyOf(pathInput, true);
       if (!Key.endsWith("/")) {
         await client.send(new DeleteObjectCommand({ Bucket, Key }));
         return;
@@ -238,14 +285,16 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
     async mkdir(pathInput) {
       // S3 has no directories; a zero-byte object with a trailing-slash key is
       // the conventional "folder marker" so an empty folder shows up in listings.
-      const Key = `${dirPrefix(pathInput)}`;
-      if (!Key) throw new Error("Cannot create the bucket root as a folder");
+      const Key = dirPrefix(pathInput);
+      if (Key === root) {
+        throw new PathError("Cannot create the root as a folder");
+      }
       await client.send(new PutObjectCommand({ Bucket, Key, Body: "" }));
     },
 
     async rename(fromInput, toInput) {
-      const from = normalizeS3Key(fromInput, true);
-      const to = normalizeS3Key(toInput, true);
+      const from = keyOf(fromInput, true);
+      const to = keyOf(toInput, true);
       // No native rename: copy then delete.
       await copyTree(from, to);
       if (!from.endsWith("/")) {
@@ -257,10 +306,7 @@ export function createS3Backend(conn: S3Connection): StorageBackend {
     },
 
     async copy(fromInput, toInput) {
-      await copyTree(
-        normalizeS3Key(fromInput, true),
-        normalizeS3Key(toInput, true)
-      );
+      await copyTree(keyOf(fromInput, true), keyOf(toInput, true));
     },
   };
 }

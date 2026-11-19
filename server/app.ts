@@ -23,6 +23,7 @@ import { deployLocksRouter } from "@/server/routes/deploy-locks";
 import { deploysRouter } from "@/server/routes/deploys";
 import { environmentArchivesRouter } from "@/server/routes/environment-archives";
 import { environmentDomainsRouter } from "@/server/routes/environment-domains";
+import { environmentStorageRouter } from "@/server/routes/environment-storage";
 import { environmentsRouter } from "@/server/routes/environments";
 import { explorerRouter } from "@/server/routes/explorer";
 import { homeRouter } from "@/server/routes/home";
@@ -124,6 +125,7 @@ export const app = createBaseApp()
   .route("/api/environments", deployLocksRouter)
   .route("/api/environments", provisioningRouter)
   .route("/api/environments", environmentDomainsRouter)
+  .route("/api/environments", environmentStorageRouter)
   .route("/api/remote-tunnels", remoteTunnelsRouter)
   .route("/api/services", servicesRouter)
   .route("/api/runs", runsRouter)

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { normalizeKeyPrefix, unsafeKeySegment } from "@/lib/validation";
 
 // Path confinement for the storage explorer. Every path reaching a backend
 // originates from an untrusted client (the explorer sends whatever key/path the
@@ -13,17 +14,39 @@ export class PathError extends Error {}
 // client can't probe outside the intended prefix layout or emit surprising
 // keys. Returns a clean, forward-slash key with no leading slash. A trailing
 // slash (a "folder" prefix) is preserved when `allowDir` is set.
+//
+// A backslash counts as a separator (so "..\\x" is still a traversal), and a
+// segment that would turn into one after decoding or NFKC folding ("%2e%2e",
+// "%2F", "．．") is refused as well (lib/validation#unsafeKeySegment): S3 keys
+// are opaque, but a connection confined to a key prefix must not depend on
+// every proxy in front of the store agreeing.
 export function normalizeS3Key(input: string, allowDir = false): string {
   const raw = input.replace(/\\/g, "/");
   const segments = raw.split("/").filter((s) => s.length > 0 && s !== ".");
   if (segments.some((s) => s === "..")) {
     throw new PathError("Path must not contain '..'");
   }
+  if (segments.some(unsafeKeySegment)) {
+    throw new PathError("Path contains an unsafe segment");
+  }
   const key = segments.join("/");
   if (!allowDir && input.endsWith("/")) {
     throw new PathError("Expected a file key, got a folder path");
   }
   return input.endsWith("/") && allowDir && key.length > 0 ? `${key}/` : key;
+}
+
+// The stored key prefix of a connection, checked again before it is used: the
+// database only guarantees its outline (lib/db/schema s3_connections check).
+// Returns "" for none (the whole bucket); throws PathError when the stored
+// value is not exactly what normalizeKeyPrefix would have produced.
+export function storedKeyPrefix(stored: string | null | undefined): string {
+  if (stored == null) return "";
+  const checked = normalizeKeyPrefix(stored);
+  if (!checked.ok || checked.prefix !== stored) {
+    throw new PathError("The connection's key prefix is invalid");
+  }
+  return stored;
 }
 
 // Confine an SFTP path to `root`. Resolves `input` (which may be relative to

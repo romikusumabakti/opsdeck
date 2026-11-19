@@ -1,27 +1,52 @@
-import { eq } from "drizzle-orm";
-import { requireOrgPermission } from "@/lib/authz";
+import { and, eq, isNull } from "drizzle-orm";
+import { recordActivity } from "@/lib/activity";
+import { requireSession } from "@/lib/auth-session";
+import { requireOrgGrant, requireOrgPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { one } from "@/lib/db/one";
 import {
+  environments,
   type NewS3Connection,
   type S3Connection,
   type SafeS3Connection,
   s3Connections,
 } from "@/lib/db/schema";
 import { testS3Connection } from "@/lib/explorer/s3";
-import { backupDestinationId } from "@/lib/restricted-targets";
+import type { OrgPermissions } from "@/lib/permissions";
+import {
+  backupDestinationId,
+  isRestrictedSource,
+} from "@/lib/restricted-targets";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import type { ActionResponse } from "@/lib/types";
 import {
   s3ConnectionInputSchema,
   s3ConnectionUpdateSchema,
 } from "@/lib/validation";
+import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
-// Admin-managed S3-compatible targets for the storage explorer. Mirrors
-// actions/servers.ts. `secretKey` is stripped before any row reaches the client.
+// S3-compatible targets for the storage explorer, across environments: the
+// global list (until the global Storage pages go) and the admin handling of
+// unassigned connections (no environment). Every read and change here takes
+// the org role's own storage right (admin, infra; observer reads), never the
+// engineer grant: the list spans every environment, including those of
+// projects the caller can't see. An environment's own connections are
+// managed through server/services/environment-storage. `secretKey` is
+// stripped before any row reaches the client.
 
-function toSafe(row: S3Connection, backupId: string | null): SafeS3Connection {
+// The org role's own storage right, with the strong sign-in a change needs.
+async function requireOrgStorage(perms: OrgPermissions) {
+  const session = await requireSession();
+  requireOrgGrant(session, perms);
+  return session;
+}
+
+/** The client-safe projection of a connection row: no secret. */
+export function toSafeS3Connection(
+  row: S3Connection,
+  backupId: string | null
+): SafeS3Connection {
   const { secretKey, ...rest } = row;
   return {
     ...rest,
@@ -31,23 +56,23 @@ function toSafe(row: S3Connection, backupId: string | null): SafeS3Connection {
 }
 
 export async function getS3Connections(): Promise<SafeS3Connection[]> {
-  await requireOrgPermission({ storage: ["read"] });
+  await requireOrgStorage({ storage: ["read"] });
   const [rows, backupId] = await Promise.all([
     db.select().from(s3Connections).orderBy(s3Connections.name),
     backupDestinationId(),
   ]);
-  return rows.map((row) => toSafe(row, backupId));
+  return rows.map((row) => toSafeS3Connection(row, backupId));
 }
 
 export async function getS3Connection(
   id: string
 ): Promise<SafeS3Connection | undefined> {
-  await requireOrgPermission({ storage: ["read"] });
+  await requireOrgStorage({ storage: ["read"] });
   const [[row], backupId] = await Promise.all([
     db.select().from(s3Connections).where(eq(s3Connections.id, id)).limit(1),
     backupDestinationId(),
   ]);
-  return row ? toSafe(row, backupId) : undefined;
+  return row ? toSafeS3Connection(row, backupId) : undefined;
 }
 
 export async function createS3Connection(
@@ -73,7 +98,7 @@ export async function createS3Connection(
     // A new connection is not the backup destination: that is chosen later.
     return {
       success: true,
-      data: toSafe(created, null),
+      data: toSafeS3Connection(created, null),
       message: t("s3Created"),
     };
   } catch (error) {
@@ -159,5 +184,87 @@ export async function testS3ConnectionAction(input: {
     accessKeyId: input.accessKeyId.trim(),
     secretKey,
     forcePathStyle: input.forcePathStyle,
+  });
+}
+
+const STORAGE_MANAGE: OrgPermissions = { storage: ["manage"] };
+
+/** Admin › Storage: the connections no environment owns. */
+export async function listUnassignedS3Connections(): Promise<
+  SafeS3Connection[]
+> {
+  await requireOrgStorage(STORAGE_MANAGE);
+  const [rows, backupId] = await Promise.all([
+    db
+      .select()
+      .from(s3Connections)
+      .where(isNull(s3Connections.environmentId))
+      .orderBy(s3Connections.name),
+    backupDestinationId(),
+  ]);
+  return rows.map((row) => toSafeS3Connection(row, backupId));
+}
+
+/**
+ * Give a connection to an environment (404 when either is missing). The
+ * instance backup destination holds dumps of the Panel database, so it is
+ * never handed to an environment (409).
+ */
+export async function assignS3Connection(
+  connectionId: string,
+  environmentId: string
+): Promise<SafeS3Connection> {
+  const session = await requireOrgStorage(STORAGE_MANAGE);
+  const [environment] = await db
+    .select({ name: environments.name })
+    .from(environments)
+    .where(eq(environments.id, environmentId))
+    .limit(1);
+  if (!environment) notFound();
+  if (await isRestrictedSource({ kind: "s3", connectionId })) {
+    const t = await getServerTranslator("actionErrors");
+    throw new CodedHTTPException(
+      409,
+      "s3BackupDestinationNotAssignable",
+      t("s3BackupDestinationNotAssignable")
+    );
+  }
+  const [updated] = await db
+    .update(s3Connections)
+    .set({ environmentId, updatedAt: new Date() })
+    .where(eq(s3Connections.id, connectionId))
+    .returning();
+  if (!updated) notFound();
+  await recordActivity({
+    actorId: session.user.id,
+    action: "storage.assigned",
+    entityType: "s3Connection",
+    entityId: updated.id,
+    data: { name: updated.name, environment: environment.name },
+  });
+  return toSafeS3Connection(updated, null);
+}
+
+/** Delete an unassigned connection (404 for one an environment owns). */
+export async function deleteUnassignedS3Connection(
+  connectionId: string
+): Promise<void> {
+  const session = await requireOrgStorage(STORAGE_MANAGE);
+  const [deleted] = await db
+    .delete(s3Connections)
+    .where(
+      and(
+        eq(s3Connections.id, connectionId),
+        isNull(s3Connections.environmentId)
+      )
+    )
+    .returning({ id: s3Connections.id, name: s3Connections.name });
+  if (!deleted) notFound();
+  await recordActivity({
+    actorId: session.user.id,
+    action: "storage.deleted",
+    entityType: "s3Connection",
+    entityId: deleted.id,
+    data: { name: deleted.name, environment: "" },
   });
 }

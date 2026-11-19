@@ -1,13 +1,22 @@
 import { and, eq } from "drizzle-orm";
+import { requireSession } from "@/lib/auth-session";
 import {
+  assertStrongSession,
   callerCanOrgTarget,
   ForbiddenError,
+  requireOrgGrant,
   requireOrgPermission,
+  requireProjectPermission,
 } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { instanceSettings, servers } from "@/lib/db/schema";
+import { instanceSettings, s3Connections, servers } from "@/lib/db/schema";
 import type { ExplorerSource } from "@/lib/explorer";
-import { canOrg, type OrgPermissions } from "@/lib/permissions";
+import {
+  canOrg,
+  type OrgPermissions,
+  type ProjectPermissions,
+} from "@/lib/permissions";
+import { notFound } from "@/server/errors";
 
 // Restricted targets: the servers and the bucket the engineer grant does not
 // reach (lib/permissions#canOrgAccessTarget). An infra-only server
@@ -55,26 +64,81 @@ export async function isRestrictedSource(
   return row?.infraOnly ?? false;
 }
 
-function filesPermission(source: ExplorerSource): OrgPermissions {
-  return source.kind === "s3" ? { storage: ["files"] } : { server: ["files"] };
-}
+/**
+ * What an explorer call does to its source: `read` lists, stats, reads and
+ * downloads; `write` creates, saves, uploads, deletes, renames, moves, copies
+ * or compresses.
+ */
+export type ExplorerIntent = "read" | "write";
+
+const SERVER_FILES: OrgPermissions = { server: ["files"] };
+const STORAGE_FILES: OrgPermissions = { storage: ["files"] };
+
+/**
+ * The environment rights an explorer call on that environment's storage
+ * connection needs: viewing the environment to read, editing its settings
+ * (lib/permissions project `environment:update`, the right
+ * server/services/environments#updateEnvironment checks) to change files.
+ */
+export const ENVIRONMENT_STORAGE_RIGHTS: Record<
+  ExplorerIntent,
+  ProjectPermissions
+> = {
+  read: { project: ["read"] },
+  write: { environment: ["update"] },
+};
 
 /**
  * The file explorer's whole authorization, for every entry point (the
  * service actions and the archive, download and upload routes), before any
- * credential load or I/O: the files permission of the source's kind, then,
- * for a caller who has it only through the engineer grant, the restricted
- * target check. Throws like requireOrgPermission (401, or a 403
- * ForbiddenError).
+ * credential load or I/O. Throws (401, 403 ForbiddenError, 404).
+ *
+ * - A server: the org `server:files` permission, then, for a caller who has
+ *   it only through the engineer grant, the infra-only check (unchanged).
+ * - An S3 connection owned by an environment: that environment's rights
+ *   (ENVIRONMENT_STORAGE_RIGHTS by intent) plus a strong sign-in, as every
+ *   file explorer needs. An environment the caller can't see is a 404, like
+ *   a connection that does not exist.
+ * - An unassigned S3 connection, or the instance backup destination wherever
+ *   it sits: the org role's own `storage:files` (admin, infra), never the
+ *   engineer grant. An unassigned one is a 404 to everyone else (it is not
+ *   theirs to know of); the backup destination stays the 403 it always was.
  */
-export async function authorizeExplorerSource(source: ExplorerSource) {
-  const perms = filesPermission(source);
-  const session = await requireOrgPermission(perms);
-  // The org role reaches every target; only the grant needs the lookup.
-  if (canOrg(session.user.role, perms)) return session;
-  const restricted = await isRestrictedSource(source);
-  if (!(await callerCanOrgTarget(session, perms, restricted))) {
-    throw new ForbiddenError();
+export async function authorizeExplorerSource(
+  source: ExplorerSource,
+  intent: ExplorerIntent
+) {
+  if (source.kind === "sftp") {
+    const session = await requireOrgPermission(SERVER_FILES);
+    // The org role reaches every target; only the grant needs the lookup.
+    if (canOrg(session.user.role, SERVER_FILES)) return session;
+    const restricted = await isRestrictedSource(source);
+    if (!(await callerCanOrgTarget(session, SERVER_FILES, restricted))) {
+      throw new ForbiddenError();
+    }
+    return session;
   }
+
+  const session = await requireSession();
+  const [connection] = await db
+    .select({ environmentId: s3Connections.environmentId })
+    .from(s3Connections)
+    .where(eq(s3Connections.id, source.connectionId))
+    .limit(1);
+  if (!connection) notFound();
+  if (await isRestrictedSource(source)) {
+    requireOrgGrant(session, STORAGE_FILES);
+    return session;
+  }
+  if (connection.environmentId === null) {
+    if (!canOrg(session.user.role, STORAGE_FILES)) notFound();
+    requireOrgGrant(session, STORAGE_FILES);
+    return session;
+  }
+  await requireProjectPermission(
+    { environmentId: connection.environmentId },
+    ENVIRONMENT_STORAGE_RIGHTS[intent]
+  );
+  assertStrongSession(session);
   return session;
 }

@@ -238,6 +238,34 @@ function message(
         environment: String(d.environment),
         hostname: String(d.hostname),
       });
+    // An environment's storage connections. An admin deleting an unassigned
+    // connection records an empty environment.
+    case "storage.created":
+      return t("storageCreated", {
+        actor,
+        name: String(d.name),
+        environment: String(d.environment),
+      });
+    case "storage.updated":
+      return t("storageUpdated", {
+        actor,
+        name: String(d.name),
+        environment: String(d.environment),
+      });
+    case "storage.deleted":
+      return d.environment
+        ? t("storageDeleted", {
+            actor,
+            name: String(d.name),
+            environment: String(d.environment),
+          })
+        : t("storageDeletedUnassigned", { actor, name: String(d.name) });
+    case "storage.assigned":
+      return t("storageAssigned", {
+        actor,
+        name: String(d.name),
+        environment: String(d.environment),
+      });
     case "mailpit.configured":
       return t("mailpitConfigured", {
         actor,

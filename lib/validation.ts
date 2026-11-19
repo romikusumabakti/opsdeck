@@ -405,6 +405,85 @@ export const s3ConnectionUpdateSchema = s3ConnectionInputSchema
 
 export type S3ConnectionInput = z.infer<typeof s3ConnectionInputSchema>;
 
+// An environment's storage connection: the same fields plus the key prefix it
+// is confined to. The prefix is only bounded here; the service normalises it
+// (normalizeKeyPrefix) and answers a bad one with a coded 400.
+export const environmentStorageInputSchema = s3ConnectionInputSchema.extend({
+  keyPrefix: z.string().max(2048).nullish(),
+});
+export const environmentStorageUpdateSchema = s3ConnectionUpdateSchema.extend({
+  keyPrefix: z.string().max(2048).nullish(),
+});
+export type EnvironmentStorageInput = z.infer<
+  typeof environmentStorageInputSchema
+>;
+
+// The longest key S3 accepts is 1024 bytes; a prefix must leave room for one.
+const MAX_KEY_PREFIX_BYTES = 1000;
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting them is the point
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
+const ENCODED_SEPARATOR_OR_DOT = /%(2e|2f|5c)/i;
+
+/**
+ * Whether one segment of an S3 key (the text between two "/") could name
+ * something outside the folder it sits in, now or after a layer below decodes
+ * it: a "." or ".." segment, a backslash, a control character, or a
+ * percent-encoded (also double-encoded) dot, slash or backslash. Each decoded
+ * form is also checked after NFKC, so fullwidth lookalikes ("．．", "／") that
+ * a normalising proxy would fold into "." and "/" count too. S3 itself treats
+ * keys as opaque strings; this is defence in depth for the confinement to a
+ * key prefix.
+ */
+export function unsafeKeySegment(segment: string): boolean {
+  const forms = [segment];
+  let current = segment;
+  for (let i = 0; i < 4; i++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(current);
+    } catch {
+      break;
+    }
+    if (next === current) break;
+    forms.push(next);
+    current = next;
+  }
+  return forms.some((form) =>
+    [form, form.normalize("NFKC")].some(
+      (f) =>
+        f === "." ||
+        f === ".." ||
+        f.includes("/") ||
+        f.includes("\\") ||
+        CONTROL_CHARS.test(f) ||
+        ENCODED_SEPARATOR_OR_DOT.test(f)
+    )
+  );
+}
+
+/**
+ * Normalise a typed key prefix: trimmed, leading slashes stripped, one
+ * trailing "/" added; blank (or only "/") is null, the whole bucket. Refused:
+ * empty segments ("a//b"), "." and ".." segments, and every unsafeKeySegment.
+ * Pure and client-safe, so a form can apply the rule the server judges by.
+ */
+export function normalizeKeyPrefix(
+  input: string | null | undefined
+): { ok: true; prefix: string | null } | { ok: false } {
+  const stripped = (input ?? "").trim().replace(/^\/+/, "");
+  if (stripped === "") return { ok: true, prefix: null };
+  const prefix = stripped.endsWith("/") ? stripped : `${stripped}/`;
+  if (new TextEncoder().encode(prefix).length > MAX_KEY_PREFIX_BYTES) {
+    return { ok: false };
+  }
+  const segments = prefix.slice(0, -1).split("/");
+  if (segments.some((s) => s === "" || unsafeKeySegment(s))) {
+    return { ok: false };
+  }
+  return { ok: true, prefix };
+}
+
 // --- Jira integration ---
 
 export const jiraFlavorSchema = z.enum(["cloud", "datacenter"]);

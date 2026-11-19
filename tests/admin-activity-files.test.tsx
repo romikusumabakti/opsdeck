@@ -310,3 +310,33 @@ describe("activity page project group events", () => {
     expect(text).not.toContain("did something");
   });
 });
+
+describe("activity page storage events", () => {
+  it("renders each environment storage action as a sentence", async () => {
+    const text = await renderEvents([
+      row("1", "storage.created", {
+        name: "Uploads",
+        environment: "Kestrel QA",
+      }),
+      row("2", "storage.updated", {
+        name: "Uploads",
+        environment: "Kestrel QA",
+      }),
+      row("3", "storage.deleted", {
+        name: "Uploads",
+        environment: "Kestrel QA",
+      }),
+      row("4", "storage.deleted", { name: "Old bucket", environment: "" }),
+      row("5", "storage.assigned", {
+        name: "Old bucket",
+        environment: "Heron QA",
+      }),
+    ]);
+    expect(text).toContain("Rina added the storage Uploads to Kestrel QA");
+    expect(text).toContain("Rina updated the storage Uploads of Kestrel QA");
+    expect(text).toContain("Rina removed the storage Uploads from Kestrel QA");
+    expect(text).toContain("Rina deleted the unassigned storage Old bucket");
+    expect(text).toContain("Rina assigned the storage Old bucket to Heron QA");
+    expect(text).not.toContain("storage.");
+  });
+});

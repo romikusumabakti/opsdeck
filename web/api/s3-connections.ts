@@ -76,3 +76,32 @@ export async function testS3ConnectionAction(
 export type S3ConnectionRow = Awaited<
   ReturnType<typeof getS3Connections>
 >[number];
+
+// Admin › Storage: connections no environment owns (org storage:manage).
+export async function listUnassignedS3Connections() {
+  return parseResponse(routes["list-unassigned-s3-connections"].$get());
+}
+
+export const unassignedS3ConnectionsQuery = () =>
+  queryOptions({
+    queryKey: ["s3-connections", "listUnassignedS3Connections"],
+    queryFn: () => listUnassignedS3Connections(),
+  });
+
+/** Rejects with an ApiError (404 missing; 409 `s3BackupDestinationNotAssignable`). */
+export async function assignS3Connection(
+  id: Body<"assign-s3-connection">["id"],
+  environmentId: Body<"assign-s3-connection">["environmentId"]
+) {
+  return parseResponse(
+    routes["assign-s3-connection"].$post({ json: { id, environmentId } })
+  );
+}
+
+export async function deleteUnassignedS3Connection(
+  id: Body<"delete-unassigned-s3-connection">["id"]
+) {
+  return parseResponse(
+    routes["delete-unassigned-s3-connection"].$post({ json: { id } })
+  );
+}
