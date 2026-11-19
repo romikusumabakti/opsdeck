@@ -382,6 +382,41 @@ export const environments = pgTable(
   ]
 );
 
+// The slugs an environment had before a rename, so a link to an old
+// `/[key]/[slug]` keeps opening it (lib/environment-slug resolves them). One
+// row per (project, slug): no other environment of the project may take the
+// slug as its own or as an alias (server/services/environments checks that).
+// Never expires; renaming back to one removes the row; deleting the
+// environment drops its aliases. `project_id` is the project the slug was
+// used in, which stays the alias's namespace if the environment moves.
+export const environmentSlugAliases = pgTable(
+  "environment_slug_aliases",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, {
+        name: "environment_slug_aliases_project_id_fkey",
+        onDelete: "cascade",
+      }),
+    slug: text("slug").notNull(),
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, {
+        name: "environment_slug_aliases_environment_id_fkey",
+        onDelete: "cascade",
+      }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({
+      name: "environment_slug_aliases_pkey",
+      columns: [t.projectId, t.slug],
+    }),
+    // FK index: the cascade on environment delete, and an environment's aliases.
+    index("environment_slug_aliases_environment_idx").on(t.environmentId),
+  ]
+);
+
 // One deployable unit of an environment (its database, backend, frontend, and
 // later worker/cache/gateway). Replaces the old wide triple on `environments`:
 // each service carries its own server + service type + name, plus the

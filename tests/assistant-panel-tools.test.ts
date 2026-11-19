@@ -99,6 +99,7 @@ function fakeCores(envs: EnvironmentListItem[]): Fakes {
     getServers: vi.fn(async () => []),
     getServer: vi.fn(async () => undefined),
     listActivity: vi.fn(async () => []),
+    resolveEnvironmentSlug: vi.fn(async () => null),
     ownerNames: vi.fn(async () => new Map()),
   };
 }
@@ -590,6 +591,40 @@ describe("get_environment_status", () => {
       error: "Unknown environment ACME/env-1. Call list_environments.",
     });
     expect(cores.getServiceStatuses).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows an old slug of a renamed environment, only to a visible one", async () => {
+    const cores = fakeCores([env(1)]);
+    const ctx = contextFor(engineer, cores);
+    cores.resolveEnvironmentSlug.mockImplementation(
+      async (_projectId: string, slug: string) =>
+        slug === "old-qa"
+          ? { environment: { id: envId(1) }, canonicalSlug: "env-1" }
+          : slug === "gone"
+            ? { environment: { id: envId(99) }, canonicalSlug: "x" }
+            : null
+    );
+    const result = await executeTool(
+      "get_environment_status",
+      { environment: "acme/OLD-QA" },
+      ctx
+    );
+    expect(cores.resolveEnvironmentSlug).toHaveBeenCalledWith(
+      ACME_ID,
+      "old-qa"
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      meta: { environment: "ACME/env-1" },
+    });
+    // An alias of an environment the viewer can't see reads as unknown.
+    expect(
+      await executeTool(
+        "get_environment_status",
+        { environment: "ACME/gone" },
+        ctx
+      )
+    ).toMatchObject({ ok: false });
   });
 });
 

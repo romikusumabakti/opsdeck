@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type OrgScope, requireOrgPermissionIn } from "@/lib/access-scope";
 import { db } from "@/lib/db";
 import type { EnvironmentListItem } from "@/lib/db/schema";
+import { resolveEnvironmentBySlug } from "@/lib/environment-slug";
 import { listPeopleFor } from "@/lib/people/queries";
 import type { OrgPermissions } from "@/lib/permissions";
 import { callName } from "@/lib/user-display";
@@ -78,6 +79,8 @@ export type PanelCores = {
   getServers: typeof getServersFor;
   getServer: typeof getServerFor;
   listActivity: typeof listActivityFor;
+  /** The environment an old (renamed) slug still names, if any. */
+  resolveEnvironmentSlug: typeof resolveEnvironmentBySlug;
   /** Display names of environment owners, by user id. */
   ownerNames: (ids: string[]) => Promise<Map<string, string>>;
 };
@@ -107,6 +110,7 @@ export const PANEL_CORES: PanelCores = {
   getServers: getServersFor,
   getServer: getServerFor,
   listActivity: listActivityFor,
+  resolveEnvironmentSlug: resolveEnvironmentBySlug,
   ownerNames,
 };
 
@@ -506,7 +510,15 @@ async function environmentByRef(
     .slice(slash + 1)
     .trim()
     .toLowerCase();
-  return envs.find((e) => e.key === key && e.slug === slug) ?? null;
+  const current = envs.find((e) => e.key === key && e.slug === slug);
+  if (current) return current;
+  // An old slug (renamed since), e.g. from an earlier turn of the chat; only
+  // ever one of the environments the viewer sees.
+  const projectId = envs.find((e) => e.key === key)?.projectId;
+  const resolved = projectId
+    ? await ctx.panel.cores.resolveEnvironmentSlug(projectId, slug)
+    : null;
+  return envs.find((e) => e.id === resolved?.environment.id) ?? null;
 }
 
 const envMeta = (env: EnvironmentListItem): ToolMeta => ({

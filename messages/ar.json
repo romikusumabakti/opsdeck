@@ -1451,6 +1451,10 @@
   "actionErrors": {
     "knowledgeVisibilityInvalid": "اختر الأدوار من القائمة فقط. يرى المسؤولون جميع المجموعات دائمًا.",
     "environmentKindProductionAdminOnly": "يمكن للمسؤول فقط تمييز بيئة على أنها بيئة إنتاج أو تغيير نوع بيئة إنتاج.",
+    "environmentSlugInvalid": "استخدم من 1 إلى 40 حرفًا لاتينيًا صغيرًا وأرقامًا وشرطات مفردة، دون أن يبدأ أو ينتهي بشرطة.",
+    "environmentSlugReserved": "اسم الرابط هذا هو إحدى صفحات المشروع نفسه. اختر اسمًا آخر.",
+    "environmentSlugTaken": "تستخدم بيئة أخرى في هذا المشروع اسم الرابط هذا بالفعل.",
+    "environmentSlugAliasTaken": "استخدمت بيئة أخرى في هذا المشروع اسم الرابط هذا من قبل، ولا تزال الروابط القديمة تفتحها. اختر اسمًا آخر.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "الاسم والبريد الإلكتروني مطلوبان",
     "domainNotAllowed": "يُسمح فقط بالبريد الإلكتروني @{domain}",
@@ -2353,6 +2357,7 @@
     "serverKeyRotated": "{actor} بدّل مفتاح SSH على {server} (من {from})",
     "serverKeyFromChanged": "{actor} حدّث عنوان مفتاح SSH لـ {server} (من {before} إلى {after})",
     "environmentDeleted": "حذف {actor} البيئة {environment}",
+    "environmentSlugChanged": "غيّر {actor} اسم رابط {environment} من {from} إلى {to}",
     "environmentDomainAdopted": "اعتمد {actor} اسم المضيف {hostname} للبيئة {environment}",
     "releaseCreated": "{actor} marked {component} {version} of {project} as a release",
     "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",

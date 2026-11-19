@@ -365,6 +365,13 @@ function message(
         actor,
         environment: String(d.environment),
       });
+    case "environment.slugChanged":
+      return t("environmentSlugChanged", {
+        actor,
+        environment: String(d.environment),
+        from: String(d.from),
+        to: String(d.to),
+      });
     case "environment.provision":
       return t("environmentProvisioned", {
         actor,

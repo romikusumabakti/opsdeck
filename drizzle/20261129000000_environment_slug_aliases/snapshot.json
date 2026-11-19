@@ -1,0 +1,249 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "d58cf67a-1335-4670-b635-5b84aee0e86f",
+  "prevIds": [
+    "2bbfe8f5-c442-42aa-815f-9728f640382b"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "environment_slug_aliases"
+      ],
+      "writes": [
+        "s|tbl|public.environment_slug_aliases",
+        "n|tbl|public.environment_slug_aliases",
+        "e|tbl|public.environment_slug_aliases",
+        "n|rel|public.environment_slug_aliases",
+        "n|type|public.environment_slug_aliases",
+        "n|rel|public.environment_slug_aliases_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "environment_slug_aliases",
+        "environment_slug_aliases_environment_idx"
+      ],
+      "writes": [
+        "s|idx|public.environment_slug_aliases_environment_idx",
+        "n|idx|public.environment_slug_aliases_environment_idx",
+        "e|idx|public.environment_slug_aliases_environment_idx",
+        "n|rel|public.environment_slug_aliases_environment_idx"
+      ],
+      "reads": [
+        "n|tbl|public.environment_slug_aliases",
+        "n|sch|public",
+        "n|col|public.environment_slug_aliases.environment_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "environment_slug_aliases"
+      ],
+      "writes": [
+        "s|fk|public.environment_slug_aliases.environment_slug_aliases_project_id_fkey",
+        "n|fk|public.environment_slug_aliases.environment_slug_aliases_project_id_fkey",
+        "e|fk|public.environment_slug_aliases.environment_slug_aliases_project_id_fkey",
+        "n|con|public.environment_slug_aliases.environment_slug_aliases_project_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.environment_slug_aliases",
+        "n|sch|public",
+        "n|tbl|public.projects",
+        "n|sch|public",
+        "n|col|public.environment_slug_aliases.project_id",
+        "n|col|public.projects.id",
+        "e|uniqueness|public.projects.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "environment_slug_aliases"
+      ],
+      "writes": [
+        "s|fk|public.environment_slug_aliases.environment_slug_aliases_environment_id_fkey",
+        "n|fk|public.environment_slug_aliases.environment_slug_aliases_environment_id_fkey",
+        "e|fk|public.environment_slug_aliases.environment_slug_aliases_environment_id_fkey",
+        "n|con|public.environment_slug_aliases.environment_slug_aliases_environment_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.environment_slug_aliases",
+        "n|sch|public",
+        "n|tbl|public.environments",
+        "n|sch|public",
+        "n|col|public.environment_slug_aliases.environment_id",
+        "n|col|public.environments.id",
+        "e|uniqueness|public.environments.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "environment_slug_aliases",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environment_slug_aliases",
+        "name": "project_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environment_slug_aliases",
+        "name": "slug",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environment_slug_aliases",
+        "name": "environment_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environment_slug_aliases",
+        "name": "created_at",
+        "type": "timestamp",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environment_slug_aliases",
+        "name": "environment_slug_aliases_environment_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "environment_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environment_slug_aliases",
+        "name": "environment_slug_aliases_project_id_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "project_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "projects",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environment_slug_aliases",
+        "name": "environment_slug_aliases_environment_id_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "environment_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "environments",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "environment_slug_aliases",
+        "name": "environment_slug_aliases_pkey",
+        "columns": [
+          "project_id",
+          "slug"
+        ],
+        "nameExplicit": true,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

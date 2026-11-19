@@ -321,6 +321,10 @@ export const environmentUpdateSchema = environmentFields
   .extend({
     hasDatabase: z.boolean().optional(),
     hasFrontend: z.boolean().optional(),
+    // A rename of the URL name. Only shaped here: the service refuses a bad
+    // or taken slug with a coded error the form shows on the field
+    // (lib/setup/slug#envSlugProblem, environments#requireAvailableEnvSlug).
+    slug: z.string().trim().max(64).optional(),
   })
   .superRefine(checkSharedDbNames);
 // An edit never switches a server's sign-in: that is the key actions' job.

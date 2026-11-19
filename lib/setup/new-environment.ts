@@ -18,7 +18,7 @@ import {
   environmentSetupInputSchema,
   type SetupIssue,
 } from "@/lib/setup/schema";
-import { baseEnvSlug } from "@/lib/setup/slug";
+import { slugify } from "@/lib/setup/slug";
 import {
   sharedDatabaseNameSchema,
   sharedDatabaseNamesOverlap,
@@ -187,6 +187,8 @@ const ENTRY_PORT_VARIABLE = "ENTRY_PORT";
 const KEY_MAX_LENGTH = 64;
 const DB_NAME_MAX_LENGTH = 63;
 const LABEL_MAX_LENGTH = 63;
+// The base a repository name gives a component or app key, before -2, -3.
+const REPO_KEY_LENGTH = 60;
 
 /** `base`, else `base-2`, `base-3`, ... the first not in `taken`. */
 function uniqueKey(base: string, taken: ReadonlySet<string>): string {
@@ -200,7 +202,10 @@ function uniqueKey(base: string, taken: ReadonlySet<string>): string {
 
 /** The key a repo's name gives: `owner/panel-canary-2` → `panel-canary-2`. */
 function repoKey(repoFullName: string): string {
-  return baseEnvSlug(repoFullName.split("/").at(-1) ?? repoFullName);
+  return (
+    slugify(repoFullName.split("/").at(-1) ?? repoFullName, REPO_KEY_LENGTH) ||
+    "env"
+  );
 }
 
 /**

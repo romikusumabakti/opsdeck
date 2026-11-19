@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { requireProjectPage } from "@/lib/authz";
-import { resolveEnvIdByKeySlug } from "@/lib/env-url";
+import { resolveEnvByKeySlug } from "@/lib/env-url";
 import {
   environmentInputSchema,
   environmentUpdateSchema,
@@ -45,6 +45,8 @@ export const environmentsRouter = sessionRouter()
    * resolved to its environment id, plus the caller's role in its project
    * (the layout's ProjectRoleProvider). Same guard the layout applied — 404
    * when the key/slug don't match or the project is invisible to the caller.
+   * An old slug (renamed since) resolves too; `projectKey`/`envSlug` are the
+   * environment's current ones, so the client redirects when they differ.
    */
   .get(
     "/resolve",
@@ -56,9 +58,15 @@ export const environmentsRouter = sessionRouter()
     ),
     async (c) => {
       const { projectKey, envSlug } = c.req.valid("query");
-      const environmentId = await resolveEnvIdByKeySlug(projectKey, envSlug);
+      const resolved = await resolveEnvByKeySlug(projectKey, envSlug);
+      const { environmentId } = resolved;
       const { role } = await requireProjectPage({ environmentId });
-      return c.json({ environmentId, role });
+      return c.json({
+        environmentId,
+        role,
+        projectKey: resolved.projectKey,
+        envSlug: resolved.envSlug,
+      });
     }
   )
   .post(

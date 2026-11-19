@@ -44,6 +44,7 @@ import {
   environmentAccess,
   environmentMailpit,
   environmentServices,
+  environmentSlugAliases,
   environments,
   environmentVariables,
   type NewEnvironment,
@@ -53,6 +54,10 @@ import {
   servers,
   users as userTable,
 } from "@/lib/db/schema";
+import {
+  projectSlugsInUse,
+  resolveEnvironmentBySlug,
+} from "@/lib/environment-slug";
 import {
   changedInfraFields,
   loadEnvironmentWithServers,
@@ -76,7 +81,11 @@ import {
 } from "@/lib/running-sources";
 import { encryptNullable } from "@/lib/secrets";
 import { findService, hasService, type ServiceRole } from "@/lib/services";
-import { baseEnvSlug } from "@/lib/setup/slug";
+import {
+  baseEnvSlug,
+  ENV_SLUG_MAX_LENGTH,
+  envSlugProblem,
+} from "@/lib/setup/slug";
 import { holdEnvironmentExclusive, tearingDownIn } from "@/lib/teardown/guard";
 import { teardownState } from "@/lib/teardown/repository";
 import type { ActionResponse } from "@/lib/types";
@@ -409,26 +418,78 @@ export async function getEnvironmentRunningFor(
  * CREATE: Add a new environment. Server FKs (dbServerId, backendServerId,
  * frontendServerId) must already exist — create them via createServer first.
  */
-// A slug unique within the project — append -2, -3, … on collision. Slugs that
-// would shadow one of the project's own sub-routes are treated as taken, so an
-// environment named "Issues" becomes `issues-2` instead of an unreachable page.
+// A slug unique within the project — append -2, -3, … on collision, cut so
+// the result stays within ENV_SLUG_MAX_LENGTH. Slugs another environment had
+// before a rename (aliases) are taken: they keep pointing at that
+// environment. Slugs that would shadow one of the project's own sub-routes
+// are treated as taken, so an environment named "Issues" becomes `issues-2`
+// instead of an unreachable page.
 export async function uniqueEnvSlug(
   projectId: string,
   name: string
 ): Promise<string> {
   const base = baseEnvSlug(name);
-  const existing = await db
-    .select({ slug: environments.slug })
-    .from(environments)
-    .where(eq(environments.projectId, projectId));
-  const taken = new Set([
-    ...existing.map((e) => e.slug),
-    ...RESERVED_ENV_SLUGS,
-  ]);
+  const taken = await projectSlugsInUse(projectId);
+  for (const reserved of RESERVED_ENV_SLUGS) taken.add(reserved);
   if (!taken.has(base)) return base;
-  let n = 2;
-  while (taken.has(`${base}-${n}`)) n++;
-  return `${base}-${n}`;
+  for (let n = 2; ; n++) {
+    const suffix = `-${n}`;
+    const head = base
+      .slice(0, ENV_SLUG_MAX_LENGTH - suffix.length)
+      .replace(/-+$/, "");
+    const slug = `${head}${suffix}`;
+    if (!taken.has(slug)) return slug;
+  }
+}
+
+/**
+ * Refuses `slug` as the slug of environment `environmentId` in `projectId`
+ * with a coded error: not a valid URL name (400 environmentSlugInvalid), a
+ * project sub-route (400 environmentSlugReserved), another environment's
+ * current slug (409 environmentSlugTaken) or one it had before a rename (409
+ * environmentSlugAliasTaken). The environment's own old slug is free:
+ * renaming back reuses it. `format: false` skips the URL-name rules, for a
+ * slug the environment already has (one older than the 40-character cap
+ * stays valid until renamed).
+ */
+export async function requireAvailableEnvSlug(
+  projectId: string,
+  slug: string,
+  environmentId: string,
+  {
+    format = true,
+    executor = db,
+  }: { format?: boolean; executor?: Pick<typeof db, "select"> } = {}
+): Promise<void> {
+  const problem = format ? envSlugProblem(slug) : null;
+  const holder = problem
+    ? null
+    : await resolveEnvironmentBySlug(projectId, slug, executor);
+  const code =
+    problem ??
+    (holder && holder.environment.id !== environmentId
+      ? holder.viaAlias
+        ? "environmentSlugAliasTaken"
+        : "environmentSlugTaken"
+      : null);
+  if (!code) return;
+  const t = await getServerTranslator("actionErrors");
+  throw new CodedHTTPException(problem ? 400 : 409, code, t(code));
+}
+
+// The transaction-scoped advisory lock on a project's slugs: renames and
+// moves into the project take it before their final check, so two of them
+// can't both claim one slug (one as a current slug, one as an alias, which
+// no unique index sees). In a fixed order, so two never deadlock.
+async function holdProjectSlugs(
+  tx: DbTransaction,
+  projectIds: string[]
+): Promise<void> {
+  for (const projectId of [...new Set(projectIds)].sort()) {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`environment-slug:${projectId}`}, 0))`
+    );
+  }
 }
 
 // An owner must be someone who can be assigned issues in the environment's
@@ -1189,9 +1250,26 @@ export async function updateEnvironment(
       sharedDbOf(effectiveDbFields(input, findService(stored, "db")))
     );
   }
+  // A rename of the URL name, or a move that takes the slug into another
+  // project: the slug must be free there. The old slug stays an alias, so
+  // links to it keep opening this environment.
+  const renamedSlug =
+    input.slug !== undefined && input.slug !== stored.slug
+      ? input.slug
+      : undefined;
+  const slugProjectId = input.projectId ?? stored.projectId;
+  const slugChecked =
+    renamedSlug !== undefined || slugProjectId !== stored.projectId;
+  const slugCheck = (executor: Pick<typeof db, "select"> = db) =>
+    requireAvailableEnvSlug(slugProjectId, renamedSlug ?? stored.slug, id, {
+      format: renamedSlug !== undefined,
+      executor,
+    });
+  if (slugChecked) await slugCheck();
   try {
     const envPatch = pickPresent({
       projectId: input.projectId,
+      slug: renamedSlug,
       name: input.name,
       kind: input.kind,
       ownerId: input.ownerId,
@@ -1239,6 +1317,27 @@ export async function updateEnvironment(
       // A service edited while a teardown takes the environment apart would
       // not be undone by it (its steps were planned from the old rows).
       if (await tearingDownIn(tx, id)) return "teardownRunning" as const;
+      if (slugChecked) {
+        await holdProjectSlugs(tx, [stored.projectId, slugProjectId]);
+        await slugCheck(tx);
+        if (renamedSlug !== undefined) {
+          await tx.insert(environmentSlugAliases).values({
+            projectId: stored.projectId,
+            slug: stored.slug,
+            environmentId: id,
+          });
+        }
+        // Renaming back to an old slug makes it current again: its alias goes.
+        await tx
+          .delete(environmentSlugAliases)
+          .where(
+            and(
+              eq(environmentSlugAliases.projectId, slugProjectId),
+              eq(environmentSlugAliases.slug, renamedSlug ?? stored.slug),
+              eq(environmentSlugAliases.environmentId, id)
+            )
+          );
+      }
       // Always re-read the row so a services-only edit still reports "not found"
       // for a bad id; only issue the UPDATE when the env itself changed.
       const [env] = Object.keys(envPatch).length
@@ -1302,6 +1401,19 @@ export async function updateEnvironment(
     }
     if (!updatedEnvironment) {
       return { success: false, message: "Environment not found" };
+    }
+    if (renamedSlug !== undefined) {
+      await recordActivity({
+        actorId: session.user.id,
+        action: "environment.slugChanged",
+        entityType: "environment",
+        entityId: id,
+        data: {
+          environment: updatedEnvironment.name,
+          from: stored.slug,
+          to: updatedEnvironment.slug,
+        },
+      });
     }
 
     // An edit can move the environment to another project or rename it, which

@@ -1,34 +1,53 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getProjectRole } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { environments, projects } from "@/lib/db/schema";
+import { resolveEnvironmentBySlug } from "@/lib/environment-slug";
 import { requestCache } from "@/server/context";
 import { notFound } from "@/server/errors";
 
-// Resolve a readable environment URL (`/CMEM/prod/…`) to its environment id.
+// Resolve a readable environment URL (`/CMEM/prod/…`) to its environment, an
+// old slug (an alias left by a rename) included: `projectKey` and `envSlug`
+// are then the environment's current ones, which the client redirects to.
 // `requestCache()` dedupes the lookup within a request so every handler and
 // helper can call it freely. Throws a 404 when the key/slug don't match, or the
 // caller can't see the project (an invisible project doesn't exist).
-export const resolveEnvIdByKeySlug = requestCache(
-  async (projectKey: string, envSlug: string): Promise<string> => {
+export const resolveEnvByKeySlug = requestCache(
+  async (
+    projectKey: string,
+    envSlug: string
+  ): Promise<{
+    environmentId: string;
+    projectKey: string;
+    envSlug: string;
+    viaAlias: boolean;
+  }> => {
     const project = await db.query.projects.findFirst({
       where: { key: projectKey.toUpperCase() },
-      columns: { id: true },
+      columns: { id: true, key: true },
     });
     if (!project) notFound();
     if (!(await getProjectRole({ projectId: project.id }))) notFound();
-    const [env] = await db
-      .select({ id: environments.id })
-      .from(environments)
-      .where(
-        and(
-          eq(environments.projectId, project.id),
-          eq(environments.slug, envSlug.toLowerCase())
-        )
-      )
-      .limit(1);
-    if (!env) notFound();
-    return env.id;
+    const resolved = await resolveEnvironmentBySlug(project.id, envSlug);
+    if (!resolved) notFound();
+    const { environment } = resolved;
+    // An alias of an environment that moved to another project since.
+    const key =
+      environment.projectId === project.id
+        ? project.key
+        : (
+            await db.query.projects.findFirst({
+              where: { id: environment.projectId },
+              columns: { key: true },
+            })
+          )?.key;
+    if (!key) notFound();
+    return {
+      environmentId: environment.id,
+      projectKey: key,
+      envSlug: resolved.canonicalSlug,
+      viaAlias: resolved.viaAlias,
+    };
   }
 );
 

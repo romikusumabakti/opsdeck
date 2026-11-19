@@ -1451,6 +1451,10 @@
   "actionErrors": {
     "knowledgeVisibilityInvalid": "只能选择列表中的角色。管理员始终可以查看所有集合。",
     "environmentKindProductionAdminOnly": "只有管理员可以将环境标记为生产环境，或更改生产环境的类型。",
+    "environmentSlugInvalid": "请使用 1–40 个小写字母、数字和单个连字符，且不能以连字符开头或结尾。",
+    "environmentSlugReserved": "此 URL 名称是项目自身的页面之一，请换一个。",
+    "environmentSlugTaken": "此项目中的另一个环境已在使用此 URL 名称。",
+    "environmentSlugAliasTaken": "此项目中的另一个环境以前使用过此 URL 名称，旧链接仍会打开它。请换一个。",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "姓名和邮箱为必填项",
     "domainNotAllowed": "只允许 @{domain} 邮箱",
@@ -2353,6 +2357,7 @@
     "serverKeyRotated": "{actor} 轮换了 {server} 上的 SSH 密钥（来源 {from}）",
     "serverKeyFromChanged": "{actor} 更新了 {server} 的 SSH 密钥地址（从 {before} 改为 {after}）",
     "environmentDeleted": "{actor} 删除了 {environment}",
+    "environmentSlugChanged": "{actor} 将 {environment} 的 URL 名称从 {from} 改为 {to}",
     "environmentDomainAdopted": "{actor} 为 {environment} 采用了主机名 {hostname}",
     "releaseCreated": "{actor} marked {component} {version} of {project} as a release",
     "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",

@@ -1451,6 +1451,10 @@
   "actionErrors": {
     "knowledgeVisibilityInvalid": "Choose only roles from the list. Admins always see every collection.",
     "environmentKindProductionAdminOnly": "Only an admin can mark an environment as production or change a production environment's kind.",
+    "environmentSlugInvalid": "Use 1–40 lowercase letters, digits and single hyphens, not starting or ending with a hyphen.",
+    "environmentSlugReserved": "This URL name is one of the project's own pages. Choose another.",
+    "environmentSlugTaken": "Another environment in this project already uses this URL name.",
+    "environmentSlugAliasTaken": "Another environment in this project used this URL name before, and old links still open it. Choose another.",
     "backupTargetsBlockDatabaseRemoval": "Turn off backup-before-deploy on this environment's deploy targets first.",
     "nameAndEmailRequired": "Name and email are required",
     "domainNotAllowed": "Only @{domain} emails are allowed",
@@ -2353,6 +2357,7 @@
     "serverKeyRotated": "{actor} rotated the SSH key on {server} (from {from})",
     "serverKeyFromChanged": "{actor} updated the SSH key address of {server} (from {before} to {after})",
     "environmentDeleted": "{actor} deleted {environment}",
+    "environmentSlugChanged": "{actor} changed the URL name of {environment} from {from} to {to}",
     "environmentDomainAdopted": "{actor} adopted the hostname {hostname} for {environment}",
     "releaseCreated": "{actor} marked {component} {version} of {project} as a release",
     "releaseDownloaded": "{actor} downloaded release {version} of {component} in {project}",

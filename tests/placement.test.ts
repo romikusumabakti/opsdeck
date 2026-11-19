@@ -196,6 +196,12 @@ vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
 }));
 const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
 
+// Slug availability has its own scratch suite (environment-slug-scratch).
+vi.mock("@/lib/environment-slug", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/environment-slug")>()),
+  resolveEnvironmentBySlug: async () => null,
+}));
+
 vi.mock("@/lib/db", async () => {
   const schema = await import("@/lib/db/schema");
   const rowsFor = (table: unknown): unknown[] => {
@@ -266,6 +272,8 @@ vi.mock("@/lib/db", async () => {
     insert: record("insert"),
     update: record("update"),
     delete: record("delete"),
+    // The project-slug advisory lock of a move.
+    execute: async () => [],
   };
   return {
     db: {

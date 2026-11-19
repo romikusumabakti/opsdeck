@@ -1451,6 +1451,10 @@
   "actionErrors": {
     "knowledgeVisibilityInvalid": "Pilih hanya role dari daftar. Admin selalu bisa melihat semua koleksi.",
     "environmentKindProductionAdminOnly": "Hanya admin yang bisa menandai environment sebagai produksi atau mengubah jenis environment produksi.",
+    "environmentSlugInvalid": "Gunakan 1–40 huruf kecil, angka, dan tanda hubung tunggal, tidak diawali atau diakhiri tanda hubung.",
+    "environmentSlugReserved": "Nama URL ini dipakai salah satu halaman proyek. Pilih nama lain.",
+    "environmentSlugTaken": "Environment lain di proyek ini sudah memakai nama URL ini.",
+    "environmentSlugAliasTaken": "Environment lain di proyek ini pernah memakai nama URL ini, dan tautan lama masih membukanya. Pilih nama lain.",
     "backupTargetsBlockDatabaseRemoval": "Matikan cadangan sebelum deploy pada target deploy lingkungan ini terlebih dahulu.",
     "nameAndEmailRequired": "Nama dan email wajib diisi",
     "domainNotAllowed": "Hanya email @{domain} yang diizinkan",
@@ -2353,6 +2357,7 @@
     "serverKeyRotated": "{actor} mengganti SSH key di {server} (dari {from})",
     "serverKeyFromChanged": "{actor} memperbarui alamat SSH key {server} (dari {before} menjadi {after})",
     "environmentDeleted": "{actor} menghapus {environment}",
+    "environmentSlugChanged": "{actor} mengubah nama URL {environment} dari {from} menjadi {to}",
     "environmentDomainAdopted": "{actor} mengadopsi hostname {hostname} untuk {environment}",
     "releaseCreated": "{actor} menandai {component} {version} di {project} sebagai rilis",
     "releaseDownloaded": "{actor} mengunduh rilis {version} dari {component} di {project}",

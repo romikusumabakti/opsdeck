@@ -73,6 +73,12 @@ vi.mock("@/lib/teardown/guard", async (importOriginal) => ({
 }));
 const teardown = vi.hoisted(() => ({ blocks: false, running: false }));
 
+// Slug availability has its own scratch suite (environment-slug-scratch).
+vi.mock("@/lib/environment-slug", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/environment-slug")>()),
+  resolveEnvironmentBySlug: async () => null,
+}));
+
 vi.mock("@/lib/db", () => {
   // A query builder: awaiting it yields rows, and every builder method returns
   // it again so any chain order works.
@@ -112,6 +118,8 @@ vi.mock("@/lib/db", () => {
     update: record("update"),
     delete: record("delete"),
     select: () => record("select")(),
+    // The project-slug advisory lock of a move.
+    execute: async () => [],
   };
   return {
     db: {

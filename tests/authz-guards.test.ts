@@ -1142,7 +1142,7 @@ describe("API routers reach a guard", () => {
     const resolve = readFileSync("server/routes/environments.ts", "utf8");
     const handler = resolve.slice(resolve.indexOf('"/resolve"'));
     expect(handler).toMatch(
-      /resolveEnvIdByKeySlug\([\s\S]*requireProjectPage\(\{ environmentId \}\)/
+      /resolveEnvByKeySlug\([\s\S]*requireProjectPage\(\{ environmentId \}\)/
     );
     const mail = readFileSync("server/routes/mail.ts", "utf8");
     const configured = mail.slice(mail.indexOf('"/configured"'));
