@@ -16,6 +16,15 @@ export const IMPORT_TEXT_MAX_BYTES = 256 * 1024;
 /** The most entries a pasted or uploaded text may define. */
 export const IMPORT_TEXT_MAX_ENTRIES = 1000;
 
+/**
+ * Whether text pasted into a variable's name field is a `.env` (several
+ * lines, or a line with `=`) rather than one name.
+ */
+export function looksLikeEnvText(text: string): boolean {
+  const trimmed = text.trim();
+  return /[\r\n]/.test(trimmed) || trimmed.includes("=");
+}
+
 export type ImportState = "new" | "same" | "conflict" | "unimportable";
 
 export type ImportUnimportableReason =

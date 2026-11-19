@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -50,9 +50,10 @@ const t = messages.variables.import;
 
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
+let queryClient: QueryClient;
 
 async function render(node: React.ReactNode, role: ProjectRole = "engineer") {
-  const queryClient = new QueryClient({
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   container = document.createElement("div");
@@ -170,6 +171,14 @@ async function openPasteReview() {
   await click(button(t.review));
 }
 
+/** The dialog with its own open state, as VariablesClient holds it. */
+function Controlled() {
+  const [open, setOpen] = useState(true);
+  return (
+    <ImportEnvDialog open={open} onOpenChange={setOpen} environmentId={ENV} />
+  );
+}
+
 describe("Import .env dialog: paste", () => {
   beforeEach(() => {
     api.saveImport.mockResolvedValue({ imported: 2, overwritten: 0 });
@@ -263,11 +272,72 @@ describe("Import .env dialog: paste", () => {
       (o) => o.textContent?.trim() === messages.variables.kind.secret
     );
     await click(secret);
+    // A row turned secret is masked, though the server proposed it plain.
+    const portRow = checkbox("APP_PORT")?.closest("tr");
+    expect(portRow?.textContent).not.toContain("8080");
+    expect(portRow?.textContent).toContain("••••••");
     await click(button("Import 2 variables"));
     expect(api.saveImport.mock.calls[0]?.[1].rows).toContainEqual({
       name: "APP_PORT",
       kind: "secret",
     });
+  });
+
+  it("ignores a preview that answers after the text was edited", async () => {
+    let answer: (value: typeof TEXT_REVIEW) => void = () => {};
+    api.previewTextImport.mockImplementation(
+      () => new Promise((resolve) => (answer = resolve))
+    );
+    await render(
+      <ImportEnvDialog open onOpenChange={() => {}} environmentId={ENV} />
+    );
+    await typeText(textarea(), TEXT);
+    await click(button(t.review));
+    await typeText(textarea(), "OTHER=1");
+    await act(async () => answer(TEXT_REVIEW));
+    await flush();
+    expect(checkbox("APP_PORT")).toBeNull();
+    expect(button("Import 0 variables")?.disabled ?? true).toBe(true);
+  });
+
+  it("keeps a paste refusal on the Paste tab", async () => {
+    api.previewTextImport.mockRejectedValue(
+      new ApiError(400, "x", "envParseError", { line: 3 })
+    );
+    await render(
+      <ImportEnvDialog open onOpenChange={() => {}} environmentId={ENV} />
+    );
+    await typeText(textarea(), "A=1");
+    await click(button(t.review));
+    expect(body()).toContain("The .env can't be read at line 3.");
+    await click(tab(t.sourceUpload));
+    expect(body()).not.toContain("The .env can't be read at line 3.");
+  });
+
+  it("leaves no pasted text or secret in the query client after closing", async () => {
+    api.previewTextImport.mockResolvedValue(TEXT_REVIEW);
+    api.saveImport.mockResolvedValue({ imported: 2, overwritten: 0 });
+    await render(<Controlled />);
+    await typeText(textarea(), TEXT);
+    await click(button(t.review));
+    await click(button("Import 2 variables"));
+    expect(textarea()).toBeNull();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    const cached = JSON.stringify([
+      queryClient
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.state),
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .map((q) => q.state),
+    ]);
+    expect(cached).not.toContain("tok-fictional");
+    expect(cached).not.toContain("APP_PORT=8080");
+    expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
   });
 
   it("drops the review when the text is edited", async () => {
@@ -322,12 +392,19 @@ describe("Import .env dialog: paste", () => {
 });
 
 describe("Import .env dialog: upload", () => {
-  async function upload(file: File) {
-    await click(tab(t.sourceUpload));
+  async function upload(file: File, onValue: (v: string) => void = () => {}) {
+    if (!document.querySelector("#import-env-file")) {
+      await click(tab(t.sourceUpload));
+    }
     const input = document.querySelector<HTMLInputElement>("#import-env-file");
     expect(input).not.toBeNull();
     Object.defineProperty(input, "files", {
       value: [file],
+      configurable: true,
+    });
+    Object.defineProperty(input, "value", {
+      get: () => "",
+      set: onValue,
       configurable: true,
     });
     await act(async () => {
@@ -345,6 +422,50 @@ describe("Import .env dialog: upload", () => {
     await upload(new File([TEXT], ".env", { type: "text/plain" }));
     expect(api.previewTextImport).toHaveBeenCalledWith(ENV, TEXT);
     expect(checked("APP_PORT")).toBe(true);
+  });
+
+  it("clears the input so the same file can be picked again", async () => {
+    api.previewTextImport.mockResolvedValue(TEXT_REVIEW);
+    const onValue = vi.fn();
+    await render(
+      <ImportEnvDialog open onOpenChange={() => {}} environmentId={ENV} />
+    );
+    await upload(new File([TEXT], ".env"), onValue);
+    expect(onValue).toHaveBeenCalledWith("");
+  });
+
+  it("keeps the second file's review when the first answers late", async () => {
+    const SECOND = "APP_PORT=9090";
+    let answerFirst: (value: typeof TEXT_REVIEW) => void = () => {};
+    api.previewTextImport.mockImplementation((_env: string, text: string) =>
+      text === SECOND
+        ? Promise.resolve({
+            rows: [row({ name: "APP_PORT", value: "9090" })],
+            skipped: [],
+          })
+        : new Promise((resolve) => (answerFirst = resolve))
+    );
+    await render(
+      <ImportEnvDialog open onOpenChange={() => {}} environmentId={ENV} />
+    );
+    await upload(new File([TEXT], "first.env"));
+    await upload(new File([SECOND], "second.env"));
+    await act(async () => answerFirst(TEXT_REVIEW));
+    await flush();
+    expect(checkbox("API_TOKEN")).toBeNull();
+    expect(checkbox("APP_PORT")?.closest("tr")?.textContent).toContain("9090");
+  });
+
+  it("warns when the file is not UTF-8 and still reviews it", async () => {
+    api.previewTextImport.mockResolvedValue(TEXT_REVIEW);
+    await render(
+      <ImportEnvDialog open onOpenChange={() => {}} environmentId={ENV} />
+    );
+    await upload(
+      new File([new Uint8Array([0x41, 0x3d, 0xe9, 0x0a])], "latin1.env")
+    );
+    expect(body()).toContain(t.uploadNotUtf8);
+    expect(api.previewTextImport).toHaveBeenCalled();
   });
 
   it("refuses a file over 256 KiB without sending it", async () => {

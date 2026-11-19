@@ -49,6 +49,32 @@ import { useVariableErrorText } from "./variable-form-dialog";
 
 type Source = "paste" | "upload" | "server";
 
+type TextPreview = Awaited<ReturnType<typeof previewTextImport>>;
+
+/**
+ * The preview of one text tab (Paste or Upload), with its own pending and
+ * error state. A result counts only while it is still the tab's text: an
+ * edit or another file during the request drops it. `gcTime: 0` so the text
+ * (secrets included) leaves the mutation cache once the dialog closes.
+ */
+function useTextPreview(
+  environmentId: string,
+  current: React.RefObject<string | null>,
+  onReview: (text: string, result: TextPreview) => void,
+  onError: (error: unknown) => void
+) {
+  return useMutation({
+    mutationFn: (text: string) => previewTextImport(environmentId, text),
+    gcTime: 0,
+    onSuccess: (result, text) => {
+      if (current.current === text) onReview(text, result);
+    },
+    onError: (error, text) => {
+      if (current.current === text) onError(error);
+    },
+  });
+}
+
 type Review = {
   rows: ImportRow[];
   skipped: { name: string; reason: ImportSkipReason }[];
@@ -59,12 +85,6 @@ type Review = {
 );
 
 const KIB = IMPORT_TEXT_MAX_BYTES / 1024;
-
-/** A paste into the name field that is a `.env`, not one name. */
-export function looksLikeEnvText(text: string): boolean {
-  const trimmed = text.trim();
-  return /[\r\n]/.test(trimmed) || trimmed.includes("=");
-}
 
 /**
  * Localized text for an import failure: the import's own codes, then the
@@ -158,20 +178,28 @@ function ImportEnvBody({
   const [pasteText, setPasteText] = React.useState(initialText ?? "");
   const [upload, setUpload] = React.useState<{
     name: string;
-    text: string;
+    notUtf8: boolean;
   } | null>(null);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [reviews, setReviews] = React.useState<Partial<Record<Source, Review>>>(
     {}
   );
-  const [error, setError] = React.useState<string | null>(null);
+  const [errors, setErrors] = React.useState<Partial<Record<Source, string>>>(
+    {}
+  );
   const [notice, setNotice] = React.useState<string | null>(null);
+  // The text each text tab currently holds, for dropping stale previews.
+  const pasteRef = React.useRef<string | null>(initialText ?? "");
+  const uploadRef = React.useRef<string | null>(null);
 
-  const preview = useMutation({
-    mutationFn: ({ text }: { text: string; for: Source }) =>
-      previewTextImport(environmentId, text),
-    onMutate: () => setError(null),
-    onSuccess: (result, { text, for: tab }) =>
+  function setError(tab: Source, message: string | null) {
+    setErrors(({ [tab]: _, ...rest }) =>
+      message === null ? rest : { ...rest, [tab]: message }
+    );
+  }
+
+  function textReview(tab: Source) {
+    return (text: string, result: TextPreview) =>
       setReviews((prev) => ({
         ...prev,
         [tab]: {
@@ -181,13 +209,26 @@ function ImportEnvBody({
           skipped: result.skipped,
           choices: initialChoices(result.rows),
         },
-      })),
-    onError: (e) => setError(errorText(e)),
-  });
+      }));
+  }
+
+  const pastePreview = useTextPreview(
+    environmentId,
+    pasteRef,
+    textReview("paste"),
+    (e) => setError("paste", errorText(e))
+  );
+  const uploadPreview = useTextPreview(
+    environmentId,
+    uploadRef,
+    textReview("upload"),
+    (e) => setError("upload", errorText(e))
+  );
 
   const serverRead = useMutation({
     mutationFn: () => readServerImport(environmentId),
-    onMutate: () => setError(null),
+    gcTime: 0,
+    onMutate: () => setError("server", null),
     onSuccess: (result) =>
       setReviews((prev) => ({
         ...prev,
@@ -199,11 +240,11 @@ function ImportEnvBody({
           choices: initialChoices(result.rows),
         },
       })),
-    onError: (e) => setError(errorText(e)),
+    onError: (e) => setError("server", errorText(e)),
   });
 
   const save = useMutation({
-    mutationFn: (review: Review) => {
+    mutationFn: ({ review }: { review: Review; tab: Source }) => {
       const picked = review.rows.filter((row) =>
         isSaveable(row, review.choices[row.name])
       );
@@ -233,22 +274,24 @@ function ImportEnvBody({
         }),
       });
     },
-    onMutate: () => {
-      setError(null);
+    // The variables hold the reviewed text: keep it out of the cache.
+    gcTime: 0,
+    onMutate: ({ tab }) => {
+      setError(tab, null);
       setNotice(null);
     },
     onSuccess: ({ imported, overwritten }) => {
       toast.success(t("imported", { count: imported, overwritten }));
       onDone();
     },
-    onError: (e) => {
+    onError: (e, { tab }) => {
       if (e instanceof ApiError && e.code === "envFileChanged") {
         // The review no longer matches the files: read them again.
         setNotice(errorText(e));
         serverRead.mutate();
         return;
       }
-      setError(errorText(e));
+      setError(tab, errorText(e));
     },
   });
 
@@ -257,12 +300,11 @@ function ImportEnvBody({
   React.useEffect(() => {
     if (autoPreviewed.current || !initialText?.trim()) return;
     autoPreviewed.current = true;
-    preview.mutate({ text: initialText, for: "paste" });
-  }, [initialText, preview]);
+    pastePreview.mutate(initialText);
+  }, [initialText, pastePreview]);
 
   function onSourceChange(next: Source) {
     setSource(next);
-    setError(null);
     if (next === "server" && !reviews.server && !serverRead.isPending) {
       serverRead.mutate();
     }
@@ -270,12 +312,19 @@ function ImportEnvBody({
 
   function onPasteChange(text: string) {
     setPasteText(text);
+    pasteRef.current = text;
+    setError("paste", null);
     // The review belongs to the text it was made of.
     setReviews(({ paste: _, ...rest }) => rest);
   }
 
-  async function onFile(file: File | undefined) {
+  async function onFile(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    // Cleared so that picking the same file again fires another change.
+    input.value = "";
+    uploadRef.current = null;
     setUploadError(null);
+    setError("upload", null);
     setUpload(null);
     setReviews(({ upload: _, ...rest }) => rest);
     if (!file) return;
@@ -290,8 +339,10 @@ function ImportEnvBody({
       setUploadError(t("uploadReadFailed"));
       return;
     }
-    setUpload({ name: file.name, text });
-    preview.mutate({ text, for: "upload" });
+    uploadRef.current = text;
+    // file.text() decodes as UTF-8 and replaces what is not with U+FFFD.
+    setUpload({ name: file.name, notUtf8: text.includes("\uFFFD") });
+    uploadPreview.mutate(text);
   }
 
   function onChoice(name: string, patch: Partial<ImportChoice>) {
@@ -310,6 +361,7 @@ function ImportEnvBody({
   }
 
   const review = reviews[source];
+  const error = errors[source] ?? null;
   const count = review
     ? review.rows.filter((row) => isSaveable(row, review.choices[row.name]))
         .length
@@ -332,11 +384,11 @@ function ImportEnvBody({
             <PasteSource
               text={pasteText}
               onChange={onPasteChange}
-              busy={preview.isPending}
-              onReview={() => preview.mutate({ text: pasteText, for: "paste" })}
+              busy={pastePreview.isPending}
+              onReview={() => pastePreview.mutate(pasteText)}
             />
           </TabsContent>
-          <TabsContent value="upload" className="pt-2">
+          <TabsContent value="upload" className="flex flex-col gap-3 pt-2">
             <Field data-invalid={uploadError !== null}>
               <FieldLabel htmlFor="import-env-file">
                 {t("uploadLabel")}
@@ -345,7 +397,8 @@ function ImportEnvBody({
                 id="import-env-file"
                 type="file"
                 aria-invalid={uploadError !== null}
-                onChange={(event) => void onFile(event.target.files?.[0])}
+                aria-busy={uploadPreview.isPending}
+                onChange={(event) => void onFile(event.currentTarget)}
               />
               <FieldDescription>
                 {upload
@@ -354,6 +407,18 @@ function ImportEnvBody({
               </FieldDescription>
               {uploadError && <FieldError>{uploadError}</FieldError>}
             </Field>
+            {upload?.notUtf8 && (
+              <Alert>
+                <TriangleAlert />
+                <AlertDescription>{t("uploadNotUtf8")}</AlertDescription>
+              </Alert>
+            )}
+            {uploadPreview.isPending && (
+              <p className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                {t("reviewing")}
+              </p>
+            )}
           </TabsContent>
           <TabsContent value="server" className="flex flex-col gap-3 pt-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -380,7 +445,7 @@ function ImportEnvBody({
           </TabsContent>
         </Tabs>
 
-        {notice && (
+        {notice && source === "server" && (
           <Alert>
             <RefreshCw />
             <AlertDescription>{notice}</AlertDescription>
@@ -422,7 +487,7 @@ function ImportEnvBody({
         </Button>
         <Button
           disabled={!review || count === 0 || save.isPending || loading}
-          onClick={() => review && save.mutate(review)}
+          onClick={() => review && save.mutate({ review, tab: source })}
         >
           {save.isPending && (
             <Loader2 data-icon="inline-start" className="animate-spin" />

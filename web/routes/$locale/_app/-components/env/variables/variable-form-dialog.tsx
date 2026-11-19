@@ -41,6 +41,7 @@ import {
   RESERVED_PREFIX_MESSAGE,
   SECRET_TO_PLAIN_MESSAGE,
 } from "@/lib/variables/errors";
+import { looksLikeEnvText } from "@/lib/variables/import-rows";
 import {
   isReservedVariableName,
   variableNameSchema,
@@ -48,7 +49,6 @@ import {
 } from "@/lib/variables/validation";
 import { ApiError } from "@/web/api/client";
 import { putVariable, type VariableRow } from "@/web/api/variables";
-import { looksLikeEnvText } from "./import-env-dialog";
 
 export const VARIABLE_KINDS = ["plain", "secret", "generated"] as const;
 type Kind = (typeof VARIABLE_KINDS)[number];

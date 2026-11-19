@@ -168,8 +168,9 @@ function ReviewRow({
   const unimportable = row.state === "unimportable";
   const differs = row.flags.differsAcrossDirs === true;
   const chosen = row.sources?.find((s) => s.valueId === choice?.valueId);
-  const value = row.value ?? chosen?.value ?? null;
   const kind = choice?.kind ?? row.proposedKind;
+  // Shown only while the row stays plain: a row turned secret is masked.
+  const value = kind === "plain" ? (row.value ?? chosen?.value ?? null) : null;
 
   return (
     <TableRow data-state={choice?.selected ? "selected" : undefined}>
