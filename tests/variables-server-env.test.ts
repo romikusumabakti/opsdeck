@@ -1,6 +1,26 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { RemoteCommandError } from "@/lib/remote-command-error";
+import { shq } from "@/lib/sh";
 import { HostKeyMismatchError } from "@/lib/ssh-connect";
 
 // readEnvironmentEnvFiles: one read per (server, deploy dir) of the compose
@@ -19,12 +39,14 @@ type FakeTarget = {
   deployDir: string;
 };
 
+type RemoteResult = { code: number | null; stdout: string; stderr: string };
+
 const state = vi.hoisted(() => ({
   targets: [] as FakeTarget[],
   servers: [] as { id: string; name: string }[],
   missingCredentials: new Set<string>(),
   // deploy dir → what the fake remote does
-  remote: new Map<string, () => Promise<string>>(),
+  remote: new Map<string, () => Promise<RemoteResult>>(),
   calls: [] as { host: string; command: string; options: unknown }[],
 }));
 
@@ -57,7 +79,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/ssh", () => ({
-  executeRemoteCommand: vi.fn(
+  runRemoteScript: vi.fn(
     async (target: { host: string }, command: string, options: unknown) => {
       state.calls.push({ host: target.host, command, options });
       for (const [dir, run] of state.remote) {
@@ -68,13 +90,14 @@ vi.mock("@/lib/ssh", () => ({
   ),
 }));
 
-const { readEnvironmentEnvFiles, envFingerprint } = await import(
-  "@/lib/variables/server-env"
-);
+const { readEnvironmentEnvFiles, envFingerprint, serverEnvReadScript } =
+  await import("@/lib/variables/server-env");
 
 const b64 = (text: string) => Buffer.from(text, "utf8").toString("base64");
+const res = (stdout: string, code: number | null = 0, stderr = "") =>
+  Promise.resolve({ code, stdout, stderr });
 const ok = (text: string, override = false) =>
-  Promise.resolve(`OK ${override ? 1 : 0}\n${b64(text)}`);
+  res(`OK ${override ? 1 : 0}\n${b64(text)}\nEND`);
 
 function target(
   id: string,
@@ -135,14 +158,14 @@ describe("readEnvironmentEnvFiles", () => {
     ]);
   });
 
-  it("passes the 10 s timeout and the no-log option", async () => {
+  it("runs the read script under sh -c with the 10 s timeout", async () => {
     state.targets = [target("t1", "s1", "/srv/app")];
     state.remote.set("/srv/app", () => ok("A=1\n"));
     await readEnvironmentEnvFiles(ENV_ID);
-    expect(state.calls[0]?.options).toMatchObject({
-      timeoutMs: 10_000,
-      quiet: true,
-    });
+    expect(state.calls[0]?.command).toBe(
+      `sh -c ${shq(serverEnvReadScript("/srv/app"))}`
+    );
+    expect(state.calls[0]?.options).toEqual({ timeoutMs: 10_000 });
   });
 
   it("returns the text, the override flag and a fingerprint for an ok read", async () => {
@@ -160,6 +183,43 @@ describe("readEnvironmentEnvFiles", () => {
     });
   });
 
+  it("reads an empty file as ok with no entries", async () => {
+    state.targets = [target("t1", "s1", "/srv/app")];
+    state.remote.set("/srv/app", () => res("OK 0\nEND"));
+    const [row] = await readEnvironmentEnvFiles(ENV_ID);
+    expect(row).toMatchObject({ status: "ok", text: "" });
+  });
+
+  it("an OK line with no END (stderr, failed pipeline) is not ok", async () => {
+    state.targets = [
+      target("t1", "s1", "/srv/a"),
+      target("t2", "s1", "/srv/b"),
+      target("t3", "s1", "/srv/c"),
+    ];
+    // No body, an error on stderr, exit 0 (an old script without END).
+    state.remote.set("/srv/a", () =>
+      res("OK 0", 0, "head: .env: Input/output error")
+    );
+    // A truncated body: head failed mid-read, the script exits 5.
+    state.remote.set("/srv/b", () => res(`OK 0\n${b64("A=1\nB=tw")}`, 5));
+    // END but a body that is not whole base64.
+    state.remote.set("/srv/c", () => res("OK 0\nQT0x*\nEND"));
+    const rows = await readEnvironmentEnvFiles(ENV_ID);
+    expect(rows.map((r) => r.status)).toEqual([
+      "unreachable",
+      "unreachable",
+      "unreachable",
+    ]);
+    for (const row of rows) expect(row.text).toBeUndefined();
+  });
+
+  it("a server without base64 (exit 4) is unreachable", async () => {
+    state.targets = [target("t1", "s1", "/srv/app")];
+    state.remote.set("/srv/app", () => res("", 4));
+    const [row] = await readEnvironmentEnvFiles(ENV_ID);
+    expect(row?.status).toBe("unreachable");
+  });
+
   it("keeps non-ASCII bytes exact (base64 transport)", async () => {
     const text = "GREETING=héllo wörld ✓\n";
     state.targets = [target("t1", "s1", "/srv/app")];
@@ -174,9 +234,9 @@ describe("readEnvironmentEnvFiles", () => {
       target("t2", "s1", "/srv/b"),
       target("t3", "s1", "/srv/c"),
     ];
-    state.remote.set("/srv/a", async () => "DIR_MISSING");
-    state.remote.set("/srv/b", async () => "FILE_MISSING");
-    state.remote.set("/srv/c", async () => "TOO_LARGE");
+    state.remote.set("/srv/a", () => res("DIR_MISSING"));
+    state.remote.set("/srv/b", () => res("FILE_MISSING"));
+    state.remote.set("/srv/c", () => res("TOO_LARGE"));
 
     const rows = await readEnvironmentEnvFiles(ENV_ID);
 
@@ -250,14 +310,16 @@ describe("readEnvironmentEnvFiles", () => {
       target("t3", "s1", "/srv/c"),
     ];
     state.remote.set("/srv/a", () =>
-      Promise.reject(
-        new RemoteCommandError(1, `OK 0\nDB_PASSWORD=${SECRET}`, SECRET)
+      res(
+        `OK 0\n${b64(`DB_PASSWORD=${SECRET}`)}\nDB_PASSWORD=${SECRET}`,
+        5,
+        SECRET
       )
     );
     state.remote.set("/srv/b", () =>
-      Promise.reject(new Error(`unexpected: ${SECRET}`))
+      Promise.reject(new RemoteCommandError(1, `DB_PASSWORD=${SECRET}`, SECRET))
     );
-    state.remote.set("/srv/c", async () => `GARBAGE ${SECRET}`);
+    state.remote.set("/srv/c", () => res(`GARBAGE ${SECRET}`));
 
     const rows = await readEnvironmentEnvFiles(ENV_ID);
 
@@ -275,9 +337,7 @@ describe("readEnvironmentEnvFiles", () => {
       target("t1", "s1", "/srv/a"),
       target("t2", "s1", "/srv/b"),
     ];
-    state.remote.set("/srv/a", () =>
-      Promise.reject(new RemoteCommandError(255, "", "boom"))
-    );
+    state.remote.set("/srv/a", () => res("", 255, "boom"));
     state.remote.set("/srv/b", () => ok("A=1\n"));
     const rows = await readEnvironmentEnvFiles(ENV_ID);
     expect(rows.map((r) => r.status)).toEqual(["unreachable", "ok"]);
@@ -286,9 +346,14 @@ describe("readEnvironmentEnvFiles", () => {
   it("shell-quotes the deploy dir", async () => {
     const dir = "/srv/it's $(touch pwned)";
     state.targets = [target("t1", "s1", dir)];
-    state.remote.set("it'\\''s", () => ok("A=1\n"));
+    state.remote.set("touch pwned", () => ok("A=1\n"));
     await readEnvironmentEnvFiles(ENV_ID);
-    expect(state.calls[0]?.command).toContain(`'/srv/it'\\''s $(touch pwned)'`);
+    expect(serverEnvReadScript(dir)).toContain(
+      `cd -- '/srv/it'\\''s $(touch pwned)'`
+    );
+    expect(state.calls[0]?.command).toBe(
+      `sh -c ${shq(serverEnvReadScript(dir))}`
+    );
   });
 
   it("returns nothing for an environment without compose targets", async () => {
@@ -299,6 +364,13 @@ describe("readEnvironmentEnvFiles", () => {
 });
 
 describe("envFingerprint", () => {
+  it("hashes the raw bytes: a string is its UTF-8 bytes", () => {
+    const text = "A=héllo\n";
+    expect(envFingerprint(Buffer.from(text, "utf8"))).toBe(
+      envFingerprint(text)
+    );
+  });
+
   it("is stable, distinguishes texts and is not a plain hash", () => {
     expect(envFingerprint("A=1\n")).toBe(envFingerprint("A=1\n"));
     expect(envFingerprint("A=1\n")).not.toBe(envFingerprint("A=2\n"));
@@ -319,5 +391,96 @@ describe("envFingerprint", () => {
       process.env.SECRETS_KEY = original;
       vi.resetModules();
     }
+  });
+});
+
+// The real script under the local POSIX sh, against temp dirs.
+describe("serverEnvReadScript under sh", () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), "server-env-"));
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  function dir(name: string, files: Record<string, string | Buffer> = {}) {
+    const path = join(root, name);
+    mkdirSync(path, { recursive: true });
+    for (const [file, content] of Object.entries(files)) {
+      writeFileSync(join(path, file), content);
+    }
+    return path;
+  }
+
+  function run(deployDir: string, env: NodeJS.ProcessEnv = process.env) {
+    const out = spawnSync("/bin/sh", ["-c", serverEnvReadScript(deployDir)], {
+      encoding: "utf8",
+      env,
+    });
+    return { code: out.status, stdout: out.stdout.trim(), stderr: out.stderr };
+  }
+
+  it("prints DIR_MISSING for a missing dir", () => {
+    expect(run(join(root, "nope"))).toEqual({
+      code: 0,
+      stdout: "DIR_MISSING",
+      stderr: "",
+    });
+  });
+
+  it("prints FILE_MISSING without a .env", () => {
+    expect(run(dir("empty")).stdout).toBe("FILE_MISSING");
+  });
+
+  it("prints TOO_LARGE over 256 KiB", () => {
+    const path = dir("large", { ".env": `A=${"x".repeat(262_144)}` });
+    expect(run(path)).toMatchObject({ code: 0, stdout: "TOO_LARGE" });
+  });
+
+  it("prints OK 0, the base64 body and END", () => {
+    const text = 'A=1\nB="héllo"\n';
+    const path = dir("plain", { ".env": text });
+    const { code, stdout } = run(path);
+    expect(code).toBe(0);
+    const lines = stdout.split("\n");
+    expect(lines[0]).toBe("OK 0");
+    expect(lines.at(-1)).toBe("END");
+    expect(Buffer.from(lines.slice(1, -1).join(""), "base64").toString()).toBe(
+      text
+    );
+  });
+
+  it("prints OK 1 next to a compose.override.yaml", () => {
+    const path = dir("override", {
+      ".env": "A=1\n",
+      "compose.override.yaml": "services: {}\n",
+    });
+    expect(run(path).stdout.split("\n")[0]).toBe("OK 1");
+  });
+
+  it("handles a quote and $(…) in the dir name literally", () => {
+    const path = dir("it's $(echo x)", { ".env": "A=1\n" });
+    expect(run(path).stdout.split("\n")[0]).toBe("OK 0");
+  });
+
+  it("exits 3 for a .env that is a directory", () => {
+    const path = dir("dir-env");
+    mkdirSync(join(path, ".env"));
+    expect(run(path)).toMatchObject({ code: 3, stdout: "" });
+  });
+
+  it("exits 4 without base64 on PATH", () => {
+    const path = dir("no-base64", { ".env": "A=1\n" });
+    const bin = dir("bin-without-base64");
+    for (const tool of ["head", "wc", "tr"]) {
+      const found = spawnSync("/bin/sh", ["-c", `command -v ${tool}`], {
+        encoding: "utf8",
+      }).stdout.trim();
+      symlinkSync(found, join(bin, tool));
+    }
+    expect(run(path, { PATH: bin })).toMatchObject({ code: 4, stdout: "" });
   });
 });

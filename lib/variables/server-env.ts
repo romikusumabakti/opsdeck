@@ -5,15 +5,15 @@ import { COMPOSE_OVERRIDE_FILE } from "@/lib/deploy/script";
 import { loadServerCredentials } from "@/lib/environments";
 import { derivedKey } from "@/lib/secrets";
 import { shq } from "@/lib/sh";
-import { executeRemoteCommand } from "@/lib/ssh";
+import { runRemoteScript } from "@/lib/ssh";
 import { HostKeyMismatchError } from "@/lib/ssh-connect";
 import { parseDotenv } from "@/lib/variables/dotenv";
 
 // Reads the live `.env` of every deploy dir an environment's compose targets
 // use, for the "Import .env from server" review and its save. SERVER-ONLY:
 // `text` holds secrets and must never reach a response, a log line or an
-// error. Every failure maps to a fixed status; no error message is kept,
-// since a RemoteCommandError carries the command's stdout.
+// error. Every failure maps to a fixed status; no output or error message
+// is logged or kept.
 
 /** The most bytes of `.env` read (and accepted) from a server. */
 export const SERVER_ENV_MAX_BYTES = 256 * 1024;
@@ -46,33 +46,42 @@ export type ServerEnvFile = {
 };
 
 /**
- * HMAC-SHA256 of the file's text under a key derived from SECRETS_KEY. Lets
- * the save tell whether the file changed since the review without giving the
- * browser a plain hash it could brute-force short secrets against.
+ * HMAC-SHA256 of the file's raw bytes (a string is taken as its UTF-8
+ * bytes) under a key derived from SECRETS_KEY. Lets the save tell whether
+ * the file changed since the review without giving the browser a plain hash
+ * it could brute-force short secrets against.
  */
-export function envFingerprint(text: string): string {
+export function envFingerprint(data: Uint8Array | string): string {
   return createHmac("sha256", derivedKey(FINGERPRINT_INFO))
-    .update(text, "utf8")
+    .update(typeof data === "string" ? Buffer.from(data, "utf8") : data)
     .digest("base64url");
 }
 
 /**
- * The read command for one deploy dir. It prints one status line and, for
- * `OK`, the file base64-encoded (exact bytes: the SSH session decodes and
- * trims output per chunk), capped one byte over the limit so an oversized
- * read is detected even if the file grew after the size check. It exits 0
- * once it has started reading; only a non-regular or unreadable `.env`
- * exits non-zero, before any byte is read.
+ * The POSIX sh script reading one deploy dir (exported as a test seam). It
+ * prints one status line; for `OK`, the file base64-encoded (exact bytes:
+ * the SSH session decodes output per chunk and trims it), capped one byte
+ * over the limit so a file that grew after the size check is still caught,
+ * then `END` only if both `head` and `base64` succeeded. Every failure to
+ * read (no `base64`/`head`, unreadable or non-regular `.env`, a failed
+ * pipeline) exits non-zero without `END`.
  */
-function readCommand(deployDir: string): string {
+export function serverEnvReadScript(deployDir: string): string {
   return [
     `cd -- ${shq(deployDir)} 2>/dev/null || { echo DIR_MISSING; exit 0; }`,
     "[ -e .env ] || { echo FILE_MISSING; exit 0; }",
     "{ [ -f .env ] && [ -r .env ]; } || exit 3",
-    `[ "$(wc -c < .env | tr -d ' ')" -le ${SERVER_ENV_MAX_BYTES} ] || { echo TOO_LARGE; exit 0; }`,
+    'for tool in head base64 wc tr; do command -v "$tool" >/dev/null 2>&1 || exit 4; done',
+    `size=$(wc -c < .env | tr -d ' ') || exit 4`,
+    `[ "$size" -le ${SERVER_ENV_MAX_BYTES} ] || { echo TOO_LARGE; exit 0; }`,
     `if [ -f ${shq(COMPOSE_OVERRIDE_FILE)} ]; then echo "OK 1"; else echo "OK 0"; fi`,
-    `head -c ${SERVER_ENV_MAX_BYTES + 1} .env | base64`,
-    "exit 0",
+    // POSIX sh has no pipefail: head's status comes back on fd 3 (the
+    // substitution), base64 writes to the real stdout via fd 4, and the
+    // substitution's own status is base64's.
+    "exec 4>&1",
+    `head_status=$( { { head -c ${SERVER_ENV_MAX_BYTES + 1} .env; echo "$?" >&3; } | base64 >&4; } 3>&1 ) || exit 5`,
+    `[ "$head_status" = 0 ] || exit 5`,
+    "echo END",
   ].join("\n");
 }
 
@@ -81,15 +90,22 @@ type DirRead = Pick<
   "status" | "line" | "overridePresent" | "text" | "fingerprint"
 >;
 
-function interpret(stdout: string): DirRead {
-  const newline = stdout.indexOf("\n");
-  const head = (newline < 0 ? stdout : stdout.slice(0, newline)).trim();
+function interpret(code: number | null, stdout: string): DirRead {
+  const lines = stdout.split("\n").map((l) => l.trim());
+  const head = lines[0] ?? "";
+  if (code !== 0) return { status: "unreachable" };
   if (head === "DIR_MISSING") return { status: "dirMissing" };
   if (head === "FILE_MISSING") return { status: "fileMissing" };
   if (head === "TOO_LARGE") return { status: "tooLarge" };
-  if (head !== "OK 0" && head !== "OK 1") return { status: "unreachable" };
+  // `END` proves the whole file was read and encoded.
+  if ((head !== "OK 0" && head !== "OK 1") || lines.at(-1) !== "END") {
+    return { status: "unreachable" };
+  }
 
-  const body = newline < 0 ? "" : stdout.slice(newline + 1).replace(/\s/g, "");
+  const body = lines.slice(1, -1).join("");
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(body) || body.length % 4 !== 0) {
+    return { status: "unreachable" };
+  }
   const bytes = Buffer.from(body, "base64");
   if (bytes.length > SERVER_ENV_MAX_BYTES) return { status: "tooLarge" };
   const text = bytes.toString("utf8");
@@ -101,7 +117,7 @@ function interpret(stdout: string): DirRead {
     status: "ok",
     overridePresent: head === "OK 1",
     text,
-    fingerprint: envFingerprint(text),
+    fingerprint: envFingerprint(bytes),
   };
 }
 
@@ -109,14 +125,17 @@ async function readDir(serverId: string, deployDir: string): Promise<DirRead> {
   try {
     const credentials = await loadServerCredentials(serverId);
     if (!credentials) return { status: "unreachable" };
-    const stdout = await executeRemoteCommand(
+    // runRemoteScript logs nothing and never throws the output: stdout and
+    // stderr may quote the file. `sh -c` pins POSIX sh whatever the login
+    // shell is.
+    const { code, stdout } = await runRemoteScript(
       credentials,
-      readCommand(deployDir),
-      { timeoutMs: READ_TIMEOUT_MS, quiet: true }
+      `sh -c ${shq(serverEnvReadScript(deployDir))}`,
+      { timeoutMs: READ_TIMEOUT_MS }
     );
-    return interpret(stdout);
+    return interpret(code, stdout);
   } catch (error) {
-    // The message is dropped on purpose: it may quote the file.
+    // Connect failure or timeout. The message is dropped on purpose.
     return error instanceof HostKeyMismatchError
       ? { status: "hostKeyMismatch" }
       : { status: "unreachable" };
