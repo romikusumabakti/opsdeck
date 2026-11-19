@@ -1007,6 +1007,25 @@ describe("the URL name field", () => {
     expect(api.checkSlug).not.toHaveBeenCalled();
   });
 
+  it("shows the URL name the server gives once a check ran", async () => {
+    // `dev-3` is taken (here, an old URL name): the server gives `dev-3-2`.
+    api.preview.mockResolvedValue({
+      plan: plan([{ field: "domain.zoneId", code: "required" }]),
+      preview: { ...cleanPreview.preview, slug: "dev-3-2" },
+    });
+    await mount({ project: projectWithEnvs });
+    await act(async () => type(nameInput(), "Dev 3"));
+    await settle();
+    expect(slugInput().placeholder).toBe("dev-3");
+    await pressCreate();
+    expect(api.create).not.toHaveBeenCalled();
+    expect(slugInput().placeholder).toBe("dev-3-2");
+    // Another name: the check is out of date, the name's own again.
+    await act(async () => type(nameInput(), "Dev 4"));
+    await settle();
+    expect(slugInput().placeholder).toBe("dev-4");
+  });
+
   it("caps the default at 40 characters", async () => {
     await mount();
     await act(async () => type(nameInput(), "Kestrel ".repeat(8)));

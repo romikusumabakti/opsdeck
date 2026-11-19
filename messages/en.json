@@ -962,7 +962,7 @@
     "urlFromDomain": "Set by the environment's domain. Change the address on the Domain tab.",
     "slug": "URL name",
     "slugHint": "Part of this environment's address in the Panel. After a change, links to the old address keep working.",
-    "slugPreview": "New address: {path}. Links to the old one keep working.",
+    "slugPreview": "New address: <ltr>{path}</ltr>. Links to the old one keep working.",
     "noTargets": "No deploy targets yet. A target tells the Panel where to deploy a repository in this environment: the server, the Compose project and the branch. Add one to start deploying.",
     "noDatabase": "No database",
     "mockTimeTitle": "Mock time",

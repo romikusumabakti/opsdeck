@@ -962,7 +962,7 @@
     "urlFromDomain": "Lo fija el dominio del entorno. Cambia la dirección en la pestaña Dominio.",
     "slug": "Nombre en la URL",
     "slugHint": "Parte de la dirección de este entorno en el Panel. Tras un cambio, los enlaces a la dirección anterior siguen funcionando.",
-    "slugPreview": "Nueva dirección: {path}. Los enlaces a la anterior siguen funcionando.",
+    "slugPreview": "Nueva dirección: <ltr>{path}</ltr>. Los enlaces a la anterior siguen funcionando.",
     "noTargets": "Aún no hay destinos de despliegue. Un destino indica al Panel dónde desplegar un repositorio en este entorno: el servidor, el proyecto de Compose y la rama. Añade uno para empezar a desplegar.",
     "noDatabase": "Sin base de datos",
     "mockTimeTitle": "Hora simulada",

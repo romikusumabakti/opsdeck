@@ -962,7 +962,7 @@
     "urlFromDomain": "Diatur oleh domain environment. Ubah alamatnya di tab Domain.",
     "slug": "Nama URL",
     "slugHint": "Bagian alamat environment ini di Panel. Setelah diubah, tautan ke alamat lama tetap berfungsi.",
-    "slugPreview": "Alamat baru: {path}. Tautan ke alamat lama tetap berfungsi.",
+    "slugPreview": "Alamat baru: <ltr>{path}</ltr>. Tautan ke alamat lama tetap berfungsi.",
     "noTargets": "Belum ada deploy target. Target memberi tahu Panel ke mana repositori di-deploy di environment ini: server, project Compose, dan branch-nya. Tambahkan target untuk mulai men-deploy.",
     "noDatabase": "Tanpa basis data",
     "mockTimeTitle": "Mock time",

@@ -962,7 +962,7 @@
     "urlFromDomain": "由环境的域名决定。请在“域名”选项卡中更改地址。",
     "slug": "URL 名称",
     "slugHint": "此环境在面板中地址的一部分。修改后，指向旧地址的链接仍然有效。",
-    "slugPreview": "新地址：{path}。指向旧地址的链接仍然有效。",
+    "slugPreview": "新地址：<ltr>{path}</ltr>。指向旧地址的链接仍然有效。",
     "noTargets": "尚无部署目标。部署目标告诉面板在此环境中将仓库部署到哪里：服务器、Compose 项目和分支。添加目标即可开始部署。",
     "noDatabase": "无数据库",
     "mockTimeTitle": "模拟时间",

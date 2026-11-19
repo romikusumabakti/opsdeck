@@ -379,10 +379,21 @@ export function NewEnvironmentForm({
         r.repoFullName === sourceRepos[i]?.repoFullName &&
         r.branch === sourceRepos[i]?.branch
     );
+  // The URL name the server gives when none is typed: the last check's for
+  // this name (it skips slugs the project uses, e.g. `qa-2`), else the
+  // name's own until a check runs.
+  const checkedSlug =
+    checked &&
+    !checked.probe &&
+    checked.snapshot.name === name.trim() &&
+    checked.snapshot.slug === ""
+      ? checked.preview?.slug
+      : undefined;
+  const defaultSlug = checkedSlug ?? baseEnvSlug(name || PROBE_NAME);
   const draftCtx: DraftContext = {
     appId: currentApp?.id ?? "",
     projectKey: project.key,
-    slug: slug || baseEnvSlug(name || PROBE_NAME),
+    slug: slug || defaultSlug,
     suggestedServices: [],
     suggestedEntryPort: plan?.summary.port ?? null,
     defaultZoneId: options?.zones[0]?.id ?? "",
@@ -905,7 +916,7 @@ export function NewEnvironmentForm({
                   className="font-mono"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder={baseEnvSlug(name || PROBE_NAME)}
+                  placeholder={defaultSlug}
                   value={slug}
                   aria-invalid={slugIssue ? true : undefined}
                   onChange={(e) => {

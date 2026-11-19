@@ -123,7 +123,8 @@ export function EnvironmentSettingsTabs({
   const router = useRouter();
 
   // A new URL name or project moves the page: open Settings at the new
-  // address in place of the old one (which keeps redirecting there).
+  // address in place of the old one (which keeps redirecting there), with
+  // the same search and hash (the open tab).
   async function saveGeneral() {
     const before = { projectId: environment.projectId, slug: environment.slug };
     const saved = await saveTab("general");
@@ -135,7 +136,8 @@ export function EnvironmentSettingsTabs({
     }
     const key =
       projects.find((p) => p.id === saved.projectId)?.key ?? projectKey;
-    await router.replace(`/${key}/${saved.slug}/settings`);
+    const { search, hash } = window.location;
+    await router.replace(`/${key}/${saved.slug}/settings${search}${hash}`);
   }
   // Mirrors the server's rebinding rule: any deployment row of the
   // environment (every one belongs to a target) freezes it for engineers.

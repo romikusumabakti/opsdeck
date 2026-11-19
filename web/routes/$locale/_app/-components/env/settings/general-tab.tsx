@@ -281,8 +281,14 @@ export function GeneralTab({
                         </InputGroup>
                         <Hint>
                           {slugChanged
-                            ? tSettings("slugPreview", {
+                            ? tSettings.rich("slugPreview", {
                                 path: `/${slugProjectKey}/${slug}`,
+                                // Isolated, so Arabic doesn't reorder the path.
+                                ltr: (chunks) => (
+                                  <bdi dir="ltr" className="font-mono">
+                                    {chunks}
+                                  </bdi>
+                                ),
                               })
                             : tSettings("slugHint")}
                         </Hint>

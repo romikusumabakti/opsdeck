@@ -922,8 +922,13 @@ describe("the URL name field", () => {
     await act(async () => type(slugInput(), "Dev-West "));
     expect(slugInput().value).toBe("dev-west");
     expect(document.body.textContent).toContain(
-      t.slugPreview.replace("{path}", "/KMEM/dev-west")
+      t.slugPreview.replace("{path}", "/KMEM/dev-west").replace(/<\/?ltr>/g, "")
     );
+    // The path is isolated left to right, so Arabic keeps its order.
+    const path = [...document.querySelectorAll("bdi")].find(
+      (el) => el.textContent === "/KMEM/dev-west"
+    );
+    expect(path?.getAttribute("dir")).toBe("ltr");
     await pause();
     await settle();
     expect(api.checkEnvironmentSlug).toHaveBeenCalledWith(
@@ -935,6 +940,32 @@ describe("the URL name field", () => {
     const [, payload] = api.updateEnvironment.mock.calls[0] ?? [];
     expect(payload).toMatchObject({ slug: "dev-west" });
     expect(api.replace).toHaveBeenCalledWith("/KMEM/dev-west/settings");
+  });
+
+  it("keeps the search and hash when it opens the new address", async () => {
+    api.updateEnvironment.mockResolvedValue({
+      success: true,
+      data: { id: ENV, projectId: PROJECT, slug: "dev-west" },
+    });
+    const before = window.location.href;
+    window.history.replaceState(
+      null,
+      "",
+      "/KMEM/dev-1/settings?tab=general#slug"
+    );
+    try {
+      await mount();
+      await openAdvanced();
+      await act(async () => type(slugInput(), "dev-west"));
+      await pause();
+      await settle();
+      await save();
+      expect(api.replace).toHaveBeenCalledWith(
+        "/KMEM/dev-west/settings?tab=general#slug"
+      );
+    } finally {
+      window.history.replaceState(null, "", before);
+    }
   });
 
   it("sends no slug and stays put when it is unchanged", async () => {
