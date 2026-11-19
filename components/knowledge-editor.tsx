@@ -235,13 +235,14 @@ export function KnowledgeEditor({
         "aria-keyshortcuts": MENU_SHORTCUT,
         class: cn(
           "min-h-[24rem]",
-          // The inline-start gutter (ps-11) holds the block handle ("+" and
-          // grip, 44px). It stays inside the surface even when borderless:
-          // hung into the parent's padding it was clipped or drawn outside
-          // the card in the issue page and the New issue dialog.
+          // The block handle (32px) hangs at the inline-start side of the
+          // text column. Borderless surfaces keep the text on the same
+          // column as what sits above them (an issue title), so the handle
+          // sits in the container's margin: the page's lg:px-8, the New issue
+          // dialog's ps-8. A framed surface holds it in its own padding.
           borderless
-            ? "ps-11 py-1"
-            : "rounded-md border bg-background ps-11 pe-4 py-3",
+            ? "py-1"
+            : "rounded-md border bg-background ps-9 pe-4 py-3",
           "text-sm leading-relaxed focus:outline-none",
           // Inline structural styles — no typography plugin in this project.
           "[&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h1]:mb-2",

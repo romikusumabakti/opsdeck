@@ -212,9 +212,9 @@ describe("block handle", () => {
     expect(listbox()).toBeNull();
   });
 
-  it("the surface reserves an inline-start gutter for it, framed or not", async () => {
+  it("a framed surface holds it in its padding; a borderless one keeps the text column", async () => {
     const { dom } = await mount("First");
-    expect(dom.className.split(/\s+/)).toContain("ps-11");
+    expect(dom.className.split(/\s+/)).toContain("ps-9");
     act(() => root.unmount());
     root = createRoot(container);
     await act(async () => {
@@ -227,7 +227,8 @@ describe("block handle", () => {
     await vi.waitFor(() => {
       const bare = container.querySelector(".ProseMirror");
       if (!bare) throw new Error("no editor");
-      expect(bare.className.split(/\s+/)).toContain("ps-11");
+      // No inline padding: the handle hangs in the container's margin.
+      expect(bare.className).not.toMatch(/(^|\s)(ps|px|pl)-/);
     });
   });
 

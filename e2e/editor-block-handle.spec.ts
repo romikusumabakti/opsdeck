@@ -125,6 +125,82 @@ test("in Arabic the handle sits on the right of the block", async ({
   }
 });
 
+/** The point at a locator's centre hits it (or a child): drawn, not clipped. */
+async function hitsItself(target: Locator) {
+  return target.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      r.x + r.width / 2,
+      r.y + r.height / 2
+    );
+    return hit !== null && (hit === el || el.contains(hit));
+  });
+}
+
+test("on an issue, the description shares the title's column and the handle shows in the margin", async ({
+  page,
+}) => {
+  const key = `M${Date.now().toString(36).slice(-6).toUpperCase()}`;
+  const project = await post<{ id: string }>(
+    page,
+    "/api/project-catalog/add-project",
+    { name: `E2E ${key}`, key }
+  );
+  const issue = await post<{ number: number }>(
+    page,
+    "/api/issues/create-issue",
+    {
+      projectId: project.id,
+      title: "Margin handle",
+      description: "Alpha line\n\nBravo line",
+    }
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  // Issue page.
+  await page.goto(`/en/${key}/issues/${issue.number}`);
+  // An editor sees the title as an input (text starts at its edge).
+  const title = page.getByRole("textbox", { name: "Title" });
+  const editor = page.locator(".ProseMirror");
+  const bravo = editor.locator(":scope > p", { hasText: "Bravo line" });
+  await expect(bravo).toBeVisible();
+  const titleX = (await title.boundingBox())?.x ?? -1;
+  expect(Math.abs(((await bravo.boundingBox())?.x ?? 0) - titleX)).toBeLessThan(
+    1
+  );
+  await bravo.hover();
+  const plus = page.getByRole("button", { name: "Add a block below" });
+  const grip = page.locator('[data-slot="block-drag-grip"]');
+  await expect(plus).toBeVisible();
+  expect(await hitsItself(plus)).toBe(true);
+  expect(await hitsItself(grip)).toBe(true);
+  expect(
+    ((await grip.boundingBox())?.x ?? 0) +
+      ((await grip.boundingBox())?.width ?? 0)
+  ).toBeLessThanOrEqual(titleX + 1);
+
+  // New issue dialog.
+  await page.goto(`/en/${key}/issues`);
+  await page.getByRole("button", { name: "New issue" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "New issue" });
+  const dialogEditor = dialog.locator(".ProseMirror");
+  await dialogEditor.click();
+  await page.keyboard.type("Hello there");
+  const line = dialogEditor.locator(":scope > p").first();
+  const inputX = (await dialog.getByLabel("Title").boundingBox())?.x ?? -1;
+  expect(Math.abs(((await line.boundingBox())?.x ?? 0) - inputX)).toBeLessThan(
+    1
+  );
+  await page.mouse.move(0, 0);
+  await line.hover();
+  const dialogPlus = dialog.getByRole("button", { name: "Add a block below" });
+  await expect(dialogPlus).toBeVisible();
+  expect(await hitsItself(dialogPlus)).toBe(true);
+  expect(
+    await hitsItself(dialog.locator('[data-slot="block-drag-grip"]'))
+  ).toBe(true);
+});
+
 test("issue row controls have the same width in every row, chevron on hover", async ({
   page,
 }) => {

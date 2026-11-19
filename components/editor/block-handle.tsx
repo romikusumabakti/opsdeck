@@ -3,6 +3,7 @@ import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { GripVertical, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 export type BlockHandleLabels = { insert: string; drag: string };
 
@@ -79,14 +80,18 @@ export function BlockHandle({
       onNodeChange={({ node, pos }) => {
         target.current = node && pos >= 0 ? { node, pos } : null;
       }}
-      className="pe-1"
+      // 2px from the block: with the 16px "+" and the 14px grip the handle
+      // is 32px wide, so it fits the page's inline padding (lg:px-8) and the
+      // New issue dialog's (ps-8) when it hangs outside the text column.
+      className="pe-0.5"
     >
       <div
         data-slot="block-handle"
         className="flex items-center text-muted-foreground"
       >
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-xs"
           tabIndex={-1}
           aria-label={labels.insert}
           title={labels.insert}
@@ -96,15 +101,15 @@ export function BlockHandle({
             if (!at || editor.isDestroyed) return;
             openSlashAtBlock(editor, at.node, at.pos);
           }}
-          className="flex size-5 items-center justify-center rounded-sm hover:bg-muted hover:text-foreground [&_svg]:size-4"
+          className="h-6 w-4 text-muted-foreground [&_svg:not([class*='size-'])]:size-4"
         >
           <Plus aria-hidden />
-        </button>
+        </Button>
         <div
           data-slot="block-drag-grip"
           title={labels.drag}
           aria-hidden
-          className="flex size-5 cursor-grab items-center justify-center rounded-sm hover:bg-muted hover:text-foreground active:cursor-grabbing [&_svg]:size-4"
+          className="flex h-6 w-3.5 cursor-grab items-center justify-center rounded-[min(var(--radius-md),8px)] hover:bg-muted hover:text-foreground active:cursor-grabbing [&_svg]:size-3.5"
         >
           <GripVertical />
         </div>

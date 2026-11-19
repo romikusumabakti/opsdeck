@@ -13,9 +13,10 @@ export const COMPACT_TRIGGER =
  * "cell": the compact ghost look filling a table column, so every row's
  * control is the same width; the value sits at the start, the chevron (the
  * trigger's last svg) at the end, hidden until the row is hovered or holds
- * focus (or the popup is open).
+ * focus (or the popup is open); always shown on touch screens, which have
+ * no hover.
  */
-export const CELL_TRIGGER = `${COMPACT_TRIGGER} w-full justify-between [&>svg:last-child]:opacity-0 in-[tr:hover]:[&>svg:last-child]:opacity-100 in-[tr:focus-within]:[&>svg:last-child]:opacity-100 data-popup-open:[&>svg:last-child]:opacity-100`;
+export const CELL_TRIGGER = `${COMPACT_TRIGGER} w-full justify-between [&>svg:last-child]:opacity-0 in-[tr:hover]:[&>svg:last-child]:opacity-100 in-[tr:focus-within]:[&>svg:last-child]:opacity-100 data-popup-open:[&>svg:last-child]:opacity-100 pointer-coarse:[&>svg:last-child]:opacity-100`;
 
 /** Trigger looks of the inline pickers: "compact" for dense rows and cards,
  *  "cell" for table columns. */

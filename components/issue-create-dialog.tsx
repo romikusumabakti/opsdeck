@@ -236,12 +236,15 @@ function IssueCreateForm({
       className="flex min-h-0 flex-1 flex-col"
       onKeyDownCapture={onKeyDownCapture}
     >
-      <DialogHeader className="px-5 pt-4 pe-12">
+      <DialogHeader className="ps-8 pt-4 pe-12">
         <DialogTitle className="text-sm font-medium text-muted-foreground">
           {t("createTitle")}
         </DialogTitle>
       </DialogHeader>
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-5 py-3">
+      {/* ps-8 on the header, this scroll body and the chips keeps one text
+          column and leaves the editor's block handle (32px) room in the
+          inline-start margin: overflow-y-auto clips anything outside it. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto ps-8 pe-5 py-3">
         <input
           ref={titleRef}
           aria-label={t("titleLabel")}
@@ -263,7 +266,7 @@ function IssueCreateForm({
       <div
         role="group"
         aria-label={t("properties")}
-        className="flex flex-wrap items-center gap-1.5 px-5 pb-4"
+        className="flex flex-wrap items-center gap-1.5 ps-8 pe-5 pb-4"
       >
         {projectChoice ? (
           <ProjectProperty
