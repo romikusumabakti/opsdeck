@@ -114,7 +114,8 @@
       "es": "Español"
     },
     "projects": "Proyectos",
-    "askAssistant": "Preguntar al asistente"
+    "askAssistant": "Preguntar al asistente",
+    "chats": "Chats"
   },
   "nav": {
     "dashboard": "Panel",
@@ -798,6 +799,7 @@
     "openShortcuts": "Abrir este diálogo de atajos",
     "closeDialog": "Cerrar cualquier diálogo abierto",
     "openAssistant": "Abrir el asistente",
+    "newChat": "Empezar un nuevo chat",
     "groupEditor": "Editor",
     "editorSlashMenu": "Insertar un bloque (al inicio de una línea o tras un espacio)",
     "editorFocusMenu": "Mover el foco al menú de formato",
@@ -2099,7 +2101,6 @@
     "sourcesDescription": "Los servicios que despliega este proyecto y la rama con la que arranca cada uno en un entorno nuevo. Cada entorno conserva su propia rama, definida en sus ajustes de Source & Deploy."
   },
   "homePage": {
-    "askPlaceholder": "Pregunta lo que quieras sobre tus proyectos…",
     "askExamples": {
       "first": "¿Qué servicios cambiaron más esta semana?",
       "second": "¿Qué se está ejecutando ahora en staging?",
@@ -3989,8 +3990,6 @@
     "deleteChatConfirm": "¿Eliminar este chat?",
     "deleteChatDescription": "«{title}» se elimina para siempre, con sus borradores y archivos adjuntos. Las incidencias ya creadas a partir de él se conservan.",
     "chatDeleted": "Chat eliminado.",
-    "emptyThreadTitle": "Empieza a preguntar",
-    "emptyThreadDescription": "Pregunta por flujos, reglas de negocio o dónde está el código. Elige el contexto abajo: Automático, un proyecto o uno de sus entornos. Escribe @ para elegirlo rápido.",
     "placeholder": "Pregunta lo que quieras — escribe @ para elegir un proyecto",
     "send": "Enviar",
     "sendTooltip": "Enviar (Enter)",
@@ -4075,7 +4074,7 @@
     "contextDeleted": "(eliminado)",
     "mentionEmpty": "Ningún proyecto ni entorno coincide",
     "mentionList": "Proyectos y entornos",
-    "shortcutHint": "Pulsa {shortcut} en cualquier lugar para abrir el asistente.",
+    "shortcutHint": "Pulsa {shortcut} en cualquier lugar para abrir el asistente y {newChat} para un nuevo chat.",
     "noProjectsTitle": "Aún no hay nada que preguntar",
     "noProjectsDescription": "Todavía no ves ningún proyecto. Pide a un administrador que te añada a un proyecto para usar el asistente.",
     "attach": "Adjuntar",
@@ -4086,6 +4085,17 @@
     "uploading": "Subiendo {name}",
     "modelNoImages": "El modelo configurado no puede ver imágenes: solo verá sus nombres.",
     "dropFiles": "Suelta los archivos para adjuntarlos",
-    "fileWarning": "Los archivos pueden contener datos de participantes (NIK, nombres, cuentas bancarias). Su contenido se envía al proveedor de IA configurado. Adjunta solo los archivos que de verdad necesites."
+    "fileWarning": "Los archivos pueden contener datos de participantes (NIK, nombres, cuentas bancarias). Su contenido se envía al proveedor de IA configurado. Adjunta solo los archivos que de verdad necesites.",
+    "greeting": "¿En qué puedo ayudarte?",
+    "temporaryChat": "Chat temporal",
+    "temporaryDescription": "No aparece en tus chats ni en la búsqueda, y se elimina 24 horas después de su último mensaje.",
+    "temporaryBadge": "Temporal",
+    "searchChats": "Buscar chats",
+    "noChatsFound": "No se encontraron chats.",
+    "pinnedChats": "Fijados",
+    "recentChats": "Recientes",
+    "pinChat": "Fijar",
+    "unpinChat": "Desfijar",
+    "editQuestion": "Editar pregunta"
   }
 }

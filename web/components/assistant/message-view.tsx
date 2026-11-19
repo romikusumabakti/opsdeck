@@ -5,16 +5,18 @@ import {
   ImageIcon,
   Loader2,
   Paperclip,
+  Pencil,
   RotateCcw,
   Server,
-  Sparkles,
 } from "lucide-react";
+import * as React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { TooltipHint } from "@/components/ui/tooltip";
 import { qualifiedEnvName } from "@/lib/nav-path";
 import { formatBytes } from "@/lib/utils";
@@ -24,6 +26,7 @@ import {
   type MessageContext,
 } from "@/web/api/assistant";
 import { listProjectsQuery } from "@/web/api/project-catalog";
+import { shouldSend } from "./composer-keys";
 import { useAssistantErrorText } from "./error-text";
 import { MessageSources } from "./message-sources";
 
@@ -61,21 +64,17 @@ function AnswerMarkdown({ content }: { content: string }) {
 }
 
 /**
- * What a question was asked about, under its bubble: Automatic, the project,
- * or the environment with its project's name (when the caller still sees
- * that project; else the name stored with the question), marked "(deleted)"
- * once that project or environment is gone.
+ * What a question was asked about, under its bubble: the project, or the
+ * environment with its project's name (when the caller still sees that
+ * project; else the name stored with the question), marked "(deleted)" once
+ * that project or environment is gone. An automatic question (the default)
+ * has no label.
  */
 function QuestionContextLabel({ context }: { context: MessageContext }) {
   const t = useTranslations("assistant");
   const projects = useQuery(listProjectsQuery()).data;
   const project = projects?.find((p) => p.id === context.projectId);
-  const Icon =
-    context.kind === "auto"
-      ? Sparkles
-      : context.kind === "project"
-        ? FolderKanban
-        : Server;
+  const Icon = context.kind === "project" ? FolderKanban : Server;
   let label = context.label ?? t("contextAuto");
   if (context.kind === "environment" && context.label && project) {
     label = qualifiedEnvName(context.label, project.name);
@@ -100,6 +99,89 @@ function actionsClass(always: boolean) {
     : "flex gap-1 opacity-0 group-hover/message:opacity-100 group-focus-within/message:opacity-100 pointer-coarse:opacity-100";
 }
 
+// Mirrors the API's limit (server/services/assistant.ts).
+const MAX_MESSAGE_CHARS = 8000;
+
+/**
+ * The last question, edited in place: Enter or Send resends it (replacing
+ * it and its answer), Escape or Cancel leaves it as it was. A refused resend
+ * keeps the field open with the text (the caller says why).
+ */
+function QuestionEditor({
+  initial,
+  onSubmit,
+  onCancel,
+  disabled,
+}: {
+  initial: string;
+  onSubmit: (text: string) => Promise<void>;
+  onCancel: () => void;
+  disabled: boolean;
+}) {
+  const t = useTranslations("assistant");
+  const tCommon = useTranslations("common");
+  const [value, setValue] = React.useState(initial);
+  const [saving, setSaving] = React.useState(false);
+  const ref = React.useRef<HTMLTextAreaElement>(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+  const text = value.trim();
+  const canSend = !disabled && !saving && text !== "" && text !== initial;
+  const submit = async () => {
+    if (!canSend) return;
+    setSaving(true);
+    try {
+      await onSubmit(text);
+    } catch {
+      // Said by the caller; the field stays open with the text.
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div data-edit-question className="flex w-full max-w-[85%] flex-col gap-2">
+      <Textarea
+        ref={ref}
+        value={value}
+        aria-label={t("editQuestion")}
+        maxLength={MAX_MESSAGE_CHARS}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+            return;
+          }
+          if (
+            shouldSend({
+              key: e.key,
+              shiftKey: e.shiftKey,
+              isComposing: e.nativeEvent.isComposing,
+              keyCode: e.keyCode,
+            })
+          ) {
+            e.preventDefault();
+            void submit();
+          }
+        }}
+        className="max-h-60 rounded-2xl"
+      />
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          {tCommon("cancel")}
+        </Button>
+        <Button size="sm" disabled={!canSend} onClick={() => void submit()}>
+          {t("send")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * One message of the thread: the user's question, with what it asked about
  * and its attachments, or the assistant's answer.
@@ -110,6 +192,8 @@ export function MessageView({
   isLast = false,
   onRetry,
   retryDisabled = false,
+  onEdit,
+  editDisabled = false,
 }: {
   message: ConversationMessage;
   /** An answer to a question about project branches (not an environment). */
@@ -119,8 +203,15 @@ export function MessageView({
   /** Asks the assistant again; offered on the last answer only. */
   onRetry?: () => void;
   retryDisabled?: boolean;
+  /**
+   * Resends the question with new text (replacing it and its answer);
+   * offered on the last question only. Rejects when refused.
+   */
+  onEdit?: (text: string) => Promise<void>;
+  editDisabled?: boolean;
 }) {
   const t = useTranslations("assistant");
+  const [editing, setEditing] = React.useState(false);
   const { codeText } = useAssistantErrorText();
   // A failed message stores only its code: a turn stopped at the daily cap is
   // worded with the current allowance (loaded by the workspace already).
@@ -130,14 +221,45 @@ export function MessageView({
   }).data;
 
   if (message.role === "user") {
+    // Automatic is the default: only a project or environment is named.
+    const labelled = !!message.context && message.context.kind !== "auto";
     return (
       <div className="group/message flex flex-col items-end gap-1">
-        <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap break-words">
-          {message.content}
-        </div>
-        <div data-message-actions className={actionsClass(false)}>
-          <CopyButton value={message.content} label={t("copyQuestion")} />
-        </div>
+        {editing && onEdit ? (
+          <QuestionEditor
+            initial={message.content}
+            disabled={editDisabled}
+            onCancel={() => setEditing(false)}
+            onSubmit={async (text) => {
+              await onEdit(text);
+              setEditing(false);
+            }}
+          />
+        ) : (
+          <>
+            <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap break-words">
+              {message.content}
+            </div>
+            <div data-message-actions className={actionsClass(false)}>
+              <CopyButton value={message.content} label={t("copyQuestion")} />
+              {onEdit && (
+                <TooltipHint label={t("editQuestion")}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setEditing(true)}
+                    disabled={editDisabled}
+                    aria-label={t("editQuestion")}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                </TooltipHint>
+              )}
+            </div>
+          </>
+        )}
         {message.files.length > 0 && (
           <ul
             className="flex max-w-[85%] flex-wrap justify-end gap-1.5"
@@ -162,9 +284,9 @@ export function MessageView({
             ))}
           </ul>
         )}
-        {(message.context || message.attachmentIds.length > 0) && (
+        {(labelled || message.attachmentIds.length > 0) && (
           <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {message.context && (
+            {labelled && message.context && (
               <QuestionContextLabel context={message.context} />
             )}
             {message.attachmentIds.length > 0 && (

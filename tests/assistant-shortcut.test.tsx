@@ -15,6 +15,7 @@ import {
   ASSISTANT_COMPOSER_ID,
   AssistantShortcut,
   assistantShortcutLabel,
+  newChatShortcutLabel,
 } from "@/web/components/assistant/assistant-shortcut";
 
 (
@@ -113,10 +114,48 @@ describe("Ctrl/Cmd+J opens the assistant", () => {
   });
 });
 
+describe("Ctrl/Cmd+Shift+O starts a new chat", () => {
+  const chord = { key: "O", ctrlKey: true, shiftKey: true };
+
+  it("opens the Assistant's new chat from any page and claims the key", () => {
+    const event = press(document.body, chord);
+    expect(push).toHaveBeenCalledExactlyOnceWith("/assistant");
+    expect(event.defaultPrevented).toBe(true);
+    press(document.body, { key: "o", metaKey: true, shiftKey: true });
+    expect(push).toHaveBeenCalledTimes(2);
+  });
+
+  it("on the assistant page leaves the open chat (drops ?c=) and focuses the box", async () => {
+    nav.pathname = "/assistant";
+    await act(async () => root.render(<AssistantShortcut key="again" />));
+    const box = document.createElement("textarea");
+    box.id = ASSISTANT_COMPOSER_ID;
+    document.body.append(box);
+    press(document.body, chord);
+    expect(push).toHaveBeenCalledExactlyOnceWith("/assistant");
+    expect(document.activeElement).toBe(box);
+  });
+
+  it("ignores Ctrl+O, Ctrl+Alt+Shift+O and the rich-text editor", () => {
+    press(document.body, { key: "o", ctrlKey: true });
+    press(document.body, { ...chord, altKey: true });
+    const editor = document.createElement("div");
+    editor.setAttribute("contenteditable", "true");
+    document.body.append(editor);
+    press(editor, chord);
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
 describe("the shortcut's label", () => {
   it("reads like the palette's: ⌘J on a Mac, Ctrl J elsewhere", () => {
     expect(assistantShortcutLabel("⌘")).toBe("⌘J");
     expect(assistantShortcutLabel("Ctrl")).toBe("Ctrl J");
+  });
+
+  it("new chat: ⇧⌘O on a Mac, Ctrl Shift O elsewhere", () => {
+    expect(newChatShortcutLabel("⌘")).toBe("⇧⌘O");
+    expect(newChatShortcutLabel("Ctrl")).toBe("Ctrl Shift O");
   });
 });
 

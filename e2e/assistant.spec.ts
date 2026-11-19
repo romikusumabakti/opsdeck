@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { type AssistantStub, startAssistantStub } from "./assistant-stub";
+import {
+  type AssistantStub,
+  NAMED_TITLE,
+  startAssistantStub,
+} from "./assistant-stub";
 import { AUTH_FILE } from "./support";
 
 test.use({ storageState: AUTH_FILE });
@@ -78,7 +82,10 @@ test("the composer is one group holding attach, context and send", async ({
   page,
 }) => {
   await page.goto("/en/assistant");
-  const group = page.locator("[data-slot=input-group]");
+  // The composer's group (the chat list's search field is one too).
+  const group = page
+    .locator("[data-slot=input-group]")
+    .filter({ has: page.locator("textarea") });
   await expect(group).toHaveCount(1);
   await expect(group.locator("textarea")).toBeVisible();
   await expect(group.getByRole("button", { name: "Attach" })).toBeVisible();
@@ -231,3 +238,166 @@ test("switching chats keeps each chat's unsent text and context", async ({
   await expect(box).toHaveValue(text);
   await expect(chip).toHaveAttribute("aria-label", chipName as string);
 });
+
+const ANSWER = "lives in the auth module.";
+const chatList = (page: import("@playwright/test").Page) =>
+  page.getByRole("navigation", { name: "Chats" });
+
+/** Asks `question` in the open composer and waits for the stub's answer. */
+async function ask(page: import("@playwright/test").Page, question: string) {
+  await page.getByPlaceholder(ASK).fill(question);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(ANSWER)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible();
+}
+
+test("Home's box is New chat's: its draft carries over, and a send opens the chat", async ({
+  page,
+}) => {
+  await page.goto("/en");
+  const box = page.getByPlaceholder(ASK);
+  // The whole box is the Assistant's composer group.
+  await expect(
+    page.locator("[data-slot=input-group]").filter({ has: box })
+  ).toContainText("Automatic");
+  const draft = `Home draft ${Date.now()}`;
+  await box.fill(draft);
+  // In-app navigation (drafts live in the tab's memory, not across reloads).
+  await box.press("Control+j");
+  await expect(page).toHaveURL(/\/en\/assistant$/);
+  await expect(page.getByPlaceholder(ASK)).toHaveValue(draft);
+
+  await page.goto("/en");
+  const question = `Asked from Home ${Date.now()}`;
+  await page.getByPlaceholder(ASK).fill(question);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page).toHaveURL(/\/en\/assistant\?c=/);
+  await expect(page.getByText(ANSWER)).toBeVisible({ timeout: 30_000 });
+  await expect(chatList(page).getByText(question)).toBeVisible();
+  // Sent: New chat's draft is empty again.
+  await page.getByRole("button", { name: "New chat" }).click();
+  await expect(page.getByPlaceholder(ASK)).toHaveValue("");
+});
+
+test("a pinned chat moves to Pinned, and search finds a chat by its text", async ({
+  page,
+}) => {
+  await page.goto("/en/assistant");
+  const title = `Pin me ${Date.now()}`;
+  await ask(page, title);
+  const row = chatList(page).getByRole("listitem").filter({ hasText: title });
+  await row.hover();
+  await row.getByRole("button", { name: "Chat actions" }).click();
+  await page.getByRole("menuitem", { name: "Pin" }).click();
+  const pinned = chatList(page)
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Pinned" }) });
+  await expect(pinned.getByText(title)).toBeVisible();
+
+  // The answer's text matches too; the title alone is unique to this run.
+  const search = chatList(page).getByRole("searchbox", {
+    name: "Search chats",
+  });
+  await search.fill(title.toUpperCase());
+  await expect(chatList(page).getByRole("heading")).toHaveCount(0);
+  await expect(chatList(page).getByRole("listitem")).toHaveCount(1);
+  await expect(chatList(page).getByText(title)).toBeVisible();
+  await search.press("Escape");
+  await expect(pinned.getByText(title)).toBeVisible();
+
+  // Unpinned again, so later runs start from the same list.
+  await row.hover();
+  await row.getByRole("button", { name: "Chat actions" }).click();
+  await page.getByRole("menuitem", { name: "Unpin" }).click();
+  await expect(pinned).toHaveCount(0);
+});
+
+test("a temporary chat is badged and never listed or found", async ({
+  page,
+}) => {
+  await page.goto("/en/assistant");
+  await page.getByRole("button", { name: "Temporary chat" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Temporary chat" })
+  ).toBeVisible();
+  const question = `Off the record ${Date.now()}`;
+  await ask(page, question);
+  await expect(page.locator("[data-temporary-badge]")).toHaveText("Temporary");
+  await expect(chatList(page).getByText(question)).toHaveCount(0);
+  await chatList(page)
+    .getByRole("searchbox", { name: "Search chats" })
+    .fill(question);
+  await expect(chatList(page).getByText("No chats found.")).toBeVisible();
+  await page.reload();
+  await expect(page.locator("[data-temporary-badge]")).toHaveText("Temporary");
+  await expect(chatList(page).getByText(question)).toHaveCount(0);
+});
+
+test("the generated title shows in the list without a reload", async ({
+  page,
+}) => {
+  await page.goto("/en/assistant");
+  await ask(page, `Please name me ${Date.now()}`);
+  await expect(
+    chatList(page).locator('button[aria-current="true"]')
+  ).toHaveText(NAMED_TITLE, { timeout: 30_000 });
+});
+
+test("Ctrl+Shift+O leaves the open chat for a new one", async ({ page }) => {
+  await page.goto("/en/assistant");
+  await ask(page, `Before the shortcut ${Date.now()}`);
+  await expect(page).toHaveURL(/\?c=/);
+  await page.keyboard.press("Control+Shift+O");
+  await expect(page).not.toHaveURL(/\?c=/);
+  await expect(
+    page.getByRole("heading", { name: "What can I help with?" })
+  ).toBeVisible();
+  await expect(page.getByPlaceholder(ASK)).toBeFocused();
+});
+
+for (const path of ["/en", "/en/assistant"]) {
+  test(`on ${path} the drop overlay covers exactly the input box, and the box's blank space focuses the text`, async ({
+    page,
+  }) => {
+    await page.goto(path);
+    const box = page.getByPlaceholder(ASK);
+    const group = page.locator("[data-slot=input-group]").filter({ has: box });
+    await expect(group).toBeVisible();
+    await box.evaluate((el) => (el as HTMLTextAreaElement).blur());
+    // Blank space in the toolbar row, just left of Send.
+    const bounds = await group.boundingBox();
+    if (!bounds) throw new Error("no bounds");
+    await page.mouse.click(
+      bounds.x + bounds.width / 2,
+      bounds.y + bounds.height - 12
+    );
+    await expect(box).toBeFocused();
+
+    const files = await page.evaluateHandle(() => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["x"], "a.txt", { type: "text/plain" }));
+      return transfer;
+    });
+    await group.dispatchEvent("dragenter", { dataTransfer: files });
+    const overlay = group.getByText("Drop files to attach them");
+    await expect(overlay).toBeVisible();
+    const covered = await overlay.boundingBox();
+    expect(covered).not.toBeNull();
+    // Inside the box's border, the same rounded corners.
+    expect(Math.abs((covered?.x ?? 0) - bounds.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs((covered?.width ?? 0) - bounds.width)).toBeLessThanOrEqual(
+      2
+    );
+    expect(
+      Math.abs((covered?.height ?? 0) - bounds.height)
+    ).toBeLessThanOrEqual(2);
+    const radius = await overlay.evaluate(
+      (el) => getComputedStyle(el).borderTopLeftRadius
+    );
+    const groupRadius = await group.evaluate(
+      (el) => getComputedStyle(el).borderTopLeftRadius
+    );
+    expect(radius).toBe(groupRadius);
+    expect(groupRadius).not.toBe("0px");
+  });
+}

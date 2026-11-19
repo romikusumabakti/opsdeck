@@ -7,19 +7,21 @@ export type StreamSnapshot = Pick<
   "content" | "status" | "errorCode" | "toolCalls"
 >;
 
-const isTerminal = (status: string) => status === "done" || status === "failed";
+const isTerminal = (status: string): status is "done" | "failed" =>
+  status === "done" || status === "failed";
 
 /**
  * Follows one unfinished assistant message over SSE and returns its latest
  * snapshot. The EventSource is closed on a terminal snapshot (done/failed),
  * on `not-found`, when the browser gives up on the stream, and on unmount;
- * `onTerminal` then runs once so the caller refetches the conversation.
+ * `onTerminal` then runs once so the caller refetches the conversation,
+ * with the terminal status (null when the stream ended without one).
  * While the message is unfinished the browser's own reconnect resumes the
  * stream after the server's `timeout`/`error` close.
  */
 export function useMessageStream(
   messageId: string | null,
-  onTerminal: () => void
+  onTerminal: (status: "done" | "failed" | null) => void
 ): StreamSnapshot | null {
   // Tagged with its message, so a previous message's last snapshot is never
   // shown on the next one before the effect below resets it.
@@ -37,11 +39,11 @@ export function useMessageStream(
     if (!messageId) return;
     const source = new EventSource(messageStreamUrl(messageId));
     let finished = false;
-    const finish = () => {
+    const finish = (status: "done" | "failed" | null = null) => {
       source.close();
       if (finished) return;
       finished = true;
-      onTerminalRef.current();
+      onTerminalRef.current(status);
     };
     source.addEventListener("snapshot", (event) => {
       let data: StreamSnapshot | null = null;
@@ -55,9 +57,9 @@ export function useMessageStream(
         return;
       }
       setState({ messageId, snapshot: data });
-      if (isTerminal(data.status)) finish();
+      if (isTerminal(data.status)) finish(data.status);
     });
-    source.addEventListener("not-found", finish);
+    source.addEventListener("not-found", () => finish());
     source.onerror = () => {
       // CLOSED: refused (a non-200) and never retried; refetch to show the
       // stored state instead of spinning.

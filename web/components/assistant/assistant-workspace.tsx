@@ -6,13 +6,14 @@ import {
 import {
   Bot,
   FileText,
-  MessagesSquare,
+  MessageCircleDashed,
   MoreHorizontal,
   Ticket,
 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { useTranslations } from "use-intl";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils";
 import {
   type Conversation,
   createConversation,
+  editLastQuestion,
   getAllowanceQuery,
   getConversationQuery,
   type MessageContext,
@@ -39,7 +41,10 @@ import {
 } from "@/web/api/assistant";
 import { ApiError } from "@/web/api/client";
 import { AllowanceBadge, capReached, showMeter } from "./allowance-badge";
-import { assistantShortcutLabel } from "./assistant-shortcut";
+import {
+  assistantShortcutLabel,
+  newChatShortcutLabel,
+} from "./assistant-shortcut";
 import { ChatThread, pendingAnswer } from "./chat-thread";
 import { Composer } from "./composer";
 import {
@@ -296,9 +301,34 @@ export function AssistantWorkspace({
     }
   };
 
+  // Resends the last question with new text, replacing it and its answer;
+  // a running answer is stopped first. Rejects (after saying why) so the
+  // edit stays open.
+  const editLast = async (text: string) => {
+    if (!selectedId) return;
+    try {
+      if (busy) await stopAnswer(selectedId);
+      await editLastQuestion({ conversationId: selectedId, text });
+    } catch (e) {
+      toast.error(errorText(e));
+      throw e;
+    }
+    // Not waited for: the edit is stored, the thread follows the new answer.
+    void queryClient.invalidateQueries({
+      queryKey: getConversationQuery(selectedId).queryKey,
+    });
+    void queryClient.invalidateQueries({
+      queryKey: getAllowanceQuery().queryKey,
+    });
+  };
+
   // The conversation made for a first question whose send then failed: the
   // retry sends into it rather than leaving another empty one behind.
   const created = React.useRef<string | null>(null);
+  // New chat's Temporary toggle: the next chat it creates is temporary
+  // (never listed, searched or titled; deleted 24 h after its last
+  // activity). It stays as set for further new chats, as in ChatGPT.
+  const [temporary, setTemporary] = React.useState(false);
 
   // The current selection, for a send that resolves after the user moved on.
   const selectedRef = React.useRef(selectedId);
@@ -313,7 +343,7 @@ export function AssistantWorkspace({
   ) => {
     let id = selectedId;
     if (!id) {
-      id = created.current ?? (await createConversation()).id;
+      id = created.current ?? (await createConversation({ temporary })).id;
       created.current = id;
     }
     await sendMessage({
@@ -377,9 +407,34 @@ export function AssistantWorkspace({
   }
 
   const chatOpen = selectedId !== null && !foreign;
-  const toolbar = (showMeter(allowance) || chatOpen) && (
+  // Nothing asked yet: a new chat, or one whose first send failed.
+  const emptyChat = !chatOpen || (loaded && conversation.messages.length === 0);
+  const toolbar = (
     <div className="mx-auto flex h-8 w-full max-w-3xl shrink-0 items-center justify-end gap-2">
+      {chatOpen && conversation?.temporary && (
+        <Badge variant="secondary" data-temporary-badge className="me-auto">
+          <MessageCircleDashed data-icon="inline-start" />
+          {t("temporaryBadge")}
+        </Badge>
+      )}
       {showMeter(allowance) && <AllowanceBadge allowance={allowance} />}
+      {!chatOpen && (
+        <TooltipHint label={t("temporaryChat")}>
+          <Button
+            variant={temporary ? "secondary" : "ghost"}
+            size="icon-sm"
+            aria-label={t("temporaryChat")}
+            aria-pressed={temporary}
+            onClick={() => {
+              // A chat made for a failed send keeps its kind: start afresh.
+              created.current = null;
+              setTemporary((on) => !on);
+            }}
+          >
+            <MessageCircleDashed />
+          </Button>
+        </TooltipHint>
+      )}
       {chatOpen && (draftCount > 0 || draftsOpen) && (
         <Button
           variant="outline"
@@ -463,28 +518,37 @@ export function AssistantWorkspace({
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
           {toolbar}
-          {selectedId && !foreign ? (
+          {emptyChat || !selectedId ? null : (
             <ChatThread
               key={selectedId}
               conversationId={selectedId}
               onRetry={() => void retry()}
               retryDisabled={busy || capped || retrying}
+              onEditLast={editLast}
+              editDisabled={capped || stopping}
             />
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <EmptyState
-                icon={MessagesSquare}
-                title={t("emptyThreadTitle")}
-                description={t("emptyThreadDescription")}
-              />
-              <p className="text-center text-xs text-muted-foreground">
-                {t("shortcutHint", {
-                  shortcut: assistantShortcutLabel(modKey),
-                })}
-              </p>
-            </div>
           )}
-          <div className="mx-auto w-full max-w-3xl shrink-0">
+          {/* One place in the tree for both layouts, so the box (its focus
+              and text) stays mounted when the first question docks it. */}
+          <div
+            data-composer-dock={emptyChat ? "center" : "bottom"}
+            className={cn(
+              "mx-auto flex w-full max-w-3xl flex-col",
+              emptyChat ? "my-auto gap-6 pb-[12vh]" : "shrink-0"
+            )}
+          >
+            {emptyChat && (
+              <div className="flex flex-col items-center gap-2 text-center">
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  {temporary && !chatOpen ? t("temporaryChat") : t("greeting")}
+                </h2>
+                {temporary && !chatOpen && (
+                  <p className="max-w-md text-sm text-muted-foreground">
+                    {t("temporaryDescription")}
+                  </p>
+                )}
+              </div>
+            )}
             <Composer
               disabled={busy || capped}
               running={busy}
@@ -498,6 +562,14 @@ export function AssistantWorkspace({
               userId={userId}
               context={context}
             />
+            {emptyChat && (
+              <p className="text-center text-xs text-muted-foreground">
+                {t("shortcutHint", {
+                  shortcut: assistantShortcutLabel(modKey),
+                  newChat: newChatShortcutLabel(modKey),
+                })}
+              </p>
+            )}
           </div>
         </div>
         {draftPanel &&

@@ -114,7 +114,8 @@
       "es": "西班牙语"
     },
     "projects": "项目",
-    "askAssistant": "询问助手"
+    "askAssistant": "询问助手",
+    "chats": "聊天"
   },
   "nav": {
     "dashboard": "仪表板",
@@ -798,6 +799,7 @@
     "openShortcuts": "打开此快捷键对话框",
     "closeDialog": "关闭任何打开的对话框",
     "openAssistant": "打开助手",
+    "newChat": "开始新聊天",
     "groupEditor": "编辑器",
     "editorSlashMenu": "插入块（在行首或空格之后）",
     "editorFocusMenu": "将焦点移到格式菜单",
@@ -2099,7 +2101,6 @@
     "sourcesDescription": "本项目部署的服务，以及每个服务在新环境中起始使用的分支。每个环境保留各自的分支，在其“Source & Deploy”设置中配置。"
   },
   "homePage": {
-    "askPlaceholder": "随便问问你的项目……",
     "askExamples": {
       "first": "本周哪些服务变化最大？",
       "second": "staging 上现在运行着什么？",
@@ -3989,8 +3990,6 @@
     "deleteChatConfirm": "删除此聊天？",
     "deleteChatDescription": "“{title}”及其草稿和附件将被永久删除。已据此创建的问题会保留。",
     "chatDeleted": "聊天已删除。",
-    "emptyThreadTitle": "开始提问",
-    "emptyThreadDescription": "询问流程、业务规则或代码位置。在下方选择上下文：自动、某个项目，或其中的某个环境。输入 @ 可快速选择。",
     "placeholder": "随便问——输入 @ 选择项目",
     "send": "发送",
     "sendTooltip": "发送（Enter）",
@@ -4075,7 +4074,7 @@
     "contextDeleted": "（已删除）",
     "mentionEmpty": "没有匹配的项目或环境",
     "mentionList": "项目和环境",
-    "shortcutHint": "在任意位置按 {shortcut} 打开助手。",
+    "shortcutHint": "在任意位置按 {shortcut} 打开助手，按 {newChat} 开始新聊天。",
     "noProjectsTitle": "暂时没有可询问的内容",
     "noProjectsDescription": "你还看不到任何项目。请让管理员将你加入某个项目后再使用助手。",
     "attach": "附加",
@@ -4086,6 +4085,17 @@
     "uploading": "正在上传 {name}",
     "modelNoImages": "当前配置的模型无法查看图片，只能看到文件名。",
     "dropFiles": "松开即可附加文件",
-    "fileWarning": "文件可能包含参与者数据（NIK、姓名、银行账户）。其内容会发送给已配置的 AI 提供商。只附加确实需要的文件。"
+    "fileWarning": "文件可能包含参与者数据（NIK、姓名、银行账户）。其内容会发送给已配置的 AI 提供商。只附加确实需要的文件。",
+    "greeting": "有什么可以帮你？",
+    "temporaryChat": "临时聊天",
+    "temporaryDescription": "不会显示在你的聊天列表和搜索中，并在最后一条消息 24 小时后删除。",
+    "temporaryBadge": "临时",
+    "searchChats": "搜索聊天",
+    "noChatsFound": "没有找到聊天。",
+    "pinnedChats": "已置顶",
+    "recentChats": "最近",
+    "pinChat": "置顶",
+    "unpinChat": "取消置顶",
+    "editQuestion": "编辑问题"
   }
 }

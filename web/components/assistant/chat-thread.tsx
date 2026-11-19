@@ -1,8 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessagesSquare } from "lucide-react";
 import * as React from "react";
-import { useTranslations } from "use-intl";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
   type Conversation,
   type ConversationMessage,
@@ -11,6 +8,7 @@ import {
 } from "@/web/api/assistant";
 import { MessageView } from "./message-view";
 import { isNearBottom } from "./stick-to-bottom";
+import { refreshTitleAfterFirstAnswer } from "./title-refresh";
 import { useMessageStream } from "./use-message-stream";
 
 const isPending = (m: ConversationMessage) =>
@@ -38,28 +36,47 @@ export function pendingAnswer(
 /**
  * The messages of one conversation in their own scroll area. The unfinished
  * answer follows its SSE stream; once it ends the conversation (sources,
- * final status) and the allowance are refetched.
+ * final status) and the allowance are refetched. A chat's first answer done
+ * also gets an auto title, written after the stream closed: the chat list
+ * is read again until it shows (`refreshTitleAfterFirstAnswer`).
  */
 export function ChatThread({
   conversationId,
   onRetry,
   retryDisabled,
+  onEditLast,
+  editDisabled,
 }: {
   conversationId: string;
   /** Asks the last answer again (offered on that answer only). */
   onRetry?: () => void;
   retryDisabled?: boolean;
+  /** Resends the last question with new text (offered on it only). */
+  onEditLast?: (text: string) => Promise<void>;
+  editDisabled?: boolean;
 }) {
-  const t = useTranslations("assistant");
   const queryClient = useQueryClient();
   const conversation = useQuery(getConversationQuery(conversationId)).data;
   const pending = pendingAnswer(conversation);
+  const conversationRef = React.useRef(conversation);
+  React.useEffect(() => {
+    conversationRef.current = conversation;
+  });
 
-  const snapshot = useMessageStream(pending?.id ?? null, () => {
+  const snapshot = useMessageStream(pending?.id ?? null, (status) => {
     queryClient.invalidateQueries({
       queryKey: getConversationQuery(conversationId).queryKey,
     });
     queryClient.invalidateQueries({ queryKey: getAllowanceQuery().queryKey });
+    const read = conversationRef.current;
+    if (
+      status === "done" &&
+      read &&
+      !read.temporary &&
+      read.messages.filter((m) => m.role === "user").length === 1
+    ) {
+      refreshTitleAfterFirstAnswer(queryClient, conversationId, read.title);
+    }
   });
 
   const messages = (conversation?.messages ?? []).map((m) =>
@@ -102,31 +119,25 @@ export function ChatThread({
       }}
       className="min-h-0 flex-1 overflow-y-auto"
     >
-      {conversation && messages.length === 0 ? (
-        <EmptyState
-          icon={MessagesSquare}
-          title={t("emptyThreadTitle")}
-          description={t("emptyThreadDescription")}
-        />
-      ) : (
-        <div
-          ref={observeList}
-          className="mx-auto flex w-full max-w-3xl flex-col gap-6"
-        >
-          {messages.map((message, index) => (
-            <MessageView
-              key={message.id}
-              message={message}
-              isLast={index === messages.length - 1}
-              onRetry={index === messages.length - 1 ? onRetry : undefined}
-              retryDisabled={retryDisabled}
-              projectBranches={isProjectBranches(
-                messages.slice(0, index).findLast((m) => m.role === "user")
-              )}
-            />
-          ))}
-        </div>
-      )}
+      <div
+        ref={observeList}
+        className="mx-auto flex w-full max-w-3xl flex-col gap-6"
+      >
+        {messages.map((message, index) => (
+          <MessageView
+            key={message.id}
+            message={message}
+            isLast={index === messages.length - 1}
+            onRetry={index === messages.length - 1 ? onRetry : undefined}
+            retryDisabled={retryDisabled}
+            onEdit={message.id === lastQuestionId ? onEditLast : undefined}
+            editDisabled={editDisabled}
+            projectBranches={isProjectBranches(
+              messages.slice(0, index).findLast((m) => m.role === "user")
+            )}
+          />
+        ))}
+      </div>
     </div>
   );
 }

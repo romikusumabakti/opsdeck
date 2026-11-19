@@ -9,6 +9,21 @@ export function assistantShortcutLabel(modKey: string): string {
   return modKey === "⌘" ? "⌘J" : `${modKey} J`;
 }
 
+/** New chat as the shortcut list shows it: `⇧⌘O` on a Mac, else `Ctrl Shift O`. */
+export function newChatShortcutLabel(modKey: string): string {
+  return modKey === "⌘" ? "⇧⌘O" : `${modKey} Shift O`;
+}
+
+/** Ctrl+Shift+O (Cmd+Shift+O on a Mac), as in ChatGPT; no Alt. */
+function isNewChatShortcut(e: KeyboardEvent): boolean {
+  return (
+    e.key.toLowerCase() === "o" &&
+    (e.ctrlKey || e.metaKey) &&
+    e.shiftKey &&
+    !e.altKey
+  );
+}
+
 /** Ctrl+J (Cmd+J on a Mac), no other modifier. */
 function isAssistantShortcut(e: KeyboardEvent): boolean {
   return (
@@ -43,10 +58,26 @@ export function openAssistant(
 }
 
 /**
+ * Opens the Assistant's new chat: `/assistant` without `?c=` (the open chat,
+ * if any, is left), its question box focused.
+ */
+export function openNewChat(
+  router: { push: (href: string) => void },
+  pathname: string
+) {
+  router.push("/assistant");
+  // Already there: the box is mounted (a left chat refocuses it as well).
+  if (pathname === "/assistant") {
+    document.getElementById(ASSISTANT_COMPOSER_ID)?.focus();
+  }
+}
+
+/**
  * Ctrl/Cmd+J anywhere in the app opens the assistant, like Ctrl/Cmd+K opens
- * the command palette. It yields to the rich-text editor and to any handler
- * that already claimed the key (`preventDefault`). Mounted by the app shell
- * only while the assistant is on and the user sees a project.
+ * the command palette; Ctrl/Cmd+Shift+O starts a new chat. Both yield to the
+ * rich-text editor and to any handler that already claimed the key
+ * (`preventDefault`). Mounted by the app shell only while the assistant is
+ * on and the user sees a project.
  */
 export function AssistantShortcut() {
   const router = useRouter();
@@ -54,10 +85,13 @@ export function AssistantShortcut() {
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (!isAssistantShortcut(e) || e.defaultPrevented) return;
+      const open = isAssistantShortcut(e);
+      const fresh = !open && isNewChatShortcut(e);
+      if (!(open || fresh) || e.defaultPrevented) return;
       if (inRichText(e.target)) return;
       e.preventDefault();
-      openAssistant(router, pathname);
+      if (open) openAssistant(router, pathname);
+      else openNewChat(router, pathname);
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);

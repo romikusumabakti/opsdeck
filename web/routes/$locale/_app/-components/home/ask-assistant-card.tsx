@@ -1,13 +1,11 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Paperclip, SendHorizontal } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
 import { Button } from "@/components/ui/button";
 import { Link, useRouter } from "@/i18n/navigation";
+import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import type { QuestionContextInput } from "@/lib/assistant/context";
-import { UPLOAD_ACCEPT } from "@/lib/assistant/upload-types";
-import { cn } from "@/lib/utils";
 import {
   createConversation,
   getAllowanceQuery,
@@ -15,41 +13,34 @@ import {
   sendMessage,
 } from "@/web/api/assistant";
 import { listProjectsQuery } from "@/web/api/project-catalog";
+import { ASSISTANT_COMPOSER_ID } from "@/web/components/assistant/assistant-shortcut";
+import { Composer } from "@/web/components/assistant/composer";
 import {
   composerDrafts,
+  NEW_CHAT,
+  useComposerDraft,
   useDraftUser,
 } from "@/web/components/assistant/composer-drafts";
-import { shouldSend } from "@/web/components/assistant/composer-keys";
 import {
-  ContextPicker,
   useContextOptions,
   visibleContext,
 } from "@/web/components/assistant/context-picker";
-import { useAssistantErrorText } from "@/web/components/assistant/error-text";
-import {
-  DropOverlay,
-  FileChips,
-  useFileDrop,
-  useFileUploads,
-} from "@/web/components/assistant/file-chips";
-import { useMentions } from "@/web/components/assistant/mention-popover";
 
 const AUTO: QuestionContextInput = { kind: "auto" };
 const EXAMPLE_KEYS = ["first", "second", "third"] as const;
 const MAX_RECENTS = 3;
 
 /**
- * Starts a conversation from Home: type a question, pick what it is about
- * (Automatic by default; the chip or an `@` mention in the text), attach
- * files (📎, drop or paste), Enter. The answer is followed on /assistant, which
- * the send navigates to. Below the box: the latest conversations, or example
- * questions that fill the box. Hidden unless the assistant is on and the
- * user sees a project.
+ * Starts a chat from Home with the Assistant's own composer: Home's box IS
+ * New chat's, so what is typed, attached or picked here is the same draft
+ * the Assistant shows under New chat (kept when leaving, cleared by a send).
+ * The send creates the chat and opens it on /assistant. Below the box: the
+ * latest chats, or example questions that fill the box. Hidden unless the
+ * assistant is on and the user sees a project.
  */
 export function AskAssistantCard() {
   const t = useTranslations("homePage");
   const tAssistant = useTranslations("assistant");
-  const { codeText, errorText } = useAssistantErrorText();
   const router = useRouter();
   const allowance = useQuery(getAllowanceQuery()).data;
   const projects = useQuery(listProjectsQuery()).data;
@@ -58,89 +49,45 @@ export function AskAssistantCard() {
     enabled: allowance?.enabled === true && (projects?.length ?? 0) > 0,
   }).data;
   const options = useContextOptions();
-  const [picked, setPicked] = React.useState<QuestionContextInput>(AUTO);
-  const [text, setText] = React.useState("");
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-  const fileInput = React.useRef<HTMLInputElement>(null);
   const userId = useDraftUser();
-  // The card keeps no draft across mounts: its own key, dropped (unsent
-  // uploads deleted) on unmount and reset after a send. A send still pending
-  // at unmount owns its files: they go with the question (or, if it fails,
-  // are left to the daily prune).
-  const draftKey = React.useId();
-  const sending = React.useRef(false);
-  React.useEffect(
-    () => () => {
-      if (!sending.current) composerDrafts.drop(draftKey);
-    },
-    [draftKey]
-  );
-  const uploads = useFileUploads(userId, draftKey);
-  const drop = useFileDrop(uploads.add, false);
+  const [draft] = useComposerDraft(userId, NEW_CHAT);
+  // New chat's chip, Automatic until picked (as on the Assistant page).
+  const context = visibleContext(draft.context ?? AUTO, options);
 
-  // The conversation made for a send that then failed: a retry reuses it
-  // instead of leaving another empty one behind. Conversations are global,
-  // so a changed context does not matter.
+  // The chat made for a send that then failed: a retry reuses it instead of
+  // leaving another empty one behind. Chats are global, so a changed
+  // context does not matter.
   const created = React.useRef<string | null>(null);
-
-  const context = visibleContext(picked, options);
-
-  const ask = useMutation({
-    mutationFn: async (input: {
-      context: QuestionContextInput;
-      text: string;
-      fileIds: string[];
-    }) => {
-      sending.current = true;
-      try {
-        const id = created.current ?? (await createConversation()).id;
-        created.current = id;
-        await sendMessage({
-          conversationId: id,
-          text: input.text,
-          context: input.context,
-          ...(input.fileIds.length > 0 ? { fileIds: input.fileIds } : {}),
-        });
-        created.current = null;
-        return id;
-      } finally {
-        sending.current = false;
-      }
-    },
-    onSuccess: (conversationId) => {
-      composerDrafts.clear(draftKey);
-      router.push(`/assistant?c=${conversationId}`);
-    },
-  });
-
-  const mentions = useMentions({
-    text,
-    onTextChange: setText,
-    onPick: setPicked,
-    textareaRef,
-    disabled: allowance?.capReached === true || ask.isPending,
-  });
 
   if (!allowance?.enabled || !projects || projects.length === 0) return null;
 
   const capped = allowance.capReached;
-  const canSend =
-    !capped &&
-    !ask.isPending &&
-    !ask.isSuccess &&
-    !uploads.uploading &&
-    text.trim() !== "";
-  const submit = () => {
-    if (canSend) {
-      ask.mutate({ context, text: text.trim(), fileIds: uploads.fileIds });
-    }
+
+  const send = async (
+    text: string,
+    attachments: AttachmentRef[],
+    fileIds: string[]
+  ) => {
+    const id = created.current ?? (await createConversation()).id;
+    created.current = id;
+    await sendMessage({
+      conversationId: id,
+      text,
+      context,
+      ...(attachments.length > 0 ? { attachments } : {}),
+      ...(fileIds.length > 0 ? { fileIds } : {}),
+    });
+    created.current = null;
+    // As after a first question on the Assistant page: New chat's chip
+    // starts over (the composer empties what was sent), and the chat it
+    // made keeps the context just sent.
+    composerDrafts.update(NEW_CHAT, (d) => ({ ...d, context: null }));
+    composerDrafts.update(id, (d) =>
+      d.context === null ? { ...d, context } : d
+    );
+    router.push(`/assistant?c=${id}`);
   };
-  const message = capped
-    ? codeText("assistant.daily_cap_reached", { resetsAt: allowance.resetsAt })
-    : ask.isError
-      ? errorText(ask.error)
-      : null;
-  const locked = capped || ask.isPending;
+
   // The latest chats, pinned or not.
   const recents = conversations
     ? [...conversations.pinned, ...conversations.recent]
@@ -150,99 +97,20 @@ export function AskAssistantCard() {
 
   return (
     <section className="flex flex-col gap-3">
-      <div
-        className={cn(
-          "relative flex flex-col gap-2 rounded-2xl border bg-card p-3 shadow-xs transition-shadow focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
-          locked && "opacity-70"
-        )}
-        {...(locked ? {} : drop.dropProps)}
-      >
-        <DropOverlay show={drop.dragging && !locked} />
-        <textarea
-          ref={textareaRef}
-          rows={2}
-          value={text}
-          {...mentions.inputProps}
-          onChange={mentions.onChange}
-          onSelect={mentions.onSelect}
-          onPaste={locked ? undefined : drop.onPaste}
-          onKeyDown={(e) => {
-            if (mentions.onKeyDown(e)) return;
-            if (
-              shouldSend({
-                key: e.key,
-                shiftKey: e.shiftKey,
-                isComposing: e.nativeEvent.isComposing,
-                keyCode: e.keyCode,
-              })
-            ) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={t("askPlaceholder")}
-          aria-label={t("askPlaceholder")}
-          disabled={locked}
-          className="field-sizing-content max-h-36 min-h-12 w-full resize-none border-0 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground md:text-sm"
-        />
-        <FileChips uploads={uploads} readsImages={allowance.readsImages} />
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full"
-              aria-label={tAssistant("attachFiles")}
-              disabled={locked || uploads.full}
-              onClick={() => fileInput.current?.click()}
-            >
-              <Paperclip />
-            </Button>
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              hidden
-              accept={UPLOAD_ACCEPT}
-              data-testid="home-file-input"
-              onChange={(e) => {
-                uploads.add(Array.from(e.target.files ?? []));
-                e.target.value = "";
-              }}
-            />
-            <ContextPicker
-              value={context}
-              onChange={(next) => {
-                setPicked(next);
-                textareaRef.current?.focus();
-              }}
-              disabled={locked}
-            />
-          </div>
-          <Button
-            size="icon"
-            className="rounded-full"
-            aria-label={tAssistant("send")}
-            disabled={!canSend}
-            onClick={submit}
-          >
-            <SendHorizontal />
-          </Button>
-        </div>
-        {mentions.popover}
-      </div>
-      {message ? (
-        <p
-          role={capped ? "status" : "alert"}
-          className={cn(
-            "px-1 text-xs",
-            capped ? "text-amber-600 dark:text-amber-500" : "text-destructive"
-          )}
-        >
-          {message}
-        </p>
-      ) : null}
-      {/* Nothing until the conversations load: examples must not flash. */}
+      <Composer
+        disabled={capped}
+        running={false}
+        onStop={() => {}}
+        onSend={send}
+        focusKey={NEW_CHAT}
+        autoFocus={false}
+        draftKey={NEW_CHAT}
+        userId={userId}
+        context={context}
+        capResetsAt={capped ? allowance.resetsAt : null}
+        readsImages={allowance.readsImages}
+      />
+      {/* Nothing until the chats load: examples must not flash. */}
       {recents === undefined ? null : recents.length > 0 ? (
         <div className="flex flex-col gap-1">
           <h2 className="px-1 text-xs font-medium text-muted-foreground">
@@ -284,10 +152,13 @@ export function AskAssistantCard() {
               variant="outline"
               size="sm"
               className="h-auto max-w-full whitespace-normal rounded-full py-1 text-start font-normal"
-              disabled={locked}
+              disabled={capped}
               onClick={() => {
-                setText(t(`askExamples.${key}`));
-                textareaRef.current?.focus();
+                composerDrafts.update(NEW_CHAT, (d) => ({
+                  ...d,
+                  text: t(`askExamples.${key}`),
+                }));
+                document.getElementById(ASSISTANT_COMPOSER_ID)?.focus();
               }}
             >
               {t(`askExamples.${key}`)}

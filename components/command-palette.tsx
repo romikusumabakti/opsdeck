@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   Ban,
@@ -15,6 +16,7 @@ import {
   KeyRound,
   Languages,
   LogOut,
+  MessageSquare,
   Monitor,
   Moon,
   Plus,
@@ -69,12 +71,58 @@ import {
   type ProjectRole,
   SETUP_PERMISSIONS,
 } from "@/lib/permissions";
+import { listConversationsQuery } from "@/web/api/assistant";
 import type { EnvironmentListItem } from "@/web/api/environments";
 import { resetSession } from "@/web/api/session";
 import {
   assistantShortcutLabel,
   openAssistant,
 } from "@/web/components/assistant/assistant-shortcut";
+
+// Chats shown before anything is typed; a search matches every chat.
+const IDLE_CHATS = 5;
+
+/**
+ * The caller's own chats (the list is per user; temporary ones never come)
+ * by title: pinned first, then the newest. Until something is typed only
+ * the first few show; then every chat is there for the palette's filter.
+ */
+function ChatEntries({
+  searching,
+  onOpen,
+}: {
+  searching: boolean;
+  onOpen: (id: string) => void;
+}) {
+  const t = useTranslations("commandPalette");
+  const tAssistant = useTranslations("assistant");
+  const list = useQuery(listConversationsQuery()).data;
+  if (!list) return null;
+  const all = [...list.pinned, ...list.recent];
+  const shown = searching ? all : all.slice(0, IDLE_CHATS);
+  if (shown.length === 0) return null;
+  return (
+    <>
+      <CommandSeparator />
+      <CommandGroup heading={t("chats")}>
+        {shown.map((c) => (
+          <CommandItem
+            key={c.id}
+            // Unique (titles may repeat); the title is what is matched.
+            value={`chat ${c.id}`}
+            keywords={[c.title || tAssistant("untitled")]}
+            onSelect={() => onOpen(c.id)}
+          >
+            <MessageSquare />
+            <span className="truncate">
+              {c.title || tAssistant("untitled")}
+            </span>
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    </>
+  );
+}
 
 export function CommandPalette({
   environments,
@@ -91,6 +139,7 @@ export function CommandPalette({
   assistantEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale();
@@ -138,13 +187,21 @@ export function CommandPalette({
     return () => document.removeEventListener("keydown", down);
   }, []);
 
-  function run(fn: () => void) {
+  // Closing forgets what was typed: the next open starts afresh.
+  function close() {
     setOpen(false);
-    fn();
+    setSearch("");
   }
 
+  function run(fn: () => void) {
+    close();
+    fn();
+  }
+  const showChats =
+    open && seesProjects && assistantEnabled && projects.length > 0;
+
   async function onSignOut() {
-    setOpen(false);
+    close();
     await authClient.signOut();
     // Forget the old session's data before the gate sees the next page.
     await resetSession();
@@ -152,7 +209,7 @@ export function CommandPalette({
   }
 
   function switchLocale(target: Locale) {
-    setOpen(false);
+    close();
     if (target === locale) return;
     // Server-rendered text in the cached reads is in the old locale: refetch
     // once the URL (and so `X-Locale`) has switched.
@@ -184,11 +241,15 @@ export function CommandPalette({
 
       <CommandDialog
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => (next ? setOpen(true) : close())}
         title={t("title")}
         description={t("description")}
       >
-        <CommandInput placeholder={t("placeholder")} />
+        <CommandInput
+          placeholder={t("placeholder")}
+          value={search}
+          onValueChange={setSearch}
+        />
         <CommandList>
           <CommandEmpty>{t("noResults")}</CommandEmpty>
 
@@ -347,6 +408,13 @@ export function CommandPalette({
               </CommandItem>
             )}
           </CommandGroup>
+
+          {showChats && (
+            <ChatEntries
+              searching={search.trim() !== ""}
+              onOpen={(id) => run(() => router.push(`/assistant?c=${id}`))}
+            />
+          )}
 
           {projects.length > 0 && (
             <>

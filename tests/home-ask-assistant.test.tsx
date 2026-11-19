@@ -6,7 +6,10 @@ import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyBranding } from "@/i18n/branding";
-import { composerDrafts } from "@/web/components/assistant/composer-drafts";
+import {
+  composerDrafts,
+  NEW_CHAT,
+} from "@/web/components/assistant/composer-drafts";
 import { ME_QUERY_KEY } from "@/web/query-client";
 import enMessages from "../messages/en.json";
 
@@ -32,6 +35,10 @@ vi.mock("@/web/api/assistant", () => ({
   listConversationsQuery: () => ({
     queryKey: ["assistant", "listConversations"],
     queryFn: api.listConversations,
+  }),
+  listIssueAttachmentsQuery: (key: string) => ({
+    queryKey: ["assistant", "listIssueAttachments", [key]],
+    queryFn: () => new Promise(() => {}),
   }),
   ...api,
 }));
@@ -191,6 +198,25 @@ async function press(key: string) {
 
 const pressEnter = () => press("Enter");
 
+const sendButton = () =>
+  container.querySelector<HTMLButtonElement>(
+    `button[aria-label="${messages.assistant.send}"]`
+  );
+
+async function remount() {
+  await act(async () => root.unmount());
+  await act(async () => {
+    root = createRoot(container);
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <IntlProvider locale="en" messages={messages} timeZone="UTC">
+          <AskAssistantCard />
+        </IntlProvider>
+      </QueryClientProvider>
+    );
+  });
+}
+
 const mentionOptions = () =>
   [
     ...document.querySelectorAll<HTMLElement>(
@@ -320,9 +346,12 @@ describe("home ask-the-assistant card", () => {
     expect(api.createConversation).not.toHaveBeenCalled();
   });
 
-  it("is disabled with the reset message when the daily limit is reached", async () => {
+  it("cannot send at the daily limit and says when it resets", async () => {
     await renderCard({ allowance: { ...ENABLED, capReached: true } });
-    expect(box().disabled).toBe(true);
+    await type("Hello");
+    expect(sendButton()?.disabled).toBe(true);
+    await pressEnter();
+    expect(api.createConversation).not.toHaveBeenCalled();
     expect(container.textContent).toContain("You've reached today's limit");
   });
 
@@ -442,10 +471,64 @@ describe("home ask-the-assistant card", () => {
     });
   });
 
-  it("styles the limit message as a notice, not an error", async () => {
-    await renderCard({ allowance: { ...ENABLED, capReached: true } });
-    const note = container.querySelector('[role="status"]');
-    expect(note?.className).not.toContain("text-destructive");
+  it("is the Assistant's composer: one input box holding the text, attach, context and send", async () => {
+    await renderCard({});
+    const group = container.querySelector("[data-slot=input-group]");
+    expect(group?.contains(box())).toBe(true);
+    expect(group?.contains(sendButton() ?? null)).toBe(true);
+    expect(
+      group?.querySelector(`button[aria-label="${messages.assistant.attach}"]`)
+    ).not.toBeNull();
+    expect(box().placeholder).toBe(messages.assistant.placeholder);
+    // Home is a dashboard: the box does not take focus on its own.
+    expect(document.activeElement).not.toBe(box());
+  });
+
+  it("shares the Assistant's new-chat draft: text typed here is New chat's, and New chat's shows here", async () => {
+    composerDrafts.forUser("user-1");
+    composerDrafts.update(NEW_CHAT, (d) => ({
+      ...d,
+      text: "left on New chat",
+    }));
+    await renderCard({});
+    expect(box().value).toBe("left on New chat");
+    await type("Where is login handled?");
+    expect(composerDrafts.get(NEW_CHAT).text).toBe("Where is login handled?");
+  });
+
+  it("keeps the unsent text and chip across a remount (navigation)", async () => {
+    await renderCard({});
+    await type("Where is login in @acm");
+    await pressEnter();
+    await type("Where is login in @Acme Shop later");
+    await remount();
+    expect(box().value).toBe("Where is login in @Acme Shop later");
+    expect(
+      container.querySelector('[aria-label="Context: Acme Shop"]')
+    ).not.toBeNull();
+  });
+
+  it("a send clears New chat's draft; the new chat keeps the context just sent", async () => {
+    api.createConversation.mockResolvedValue({ id: "c1" });
+    api.sendMessage.mockResolvedValue({});
+    await renderCard({});
+    await type("Where is login in @acm");
+    await pressEnter();
+    await pressEnter();
+    expect(api.sendMessage).toHaveBeenCalledWith({
+      conversationId: "c1",
+      text: "Where is login in @Acme Shop",
+      context: { kind: "project", projectId: "p1" },
+    });
+    expect(composerDrafts.get(NEW_CHAT).text).toBe("");
+    // New chat's chip starts over (Automatic), as after a first question on
+    // the Assistant page; the chat it made keeps the project.
+    expect(composerDrafts.get(NEW_CHAT).context).toBeNull();
+    expect(composerDrafts.get("c1").context).toEqual({
+      kind: "project",
+      projectId: "p1",
+    });
+    expect(nav.push).toHaveBeenCalledWith("/assistant?c=c1");
   });
 });
 
@@ -497,42 +580,6 @@ describe("home box files", () => {
     });
   });
 
-  it("files do not come back after a send or a remount", async () => {
-    api.uploadFile.mockResolvedValue({
-      id: "u1",
-      filename: "a.png",
-      mediaType: "image/png",
-      size: 1,
-    });
-    api.createConversation.mockResolvedValue({ id: "c9" });
-    api.sendMessage.mockResolvedValue({});
-    await renderCard({});
-    const picker = container.querySelector(
-      "input[type=file]"
-    ) as HTMLInputElement;
-    Object.defineProperty(picker, "files", { value: [png("a.png")] });
-    await act(async () => {
-      picker.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    expect(chips()).toHaveLength(1);
-    await type("Look");
-    await pressEnter();
-    expect(chips()).toHaveLength(0);
-    await act(async () => root.unmount());
-    await act(async () => {
-      root = createRoot(container);
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <IntlProvider locale="en" messages={messages} timeZone="UTC">
-            <AskAssistantCard />
-          </IntlProvider>
-        </QueryClientProvider>
-      );
-    });
-    expect(chips()).toHaveLength(0);
-    expect(api.deleteUpload).not.toHaveBeenCalled();
-  });
-
   async function attachReadyFile() {
     api.deleteUpload.mockResolvedValue(undefined);
     api.uploadFile.mockResolvedValue({
@@ -552,11 +599,23 @@ describe("home box files", () => {
     expect(chips()).toHaveLength(1);
   }
 
-  it("leaving with an unsent file deletes it", async () => {
+  it("an unsent file stays in New chat's draft across a remount, and is not deleted", async () => {
     await attachReadyFile();
-    await act(async () => root.unmount());
-    expect(api.deleteUpload).toHaveBeenCalledTimes(1);
-    expect(api.deleteUpload).toHaveBeenCalledWith("u1");
+    await remount();
+    expect(chips()).toHaveLength(1);
+    expect(api.deleteUpload).not.toHaveBeenCalled();
+  });
+
+  it("files do not come back after a send", async () => {
+    api.createConversation.mockResolvedValue({ id: "c9" });
+    api.sendMessage.mockResolvedValue({});
+    await attachReadyFile();
+    await type("Look");
+    await pressEnter();
+    expect(chips()).toHaveLength(0);
+    await remount();
+    expect(chips()).toHaveLength(0);
+    expect(api.deleteUpload).not.toHaveBeenCalled();
   });
 
   it("leaving while the question is being sent keeps its files", async () => {
@@ -584,20 +643,27 @@ describe("home box files", () => {
     expect(api.deleteUpload).not.toHaveBeenCalled();
   });
 
-  it("the 📎 button opens the file picker", async () => {
+  it("Attach > Upload files opens the file picker", async () => {
     await renderCard({});
     const input = container.querySelector<HTMLInputElement>(
-      "[data-testid=home-file-input]"
+      "[data-testid=composer-file-input]"
     );
     if (!input) throw new Error("no input");
     const click = vi.spyOn(input, "click").mockImplementation(() => {});
     await act(async () =>
       container
         .querySelector<HTMLButtonElement>(
-          `button[aria-label="${messages.assistant.attachFiles}"]`
+          `button[aria-label="${messages.assistant.attach}"]`
         )
         ?.click()
     );
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    const item = [
+      ...document.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ].find((el) => el.textContent?.trim() === messages.assistant.attachFiles);
+    await act(async () => item?.click());
     expect(click).toHaveBeenCalled();
   });
 });

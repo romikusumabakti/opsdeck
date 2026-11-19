@@ -114,7 +114,8 @@
       "es": "Bahasa Spanyol"
     },
     "projects": "Proyek",
-    "askAssistant": "Tanya asisten"
+    "askAssistant": "Tanya asisten",
+    "chats": "Chat"
   },
   "nav": {
     "dashboard": "Dasbor",
@@ -798,6 +799,7 @@
     "openShortcuts": "Buka dialog pintasan ini",
     "closeDialog": "Tutup dialog yang terbuka",
     "openAssistant": "Buka asisten",
+    "newChat": "Mulai chat baru",
     "groupEditor": "Editor",
     "editorSlashMenu": "Sisipkan blok (di awal baris atau setelah spasi)",
     "editorFocusMenu": "Pindahkan fokus ke menu format",
@@ -2099,7 +2101,6 @@
     "sourcesDescription": "Service yang di-deploy proyek ini dan branch awal masing-masing di environment baru. Setiap environment menyimpan branch-nya sendiri, diatur di pengaturan Source & Deploy-nya."
   },
   "homePage": {
-    "askPlaceholder": "Tanyakan apa saja tentang proyek Anda…",
     "askExamples": {
       "first": "Layanan mana yang paling banyak berubah minggu ini?",
       "second": "Apa yang sedang berjalan di staging saat ini?",
@@ -3989,8 +3990,6 @@
     "deleteChatConfirm": "Hapus chat ini?",
     "deleteChatDescription": "“{title}” dihapus permanen beserta draf dan file lampirannya. Issue yang sudah dibuat darinya tetap ada.",
     "chatDeleted": "Chat dihapus.",
-    "emptyThreadTitle": "Mulai bertanya",
-    "emptyThreadDescription": "Tanyakan alur, aturan bisnis, atau letak kode. Pilih konteksnya di bawah: Otomatis, sebuah project, atau salah satu environment-nya. Ketik @ untuk memilih dengan cepat.",
     "placeholder": "Tanya apa saja — ketik @ untuk memilih project",
     "send": "Kirim",
     "sendTooltip": "Kirim (Enter)",
@@ -4075,7 +4074,7 @@
     "contextDeleted": "(dihapus)",
     "mentionEmpty": "Tidak ada proyek atau environment yang cocok",
     "mentionList": "Proyek dan environment",
-    "shortcutHint": "Tekan {shortcut} di mana saja untuk membuka asisten.",
+    "shortcutHint": "Tekan {shortcut} di mana saja untuk membuka asisten, {newChat} untuk chat baru.",
     "noProjectsTitle": "Belum ada yang bisa ditanyakan",
     "noProjectsDescription": "Anda belum melihat project apa pun. Minta admin menambahkan Anda ke sebuah project untuk memakai asisten.",
     "attach": "Lampirkan",
@@ -4086,6 +4085,17 @@
     "uploading": "Mengunggah {name}",
     "modelNoImages": "Model yang dipakai tidak bisa melihat gambar: model hanya melihat namanya.",
     "dropFiles": "Lepaskan file untuk melampirkannya",
-    "fileWarning": "File bisa berisi data peserta (NIK, nama, rekening). Isinya dikirim ke penyedia AI yang dikonfigurasi. Lampirkan hanya file yang benar-benar diperlukan."
+    "fileWarning": "File bisa berisi data peserta (NIK, nama, rekening). Isinya dikirim ke penyedia AI yang dikonfigurasi. Lampirkan hanya file yang benar-benar diperlukan.",
+    "greeting": "Ada yang bisa saya bantu?",
+    "temporaryChat": "Chat sementara",
+    "temporaryDescription": "Tidak tampil di daftar chat maupun pencarian, dan dihapus 24 jam setelah pesan terakhirnya.",
+    "temporaryBadge": "Sementara",
+    "searchChats": "Cari chat",
+    "noChatsFound": "Tidak ada chat yang cocok.",
+    "pinnedChats": "Disematkan",
+    "recentChats": "Terbaru",
+    "pinChat": "Sematkan",
+    "unpinChat": "Lepas sematan",
+    "editQuestion": "Edit pertanyaan"
   }
 }

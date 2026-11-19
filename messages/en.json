@@ -114,7 +114,8 @@
       "es": "Spanish"
     },
     "projects": "Projects",
-    "askAssistant": "Ask the assistant"
+    "askAssistant": "Ask the assistant",
+    "chats": "Chats"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -798,6 +799,7 @@
     "openShortcuts": "Open this shortcuts dialog",
     "closeDialog": "Close any open dialog",
     "openAssistant": "Open the assistant",
+    "newChat": "Start a new chat",
     "groupEditor": "Editor",
     "editorSlashMenu": "Insert a block (at the start of a line or after a space)",
     "editorFocusMenu": "Move focus to the formatting menu",
@@ -2099,7 +2101,6 @@
     "sourcesDescription": "The services this project deploys and the branch each starts on in a new environment. Each environment keeps its own branch, set in its Source & Deploy settings."
   },
   "homePage": {
-    "askPlaceholder": "Ask anything about your projects…",
     "askExamples": {
       "first": "Which services changed most this week?",
       "second": "What is running on staging right now?",
@@ -3989,8 +3990,6 @@
     "deleteChatConfirm": "Delete this chat?",
     "deleteChatDescription": "“{title}” is deleted for good, with its drafts and attached files. Issues already created from it stay.",
     "chatDeleted": "Chat deleted.",
-    "emptyThreadTitle": "Start asking",
-    "emptyThreadDescription": "Ask about flows, business rules, or where code lives. Pick a context below: Automatic, a project, or one of its environments. Type @ to choose it quickly.",
     "placeholder": "Ask anything — type @ to pick a project",
     "send": "Send",
     "sendTooltip": "Send (Enter)",
@@ -4075,7 +4074,7 @@
     "contextDeleted": "(deleted)",
     "mentionEmpty": "No matching project or environment",
     "mentionList": "Projects and environments",
-    "shortcutHint": "Press {shortcut} anywhere to open the assistant.",
+    "shortcutHint": "Press {shortcut} anywhere to open the assistant, {newChat} for a new chat.",
     "noProjectsTitle": "Nothing to ask about yet",
     "noProjectsDescription": "You do not see any project yet. Ask an admin to add you to a project to use the assistant.",
     "attach": "Attach",
@@ -4086,6 +4085,17 @@
     "uploading": "Uploading {name}",
     "modelNoImages": "The configured model can't view images: it will only see their names.",
     "dropFiles": "Drop files to attach them",
-    "fileWarning": "Files can contain participant data (NIK, names, bank accounts). Their content is sent to the configured AI provider. Attach only the files you really need."
+    "fileWarning": "Files can contain participant data (NIK, names, bank accounts). Their content is sent to the configured AI provider. Attach only the files you really need.",
+    "greeting": "What can I help with?",
+    "temporaryChat": "Temporary chat",
+    "temporaryDescription": "Not shown in your chats or in search, and deleted 24 hours after its last message.",
+    "temporaryBadge": "Temporary",
+    "searchChats": "Search chats",
+    "noChatsFound": "No chats found.",
+    "pinnedChats": "Pinned",
+    "recentChats": "Recent",
+    "pinChat": "Pin",
+    "unpinChat": "Unpin",
+    "editQuestion": "Edit question"
   }
 }

@@ -52,18 +52,13 @@ function render() {
 }
 
 describe("HomeHeader", () => {
-  it("greets by the preferred name after the assistant icon, calmly", () => {
+  it("greets by the preferred name, calmly, without the assistant's icon", () => {
     render();
     const h1 = container.querySelector("h1");
     expect(h1?.textContent).toBe("Good morning, Dana");
     expect(h1?.textContent).not.toContain("!");
-    const icon = container.querySelector("svg");
-    expect(icon?.getAttribute("aria-hidden")).toBe("true");
-    expect(icon?.classList.contains("lucide-bot")).toBe(true);
-    // The icon comes before the greeting.
-    expect(icon && h1 ? icon.compareDocumentPosition(h1) : 0).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
+    // The robot icon means the Assistant (the sidebar's): not the greeting.
+    expect(container.querySelector("svg")).toBeNull();
     // No subtitle under the greeting.
     expect(container.querySelector("p")).toBeNull();
     expect(container.textContent).not.toContain(

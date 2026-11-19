@@ -28,6 +28,8 @@ const api = vi.hoisted(() => ({
   deleteUpload: vi.fn(),
   stopAnswer: vi.fn(),
   retryAnswer: vi.fn(),
+  pinConversation: vi.fn(),
+  editLastQuestion: vi.fn(),
 }));
 const nav = vi.hoisted(() => ({ pathname: "/" }));
 // A test's own get-conversation result (e.g. a 404); default: never settles.
@@ -45,8 +47,10 @@ vi.mock("@/web/api/assistant", () => ({
     queryKey: ["assistant", "getConversation", [id]],
     queryFn: () => conversationFetch.get(id)?.() ?? new Promise(() => {}),
   }),
-  listConversationsQuery: () => ({
-    queryKey: ["assistant", "listConversations"],
+  listConversationsQuery: (query?: string) => ({
+    queryKey: query
+      ? ["assistant", "listConversations", { query }]
+      : ["assistant", "listConversations"],
     queryFn: () => new Promise(() => {}),
   }),
   listDraftProjectsQuery: () => ({
@@ -111,6 +115,10 @@ import {
   summarizeReads,
 } from "@/web/components/assistant/message-sources";
 import { MessageView } from "@/web/components/assistant/message-view";
+import {
+  resetTitleRefreshForTests,
+  TITLE_REFRESH_DELAYS_MS,
+} from "@/web/components/assistant/title-refresh";
 
 const ENV_ID = "3f0c2a52-2a7e-4d1b-9a43-6f1f6f0f0e01";
 const ENV_2 = "3f0c2a52-2a7e-4d1b-9a43-6f1f6f0f0e02";
@@ -1120,6 +1128,114 @@ describe("answer stream", () => {
     });
     expect(el.scrollTop).toBe(1500);
   });
+  describe("auto title", () => {
+    const listKey = ["assistant", "listConversations"];
+    const listed = (title: string) => ({
+      pinned: [],
+      recent: [{ id: "c1", title, updatedAt: "2026-11-16T01:00:00Z" }],
+    });
+    const finish = async (status = "done") => {
+      const [source] = FakeEventSource.instances;
+      await act(async () =>
+        source?.emit("snapshot", {
+          content: "Jawaban",
+          status,
+          errorCode: null,
+          toolCalls: [],
+        })
+      );
+    };
+    // The list "refetch" of the test: each read returns the next title.
+    const serveTitles = (titles: string[]) => {
+      let read = 0;
+      return vi
+        .spyOn(queryClient, "invalidateQueries")
+        .mockImplementation(async (filters) => {
+          const queryKey = (filters as { queryKey?: unknown[] })?.queryKey;
+          if (JSON.stringify(queryKey) === JSON.stringify(listKey)) {
+            const title = titles[Math.min(read++, titles.length - 1)] ?? "";
+            queryClient.setQueryData(listKey, listed(title));
+          }
+        });
+    };
+    const listReads = (spy: ReturnType<typeof serveTitles>) =>
+      spy.mock.calls.filter(
+        (c) =>
+          JSON.stringify((c[0] as { queryKey?: unknown[] })?.queryKey) ===
+          JSON.stringify(listKey)
+      ).length;
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      resetTitleRefreshForTests();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("after the first answer, reads the list again until the generated title shows", async () => {
+      queryClient.setQueryData(key, conversation("streaming"));
+      queryClient.setQueryData(listKey, listed("Iuran"));
+      const spy = serveTitles(["Iuran", "Iuran", "Cara hitung iuran"]);
+      await render(<ChatThread conversationId="c1" />);
+      await finish();
+      expect(listReads(spy)).toBe(0);
+      for (const delay of TITLE_REFRESH_DELAYS_MS) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(delay);
+        });
+      }
+      // Two reads still had the first title, the third the generated one.
+      expect(listReads(spy)).toBe(3);
+      expect(spy).toHaveBeenCalledWith({ queryKey: key });
+    });
+
+    it("gives up after the last delay when no title comes", async () => {
+      queryClient.setQueryData(key, conversation("streaming"));
+      const spy = serveTitles(["Iuran"]);
+      await render(<ChatThread conversationId="c1" />);
+      await finish();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000);
+      });
+      expect(listReads(spy)).toBe(TITLE_REFRESH_DELAYS_MS.length);
+    });
+
+    it("does not watch a failed answer, a later question's answer or a temporary chat", async () => {
+      const spy = serveTitles(["Iuran"]);
+      const second = conversation("streaming");
+      const cases = [
+        { data: conversation("streaming"), status: "failed" },
+        {
+          data: {
+            ...second,
+            messages: [
+              { ...second.messages[0], id: "m0" },
+              { ...second.messages[1], id: "m0a", status: "done" },
+              ...second.messages,
+            ],
+          },
+          status: "done",
+        },
+        {
+          data: { ...conversation("streaming"), temporary: true },
+          status: "done",
+        },
+      ];
+      for (const c of cases) {
+        FakeEventSource.instances = [];
+        queryClient.setQueryData(key, c.data);
+        await render(<ChatThread conversationId="c1" />);
+        await finish(c.status);
+        act(() => root.unmount());
+      }
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000);
+      });
+      expect(listReads(spy)).toBe(0);
+      root = createRoot(container);
+    });
+  });
 });
 
 describe("composer attachments", () => {
@@ -1227,6 +1343,12 @@ describe("composer files", () => {
   const chips = () => [
     ...document.querySelectorAll<HTMLElement>("[data-file-chip]"),
   ];
+  /** The input box (`InputGroup`): files are dropped on it. */
+  const inputBox = () => {
+    const group = container.querySelector("[data-slot=input-group]");
+    if (!group) throw new Error("no input group");
+    return group;
+  };
   const typeQuestion = async (value: string) => {
     const box = container.querySelector("textarea");
     if (!box) throw new Error("no textarea");
@@ -1256,10 +1378,38 @@ describe("composer files", () => {
     />
   );
 
+  it("the drop overlay covers exactly the input box, not the notices or the disclaimer", async () => {
+    api.uploadFile.mockReturnValue(new Promise(() => {}));
+    await render(composer());
+    const outer = container.firstElementChild as Element;
+    // A drag over the disclaimer (outside the box) shows nothing.
+    const disclaimer = [...outer.querySelectorAll("p")].find(
+      (p) => p.textContent === t.disclaimer
+    );
+    if (!disclaimer) throw new Error("no disclaimer");
+    const enter = (target: Element) => {
+      const event = new Event("dragenter", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "dataTransfer", {
+        value: { types: ["Files"], files: [], dropEffect: "none" },
+      });
+      target.dispatchEvent(event);
+    };
+    await act(async () => enter(disclaimer));
+    expect(text()).not.toContain(t.dropFiles);
+    await act(async () => enter(inputBox()));
+    const overlay = [...document.querySelectorAll("div")].find(
+      (d) => d.textContent === t.dropFiles
+    );
+    expect(overlay?.parentElement).toBe(inputBox());
+    expect(overlay?.className).toContain("inset-0");
+    expect(overlay?.className).toContain("rounded-[inherit]");
+    expect(inputBox().className).toContain("rounded-2xl");
+  });
+
   it("a click on blank space in the file chips area focuses the textarea, not the file input", async () => {
     api.uploadFile.mockReturnValue(new Promise(() => {}));
     await render(composer());
-    await dropOn(container.firstElementChild as Element, [file("shot.png")]);
+    await dropOn(inputBox(), [file("shot.png")]);
     const addon = container.querySelector<HTMLElement>(
       '[data-align="block-start"]'
     );
@@ -1283,7 +1433,7 @@ describe("composer files", () => {
     const onSend = vi.fn().mockResolvedValue(undefined);
     await render(composer(onSend));
     const box = await typeQuestion("What is on the screen?");
-    const target = container.firstElementChild as Element;
+    const target = inputBox();
     await dropOn(target, [file("shot.png")]);
 
     expect(api.uploadFile).toHaveBeenCalledTimes(1);
@@ -1372,7 +1522,7 @@ describe("composer files", () => {
   it("refuses a too large or unsupported file before uploading, and an 11th file", async () => {
     api.uploadFile.mockImplementation(() => new Promise(() => {}));
     await render(composer());
-    const target = container.firstElementChild as Element;
+    const target = inputBox();
     await dropOn(target, [
       file("big.png", 6 * 1024 * 1024),
       file("tool.exe", 10),
@@ -1399,14 +1549,14 @@ describe("composer files", () => {
       new ApiError(415, "Unsupported", "assistant.file_type_unsupported")
     );
     await render(composer(undefined, false));
-    await dropOn(container.firstElementChild as Element, [file("shot.png")]);
+    await dropOn(inputBox(), [file("shot.png")]);
     expect(chips()[0]?.querySelector("[role=alert]")?.textContent).toBe(
       messages.assistantErrors.fileTypeUnsupported
     );
     // A refused image is not sent, so nothing to say about it yet.
     expect(text()).not.toContain(t.modelNoImages);
     api.uploadFile.mockReturnValue(new Promise(() => {}));
-    await dropOn(container.firstElementChild as Element, [file("two.png")]);
+    await dropOn(inputBox(), [file("two.png")]);
     expect(text()).toContain(t.modelNoImages);
   });
 });
@@ -1767,7 +1917,9 @@ describe("context picker", () => {
     await renderWorkspace();
     expect(chip()?.textContent).toBe(t.contextAuto);
     await typeAndSend("Di mana hitung iuran?");
-    expect(api.createConversation).toHaveBeenCalledExactlyOnceWith();
+    expect(api.createConversation).toHaveBeenCalledExactlyOnceWith({
+      temporary: false,
+    });
     expect(api.sendMessage).toHaveBeenCalledWith({
       conversationId: CONV_ID,
       text: "Di mana hitung iuran?",
@@ -2426,7 +2578,7 @@ describe("context picker", () => {
     expect(api.deleteConversation).toHaveBeenCalledWith(CONV_ID);
     expect(onConversationChange).toHaveBeenLastCalledWith(null);
     expect(button(t.moreActions)).toBeUndefined();
-    expect(text()).toContain(t.emptyThreadTitle);
+    expect(text()).toContain(t.greeting);
     expect(
       queryClient.getQueryData(["assistant", "getConversation", [CONV_ID]])
     ).toBeUndefined();
@@ -2466,36 +2618,6 @@ describe("context picker", () => {
     expect(api.deleteConversation).toHaveBeenCalledWith("c2");
     expect(onConversationChange).not.toHaveBeenCalled();
     expect(button(t.moreActions)).toBeDefined();
-  });
-
-  it("chat rows show the title and time, not the project", async () => {
-    await renderWorkspace(
-      {},
-      [],
-      [
-        {
-          id: CONV_ID,
-          title: "Iuran",
-          updatedAt: "2026-11-16T01:00:00Z",
-          lastContextLabel: "Heron Membership",
-          lastContextDeleted: false,
-        },
-        {
-          id: "c2",
-          title: "Tagihan",
-          updatedAt: "2026-11-16T00:00:00Z",
-          lastContextLabel: null,
-          lastContextDeleted: false,
-        },
-      ]
-    );
-    const rows = [...document.querySelectorAll("nav li")];
-    expect(rows[0]?.querySelector("time")).not.toBeNull();
-    expect(rows[0]?.textContent).toContain("Iuran");
-    for (const row of rows) {
-      expect(row.textContent).not.toContain("Heron Membership");
-      expect(row.textContent).not.toContain(t.contextAuto);
-    }
   });
 
   it("no page heading is visible; an sr-only h1 names the page", async () => {
@@ -2925,7 +3047,7 @@ describe("context picker", () => {
       expect(api.deleteUpload).toHaveBeenCalledExactlyOnceWith("up-a.txt");
       // New chat shows, with its own (empty) draft.
       expect(onConversationChange).toHaveBeenLastCalledWith(null);
-      expect(text()).toContain(t.emptyThreadTitle);
+      expect(text()).toContain(t.greeting);
       expect(box().value).toBe("");
       expect(chipCount()).toBe(0);
       expect(composerDrafts.get(CONV_ID).files).toEqual([]);
@@ -2977,7 +3099,7 @@ describe("context picker", () => {
         initialContext: { kind: "project", projectId: "p1" },
       });
       await settle();
-      expect(text()).toContain(t.emptyThreadTitle);
+      expect(text()).toContain(t.greeting);
       expect(chip()?.textContent).toBe("Heron Membership");
       await open("Iuran");
       expect(chip()?.textContent).toBe(t.contextAuto);
@@ -2993,7 +3115,7 @@ describe("context picker", () => {
         initialContext: { kind: "project", projectId: "p1" },
       });
       await settle();
-      expect(text()).toContain(t.emptyThreadTitle);
+      expect(text()).toContain(t.greeting);
       expect(chip()?.textContent).toBe("Heron Membership");
       expect(composerDrafts.get(missing).context).toBeNull();
       expect(composerDrafts.get(NEW_CHAT).context).toEqual({
@@ -3157,6 +3279,378 @@ describe("context picker", () => {
       });
     });
   });
+  describe("2026 chat layout", () => {
+    const dock = () =>
+      container.querySelector<HTMLElement>("[data-composer-dock]");
+
+    it("a new chat centres a greeting and the composer; the old empty state is gone", async () => {
+      await renderWorkspace();
+      expect(dock()?.dataset.composerDock).toBe("center");
+      expect(dock()?.className).toContain("my-auto");
+      expect(dock()?.querySelector("h2")?.textContent).toBe(t.greeting);
+      expect(dock()?.contains(container.querySelector("textarea"))).toBe(true);
+      expect(text()).not.toContain("Start asking");
+    });
+
+    it("an open chat with messages docks the composer at the bottom, without the greeting", async () => {
+      await renderWorkspace({ conversationId: CONV_ID }, [
+        userMessage("u1", contextOf("user", null, null)),
+        answer,
+      ]);
+      expect(dock()?.dataset.composerDock).toBe("bottom");
+      expect(text()).not.toContain(t.greeting);
+    });
+
+    it("docks after the first message: the composer stays mounted and focused", async () => {
+      api.createConversation.mockResolvedValue({ id: CONV_ID });
+      api.sendMessage.mockResolvedValue({});
+      conversationFetch.set(CONV_ID, async () => ({
+        id: CONV_ID,
+        title: "Q",
+        temporary: false,
+        drafts: [],
+        messages: [userMessage("u1", null), answer],
+      }));
+      await renderWorkspace();
+      queryClient.removeQueries({
+        queryKey: ["assistant", "getConversation", [CONV_ID]],
+      });
+      const before = container.querySelector("textarea");
+      await typeAndSend("Q");
+      await settle();
+      expect(dock()?.dataset.composerDock).toBe("bottom");
+      expect(container.querySelector("textarea")).toBe(before);
+      expect(document.activeElement).toBe(before);
+    });
+
+    it("the temporary toggle makes the next new chat temporary, and says what that means", async () => {
+      api.createConversation.mockResolvedValue({ id: CONV_ID });
+      api.sendMessage.mockResolvedValue({});
+      await renderWorkspace();
+      const toggle = button(t.temporaryChat);
+      expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+      expect(text()).not.toContain(t.temporaryDescription);
+      await act(async () => toggle?.click());
+      expect(button(t.temporaryChat)?.getAttribute("aria-pressed")).toBe(
+        "true"
+      );
+      expect(dock()?.querySelector("h2")?.textContent).toBe(t.temporaryChat);
+      expect(text()).toContain(t.temporaryDescription);
+      await typeAndSend("Sekali saja");
+      expect(api.createConversation).toHaveBeenCalledExactlyOnceWith({
+        temporary: true,
+      });
+    });
+
+    it("an open temporary chat shows the Temporary badge and offers no toggle", async () => {
+      await renderWorkspace({ conversationId: CONV_ID }, [
+        userMessage("u1", null),
+        answer,
+      ]);
+      expect(text()).not.toContain(t.temporaryBadge);
+      await act(async () => {
+        queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
+          id: CONV_ID,
+          title: "Iuran",
+          temporary: true,
+          drafts: [],
+          messages: [userMessage("u1", null), answer],
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(
+        container.querySelector("[data-temporary-badge]")?.textContent
+      ).toBe(t.temporaryBadge);
+      expect(button(t.temporaryChat)).toBeUndefined();
+    });
+
+    it("an automatic question has no context label; a project question has one", async () => {
+      await renderWorkspace({ conversationId: CONV_ID }, [
+        userMessage("u1", {
+          kind: "auto",
+          label: null,
+          deleted: false,
+          projectId: null,
+          environmentId: null,
+        }),
+        { ...answer, id: "a1" },
+        { ...userMessage("u2", contextOf("user", null, null)), content: "Q2" },
+        { ...answer, id: "a2" },
+      ]);
+      const labels = [
+        ...container.querySelectorAll("[data-question-context]"),
+      ].map((el) => el.textContent);
+      expect(labels).toEqual(["Heron Membership"]);
+    });
+  });
+
+  describe("chat list", () => {
+    const iuran = {
+      id: CONV_ID,
+      title: "Iuran bulanan peserta yang sangat panjang sekali",
+      updatedAt: "2026-11-16T01:00:00Z",
+      pinnedAt: null,
+      lastContextLabel: "Heron Membership",
+      lastContextDeleted: false,
+    };
+    const pajak = {
+      id: "c2",
+      title: "Pajak",
+      updatedAt: "2026-11-16T03:00:00Z",
+      pinnedAt: "2026-11-16T04:00:00Z",
+      lastContextLabel: null,
+      lastContextDeleted: false,
+    };
+    const tagihan = {
+      id: "c3",
+      title: "Tagihan",
+      updatedAt: "2026-11-16T02:00:00Z",
+      pinnedAt: null,
+      lastContextLabel: null,
+      lastContextDeleted: false,
+    };
+    const renderList = async () => {
+      await renderWorkspace({}, [], []);
+      await act(async () => {
+        queryClient.setQueryData(["assistant", "listConversations"], {
+          pinned: [pajak],
+          recent: [tagihan, iuran],
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+    };
+    const nav = () =>
+      document.querySelector<HTMLElement>(`nav[aria-label="${t.chats}"]`);
+    const sections = () =>
+      [...(nav()?.querySelectorAll("section") ?? [])].map((s) => ({
+        heading: s.querySelector("h2")?.textContent,
+        rows: [...s.querySelectorAll("li")].map((li) => li.textContent),
+      }));
+    const openMenu = async (title: string) => {
+      const row = [...(nav()?.querySelectorAll("li") ?? [])].find((li) =>
+        li.textContent?.includes(title)
+      );
+      await act(async () =>
+        row
+          ?.querySelector<HTMLButtonElement>(
+            `button[aria-label="${t.chatActions}"]`
+          )
+          ?.click()
+      );
+      await settle();
+    };
+    const search = async (value: string) => {
+      const field = nav()?.querySelector<HTMLInputElement>(
+        `input[aria-label="${t.searchChats}"]`
+      );
+      if (!field) throw new Error("no search field");
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set?.call(field, value);
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      return field;
+    };
+
+    it("shows Pinned above Recent", async () => {
+      await renderList();
+      expect(sections()).toEqual([
+        { heading: t.pinnedChats, rows: ["Pajak"] },
+        { heading: t.recentChats, rows: ["Tagihan", iuran.title] },
+      ]);
+    });
+
+    it("a row is one truncated line with the title: no time, no context", async () => {
+      await renderList();
+      for (const li of nav()?.querySelectorAll("li") ?? []) {
+        expect(li.querySelector("time")).toBeNull();
+        expect(li.textContent).not.toContain("Heron Membership");
+        expect(li.textContent).not.toContain(t.contextAuto);
+      }
+      const title = [...(nav()?.querySelectorAll("li span") ?? [])].find(
+        (s) => s.textContent === iuran.title
+      );
+      expect(title?.className).toContain("truncate");
+      expect(title?.className).not.toContain("line-clamp");
+    });
+
+    it("the ⋯ menu pins a recent chat and unpins a pinned one", async () => {
+      api.pinConversation.mockResolvedValue({ id: "c3", pinned: true });
+      await renderList();
+      await openMenu("Tagihan");
+      expect(menuItem(t.unpinChat)).toBeUndefined();
+      expect(menuItem(t.renameChat)).toBeDefined();
+      expect(menuItem(t.deleteChat)).toBeDefined();
+      await act(async () => menuItem(t.pinChat)?.click());
+      await settle();
+      expect(api.pinConversation).toHaveBeenCalledWith({
+        conversationId: "c3",
+        pinned: true,
+      });
+      await openMenu("Pajak");
+      expect(menuItem(t.pinChat)).toBeUndefined();
+      await act(async () => menuItem(t.unpinChat)?.click());
+      await settle();
+      expect(api.pinConversation).toHaveBeenLastCalledWith({
+        conversationId: "c2",
+        pinned: false,
+      });
+    });
+
+    it("a search replaces the list with one flat result list, newest first", async () => {
+      await renderList();
+      queryClient.setQueryData(
+        ["assistant", "listConversations", { query: "a" }],
+        { pinned: [pajak], recent: [tagihan, iuran] }
+      );
+      await search("  a ");
+      await settle();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      });
+      expect(sections()).toEqual([
+        { heading: undefined, rows: ["Pajak", "Tagihan", iuran.title] },
+      ]);
+    });
+
+    it("says so when a search finds nothing, and Escape clears it", async () => {
+      await renderList();
+      queryClient.setQueryData(
+        ["assistant", "listConversations", { query: "zzz" }],
+        { pinned: [], recent: [] }
+      );
+      const field = await search("zzz");
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      });
+      await settle();
+      expect(nav()?.textContent).toContain(t.noChatsFound);
+      await act(async () => {
+        field.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        );
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      });
+      await settle();
+      expect(field.value).toBe("");
+      expect(sections().map((s) => s.heading)).toEqual([
+        t.pinnedChats,
+        t.recentChats,
+      ]);
+    });
+  });
+
+  describe("edit last question", () => {
+    const thread = [
+      { ...userMessage("u1", null), content: "Pertama" },
+      { ...answer, id: "a1" },
+      { ...userMessage("u2", null), content: "Kedua" },
+      { ...answer, id: "a2" },
+    ];
+    const editButtons = () =>
+      [...container.querySelectorAll("button")].filter(
+        (b) => b.getAttribute("aria-label") === t.editQuestion
+      );
+    const editField = () =>
+      container.querySelector<HTMLTextAreaElement>(
+        `textarea[aria-label="${t.editQuestion}"]`
+      );
+    const typeEdit = async (value: string) => {
+      const field = editField();
+      if (!field) throw new Error("no edit field");
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set?.call(field, value);
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    const saveEdit = () =>
+      [
+        ...container.querySelectorAll<HTMLButtonElement>(
+          "[data-edit-question] button"
+        ),
+      ].find((b) => b.textContent?.trim() === t.send);
+
+    it("only the last question offers Edit", async () => {
+      await renderWorkspace({ conversationId: CONV_ID }, thread);
+      expect(editButtons()).toHaveLength(1);
+      const bubble = editButtons()[0]?.closest(".group\\/message");
+      expect(bubble?.textContent).toContain("Kedua");
+    });
+
+    it("edits in place and resends: Escape cancels, Send replaces the question and its answer", async () => {
+      api.editLastQuestion.mockResolvedValue({
+        userMessageId: "u2",
+        assistantMessageId: "a3",
+      });
+      await renderWorkspace({ conversationId: CONV_ID }, thread);
+      await act(async () => editButtons()[0]?.click());
+      expect(editField()?.value).toBe("Kedua");
+      // Unchanged: nothing to send.
+      expect(saveEdit()?.disabled).toBe(true);
+      await act(async () => {
+        editField()?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+        );
+      });
+      expect(editField()).toBeNull();
+
+      await act(async () => editButtons()[0]?.click());
+      await typeEdit("  Kedua, diperbaiki ");
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      await act(async () => saveEdit()?.click());
+      await settle();
+      expect(api.stopAnswer).not.toHaveBeenCalled();
+      expect(api.editLastQuestion).toHaveBeenCalledExactlyOnceWith({
+        conversationId: CONV_ID,
+        text: "Kedua, diperbaiki",
+      });
+      expect(editField()).toBeNull();
+      const keys = invalidate.mock.calls.map((c) => c[0]?.queryKey);
+      expect(keys).toContainEqual(["assistant", "getConversation", [CONV_ID]]);
+      expect(keys).toContainEqual(["assistant", "getAllowance"]);
+    });
+
+    it("stops a running answer first, then resends", async () => {
+      api.stopAnswer.mockResolvedValue({ id: "a2" });
+      api.editLastQuestion.mockResolvedValue({
+        userMessageId: "u2",
+        assistantMessageId: "a3",
+      });
+      await renderWorkspace({ conversationId: CONV_ID }, [
+        ...thread.slice(0, 3),
+        { ...answer, id: "a2", status: "streaming", content: "" },
+      ]);
+      await act(async () => editButtons()[0]?.click());
+      await typeEdit("Kedua lagi");
+      await act(async () => saveEdit()?.click());
+      await settle();
+      expect(api.stopAnswer).toHaveBeenCalledWith(CONV_ID);
+      expect(api.editLastQuestion).toHaveBeenCalledWith({
+        conversationId: CONV_ID,
+        text: "Kedua lagi",
+      });
+      expect(api.stopAnswer.mock.invocationCallOrder[0]).toBeLessThan(
+        api.editLastQuestion.mock.invocationCallOrder[0] ?? 0
+      );
+    });
+
+    it("a refused edit keeps the field open with the text", async () => {
+      api.editLastQuestion.mockRejectedValue(new Error("boom"));
+      await renderWorkspace({ conversationId: CONV_ID }, thread);
+      await act(async () => editButtons()[0]?.click());
+      await typeEdit("Kedua baru");
+      await act(async () => saveEdit()?.click());
+      await settle();
+      expect(editField()?.value).toBe("Kedua baru");
+    });
+  });
 });
 
 describe("question bubble context", () => {
@@ -3211,7 +3705,7 @@ describe("question bubble context", () => {
     expect(sent).toEqual(["shot.png2 KB", "notes.md10 B"]);
   });
 
-  it("names an automatic question", async () => {
+  it("does not label an automatic question (Automatic is the default)", async () => {
     await renderQuestion({
       kind: "auto",
       label: null,
@@ -3219,7 +3713,8 @@ describe("question bubble context", () => {
       projectId: null,
       environmentId: null,
     });
-    expect(label()).toBe(t.contextAuto);
+    expect(label()).toBeUndefined();
+    expect(text()).not.toContain(t.contextAuto);
   });
 
   it("names the project it asked about", async () => {

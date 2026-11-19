@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
@@ -22,6 +23,14 @@ vi.mock("@/components/motif-provider", () => ({
 }));
 vi.mock("@/lib/auth-client", () => ({ authClient: { signOut: vi.fn() } }));
 vi.mock("@/web/api/session", () => ({ resetSession: vi.fn() }));
+// The caller's chats (own only: the list endpoint is per user).
+const chats = vi.hoisted(() => ({ fetch: vi.fn() }));
+vi.mock("@/web/api/assistant", () => ({
+  listConversationsQuery: () => ({
+    queryKey: ["assistant", "listConversations"],
+    queryFn: chats.fetch,
+  }),
+}));
 
 import { CommandPalette } from "@/components/command-palette";
 import type { OrgRole, ProjectRole } from "@/lib/permissions";
@@ -42,17 +51,22 @@ async function openPalette(
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   await act(async () => {
     root.render(
-      <IntlProvider locale="en" messages={messages}>
-        <CommandPalette
-          environments={[]}
-          projects={[{ id: PROJECT, key: "KMEM", name: "KMEM" }]}
-          orgRole={orgRole}
-          projectRoles={{ [PROJECT]: projectRole }}
-          assistantEnabled={assistantEnabled}
-        />
-      </IntlProvider>
+      <QueryClientProvider client={queryClient}>
+        <IntlProvider locale="en" messages={messages}>
+          <CommandPalette
+            environments={[]}
+            projects={[{ id: PROJECT, key: "KMEM", name: "KMEM" }]}
+            orgRole={orgRole}
+            projectRoles={{ [PROJECT]: projectRole }}
+            assistantEnabled={assistantEnabled}
+          />
+        </IntlProvider>
+      </QueryClientProvider>
     );
   });
   await act(async () =>
@@ -74,7 +88,76 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   push.mockClear();
+  chats.fetch.mockReset();
   nav.pathname = "/";
+});
+
+const chat = (id: string, title: string) => ({
+  id,
+  title,
+  updatedAt: "2026-11-16T01:00:00Z",
+  pinnedAt: null,
+  lastContextLabel: null,
+  lastContextDeleted: false,
+});
+
+describe("command palette chats", () => {
+  const chatItems = () =>
+    [...document.querySelectorAll<HTMLElement>("[cmdk-group]")]
+      .find(
+        (g) =>
+          g.querySelector("[cmdk-group-heading]")?.textContent ===
+          messages.commandPalette.chats
+      )
+      ?.querySelectorAll<HTMLElement>("[cmdk-item]");
+  const settle = () =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+  it("lists the caller's chats by title, pinned first, and opens one", async () => {
+    chats.fetch.mockResolvedValue({
+      pinned: [chat("c2", "Deploy checklist")],
+      recent: [chat("c1", "Login flow")],
+    });
+    await openPalette("engineer", "engineer", true);
+    await settle();
+    expect([...(chatItems() ?? [])].map((el) => el.textContent)).toEqual([
+      "Deploy checklist",
+      "Login flow",
+    ]);
+    await act(async () => chatItems()?.[1]?.click());
+    expect(push).toHaveBeenCalledWith("/assistant?c=c1");
+  });
+
+  it("shows a few recent chats until a search, then every match by title", async () => {
+    chats.fetch.mockResolvedValue({
+      pinned: [],
+      recent: Array.from({ length: 12 }, (_, i) => chat(`c${i}`, `Chat ${i}`)),
+    });
+    await openPalette("engineer", "engineer", true);
+    await settle();
+    expect(chatItems()?.length).toBe(5);
+    const input = document.querySelector<HTMLInputElement>("[cmdk-input]");
+    if (!input) throw new Error("no input");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(input, "Chat 11");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await settle();
+    const visible = [...(chatItems() ?? [])].map((el) => el.textContent);
+    expect(visible).toContain("Chat 11");
+  });
+
+  it("loads no chats while the assistant is off", async () => {
+    await openPalette("engineer", "engineer", false);
+    await settle();
+    expect(chats.fetch).not.toHaveBeenCalled();
+    expect(chatItems()).toBeUndefined();
+  });
 });
 
 describe("command palette pages", () => {

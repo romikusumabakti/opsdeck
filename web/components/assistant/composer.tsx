@@ -67,6 +67,7 @@ export function Composer({
   context,
   capResetsAt,
   readsImages = true,
+  autoFocus = true,
 }: {
   /** An answer is still running, or the assistant cannot take questions. */
   disabled: boolean;
@@ -96,6 +97,8 @@ export function Composer({
   capResetsAt?: string | null;
   /** False: the configured model cannot view images (said under them). */
   readsImages?: boolean;
+  /** False: no focus on mount (Home); a `focusKey` change still focuses. */
+  autoFocus?: boolean;
 }) {
   const t = useTranslations("assistant");
   const { errorText } = useAssistantErrorText();
@@ -136,8 +139,12 @@ export function Composer({
     disabled,
   });
 
+  const mounted = React.useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: focusKey is the trigger.
   React.useEffect(() => {
+    const first = !mounted.current;
+    mounted.current = true;
+    if (first && !autoFocus) return;
     textareaRef.current?.focus();
   }, [focusKey]);
 
@@ -186,12 +193,10 @@ export function Composer({
     });
 
   // A container, so the footer adapts to the chat column, not the viewport.
+  // Files are dropped on the input box itself (its overlay covers exactly
+  // the box), not on the notices or the disclaimer around it.
   return (
-    <div
-      className="@container/composer relative flex flex-col gap-2"
-      {...drop.dropProps}
-    >
-      <DropOverlay show={drop.dragging} />
+    <div className="@container/composer relative flex flex-col gap-2">
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -202,7 +207,8 @@ export function Composer({
           {t("usageCapReached", { time: new Date(capResetsAt) })}
         </p>
       )}
-      <InputGroup className="rounded-2xl">
+      <InputGroup className="rounded-2xl" {...drop.dropProps}>
+        <DropOverlay show={drop.dragging} />
         {hasAttached && (
           <InputGroupAddon
             align="block-start"

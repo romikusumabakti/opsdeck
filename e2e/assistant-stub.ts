@@ -9,7 +9,18 @@ import type { AddressInfo } from "node:net";
  * A question containing "slow" streams a word every STEP_MS for a long time,
  * so a spec can click Stop mid-answer; only its first request is slow, so a
  * Retry of the same question answers at once.
+ *
+ * A non-streaming request is the chat's auto title (lib/assistant/title.ts,
+ * prompt "Question: …"): it answers with the question's first line, so
+ * titles stay what the specs typed, or with NAMED_TITLE for a question
+ * containing "name me", so a spec can see a generated title arrive.
  */
+export const NAMED_TITLE = "Named by the stub";
+
+function titleFor(prompt: string): string {
+  const question = prompt.split("\n")[1] ?? "";
+  return question.includes("name me") ? NAMED_TITLE : question;
+}
 const STEP_MS = 300;
 const SLOW_WORDS = 100;
 const FAST_ANSWER = [
@@ -51,8 +62,33 @@ export async function startAssistantStub(): Promise<AssistantStub> {
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
         messages?: ChatMessage[];
         model?: string;
+        stream?: boolean;
       };
       const question = lastUserText(body.messages ?? []);
+      if (!body.stream) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            id: "chatcmpl-stub",
+            object: "chat.completion",
+            created: 0,
+            model: body.model ?? "stub-model",
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: titleFor(question) },
+                finish_reason: "stop",
+              },
+            ],
+            usage: {
+              prompt_tokens: 50,
+              completion_tokens: 5,
+              total_tokens: 55,
+            },
+          })
+        );
+        return;
+      }
       const slow = question.includes("slow") && !seenSlow.has(question);
       if (slow) seenSlow.add(question);
       const words = slow
