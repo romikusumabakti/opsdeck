@@ -370,6 +370,14 @@ export function mssqlEnableAssistantDbSql(input: {
     // A login the environment doesn't record as its own is never taken over.
     "IF @adopt = 0 AND SUSER_ID(@login) IS NOT NULL",
     `  THROW 50000, N'${LOGIN_EXISTS}: a login with that name exists', 1;`,
+    // A database user of that name: refused now, before any change (a
+    // foreign one always, any one unless adopting).
+    "DECLARE @users int, @foreign int;",
+    "SET @sql = N'SELECT @users = COUNT(*), @foreign = COUNT(CASE WHEN sid IS NULL OR sid <> SUSER_SID(@login) THEN 1 END) FROM '",
+    "  + QUOTENAME(@db) + N'.sys.database_principals WHERE name = @login';",
+    "EXEC sp_executesql @sql, N'@login sysname, @users int OUTPUT, @foreign int OUTPUT', @login = @login, @users = @users OUTPUT, @foreign = @foreign OUTPUT;",
+    "IF @foreign > 0 OR (@adopt = 0 AND @users > 0)",
+    `  THROW 50000, N'${LOGIN_EXISTS}: a database user with that name exists', 1;`,
     // An existing login must not reach any other database (three-part
     // names would let a SELECT read it): no user for its SID elsewhere.
     "IF SUSER_ID(@login) IS NOT NULL",
@@ -377,6 +385,8 @@ export function mssqlEnableAssistantDbSql(input: {
     "  DECLARE @sid varbinary(85) = SUSER_SID(@login);",
     "  DECLARE @other sysname, @n int, @found nvarchar(max) = N'', @q nvarchar(max);",
     "  DECLARE dbs CURSOR LOCAL FAST_FORWARD FOR",
+    // Online databases only: one offline or restoring can't be read here
+    // (accepted; it can't be queried either until it comes back).
     "    SELECT name FROM sys.databases WHERE name <> @db AND state = 0;",
     "  OPEN dbs;",
     "  FETCH NEXT FROM dbs INTO @other;",
@@ -395,6 +405,9 @@ export function mssqlEnableAssistantDbSql(input: {
     "    THROW 50000, @mapped, 1;",
     "  END",
     "END",
+    "IF EXISTS (SELECT 1 FROM sys.server_role_members WHERE member_principal_id = SUSER_ID(@login))",
+    "  OR EXISTS (SELECT 1 FROM sys.server_permissions WHERE grantee_principal_id = SUSER_ID(@login) AND permission_name <> N'CONNECT SQL')",
+    "  THROW 50000, N'the existing login holds server roles or permissions', 1;",
     "IF SUSER_ID(@login) IS NULL",
     "BEGIN",
     "  SET @sql = N'CREATE LOGIN ' + QUOTENAME(@login) + N' WITH PASSWORD = ' + QUOTENAME(@pw, '''')",
@@ -403,9 +416,6 @@ export function mssqlEnableAssistantDbSql(input: {
     "END",
     "ELSE",
     "BEGIN",
-    "  IF EXISTS (SELECT 1 FROM sys.server_role_members WHERE member_principal_id = SUSER_ID(@login))",
-    "    OR EXISTS (SELECT 1 FROM sys.server_permissions WHERE grantee_principal_id = SUSER_ID(@login) AND permission_name <> N'CONNECT SQL')",
-    "    THROW 50000, N'the existing login holds server roles or permissions', 1;",
     "  SET @sql = N'ALTER LOGIN ' + QUOTENAME(@login) + N' WITH PASSWORD = ' + QUOTENAME(@pw, '''')",
     "    + N', DEFAULT_DATABASE = ' + QUOTENAME(@db);",
     "  EXEC (@sql);",
@@ -479,6 +489,9 @@ export function mysqlEnableAssistantDbSql(input: {
   database: string;
   user: string;
   password: string;
+  // The environment's own recorded user: refreshed. Otherwise a plain
+  // CREATE USER, which fails if the user appeared since the probe.
+  adopt: boolean;
 }): string {
   const account = mysqlAccount(input.user);
   if (!MYSQL_SAFE.test(input.password)) {
@@ -486,8 +499,14 @@ export function mysqlEnableAssistantDbSql(input: {
   }
   const pw = `'${input.password}'`;
   return [
-    `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ${pw} WITH MAX_USER_CONNECTIONS 5;`,
-    `ALTER USER ${account} IDENTIFIED BY ${pw} WITH MAX_USER_CONNECTIONS 5;`,
+    ...(input.adopt
+      ? [
+          `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ${pw} WITH MAX_USER_CONNECTIONS 5;`,
+          `ALTER USER ${account} IDENTIFIED BY ${pw} WITH MAX_USER_CONNECTIONS 5;`,
+        ]
+      : [
+          `CREATE USER ${account} IDENTIFIED BY ${pw} WITH MAX_USER_CONNECTIONS 5;`,
+        ]),
     `REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${account};`,
     `GRANT SELECT ON ${mysqlGrantDatabase(input.database)}.* TO ${account};`,
   ].join("\n");
@@ -568,7 +587,11 @@ function refusalOf(error: unknown, login: string): unknown {
   if (message.includes(LOGIN_MAPPED)) {
     return new AssistantDbLoginRefused("mapped", login);
   }
-  if (message.includes(LOGIN_EXISTS)) {
+  // MySQL's plain CREATE USER on a user that appeared since the probe.
+  if (
+    message.includes(LOGIN_EXISTS) ||
+    /ERROR 1396|Operation CREATE USER failed/.test(message)
+  ) {
     return new AssistantDbLoginRefused("exists", login);
   }
   return error;
@@ -682,6 +705,7 @@ export async function enableAssistantDbLogin(
         database: service.dbName,
         user: login,
         password,
+        adopt,
       });
       await run(
         creds,

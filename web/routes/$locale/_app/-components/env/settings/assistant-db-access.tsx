@@ -15,7 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { assistantDbUnavailableReason } from "@/lib/assistant-db/availability";
 import { findService } from "@/lib/services";
+import { ApiError } from "@/web/api/client";
 import { setAssistantDbAccess } from "@/web/api/environments";
+import { useTeardownErrorText } from "../use-teardown-error-text";
 import { Hint } from "./fields";
 import type { SettingsEnvironment } from "./settings-form";
 
@@ -34,6 +36,7 @@ export function AssistantDbAccess({
   canManageServers: boolean;
 }) {
   const t = useTranslations("environmentSettings.assistantDb");
+  const teardownErrorText = useTeardownErrorText();
   const [busy, setBusy] = useState(false);
   const service = findService(environment, "db");
   if (!service) return null;
@@ -53,7 +56,14 @@ export function AssistantDbAccess({
       await setAssistantDbAccess(environment.id, next);
       toast.success(t(next ? "enabled" : "disabled"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
+      // The server words its own refusals; a teardown's uses its catalog.
+      toast.error(
+        error instanceof ApiError && error.code === "teardownRunning"
+          ? teardownErrorText(error.code)
+          : error instanceof Error
+            ? error.message
+            : String(error)
+      );
     } finally {
       setBusy(false);
     }

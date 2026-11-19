@@ -19,7 +19,9 @@ type ServiceParams = Extract<
  * engine) that the environment's db service records, while the database
  * still runs (before the stacks stop). The access is turned off first, so
  * the Assistant stops even when the drop fails; the step then fails like
- * any server step (serverCommandFailed, redacted) and a retry drops it.
+ * any server step (serverCommandFailed, redacted) and a retry drops it. A
+ * stopped database container fails the same way, saying so (as
+ * archive_database does); the run waits for a retry, it never loops.
  * Ok when no login is recorded any more.
  */
 export async function dropAssistantDbLogin(
@@ -47,11 +49,23 @@ export async function dropAssistantDbLogin(
     });
   } catch (error) {
     if (error instanceof HostKeyMismatchError) throw error;
-    const message = error instanceof Error ? error.message : String(error);
-    throw new StepFailed(
-      "serverCommandFailed",
-      redactSecrets(message, ctx.secrets)
+    const message = redactSecrets(
+      error instanceof Error ? error.message : String(error),
+      ctx.secrets
     );
+    // Like archive_database, a stopped or missing database container is a
+    // failure (the login may live on in its volume), named so the retry is
+    // obvious: start the database, then retry.
+    if (
+      service.serviceType !== "systemd" &&
+      /is not running|no such container|not found/i.test(message)
+    ) {
+      throw new StepFailed(
+        "serverCommandFailed",
+        `the database ${service.serviceName} is not running, so login ${login} could not be dropped; start it and retry: ${message}`
+      );
+    }
+    throw new StepFailed("serverCommandFailed", message);
   }
   await forgetAssistantDbLogin(service.id, login);
   return `Assistant database login ${login} dropped`;

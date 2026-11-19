@@ -16,8 +16,10 @@ import {
 } from "@/lib/environments";
 import { encryptNullable } from "@/lib/secrets";
 import { findService } from "@/lib/services";
+import { tearingDownIn } from "@/lib/teardown/guard";
 import { CodedHTTPException } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
+import { teardownRunningError } from "@/server/services/teardown-runs";
 
 // The Assistant's read-only database login per environment (Stage 9 spec
 // F.1/F.2): off by default; only admin and infra (org server:manage, on top
@@ -102,7 +104,13 @@ async function enable(
   });
   if (reason) return refuse(409, "assistantDbUnavailable", { reason });
   // The row lock serializes toggles of one environment for the whole run.
+  // The environment's shared lock, held until commit, keeps a teardown start
+  // or a panel-only delete (both exclusive) from passing a login being made;
+  // under it, a teardown already under way refuses before any SSH.
   const result = await db.transaction(async (tx) => {
+    if (await tearingDownIn(tx, environmentId)) {
+      return { ok: false as const, tearingDown: true as const };
+    }
     const [locked] = await tx
       .select({
         enabled: environmentServices.assistantDbEnabled,
@@ -146,6 +154,7 @@ async function enable(
   });
   if (!result) return refuse(409, "assistantDbNoDatabase");
   if (!result.ok) {
+    if ("tearingDown" in result) throw teardownRunningError();
     if (result.refused) {
       return refuse(
         409,

@@ -298,6 +298,7 @@ describe("mysqlEnableAssistantDbSql", () => {
       database: "kestrel_qa",
       user: "menara_ro_kestrel_qa",
       password: "Abc123def456ghi789jkl012mno345pq",
+      adopt: true,
     });
     expect(sql).toContain(
       "CREATE USER IF NOT EXISTS 'menara_ro_kestrel_qa'@'127.0.0.1'"
@@ -319,6 +320,7 @@ describe("mysqlEnableAssistantDbSql", () => {
       database: "a%b`c",
       user: "menara_ro_x",
       password: "Abc1",
+      adopt: false,
     });
     expect(sql).toContain("GRANT SELECT ON `a\\%b``c`.*");
   });
@@ -329,10 +331,16 @@ describe("mysqlEnableAssistantDbSql", () => {
         database: "d",
         user: "x'@'%",
         password: "Abc1",
+        adopt: false,
       })
     ).toThrow();
     expect(() =>
-      mysqlEnableAssistantDbSql({ database: "d", user: "x", password: "a'b" })
+      mysqlEnableAssistantDbSql({
+        database: "d",
+        user: "x",
+        password: "a'b",
+        adopt: false,
+      })
     ).toThrow();
   });
 
@@ -637,7 +645,11 @@ describe("never adopting a login the environment doesn't record", () => {
       { environmentId: ENV_ID, ownLogin: null, password: null }
     );
     expect(ssh.calls).toHaveLength(3);
-    expect(ssh.calls[1]?.stdin).toContain("CREATE USER IF NOT EXISTS");
+    expect(ssh.calls[1]?.stdin).toContain(
+      "CREATE USER 'menara_ro_kestrel_qa'@'127.0.0.1' IDENTIFIED BY"
+    );
+    expect(ssh.calls[1]?.stdin).not.toContain("IF NOT EXISTS");
+    expect(ssh.calls[1]?.stdin).not.toContain("ALTER USER");
   });
 
   it("a recorded login of another name doesn't count as the environment's own", async () => {
@@ -651,5 +663,55 @@ describe("never adopting a login the environment doesn't record", () => {
       }
     ).catch((e: unknown) => e);
     expect(error).toMatchObject({ reason: "exists" });
+  });
+
+  it("mssql: every refusal comes before CREATE LOGIN / ALTER LOGIN, the database user check included", () => {
+    for (const adopt of [false, true]) {
+      const sql = mssqlEnableAssistantDbSql({
+        database: "kestrel_qa",
+        login: "menara_ro_kestrel_qa",
+        password: "Abc1",
+        adopt,
+      });
+      const firstChange = Math.min(
+        sql.indexOf("N'CREATE LOGIN '"),
+        sql.indexOf("N'ALTER LOGIN '")
+      );
+      expect(firstChange).toBeGreaterThan(0);
+      const userCheck = sql.indexOf(
+        ".sys.database_principals WHERE name = @login"
+      );
+      expect(userCheck).toBeGreaterThan(0);
+      expect(userCheck).toBeLessThan(firstChange);
+      expect(sql).toContain("IF @foreign > 0 OR (@adopt = 0 AND @users > 0)");
+      // Every sentinel THROW of the outer batch precedes the first change.
+      const outer = sql.slice(0, sql.indexOf("SET @sql = N'USE '"));
+      const throws = [...outer.matchAll(/THROW 50000/g)].map((m) => m.index);
+      expect(throws.length).toBeGreaterThanOrEqual(4);
+      for (const at of throws) expect(at).toBeLessThan(firstChange);
+    }
+  });
+
+  it("mysql: a user that appears between probe and script fails CREATE USER and is refused, never dropped", async () => {
+    ssh.results = [
+      { code: 0, stdout: "0\n", stderr: "" },
+      fail(
+        "ERROR 1396 (HY000) at line 1: Operation CREATE USER failed for 'menara_ro_kestrel_qa'@'127.0.0.1'"
+      ),
+    ];
+    const error = await enableAssistantDbLogin(
+      service({ dbType: "mysql", dbPassword: ADMIN_PW }),
+      { environmentId: ENV_ID, ownLogin: null, password: null }
+    ).catch((e: unknown) => e);
+    expect(error).toMatchObject({ reason: "exists" });
+    expect(ssh.calls).toHaveLength(2);
+    expect(
+      mysqlEnableAssistantDbSql({
+        database: "d",
+        user: "menara_ro_d",
+        password: "Abc1",
+        adopt: false,
+      })
+    ).not.toMatch(/IF NOT EXISTS|ALTER USER/);
   });
 });

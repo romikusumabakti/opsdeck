@@ -56,11 +56,14 @@ type ExecCall = { command: string; stdin?: string };
 const ssh = vi.hoisted(() => ({
   calls: [] as ExecCall[],
   results: [] as { code: number; stdout: string; stderr: string }[],
+  // While set, every command waits for it (a slow database server).
+  gate: null as Promise<void> | null,
 }));
 vi.mock("@/lib/ssh-session", () => ({
   openSsh: async () => ({
     async execCommand(command: string, options?: { stdin?: string }) {
       ssh.calls.push({ command, stdin: options?.stdin });
+      if (ssh.gate) await ssh.gate;
       return ssh.results.shift() ?? { code: 0, stdout: "", stderr: "" };
     },
     dispose() {},
@@ -551,5 +554,95 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
         (d) => d.assistantDbLogin
       )
     ).toEqual([null]);
+  });
+
+  it("refuses enabling (409 teardownRunning) while a teardown is under way, before any SSH", async () => {
+    await sql`insert into runs (environment_id, description, kind, status, run_at)
+      values (${ENV_MS}, 'Delete environment', 'teardown', 'started', now())`;
+    try {
+      const res = await post(ENV_MS, true);
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ code: "teardownRunning" });
+      expect(ssh.calls).toEqual([]);
+      expect(await row(SVC_MS)).toMatchObject({
+        assistant_db_enabled: false,
+        assistant_db_login: null,
+      });
+    } finally {
+      await sql`delete from runs where environment_id = ${ENV_MS} and kind = 'teardown'`;
+    }
+  });
+
+  it("a panel-only delete waits for an enable in flight, then refuses its login", async () => {
+    let release = () => {};
+    ssh.gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const enabling = post(ENV_MS, true);
+    for (let i = 0; i < 100 && ssh.calls.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(ssh.calls.length).toBeGreaterThan(0);
+    let settled = false;
+    const deleting = Promise.resolve(
+      app.request(`/api/environments/${ENV_MS}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+    ).finally(() => {
+      settled = true;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    // Blocked on the environment lock the enable holds.
+    expect(settled).toBe(false);
+    ssh.gate = null;
+    release();
+    expect((await enabling).status).toBe(200);
+    const deleted = await deleting;
+    expect(deleted.status).toBe(409);
+    expect(await deleted.json()).toMatchObject({
+      code: "assistantDbLoginRecorded",
+    });
+    expect(
+      (
+        await sql`select count(*)::int as n from environments where id = ${ENV_MS}`
+      )[0]?.n
+    ).toBe(1);
+    expect((await row(SVC_MS))?.assistant_db_login).toBe(
+      "menara_ro_kestrel_sql"
+    );
+  });
+
+  it("the teardown step on a stopped database container fails clearly and keeps the login for the retry", async () => {
+    const { dropAssistantDbLogin } = await import(
+      "@/lib/teardown/assistant-db"
+    );
+    ssh.results = [
+      {
+        code: 1,
+        stdout: "",
+        stderr:
+          "Error response from daemon: container kestrel-sql-db is not running",
+      },
+    ];
+    const ctx = { environmentId: ENV_MS, secrets: [] as string[] };
+    const failed = await dropAssistantDbLogin(ctx, { serviceId: SVC_MS }).catch(
+      (e: unknown) => e
+    );
+    expect(failed).toMatchObject({ code: "serverCommandFailed" });
+    expect((failed as Error).message).toContain(
+      "the database kestrel-sql-db is not running, so login menara_ro_kestrel_sql could not be dropped; start it and retry"
+    );
+    expect((failed as Error).message).not.toContain(ADMIN_DB_PW);
+    expect(await row(SVC_MS)).toMatchObject({
+      assistant_db_enabled: false,
+      assistant_db_login: "menara_ro_kestrel_sql",
+    });
+    // Started again: the retry drops it.
+    expect(await dropAssistantDbLogin(ctx, { serviceId: SVC_MS })).toBe(
+      "Assistant database login menara_ro_kestrel_sql dropped"
+    );
+    expect(ssh.calls.at(-1)?.stdin).toContain("DROP LOGIN");
   });
 });

@@ -115,7 +115,7 @@ describe("teardown step migration", () => {
     );
     expect(sql.startsWith("SET LOCAL lock_timeout = '5s';")).toBe(true);
     expect(sql).toContain(
-      `ALTER TYPE "teardown_step_kind" ADD VALUE 'drop_assistant_db_login'`
+      `ALTER TYPE "teardown_step_kind" ADD VALUE IF NOT EXISTS 'drop_assistant_db_login'`
     );
     expect(sql).not.toMatch(/\b(DROP|RENAME)\b/);
   });
