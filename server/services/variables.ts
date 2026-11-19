@@ -14,6 +14,8 @@ import {
   type VariableKind,
   variableKindEnum,
 } from "@/lib/db/schema";
+import { deployDirSharedWithOtherEnvironment } from "@/lib/deploy/repository";
+import { deployTagSchema } from "@/lib/deploy/validation";
 import { encryptSecret } from "@/lib/secrets";
 import {
   ESCROW_REMOVAL_MESSAGE,
@@ -25,7 +27,15 @@ import {
   SECRET_TO_PLAIN_MESSAGE,
   SHARED_DEPLOY_DIR_MESSAGE,
 } from "@/lib/variables/errors";
-import { decodeVariableValue } from "@/lib/variables/managed-env";
+import {
+  decodeVariableValue,
+  diffEnvFile,
+  type EnvFileChange,
+  envFileValues,
+  loadEnvFileVariables,
+  managedEnvFileInputs,
+  renderManagedEnvFile,
+} from "@/lib/variables/managed-env";
 import {
   deleteTemplate as deleteTemplateRow,
   deleteVariable as deleteVariableRow,
@@ -45,6 +55,10 @@ import {
   setEnvFileManaged as setEnvFileManagedRow,
   type VariableWrite,
 } from "@/lib/variables/repository";
+import {
+  readEnvironmentEnvFiles,
+  type ServerEnvFile,
+} from "@/lib/variables/server-env";
 import {
   generateValue,
   isReservedVariableName,
@@ -150,7 +164,7 @@ export async function audit(
   actorId: string,
   env: EnvironmentContext,
   action: string,
-  data: Record<string, string> = {}
+  data: Record<string, string | number> = {}
 ): Promise<void> {
   await recordActivity({
     actorId,
@@ -463,10 +477,13 @@ function templateValue(
  * needs the deploy dirs to itself (a rendered `.env` replaces the whole file;
  * 409 when another environment deploys into one) and every required template
  * variable to exist (409 listing them). Deploys check the dir again.
+ * `acknowledgedChanges` is the client's count of preview changes the user
+ * confirmed when turning it on, recorded as is (the preview is not re-run).
  */
 export async function setEnvFileManaged(
   environmentId: string,
-  enabled: boolean
+  enabled: boolean,
+  { acknowledgedChanges }: { acknowledgedChanges?: number } = {}
 ): Promise<{ envFileManaged: boolean }> {
   const { session } = await requireProjectPermission(
     { environmentId },
@@ -495,9 +512,129 @@ export async function setEnvFileManaged(
   await audit(
     session.user.id,
     env,
-    enabled ? "variables.envFileManagedOn" : "variables.envFileManagedOff"
+    enabled ? "variables.envFileManagedOn" : "variables.envFileManagedOff",
+    enabled && acknowledgedChanges !== undefined ? { acknowledgedChanges } : {}
   );
   return { envFileManaged: enabled };
+}
+
+/** One deploy dir of the managed `.env` preview. */
+export type EnvFilePreviewDir = {
+  serverName: string;
+  deployDir: string;
+  /** notCompared: unreachable, host key mismatch, unparsable or too large. */
+  status: "compared" | "fileMissing" | "notCompared";
+  /** Another environment deploys into the dir (the switch refuses). */
+  sharedDir?: true;
+  changes: EnvFileChange[];
+  unchangedCount: number;
+};
+
+/**
+ * Per deploy dir, how the `.env` the next deploy would install differs from
+ * the live one (B§4): rendered from the stored variables with the deploy's
+ * own inputs (managedEnvFileInputs, renderManagedEnvFile) and the live file's
+ * tag values, then diffed per key. Works whether or not the Panel manages
+ * the file. Secret values never leave the server (`masked`); reading the
+ * live file is as good as a reveal, so a strong sign-in is required, as for
+ * the reveal. Records nothing.
+ */
+export async function previewEnvFile(
+  environmentId: string
+): Promise<{ dirs: EnvFilePreviewDir[] }> {
+  const { session } = await requireProjectPermission(
+    { environmentId },
+    { variable: ["read"], deploy: ["configure"] }
+  );
+  assertStrongSession(session);
+  const env = await requireEnvironment(environmentId);
+  const registry = process.env.DEPLOY_REGISTRY;
+  if (!registry) {
+    throw new CodedHTTPException(503, "deployDisabled", "Deploy disabled");
+  }
+  const [reads, vars] = await Promise.all([
+    readEnvironmentEnvFiles(env.id),
+    loadEnvFileVariables(env.id),
+  ]);
+  const kinds = new Map(vars.map((v) => [v.name, v.kind]));
+  const sorted = [...reads].sort((a, b) => {
+    const left = `${a.serverName}\0${a.deployDir}`;
+    const right = `${b.serverName}\0${b.deployDir}`;
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+  return {
+    dirs: await Promise.all(
+      sorted.map((read) => previewDir(env.id, read, vars, kinds, registry))
+    ),
+  };
+}
+
+async function previewDir(
+  environmentId: string,
+  read: ServerEnvFile,
+  vars: { name: string; value: string }[],
+  kinds: ReadonlyMap<string, VariableKind>,
+  registry: string
+): Promise<EnvFilePreviewDir> {
+  const shared = await deployDirSharedWithOtherEnvironment(
+    read.serverId,
+    read.deployDir,
+    environmentId
+  );
+  const head = {
+    serverName: read.serverName,
+    deployDir: read.deployDir,
+    ...(shared ? { sharedDir: true as const } : {}),
+  };
+  // A missing dir has no file to lose either: a fresh dir.
+  const missing = read.status === "fileMissing" || read.status === "dirMissing";
+  const live = read.status === "ok" ? (read.text ?? null) : null;
+  if (!missing && live === null) {
+    return { ...head, status: "notCompared", changes: [], unchangedCount: 0 };
+  }
+
+  const inputs = await managedEnvFileInputs(
+    environmentId,
+    read.serverId,
+    read.deployDir
+  );
+  // The tags are the live file's own: the next deploy changes only its own.
+  const liveValues =
+    live === null ? new Map<string, string>() : envFileValues(live);
+  const tags: Record<string, string> = {};
+  const pendingTags: string[] = [];
+  for (const name of inputs.tagVariables) {
+    const value = liveValues.get(name);
+    if (value !== undefined && deployTagSchema.safeParse(value).success) {
+      tags[name] = value;
+    } else {
+      pendingTags.push(name);
+    }
+  }
+  let rendered: string;
+  try {
+    rendered = renderManagedEnvFile(vars, tags, registry, inputs, {
+      overridePresent: read.overridePresent === true,
+    });
+  } catch {
+    // Its detail could quote a variable; the deploy refuses the same way.
+    throw new CodedHTTPException(
+      409,
+      "envFileInvalid",
+      "The environment's variables cannot be written to .env — check them in the Panel"
+    );
+  }
+  return {
+    ...head,
+    status: missing ? "fileMissing" : "compared",
+    ...diffEnvFile({
+      rendered,
+      live,
+      kinds,
+      tagNames: inputs.tagVariables,
+      pendingTags,
+    }),
+  };
 }
 
 async function requireApp(appKey: string): Promise<string> {

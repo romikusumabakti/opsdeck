@@ -1011,6 +1011,39 @@ describe("audit", () => {
     ]);
   });
 
+  it("records the preview changes the user acknowledged when turning it on", async () => {
+    const on = await send("PATCH", `${base}/env-file-managed`, {
+      enabled: true,
+      acknowledgedChanges: 3,
+    });
+    expect(on.status).toBe(200);
+    // Turning it off carries no count, even when one is sent.
+    await send("PATCH", `${base}/env-file-managed`, {
+      enabled: false,
+      acknowledgedChanges: 2,
+    });
+    await send("PATCH", `${base}/env-file-managed`, { enabled: true });
+    expect(entries().map((e) => [e.action, e.data])).toEqual([
+      [
+        "variables.envFileManagedOn",
+        { environment: "Kestrel Dev", acknowledgedChanges: 3 },
+      ],
+      ["variables.envFileManagedOff", { environment: "Kestrel Dev" }],
+      ["variables.envFileManagedOn", { environment: "Kestrel Dev" }],
+    ]);
+  });
+
+  it("refuses an acknowledgedChanges that is not a count", async () => {
+    for (const acknowledgedChanges of [-1, 1.5, "3"]) {
+      const res = await send("PATCH", `${base}/env-file-managed`, {
+        enabled: true,
+        acknowledgedChanges,
+      });
+      expect(res.status).toBe(400);
+    }
+    expect(store.env.envFileManaged).toBe(false);
+  });
+
   it("records the variables a template added, and nothing when none", async () => {
     store.templates = [
       {

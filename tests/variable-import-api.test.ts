@@ -42,6 +42,7 @@ type Dir = {
 
 const state = vi.hoisted(() => ({
   role: "engineer" as string | null,
+  signInMethod: "passkey" as string,
 }));
 
 const store = vi.hoisted(() => ({
@@ -65,7 +66,7 @@ const store = vi.hoisted(() => ({
 vi.mock("@/lib/auth-session", () => ({
   requireSession: vi.fn(async () => ({
     user: { id: "0197f3a0-1b2c-7def-8000-0123456789a1", role: "engineer" },
-    session: { signInMethod: "passkey" },
+    session: { signInMethod: state.signInMethod },
   })),
 }));
 
@@ -84,7 +85,7 @@ vi.mock("@/lib/authz", async (importOriginal) => {
         return {
           session: {
             user: { id: "0197f3a0-1b2c-7def-8000-0123456789a1", name: "Romi" },
-            session: { signInMethod: "passkey" },
+            session: { signInMethod: state.signInMethod },
           },
           role: state.role,
           projectId: "project-1",
@@ -225,6 +226,7 @@ const WEB_TEXT = `APP_NAME=kestrel\nLOG_LEVEL=debug\nDB_PASSWORD=${FILE_SECRET_B
 beforeEach(() => {
   vi.clearAllMocks();
   state.role = "engineer";
+  state.signInMethod = "passkey";
   store.env.appId = APP_ID;
   store.tags = ["IMAGE_TAG"];
   store.templates = [];
@@ -305,6 +307,34 @@ describe("permissions", () => {
       expect(activity.recordActivity).not.toHaveBeenCalled();
     });
   }
+
+  // Reading a server's file is a reveal (base §6), and the text preview and
+  // save compare a pasted guess with the stored secrets: both need the
+  // strong sign-in the reveal needs, refused the same way, before any read.
+  it("a weak session gets the reveal's refusal on every import route and reads nothing", async () => {
+    state.signInMethod = "password";
+    const before = JSON.stringify([...vars().entries()]);
+    const responses = [
+      await send("GET", base),
+      await send("POST", `${base}/preview`, {
+        source: "text",
+        text: `DB_PASSWORD=${STORED_SECRET}`,
+      }),
+      await send("POST", base, SAVE_TEXT),
+      await send("POST", base, SAVE_SERVER),
+    ];
+    for (const res of responses) {
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({
+        code: "strong_sign_in_required",
+      });
+    }
+    expect(serverEnv.readEnvironmentEnvFiles).not.toHaveBeenCalled();
+    expect(repository.listVariables).not.toHaveBeenCalled();
+    expect(repository.importVariables).not.toHaveBeenCalled();
+    expect(JSON.stringify([...vars().entries()])).toBe(before);
+    expect(activity.recordActivity).not.toHaveBeenCalled();
+  });
 
   it("maps ba/pm/staff/observer to a project role without import rights", async () => {
     const { projectRoleForOrgRole, canProject } = await import(
@@ -698,6 +728,37 @@ describe("POST import (text source)", () => {
     expect(await res.json()).toMatchObject({ code: "variableEscrowed" });
     expect(vars().has("NEW_FLAG")).toBe(false);
     expect(stored("APP_NAME")?.value).toBe("kestrel");
+    expect(activity.recordActivity).not.toHaveBeenCalled();
+  });
+});
+
+describe("a database failure during the save", () => {
+  it("logs only the SQLSTATE and answers a coded 500 without values", async () => {
+    const PLAIN_VALUE = "FAKE_PLAIN_VALUE_e0c4";
+    const { DrizzleQueryError } = await import("drizzle-orm/errors");
+    vi.mocked(repository.importVariables).mockRejectedValueOnce(
+      new DrizzleQueryError(
+        'insert into "environment_variables" values ($1, $2)',
+        ["NEW_FLAG", PLAIN_VALUE],
+        Object.assign(new Error(`duplicate key: ${PLAIN_VALUE}`), {
+          code: "23505",
+        })
+      )
+    );
+    const res = await send("POST", base, {
+      source: "text",
+      text: `NEW_FLAG=${PLAIN_VALUE}\n`,
+      rows: [{ name: "NEW_FLAG", kind: "plain" }],
+    });
+    expect(res.status).toBe(500);
+    const raw = await res.text();
+    expect(JSON.parse(raw)).toMatchObject({ code: "variableImportFailed" });
+    expect(raw).not.toContain(PLAIN_VALUE);
+    const logged = logs.lines.join("\n");
+    expect(logged).not.toContain(PLAIN_VALUE);
+    expect(logged).not.toContain("insert into");
+    expect(logged).toContain("23505");
+    expect(vars().has("NEW_FLAG")).toBe(false);
     expect(activity.recordActivity).not.toHaveBeenCalled();
   });
 });

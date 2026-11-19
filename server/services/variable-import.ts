@@ -1,7 +1,9 @@
+import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { requireProjectPermission } from "@/lib/authz";
+import { assertStrongSession, requireProjectPermission } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { variableKindEnum } from "@/lib/db/schema";
+import { describeDbError } from "@/lib/secrets-migration";
 import { parseDotenv } from "@/lib/variables/dotenv";
 import { ESCROWED_MESSAGE } from "@/lib/variables/errors";
 import {
@@ -36,8 +38,9 @@ import { audit, encode, requireEnvironment } from "@/server/services/variables";
 /**
  * "Import .env" into an environment's variables, from pasted or uploaded
  * text or from the live `.env` of its deploy dirs. Reading needs what saving
- * needs, `variable:read` + `variable:write`: reading a server's file is as
- * good as a reveal. One parser (lib/variables/dotenv) and one row planner
+ * needs, `variable:read` + `variable:write`, and the reveal's strong sign-in:
+ * reading a server's file is as good as a reveal, and same/conflict on a
+ * pasted text would let a weak session test guesses against stored secrets. One parser (lib/variables/dotenv) and one row planner
  * (lib/variables/import-rows) for every source; same/conflict are decided
  * here against the stored values, so no stored secret reaches the browser.
  *
@@ -152,6 +155,7 @@ async function requireImport(environmentId: string) {
     { environmentId },
     IMPORT_PERMISSIONS
   );
+  assertStrongSession(session);
   return { session, env: await requireEnvironment(environmentId) };
 }
 
@@ -285,6 +289,27 @@ export async function previewTextImport(
 
 // --- Save ---
 
+/**
+ * Runs the save's transaction. A refusal (HTTPException) passes through; any
+ * other failure is logged by its SQLSTATE only and answered with a coded 500:
+ * drizzle's error message carries the query parameters, the values written.
+ */
+async function inImportTransaction<T>(
+  fn: Parameters<typeof db.transaction<T>>[0]
+): Promise<T> {
+  try {
+    return await db.transaction(fn);
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    console.error(`Variable import failed: ${describeDbError(error)}`);
+    throw new CodedHTTPException(
+      500,
+      "variableImportFailed",
+      "The variables could not be imported"
+    );
+  }
+}
+
 function dirKey(deployDir: string, fingerprint: string): string {
   return JSON.stringify([deployDir, fingerprint]);
 }
@@ -330,7 +355,7 @@ export async function saveImport(
   const selected = selectImportWrites(planned, input.rows);
   if ("issue" in selected) throw issueError(selected.issue);
 
-  const written = await db.transaction(async (tx) => {
+  const written = await inImportTransaction(async (tx) => {
     const result = await importVariables(
       tx,
       selected.writes.map((w) => ({

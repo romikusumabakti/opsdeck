@@ -131,7 +131,7 @@ export function stagedOverlayFileName(deploymentId: string): string {
 export const COMPOSE_OVERRIDE_FILE = "compose.override.yaml";
 
 // Inserts the override right after compose.yaml in the staged COMPOSE_FILE line.
-const OVERRIDE_SED_EXPR = `s|^COMPOSE_FILE=compose\\.yaml:|COMPOSE_FILE=compose.yaml:${COMPOSE_OVERRIDE_FILE}:|`;
+export const OVERRIDE_SED_EXPR = `s|^COMPOSE_FILE=compose\\.yaml:|COMPOSE_FILE=compose.yaml:${COMPOSE_OVERRIDE_FILE}:|`;
 
 /** Throws a ZodError when any field of the input is invalid. */
 export function buildDeployScript(input: DeployScriptInput): string {

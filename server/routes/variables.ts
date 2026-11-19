@@ -18,6 +18,7 @@ import {
   deleteVariableTemplate,
   listVariables,
   listVariableTemplates,
+  previewEnvFile,
   putVariable,
   putVariableTemplate,
   regenerateVariable,
@@ -110,17 +111,31 @@ export const environmentVariablesRouter = sessionRouter()
     const { id, name } = c.req.valid("param");
     return c.json(await regenerateVariable(id, name));
   })
+  // The managed .env the next deploy would install, diffed per dir against
+  // the live file (SSH reads; no-store like the import review).
+  .get("/:id/env-file/preview", envParam, async (c) =>
+    c.json(await previewEnvFile(c.req.valid("param").id), 200, NO_STORE)
+  )
   .patch(
     "/:id/env-file-managed",
     envParam,
-    json(z.object({ enabled: z.boolean() }).strict()),
-    async (c) =>
-      c.json(
-        await setEnvFileManaged(
-          c.req.valid("param").id,
-          c.req.valid("json").enabled
-        )
-      )
+    json(
+      z
+        .object({
+          enabled: z.boolean(),
+          // The preview changes the user confirmed (client-reported).
+          acknowledgedChanges: z.number().int().min(0).max(100_000).optional(),
+        })
+        .strict()
+    ),
+    async (c) => {
+      const { enabled, acknowledgedChanges } = c.req.valid("json");
+      return c.json(
+        await setEnvFileManaged(c.req.valid("param").id, enabled, {
+          acknowledgedChanges,
+        })
+      );
+    }
   );
 
 const appParam = param(z.object({ appKey: appKeySchema }));

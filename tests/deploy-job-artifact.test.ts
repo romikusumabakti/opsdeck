@@ -97,7 +97,8 @@ vi.mock("@/lib/jobs/processor", () => processor);
 
 const variables = vi.hoisted(() => ({
   loadManagedEnvFileVariables: vi.fn(),
-  loadSharedDatabaseNetwork: vi.fn(),
+  managedEnvFileInputs: vi.fn(),
+  renderManagedEnvFile: vi.fn(),
 }));
 vi.mock("@/lib/variables/managed-env", () => variables);
 
@@ -185,7 +186,12 @@ beforeEach(() => {
   variables.loadManagedEnvFileVariables.mockResolvedValue([
     { name: "DB_URL", value: "jdbc:postgresql://db/core" },
   ]);
-  variables.loadSharedDatabaseNetwork.mockResolvedValue("db-net");
+  variables.managedEnvFileInputs.mockResolvedValue({
+    tagVariables: ["CORE_TAG"],
+    databaseNetwork: "db-net",
+    overlayServices: ["core"],
+    composeFiles: ["compose.yaml", "compose.menara.yaml"],
+  });
 });
 
 afterEach(() => {
@@ -235,7 +241,8 @@ describe("handleDeploy for a jar target", () => {
     expect(composeScript.buildDeployScript).not.toHaveBeenCalled();
     expect(envFile.renderEnvFile).not.toHaveBeenCalled();
     expect(variables.loadManagedEnvFileVariables).not.toHaveBeenCalled();
-    expect(variables.loadSharedDatabaseNetwork).not.toHaveBeenCalled();
+    expect(variables.managedEnvFileInputs).not.toHaveBeenCalled();
+    expect(variables.renderManagedEnvFile).not.toHaveBeenCalled();
     expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
     expect(processor.handleCreateDatabaseBackup).not.toHaveBeenCalled();
     expect(progress.createRun).not.toHaveBeenCalled();

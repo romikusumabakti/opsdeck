@@ -71,15 +71,39 @@ vi.mock("@/lib/queue", () => queue);
 const processor = vi.hoisted(() => ({ handleCreateDatabaseBackup: vi.fn() }));
 vi.mock("@/lib/jobs/processor", () => processor);
 
+// The stored variables are faked; the per-dir inputs (managedEnvFileInputs)
+// run for real against the faked repositories, as in the preview.
 const variables = vi.hoisted(() => ({
   loadManagedEnvFileVariables: vi.fn(),
-  loadSharedDatabaseNetwork: vi.fn(),
 }));
-vi.mock("@/lib/variables/managed-env", () => variables);
+vi.mock("@/lib/variables/managed-env", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/variables/managed-env")>()),
+  ...variables,
+}));
+
+const variableRepo = vi.hoisted(() => ({ getSharedDatabaseNetwork: vi.fn() }));
+vi.mock("@/lib/variables/repository", () => variableRepo);
 
 const { handleDeploy, HEARTBEAT_INTERVAL_MS, STALE_RUNNING_DEPLOY_MS } =
   await import("@/lib/jobs/deploy");
-const { buildDeployScript } = await import("@/lib/deploy/script");
+const { buildDeployScript, OVERRIDE_SED_EXPR } = await import(
+  "@/lib/deploy/script"
+);
+const { managedEnvFileInputs, renderManagedEnvFile } = await import(
+  "@/lib/variables/managed-env"
+);
+const { shq } = await import("@/lib/sh");
+
+function runSed(expression: string, input: string): string {
+  const result = spawnSync("sed", ["-e", expression], { input });
+  expect(result.status).toBe(0);
+  return result.stdout.toString();
+}
+const { ENV_FILE_HEADER } = await import("@/lib/variables/env-file");
+
+function setSharedDatabaseNetwork(network: string | null) {
+  variableRepo.getSharedDatabaseNetwork.mockResolvedValue(network);
+}
 
 const payload = { deploymentId: DEPLOYMENT_ID, runId: RUN_ID };
 
@@ -118,7 +142,7 @@ beforeEach(() => {
   ssh.executeRemoteCommand.mockResolvedValue("HEALTHY\n");
   ssh.uploadRemoteContent.mockResolvedValue(undefined);
   variables.loadManagedEnvFileVariables.mockResolvedValue(null);
-  variables.loadSharedDatabaseNetwork.mockResolvedValue(null);
+  variableRepo.getSharedDatabaseNetwork.mockResolvedValue(null);
   repo.listTagVariablesInDeployDir.mockResolvedValue(["IMAGE_TAG"]);
   repo.listServicesInDeployDir.mockResolvedValue(target.services);
   repo.deployDirSharedWithOtherEnvironment.mockResolvedValue(false);
@@ -982,11 +1006,11 @@ describe("handleDeploy with a shared database network", () => {
 
   it("stages the overlay with the .env and has the script install both", async () => {
     variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
-    variables.loadSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
+    variableRepo.getSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
 
     await expect(handleDeploy(payload)).resolves.toEqual({ status: "success" });
 
-    expect(variables.loadSharedDatabaseNetwork).toHaveBeenCalledWith(
+    expect(variableRepo.getSharedDatabaseNetwork).toHaveBeenCalledWith(
       ENV_ID,
       SERVER_ID
     );
@@ -1015,7 +1039,7 @@ describe("handleDeploy with a shared database network", () => {
 
   it("renders the overlay for every service in the deploy dir, sorted", async () => {
     variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
-    variables.loadSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
+    variableRepo.getSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
     // Target B (backend, frontend) shares the dir with target A (api, worker).
     repo.listServicesInDeployDir.mockResolvedValue([
       "api",
@@ -1056,12 +1080,12 @@ describe("handleDeploy with a shared database network", () => {
 
   it("an unmanaged environment never looks up the network", async () => {
     await handleDeploy(payload);
-    expect(variables.loadSharedDatabaseNetwork).not.toHaveBeenCalled();
+    expect(variableRepo.getSharedDatabaseNetwork).not.toHaveBeenCalled();
   });
 
   it("a failed overlay upload removes both staged files and never runs the script", async () => {
     variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
-    variables.loadSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
+    variableRepo.getSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
     ssh.uploadRemoteContent
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("Permission denied"));
@@ -1078,7 +1102,7 @@ describe("handleDeploy with a shared database network", () => {
   it("removes both staged files when the script fails to run", async () => {
     silenceErrors();
     variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
-    variables.loadSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
+    variableRepo.getSharedDatabaseNetwork.mockResolvedValue("shared-postgres");
     ssh.executeRemoteCommand
       .mockRejectedValueOnce(new Error("connect ECONNREFUSED"))
       .mockResolvedValueOnce("");
@@ -1093,12 +1117,109 @@ describe("handleDeploy with a shared database network", () => {
   it("a network the overlay cannot be written for fails before the backup", async () => {
     repo.getTarget.mockResolvedValue({ ...target, backupBeforeDeploy: true });
     variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
-    variables.loadSharedDatabaseNetwork.mockResolvedValue("default");
+    variableRepo.getSharedDatabaseNetwork.mockResolvedValue("default");
 
     await expect(handleDeploy(payload)).resolves.toEqual({ status: "failed" });
 
     expect(processor.handleCreateDatabaseBackup).not.toHaveBeenCalled();
     expect(ssh.uploadRemoteContent).not.toHaveBeenCalled();
     expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
+  });
+});
+
+// The exact .env a managed deploy stages, pinned before the per-dir inputs
+// moved to lib/variables/managed-env (managedEnvFileInputs): the refactor
+// must leave it byte for byte the same.
+describe("handleDeploy staged .env, byte for byte", () => {
+  const portalTarget = {
+    ...target,
+    componentKey: "acme-portal-backend",
+    deployDir: "/opt/portal",
+    tagVariable: "BACKEND_IMAGE_TAG",
+  };
+
+  beforeEach(() => {
+    repo.getTarget.mockResolvedValue(portalTarget);
+    progress.completeRun.mockResolvedValue(undefined);
+    variables.loadManagedEnvFileVariables.mockResolvedValue(managedVars);
+    repo.listTagVariablesInDeployDir.mockResolvedValue([
+      "BACKEND_IMAGE_TAG",
+      "FRONTEND_IMAGE_TAG",
+    ]);
+    ssh.executeRemoteCommand
+      .mockResolvedValueOnce("FRONTEND_IMAGE_TAG=fe-main-1234567\n")
+      .mockResolvedValueOnce("HEALTHY\n");
+  });
+
+  const body = [
+    `API_TOKEN='${SECRETS.API_TOKEN}'`,
+    `APP_URL='https://app.example.test'`,
+    `DB_PASSWORD='${SECRETS.DB_PASSWORD}'`,
+    "DOCKER_REGISTRY=192.168.10.113:5000",
+    `BACKEND_IMAGE_TAG=${TAG}`,
+    "FRONTEND_IMAGE_TAG=fe-main-1234567",
+  ];
+
+  it("without a shared database network", async () => {
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "success" });
+    expect(uploadedContent()).toBe(
+      `${[ENV_FILE_HEADER, ...body].join("\n")}\n`
+    );
+  });
+
+  // The preview renders the same file through the same inputs. Where the
+  // deploy script then inserts compose.override.yaml with sed on the server,
+  // the preview inserts it itself: the sed runs here for real to compare.
+  for (const overlay of [false, true]) {
+    for (const override of [false, true]) {
+      it(`the preview renders what the deploy installs (overlay ${overlay}, override ${override})`, async () => {
+        setSharedDatabaseNetwork(overlay ? "shared-postgres" : null);
+        await expect(handleDeploy(payload)).resolves.toEqual({
+          status: "success",
+        });
+        const script = String(ssh.executeRemoteCommand.mock.calls[1]?.[1]);
+        expect(script.includes(`sed -i ${shq(OVERRIDE_SED_EXPR)}`)).toBe(
+          overlay
+        );
+        const staged = uploadedContent();
+        const installed =
+          overlay && override ? runSed(OVERRIDE_SED_EXPR, staged) : staged;
+
+        const inputs = await managedEnvFileInputs(
+          ENV_ID,
+          SERVER_ID,
+          "/opt/portal"
+        );
+        const preview = renderManagedEnvFile(
+          managedVars,
+          { BACKEND_IMAGE_TAG: TAG, FRONTEND_IMAGE_TAG: "fe-main-1234567" },
+          "192.168.10.113:5000",
+          inputs,
+          { overridePresent: override }
+        );
+        expect(preview).toBe(installed);
+        if (overlay) {
+          expect(preview).toContain(
+            override
+              ? "\nCOMPOSE_FILE=compose.yaml:compose.override.yaml:compose.menara.yaml\n"
+              : "\nCOMPOSE_FILE=compose.yaml:compose.menara.yaml\n"
+          );
+        } else {
+          expect(preview).not.toContain("COMPOSE_FILE");
+        }
+      });
+    }
+  }
+
+  it("with a shared database network (overlay)", async () => {
+    setSharedDatabaseNetwork("shared-postgres");
+    await expect(handleDeploy(payload)).resolves.toEqual({ status: "success" });
+    expect(uploadedContent()).toBe(
+      `${[
+        ENV_FILE_HEADER,
+        "COMPOSE_FILE=compose.yaml:compose.menara.yaml",
+        ...body,
+      ].join("\n")}\n`
+    );
   });
 });

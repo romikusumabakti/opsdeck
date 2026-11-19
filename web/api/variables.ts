@@ -108,17 +108,40 @@ export async function saveImport(environmentId: string, body: SaveImportBody) {
   );
 }
 
+/**
+ * `acknowledgedChanges`: the preview changes the user confirmed when turning
+ * it on (recorded in the activity).
+ */
 export async function setEnvFileManaged(
   environmentId: string,
-  enabled: boolean
+  enabled: boolean,
+  acknowledgedChanges?: number
 ) {
   return parseResponse(
     environments["env-file-managed"].$patch({
       param: { id: environmentId },
-      json: { enabled },
+      json:
+        acknowledgedChanges === undefined
+          ? { enabled }
+          : { enabled, acknowledgedChanges },
     })
   );
 }
+
+/**
+ * The managed `.env` the next deploy would install, diffed per deploy dir
+ * against the live file. Every call reads the servers over SSH, so it is not
+ * a cached query: the dialog calls it on open.
+ */
+export async function previewEnvFile(environmentId: string) {
+  return parseResponse(
+    environments["env-file"].preview.$get({ param: { id: environmentId } })
+  );
+}
+
+export type EnvFilePreview = Awaited<ReturnType<typeof previewEnvFile>>;
+export type EnvFilePreviewDir = EnvFilePreview["dirs"][number];
+export type EnvFilePreviewChange = EnvFilePreviewDir["changes"][number];
 
 export async function listVariableTemplates(appKey: string) {
   return parseResponse(templates.$get({ param: { appKey } }));

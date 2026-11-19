@@ -14,8 +14,6 @@ import {
   getRunActor,
   getTarget,
   heartbeatDeployment,
-  listServicesInDeployDir,
-  listTagVariablesInDeployDir,
   markScriptStarted,
 } from "@/lib/deploy/repository";
 import { preDeployBackupDescription } from "@/lib/deploy/run-actor";
@@ -47,10 +45,11 @@ import {
   COMPOSE_OVERLAY_FILE,
   renderComposeOverlay,
 } from "@/lib/variables/compose-overlay";
-import { renderEnvFile } from "@/lib/variables/env-file";
 import {
   loadManagedEnvFileVariables,
-  loadSharedDatabaseNetwork,
+  type ManagedEnvFileInputs,
+  managedEnvFileInputs,
+  renderManagedEnvFile,
 } from "@/lib/variables/managed-env";
 
 // How long a deploy waits before re-trying the claim while another deploy runs
@@ -324,24 +323,17 @@ async function runClaimedDeployment(
   // A managed environment gets its whole .env rendered from the Panel's
   // variables; null leaves the deploy exactly as it was before (tag line only).
   const managedVars = await loadManagedEnvFileVariables(target.environmentId);
-  // Every tag variable written to this deploy dir's .env: this target's and,
-  // for a multi-component app, the other components'.
-  const tagVariables = managedVars
-    ? await listTagVariablesInDeployDir(target.serverId, target.deployDir)
-    : [];
-  // A shared database host with a Docker network: the services join it through
-  // a compose overlay installed with the .env (null: none, a leftover is removed).
-  const databaseNetwork = managedVars
-    ? await loadSharedDatabaseNetwork(target.environmentId, target.serverId)
-    : null;
-  // Every service of every target in this dir, so one component's deploy never
-  // drops another's from the network.
-  const overlayServices = databaseNetwork
-    ? await listServicesInDeployDir(target.serverId, target.deployDir)
-    : [];
-  const composeOptions = databaseNetwork
-    ? { composeFiles: ["compose.yaml", COMPOSE_OVERLAY_FILE] }
-    : {};
+  // The dir's tag variables, and the shared database network the services
+  // join through a compose overlay installed with the .env (null: none, a
+  // leftover is removed). The env-file preview reads the same inputs.
+  const inputs: ManagedEnvFileInputs = managedVars
+    ? await managedEnvFileInputs(
+        target.environmentId,
+        target.serverId,
+        target.deployDir
+      )
+    : { tagVariables: [], databaseNetwork: null, overlayServices: [] };
+  const { tagVariables, databaseNetwork, overlayServices } = inputs;
   if (managedVars) {
     // The rendered .env replaces the whole file, so it must not be shared with
     // another environment's deploys (their variables would be overwritten).
@@ -358,13 +350,13 @@ async function runClaimedDeployment(
     }
     // Validate now, with the deploying tag standing in for the values still
     // to be read from the server, so bad variables abort before the backup.
-    renderManagedEnvFile(
+    renderManagedEnvFileOrAbort(
       managedVars,
       Object.fromEntries(
         [...tagVariables, target.tagVariable].map((n) => [n, deployment.tag])
       ),
       registry,
-      composeOptions
+      inputs
     );
     if (databaseNetwork) renderManagedOverlay(overlayServices, databaseNetwork);
   }
@@ -441,11 +433,11 @@ async function runClaimedDeployment(
         : {}),
       [target.tagVariable]: deployment.tag,
     };
-    const content = renderManagedEnvFile(
+    const content = renderManagedEnvFileOrAbort(
       managedVars,
       tags,
       registry,
-      composeOptions
+      inputs
     );
     const path = `${target.deployDir}/${stagedEnvFileName(deploymentId)}`;
     const uploads: [string, string][] = [[path, content]];
@@ -647,14 +639,14 @@ function renderManagedOverlay(services: string[], network: string): string {
  * failure here is unexpected; its detail could quote a variable, so the run
  * only gets a generic sentence.
  */
-function renderManagedEnvFile(
+function renderManagedEnvFileOrAbort(
   vars: { name: string; value: string }[],
   tags: Record<string, string>,
   registry: string,
-  opts: { composeFiles?: string[] } = {}
+  inputs: ManagedEnvFileInputs
 ): string {
   try {
-    return renderEnvFile(vars, tags, registry, opts);
+    return renderManagedEnvFile(vars, tags, registry, inputs);
   } catch {
     throw new DeployAborted(
       "The environment's variables cannot be written to .env — check them in the Panel"
