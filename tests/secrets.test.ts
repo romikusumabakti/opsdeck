@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   decryptNullable,
   decryptSecret,
+  derivedKey,
   encryptNullable,
   encryptSecret,
   isEncrypted,
@@ -51,5 +52,16 @@ describe("secrets encryption", () => {
     const enc = encryptNullable("api-key");
     expect(isEncrypted(enc as string)).toBe(true);
     expect(decryptNullable(enc)).toBe("api-key");
+  });
+});
+
+describe("derivedKey", () => {
+  it("derives a 32-byte key per info, distinct from the master key", () => {
+    const a = derivedKey("purpose-a-v1");
+    const b = derivedKey("purpose-b-v1");
+    expect(a).toHaveLength(32);
+    expect(a.equals(derivedKey("purpose-a-v1"))).toBe(true);
+    expect(a.equals(b)).toBe(false);
+    expect(a.equals(Buffer.alloc(32, 7))).toBe(false);
   });
 });

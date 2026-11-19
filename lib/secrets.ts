@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  hkdfSync,
+  randomBytes,
+} from "node:crypto";
 
 // App-level encryption for secrets at rest: SSH passwords, the database admin
 // password, S3 secret keys, and the mock-time API key. AES-256-GCM under a
@@ -34,6 +39,24 @@ function masterKey(): Buffer {
     );
   }
   cachedKey = key;
+  return key;
+}
+
+const derivedKeys = new Map<string, Buffer>();
+
+/**
+ * A 32-byte key derived from the master key with HKDF-SHA256 under `info`
+ * (one fixed, versioned string per purpose, e.g. `env-file-fingerprint-v1`),
+ * so a MAC or signature key stays cryptographically separate from the
+ * at-rest encryption key.
+ */
+export function derivedKey(info: string): Buffer {
+  const cached = derivedKeys.get(info);
+  if (cached) return cached;
+  const key = Buffer.from(
+    hkdfSync("sha256", masterKey(), Buffer.alloc(0), info, 32)
+  );
+  derivedKeys.set(info, key);
   return key;
 }
 

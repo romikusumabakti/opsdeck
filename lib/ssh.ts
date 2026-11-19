@@ -36,6 +36,12 @@ export type RemoteCommandOptions = {
   timeoutMs?: number;
   stdin?: string;
   secrets?: string[];
+  /**
+   * Log nothing on failure, for output that may be a secret file's content
+   * (no `secrets` list can name it in advance). The error is still thrown
+   * unchanged: the caller must not log or return its message.
+   */
+  quiet?: boolean;
 };
 
 export async function executeRemoteCommand(
@@ -55,6 +61,7 @@ export async function executeRemoteCommand(
     timeoutMs = 10000,
     stdin,
     secrets = [],
+    quiet = false,
   } = typeof options === "number" ? { timeoutMs: options } : options;
   // Fresh client per call: a shared singleton races when concurrent callers
   // (e.g. parallel worker jobs, overlapping backup/restore requests) all
@@ -93,6 +100,7 @@ export async function executeRemoteCommand(
   } catch (error) {
     // Carries no secret, and its code must reach the caller.
     if (error instanceof HostKeyMismatchError) throw error;
+    if (quiet) throw error;
     if (secrets.length > 0) {
       const redacted =
         error instanceof RemoteCommandError
