@@ -381,7 +381,7 @@ async function loadContext(
         component: component
           ? {
               componentKey: component.componentKey,
-              appId: component.appId,
+              appId: component.app.id,
               appKey: component.app.appKey,
             }
           : null,
@@ -407,7 +407,7 @@ async function loadContext(
           ),
           component: {
             componentKey: component.componentKey,
-            appId: component.appId,
+            appId: component.app.id,
             appKey: component.app.appKey,
           },
         });

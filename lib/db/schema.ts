@@ -687,12 +687,13 @@ export const appComponents = pgTable(
     // Stable slug, e.g. "acme-portal-backend". Build-notify webhooks
     // and bundle tags address the component by this key.
     componentKey: text("component_key").primaryKey(),
-    appId: uuid("app_id")
-      .notNull()
-      .references(() => apps.id, {
-        name: "app_components_app_id_apps_id_fk",
-        onDelete: "restrict",
-      }),
+    // Legacy grouping, no longer read or written (Stage 8: a component is a
+    // Service on its own). Null for services registered without an app; kept
+    // until the contract release drops it.
+    appId: uuid("app_id").references(() => apps.id, {
+      name: "app_components_app_id_apps_id_fk",
+      onDelete: "restrict",
+    }),
     ciConnectionId: uuid("ci_connection_id")
       .notNull()
       .references(() => ciConnections.id, {
@@ -765,6 +766,45 @@ export const appVariableTemplates = pgTable(
     uniqueIndex("app_variable_templates_app_name_idx").on(t.appId, t.name),
     check(
       "app_variable_templates_generated_length_check",
+      sql`${t.generatedLength} >= 16 AND ${t.generatedLength} <= 128`
+    ),
+  ]
+);
+
+// A variable a service expects in every environment that deploys it.
+// Replaces app_variable_templates (kept, no longer read); same columns, keyed
+// by the service's component key.
+export const serviceVariableTemplates = pgTable(
+  "service_variable_templates",
+  {
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    componentKey: text("component_key")
+      .notNull()
+      .references(() => appComponents.componentKey, {
+        name: "service_variable_templates_component_key_fkey",
+        onDelete: "cascade",
+      }),
+    name: text("name").notNull(),
+    kind: variableKindEnum("kind").notNull(),
+    required: boolean("required").notNull().default(false),
+    // Plain only. May contain the placeholders {url} and {envSlug}.
+    defaultValue: text("default_value"),
+    // Generated only: length of the random value, 16-128.
+    generatedLength: integer("generated_length"),
+    // Escrowed variables can never be regenerated or deleted via the UI/API.
+    escrow: boolean("escrow").notNull().default(false),
+    description: text("description"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // Also the FK index for the cascade from app_components.
+    uniqueIndex("service_variable_templates_component_name_idx").on(
+      t.componentKey,
+      t.name
+    ),
+    check(
+      "service_variable_templates_generated_length_check",
       sql`${t.generatedLength} >= 16 AND ${t.generatedLength} <= 128`
     ),
   ]
@@ -1301,6 +1341,36 @@ export const projectComponentBranches = pgTable(
     index("project_component_branches_component_idx").on(t.componentKey),
     // FK index: `on delete set null` scans by updater when a user is deleted.
     index("project_component_branches_updated_by_idx").on(t.updatedBy),
+  ]
+);
+
+// A row says the project builds and deploys this service (an app_components
+// row): one of its Sources. Replaces project_apps (kept, no longer read).
+// Expand-only: the previous release never reads it.
+export const projectServices = pgTable(
+  "project_services",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, {
+        name: "project_services_project_id_projects_id_fk",
+        onDelete: "cascade",
+      }),
+    componentKey: text("component_key")
+      .notNull()
+      .references(() => appComponents.componentKey, {
+        name: "project_services_component_key_fk",
+        onDelete: "restrict",
+      }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({
+      name: "project_services_project_id_component_key_pk",
+      columns: [t.projectId, t.componentKey],
+    }),
+    // FK index: `on delete restrict` scans by component when one is deleted.
+    index("project_services_component_idx").on(t.componentKey),
   ]
 );
 
@@ -2482,6 +2552,10 @@ export type App = InferSelectModel<typeof apps>;
 export type AppComponent = InferSelectModel<typeof appComponents>;
 export type DeployTarget = InferSelectModel<typeof deployTargets>;
 export type AppVariableTemplate = InferSelectModel<typeof appVariableTemplates>;
+export type ServiceVariableTemplate = InferSelectModel<
+  typeof serviceVariableTemplates
+>;
+export type ProjectService = InferSelectModel<typeof projectServices>;
 export type EnvironmentVariable = InferSelectModel<typeof environmentVariables>;
 export type DeployTargetKind = (typeof deployTargetKindEnum.enumValues)[number];
 export type VariableKind = (typeof variableKindEnum.enumValues)[number];

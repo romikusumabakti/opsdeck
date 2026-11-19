@@ -101,10 +101,11 @@ describe.skipIf(!enabled)(
       });
       const db = drizzle({ client: sql });
 
-      // The schema as the previous release left it.
+      // The schema as the previous release left it: later migrations wait,
+      // since some of them read the tables this one creates.
       before = mkdtempSync(join(tmpdir(), "menara-project-sources-"));
       for (const entry of readdirSync("drizzle")) {
-        if (entry === MIGRATION) continue;
+        if (entry >= MIGRATION) continue;
         cpSync(join("drizzle", entry), join(before, entry), {
           recursive: true,
         });

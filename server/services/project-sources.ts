@@ -117,7 +117,10 @@ export async function setComponentBranch(input: {
   const t = await getServerTranslator("projectSources");
   const component = await getComponent(input.componentKey);
   if (!component) notFound();
-  if (!(await projectSourceAppIds(input.projectId)).includes(component.appId)) {
+  if (
+    component.appId === null ||
+    !(await projectSourceAppIds(input.projectId)).includes(component.appId)
+  ) {
     const tErr = await getServerTranslator("actionErrors");
     throw new CodedHTTPException(
       409,

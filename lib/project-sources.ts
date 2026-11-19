@@ -73,7 +73,7 @@ export async function projectSourceAppIds(
   const { envs, targets } = await usage(projectId, db);
   const ids = new Set(rows.map((row) => row.appId));
   for (const env of envs) if (env.appId) ids.add(env.appId);
-  for (const target of targets) ids.add(target.appId);
+  for (const target of targets) if (target.appId) ids.add(target.appId);
   return [...ids];
 }
 

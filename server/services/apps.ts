@@ -807,7 +807,7 @@ export async function triggerComponentBuild(
   const session = await requireSession();
   const component = await requireAppComponent(appKey, componentKey);
   if (!orgGrantAllows(session, { ...INTEGRATION_MANAGE })) {
-    const projectIds = await projectIdsWithAppEnvironment(component.appId);
+    const projectIds = await projectIdsWithAppEnvironment(component.app.id);
     if (projectIds.length === 0) {
       // Only the first build of a fresh app: later, admins only.
       await requireRegistrant();
@@ -850,7 +850,7 @@ export async function triggerComponentBuild(
     actorId: session.user.id,
     action: "app.build.trigger",
     entityType: "app",
-    entityId: component.appId,
+    entityId: component.app.id,
     data: {
       app: component.app.appKey,
       component: componentKey,
