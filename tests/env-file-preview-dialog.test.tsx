@@ -240,6 +240,33 @@ describe("managed .env switch: turning on", () => {
     expect(api.setEnvFileManaged).toHaveBeenCalledWith(ENV, true, 0);
   });
 
+  it("enables nothing when the dialog is closed while the preview is pending", async () => {
+    let resolve: (preview: EnvFilePreview) => void = () => {};
+    api.previewEnvFile.mockReturnValue(
+      new Promise<EnvFilePreview>((r) => {
+        resolve = r;
+      })
+    );
+    api.setEnvFileManaged.mockResolvedValue({ envFileManaged: true });
+    await render(<EnvFileManagedSwitch environment={environment(false)} />);
+    await click(managedSwitch());
+    expect(body()).toContain(t.loading);
+    await click(button(messages.common.cancel));
+    await act(async () => resolve({ dirs: [dir()] }));
+    for (let i = 0; i < 6; i++) await flush();
+    expect(api.setEnvFileManaged).not.toHaveBeenCalled();
+    expect(api.toast.success).not.toHaveBeenCalled();
+  });
+
+  it("waits for the Enable click when there is no deploy dir", async () => {
+    await turnOn({ dirs: [] });
+    expect(body()).toContain(t.noDirs);
+    expect(api.setEnvFileManaged).not.toHaveBeenCalled();
+    expect(confirmBox()).toBeNull();
+    await click(button(t.enable));
+    expect(api.setEnvFileManaged).toHaveBeenCalledWith(ENV, true, 0);
+  });
+
   it("refuses a dir another environment deploys into", async () => {
     await turnOn({ dirs: [dir({ sharedDir: true, changes: CHANGES })] });
     expect(body()).toContain(messages.variables.sharedDeployDir);
@@ -343,6 +370,14 @@ describe("Variables tab: unmanaged hint", () => {
     expect(api.previewEnvFile).toHaveBeenCalledWith(ENV);
     expect(rowOf("LOG_LEVEL")).toBeTruthy();
     expect(button(t.enable)).toBeUndefined();
+  });
+
+  it("shows no hint to who cannot open the preview", async () => {
+    await render(
+      <VariablesClient environmentId={ENV} listing={listing(false)} />,
+      "qa"
+    );
+    expect(body()).not.toContain(t.unmanagedHint);
   });
 
   it("shows no hint once the Panel manages the .env", async () => {

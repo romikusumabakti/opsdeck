@@ -216,21 +216,19 @@ export function VariablesClient({
       </div>
 
       <div className="flex flex-col gap-4">
-        {!listing.envFileManaged && (
+        {!listing.envFileManaged && canPreview && (
           <Alert>
             <FileText />
             <AlertDescription>
               <p>{t("envPreview.unmanagedHint")}</p>
-              {canPreview && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="h-auto px-0"
-                  onClick={() => setPreviewing(true)}
-                >
-                  {t("envPreview.link")}
-                </Button>
-              )}
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto px-0"
+                onClick={() => setPreviewing(true)}
+              >
+                {t("envPreview.link")}
+              </Button>
             </AlertDescription>
           </Alert>
         )}

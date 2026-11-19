@@ -91,6 +91,13 @@ function summarize(preview: EnvFilePreview) {
     notCompared,
     shared,
     clean: changes === 0 && notCompared.length === 0 && shared.length === 0,
+    // Enables without a click: something was compared and nothing changes.
+    // With no deploy dir at all the user reads that first and clicks Enable.
+    auto:
+      preview.dirs.length > 0 &&
+      changes === 0 &&
+      notCompared.length === 0 &&
+      shared.length === 0,
   };
 }
 
@@ -158,18 +165,24 @@ function PreviewBody({
   const preview = useMutation({
     mutationFn: () => previewEnvFile(environmentId),
     gcTime: 0,
-    onSuccess: (result) => {
-      // Nothing to confirm: the switch goes on at once.
-      if (mode === "enable" && summarize(result).clean) enable.mutate(0);
-    },
   });
+
+  // Nothing to confirm: the switch goes on at once. A per-call callback, so
+  // a dialog closed while the read was pending enables nothing (TanStack
+  // Query drops these on unmount; the options' onSuccess would still run).
+  const load = () =>
+    preview.mutate(undefined, {
+      onSuccess: (result) => {
+        if (mode === "enable" && summarize(result).auto) enable.mutate(0);
+      },
+    });
 
   const started = React.useRef(false);
   React.useEffect(() => {
     if (started.current) return;
     started.current = true;
-    preview.mutate();
-  }, [preview]);
+    load();
+  });
 
   const result = preview.data;
   const summary = result ? summarize(result) : null;
@@ -204,7 +217,7 @@ function PreviewBody({
           <PreviewSummary
             summary={summary}
             dirs={result.dirs}
-            enabling={mode === "enable" && summary.clean && enable.isPending}
+            enabling={mode === "enable" && summary.auto && enable.isPending}
           />
         )}
 
@@ -234,7 +247,7 @@ function PreviewBody({
       </div>
       <DialogFooter>
         {preview.isError && (
-          <Button variant="outline" onClick={() => preview.mutate()}>
+          <Button variant="outline" onClick={load}>
             <RefreshCw data-icon="inline-start" />
             {tCommon("tryAgain")}
           </Button>
