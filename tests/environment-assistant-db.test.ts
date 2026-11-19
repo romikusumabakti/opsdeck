@@ -143,6 +143,8 @@ describe("who writes the assistant_db_* columns", () => {
       "lib/teardown/plan.ts",
       // The rebind guard reads them.
       "server/services/environments.ts",
+      // The project delete refuses while a login is recorded.
+      "server/services/project-catalog.ts",
     ]);
     const offenders = [...sources("lib"), ...sources("server")].filter(
       (path) =>
@@ -158,5 +160,8 @@ describe("who writes the assistant_db_* columns", () => {
       "utf8"
     );
     expect(environments).not.toMatch(/assistantDb\w+\s*:/);
+    expect(
+      readFileSync("server/services/project-catalog.ts", "utf8")
+    ).not.toMatch(/assistantDb\w+\s*:/);
   });
 });

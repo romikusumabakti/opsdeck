@@ -118,6 +118,7 @@ describe("generateAssistantDbPassword", () => {
 describe("assistantDbUnavailableReason", () => {
   const base = {
     dbKind: "container",
+    serviceType: "docker",
     dbType: "postgres",
     dbName: "kestrel_qa",
     hasAdminPassword: false,
@@ -140,6 +141,23 @@ describe("assistantDbUnavailableReason", () => {
     expect(
       assistantDbUnavailableReason({
         ...base,
+        dbType: "mysql",
+        hasAdminPassword: true,
+      })
+    ).toBeNull();
+  });
+
+  it("refuses Postgres run by systemd (peer auth admits no other role), not other engines there", () => {
+    expect(
+      assistantDbUnavailableReason({ ...base, serviceType: "systemd" })
+    ).toBe("peerAuth");
+    expect(
+      assistantDbUnavailableReason({ ...base, serviceType: "kubernetes" })
+    ).toBeNull();
+    expect(
+      assistantDbUnavailableReason({
+        ...base,
+        serviceType: "systemd",
         dbType: "mysql",
         hasAdminPassword: true,
       })
@@ -313,6 +331,20 @@ describe("mysqlEnableAssistantDbSql", () => {
     );
     expect(sql).toContain("MAX_USER_CONNECTIONS");
     expect(sql).not.toMatch(/GRANT (ALL|INSERT|UPDATE|DELETE)/);
+  });
+
+  it("a login the environment doesn't record gets a plain CREATE USER, which fails if one appeared since the probe", () => {
+    const sql = mysqlEnableAssistantDbSql({
+      database: "kestrel_qa",
+      user: "menara_ro_kestrel_qa",
+      password: "Abc123def456ghi789jkl012mno345pq",
+      adopt: false,
+    });
+    expect(sql).toContain(
+      "CREATE USER 'menara_ro_kestrel_qa'@'127.0.0.1' IDENTIFIED BY"
+    );
+    expect(sql).not.toContain("IF NOT EXISTS");
+    expect(sql).not.toContain("ALTER USER");
   });
 
   it("escapes % and backticks in the database name", () => {

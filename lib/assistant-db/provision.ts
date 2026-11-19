@@ -552,6 +552,7 @@ type Ready = AssistantDbService & { dbType: DatabaseType; dbName: string };
 function ready(service: AssistantDbService): Ready {
   const reason = assistantDbUnavailableReason({
     dbKind: service.dbKind,
+    serviceType: service.serviceType,
     dbType: service.dbType,
     dbName: service.dbName,
     hasAdminPassword: Boolean(service.dbPassword),

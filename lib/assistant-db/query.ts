@@ -19,10 +19,19 @@ import { redactEngineError } from "./redact";
 // - Postgres: `PGOPTIONS` forces read-only and the timeout for the session
 //   (the role could change its own defaults); the query is wrapped in
 //   `SELECT * FROM (…) LIMIT n`; CSV output with a NULL marker.
-// - SQL Server: `-x` (no `$(var)` substitution), `-t 10`, `SET ROWCOUNT`,
-//   cells split on a unit separator.
+// - SQL Server: `-x` (no `$(var)` substitution), `-I` (QUOTED_IDENTIFIER
+//   ON), `-t 10`, `SET ROWCOUNT`, cells split on a unit separator.
 // - MySQL/MariaDB: the timeout set per session (MAX_EXECUTION_TIME or
-//   MariaDB's max_statement_time), `sql_select_limit`, XML output.
+//   MariaDB's max_statement_time), ANSI_QUOTES off, `sql_select_limit`, XML
+//   output.
+// The quoting the engine applies must be the one the gate, the masking and
+// the activity redaction (`redactLiterals`) assume: on SQL Server a double
+// quote names an identifier (ODBC sqlcmd defaults QUOTED_IDENTIFIER to OFF,
+// which would make `"…"` a string literal that the redaction keeps; go-sqlcmd
+// always has it on and accepts `-I` for compatibility); on MySQL/MariaDB it
+// delimits a string (ANSI_QUOTES, which the server's sql_mode may set, would
+// make it an identifier the parser takes for a literal and the masking
+// misses), so the session clears ANSI_QUOTES and the ANSI combination.
 // The MSSQL/MySQL password travels on stdin only.
 
 /** The engine's own wait for one statement. */
@@ -51,6 +60,14 @@ type DbService = Pick<ServiceWithServer, "serviceType" | "serviceName"> & {
   server: ServiceWithServer["server"];
 };
 
+/**
+ * Clears ANSI_QUOTES (and the ANSI combination that implies it) from the
+ * session's sql_mode, keeping every other mode: a double quote then delimits
+ * a string, as the gate and the redaction read it.
+ */
+const MYSQL_NO_ANSI_QUOTES =
+  "SET SESSION sql_mode = TRIM(BOTH ',' FROM REPLACE(REPLACE(CONCAT(',', @@SESSION.sql_mode, ','), ',ANSI_QUOTES,', ','), ',ANSI,', ','))";
+
 /** The SQL as sent: the row cap (and MySQL's timeout) around the query. */
 export function cappedSql(
   engine: AssistantDbLogin["engine"],
@@ -70,6 +87,7 @@ export function cappedSql(
         "PREPARE menara_timeout FROM @menara_timeout",
         "EXECUTE menara_timeout",
         "DEALLOCATE PREPARE menara_timeout",
+        MYSQL_NO_ANSI_QUOTES,
         `SET SESSION sql_select_limit = ${rowLimit}`,
         sql,
       ].join("; ");
@@ -111,6 +129,7 @@ export function assistantQueryCommand(
           "-d",
           login.database,
           "-x",
+          "-I",
           "-t",
           String(QUERY_TIMEOUT_SECONDS),
           "-W",

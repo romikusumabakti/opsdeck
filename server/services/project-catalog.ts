@@ -1,4 +1,4 @@
-import { and, asc, eq, notExists } from "drizzle-orm";
+import { and, asc, eq, isNotNull, notExists } from "drizzle-orm";
 import { recordActivity } from "@/lib/activity";
 import { requireSession } from "@/lib/auth-session";
 import {
@@ -16,6 +16,7 @@ import {
   type Environment,
   type EnvironmentOwner,
   type EnvironmentSummaryWithOwner,
+  environmentServices,
   environments,
   environmentVariables,
   type Project,
@@ -29,6 +30,7 @@ import { pgErrorCode } from "@/lib/domains/errors";
 import { OWNER_COLUMNS } from "@/lib/environments";
 import { canCreateProject } from "@/lib/permissions";
 import { isProjectReleasable } from "@/lib/releases/repository";
+import { holdEnvironmentExclusive } from "@/lib/teardown/guard";
 import type { ActionResponse } from "@/lib/types";
 import {
   projectMetaInputSchema,
@@ -355,6 +357,13 @@ async function recordDefaultServerChange(
  * key is RESTRICT): while the project has any, the delete is refused (409
  * `projectHasReleases`) for everyone until they are deleted on its Releases
  * page.
+ * While any environment of the project records an Assistant read-only
+ * database login, the delete is refused (409 `projectHasAssistantDbLogins`)
+ * for everyone: the cascade would leave the login on the database server
+ * with nothing tracking it. Turning the access off drops it first. The
+ * delete holds every environment's lock exclusively (as a panel-only
+ * environment delete does), so an enable in flight finishes first, and its
+ * WHERE re-checks for a recorded login.
  */
 export async function removeProject(
   id: string,
@@ -364,7 +373,10 @@ export async function removeProject(
 ): Promise<ActionResponse> {
   const session = await requireOrgPermission({ project: ["delete"] });
   const refuse = async (
-    code: "projectHasReleases" | "projectHasEscrowedVariables"
+    code:
+      | "projectHasReleases"
+      | "projectHasEscrowedVariables"
+      | "projectHasAssistantDbLogins"
   ): Promise<never> => {
     const t = await getServerTranslator("actionErrors");
     throw new CodedHTTPException(409, code, t(code));
@@ -375,6 +387,23 @@ export async function removeProject(
     .where(eq(releases.projectId, id))
     .limit(1);
   if (release) await refuse("projectHasReleases");
+
+  const withLogin = () =>
+    db
+      .select({ id: environmentServices.id })
+      .from(environmentServices)
+      .innerJoin(
+        environments,
+        eq(environments.id, environmentServices.environmentId)
+      )
+      .where(
+        and(
+          eq(environments.projectId, id),
+          isNotNull(environmentServices.assistantDbLogin)
+        )
+      );
+  const [login] = await withLogin().limit(1);
+  if (login) await refuse("projectHasAssistantDbLogins");
 
   const variables = await db
     .select({
@@ -397,33 +426,45 @@ export async function removeProject(
     await refuse("projectHasEscrowedVariables");
   }
 
+  const escrowed = () =>
+    db
+      .select({ id: environmentVariables.id })
+      .from(environmentVariables)
+      .innerJoin(
+        environments,
+        eq(environments.id, environmentVariables.environmentId)
+      )
+      .where(
+        and(
+          eq(environments.projectId, id),
+          eq(environmentVariables.escrow, true)
+        )
+      );
+
   let deleted: { id: string } | undefined;
   try {
-    [deleted] = await db
-      .delete(projects)
-      .where(
-        confirmed
-          ? eq(projects.id, id)
-          : and(
-              eq(projects.id, id),
-              notExists(
-                db
-                  .select({ id: environmentVariables.id })
-                  .from(environmentVariables)
-                  .innerJoin(
-                    environments,
-                    eq(environments.id, environmentVariables.environmentId)
-                  )
-                  .where(
-                    and(
-                      eq(environments.projectId, id),
-                      eq(environmentVariables.escrow, true)
-                    )
-                  )
-              )
-            )
-      )
-      .returning({ id: projects.id });
+    deleted = await db.transaction(async (tx) => {
+      // In id order, so two deletes never wait on each other's locks.
+      const owned = await tx
+        .select({ id: environments.id })
+        .from(environments)
+        .where(eq(environments.projectId, id))
+        .orderBy(asc(environments.id));
+      for (const environment of owned) {
+        await holdEnvironmentExclusive(tx, environment.id);
+      }
+      const [row] = await tx
+        .delete(projects)
+        .where(
+          and(
+            eq(projects.id, id),
+            notExists(withLogin()),
+            confirmed ? undefined : notExists(escrowed())
+          )
+        )
+        .returning({ id: projects.id });
+      return row;
+    });
   } catch (error) {
     // restrict_violation: a release was made since the check. Releases hold
     // the only ON DELETE RESTRICT foreign key a project delete can reach.
@@ -431,9 +472,11 @@ export async function removeProject(
     console.error(`Failed to delete project ${id}:`, error);
     return { success: false, message: "Failed to delete project" };
   }
-  // Nothing deleted: either a variable was escrowed since the check, or the
-  // project is gone.
+  // Nothing deleted: a login is recorded, a variable was escrowed since the
+  // check, or the project is gone.
   if (!deleted) {
+    const [recorded] = await withLogin().limit(1);
+    if (recorded) await refuse("projectHasAssistantDbLogins");
     if (!confirmed && variables.length > 0) {
       await refuse("projectHasEscrowedVariables");
     }

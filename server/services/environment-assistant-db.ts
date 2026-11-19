@@ -98,6 +98,7 @@ async function enable(
 ): Promise<AssistantDbAccess> {
   const reason = assistantDbUnavailableReason({
     dbKind: stored.dbKind,
+    serviceType: stored.serviceType,
     dbType: stored.dbType,
     dbName: stored.dbName,
     hasAdminPassword: Boolean(stored.dbPassword),

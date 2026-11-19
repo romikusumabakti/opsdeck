@@ -8,10 +8,15 @@ export type AssistantDbUnavailableReason =
   // The db service lacks its engine or database name.
   | "incomplete"
   // sqlcmd and the MySQL client log in with the stored admin password.
-  | "adminPasswordMissing";
+  | "adminPasswordMissing"
+  // Postgres run by systemd: the Panel reaches it as the `postgres` OS user
+  // over the local socket, where peer authentication only lets a role of
+  // that same name in, never the separate read-only role.
+  | "peerAuth";
 
 export function assistantDbUnavailableReason(service: {
   dbKind: string | null;
+  serviceType: string | null;
   dbType: string | null;
   dbName: string | null;
   hasAdminPassword: boolean;
@@ -20,6 +25,9 @@ export function assistantDbUnavailableReason(service: {
   if (!(service.dbType && service.dbName)) return "incomplete";
   if (service.dbType !== "postgres" && !service.hasAdminPassword) {
     return "adminPasswordMissing";
+  }
+  if (service.dbType === "postgres" && service.serviceType === "systemd") {
+    return "peerAuth";
   }
   return null;
 }

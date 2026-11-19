@@ -997,7 +997,8 @@
       "unavailable": {
         "external": "غير متاح لقاعدة بيانات خارجية: لا تملك اللوحة وصول مسؤول إليها.",
         "incomplete": "غير متاح حتى يُحدَّد محرك قاعدة البيانات واسمها.",
-        "adminPasswordMissing": "غير متاح حتى تُحدَّد كلمة مرور مسؤول قاعدة البيانات في الخيارات المتقدمة."
+        "adminPasswordMissing": "غير متاح حتى تُحدَّد كلمة مرور مسؤول قاعدة البيانات في الخيارات المتقدمة.",
+        "peerAuth": "غير متاح لـ Postgres الذي يشغّله systemd: تسجّل اللوحة الدخول هناك عبر مصادقة peer، التي لا تسمح بتسجيل دخول منفصل للقراءة فقط."
       },
       "enabled": "يمكن للمساعد الآن الاستعلام في قاعدة البيانات هذه (قراءة فقط)",
       "disabled": "لم يعد بإمكان المساعد الاستعلام في قاعدة البيانات هذه",
@@ -1611,6 +1612,7 @@
     "environmentHasEscrowedVariables": "تحتوي هذه البيئة على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف البيئة.",
     "projectHasEscrowedVariables": "تحتوي بيئات هذا المشروع على متغيرات محفوظة (مثل مفتاح تشفير البيانات) لا توجد إلا في اللوحة. احفظها في مكان آخر أولًا؛ بعد ذلك يمكن للمسؤول فقط حذف المشروع.",
     "projectHasReleases": "This project has releases. Delete them on the project's Releases page first (their files are kept in storage), then delete the project.",
+    "projectHasAssistantDbLogins": "لا تزال إحدى بيئات هذا المشروع تحتوي على تسجيل دخول المساعد للقراءة فقط على قاعدة بياناتها. أوقف أولًا \"السماح للمساعد بالاستعلام في قاعدة البيانات هذه\" في الإعدادات › قاعدة البيانات الخاصة بها: فهذا يزيل تسجيل الدخول من خادم قاعدة البيانات. ثم احذف المشروع.",
     "deployLocked": "عمليات النشر إلى هذه البيئة مقفلة من قبل {name} حتى {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "مستخدم سابق",
     "deployLockReasonInvalid": "اكتب سببًا من 1 إلى 200 حرف.",
@@ -1644,7 +1646,7 @@
     "componentNotInSources": "هذه الخدمة ليست مصدرًا لهذا المشروع. أضفها أولًا.",
     "cannotResetOwnTwoFactor": "لا يمكنك إعادة تعيين المصادقة الثنائية الخاصة بك. أوقفها من الحساب > الأمان.",
     "assistantDbNoDatabase": "لا توجد قاعدة بيانات لهذه البيئة.",
-    "assistantDbUnavailable": "{reason, select, external {لا تملك اللوحة وصول مسؤول إلى قاعدة بيانات خارجية.} incomplete {حدّد محرك قاعدة البيانات واسمها أولًا.} adminPasswordMissing {حدّد كلمة مرور مسؤول قاعدة البيانات أولًا.} other {لا تستطيع اللوحة إنشاء تسجيل دخول للقراءة فقط لقاعدة البيانات هذه.}}",
+    "assistantDbUnavailable": "{reason, select, external {لا تملك اللوحة وصول مسؤول إلى قاعدة بيانات خارجية.} incomplete {حدّد محرك قاعدة البيانات واسمها أولًا.} adminPasswordMissing {حدّد كلمة مرور مسؤول قاعدة البيانات أولًا.} peerAuth {لا يسمح Postgres الذي يشغّله systemd بتسجيل دخول منفصل للقراءة فقط (مصادقة peer).} other {لا تستطيع اللوحة إنشاء تسجيل دخول للقراءة فقط لقاعدة البيانات هذه.}}",
     "assistantDbProvisionFailed": "رفض خادم قاعدة البيانات تسجيل الدخول للقراءة فقط: {reason}",
     "assistantDbDropFailed": "وصول المساعد متوقف، لكن تعذّرت إزالة تسجيل الدخول {login}: {reason}",
     "assistantDbAccessBlocksRebind": "أوقف وصول المساعد إلى قاعدة البيانات قبل نقل قاعدة البيانات هذه أو إزالتها.",
@@ -4059,6 +4061,7 @@
     "panelGetEnvironmentStatus": "حالة البيئة",
     "panelListDeploys": "سجل عمليات النشر",
     "panelGetDeploy": "عملية نشر",
+    "panelGetServiceLogs": "سجلات الخدمة",
     "panelListBuilds": "عمليات البناء",
     "panelListPeople": "الأشخاص",
     "panelListServers": "الخوادم",

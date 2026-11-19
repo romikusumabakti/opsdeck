@@ -103,12 +103,14 @@ describe("assistantQueryCommand", () => {
     );
     expect(stdin).toBe(`${MSSQL.password}\n`);
     expect(command).not.toContain(MSSQL.password);
-    for (const arg of ["-x", "-t", "10", "-W", "-Q", "acme_qa"]) {
+    for (const arg of ["-x", "-I", "-t", "10", "-W", "-Q", "acme_qa"]) {
       expect(command).toContain(`'\\''${arg}'\\''`);
     }
     expect(command).toContain(
       "SET NOCOUNT ON; SET ROWCOUNT 101; SELECT TOP 5 id FROM orders"
     );
+    // QUOTED_IDENTIFIER ON: "…" is a name, as the gate and redaction read it.
+    expect(command).toMatch(/'\\''-I'\\'' '\\''-t'\\''/);
     expect(command).toContain("menara_ro_acme_qa");
   });
 
@@ -127,6 +129,13 @@ describe("assistantQueryCommand", () => {
     expect(sql).toContain("max_statement_time = 10");
     expect(sql).toContain("SET SESSION sql_select_limit = 101");
     expect(sql.endsWith("; SELECT id FROM orders")).toBe(true);
+    // ANSI_QUOTES (alone or through ANSI) is cleared before the query, so a
+    // double quote delimits a string, as the gate and redaction assume.
+    const clear = sql.indexOf("SET SESSION sql_mode = ");
+    expect(clear).toBeGreaterThan(-1);
+    expect(clear).toBeLessThan(sql.indexOf("SELECT id FROM orders"));
+    expect(sql).toContain("',ANSI_QUOTES,', ','");
+    expect(sql).toContain("',ANSI,', ','");
   });
 });
 

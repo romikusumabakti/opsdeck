@@ -997,7 +997,8 @@
       "unavailable": {
         "external": "外部数据库不可用：面板没有它的管理员权限。",
         "incomplete": "需先设置数据库引擎和名称。",
-        "adminPasswordMissing": "需先在高级选项中设置数据库管理员密码。"
+        "adminPasswordMissing": "需先在高级选项中设置数据库管理员密码。",
+        "peerAuth": "不适用于由 systemd 运行的 Postgres：面板在那里通过 peer 认证登录，不允许单独的只读登录名。"
       },
       "enabled": "助手现在可以查询此数据库（只读）",
       "disabled": "助手不再能查询此数据库",
@@ -1611,6 +1612,7 @@
     "environmentHasEscrowedVariables": "此环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此环境。",
     "projectHasEscrowedVariables": "此项目的环境包含仅存在于面板中的托管变量（例如数据加密密钥）。请先将其保存到别处；之后只有管理员可以删除此项目。",
     "projectHasReleases": "This project has releases. Delete them on the project's Releases page first (their files are kept in storage), then delete the project.",
+    "projectHasAssistantDbLogins": "此项目的某个环境的数据库上仍有助手的只读登录名。请先在该环境的“设置 › 数据库”中关闭“允许助手查询此数据库”：这会从数据库服务器删除该登录名。然后再删除项目。",
     "deployLocked": "此环境的部署已被 {name} 锁定，直到 {expiresAt, date, medium} {expiresAt, time, short}：{reason}",
     "deployLockHolderUnknown": "一位前用户",
     "deployLockReasonInvalid": "请填写 1 到 200 个字符的原因。",
@@ -1644,7 +1646,7 @@
     "componentNotInSources": "该服务不是此项目的来源。请先添加它。",
     "cannotResetOwnTwoFactor": "不能重置自己的双重验证。请在“账户 > 安全”中关闭。",
     "assistantDbNoDatabase": "此环境没有数据库。",
-    "assistantDbUnavailable": "{reason, select, external {面板没有外部数据库的管理员权限。} incomplete {请先设置数据库引擎和名称。} adminPasswordMissing {请先设置数据库管理员密码。} other {面板无法为此数据库创建只读登录名。}}",
+    "assistantDbUnavailable": "{reason, select, external {面板没有外部数据库的管理员权限。} incomplete {请先设置数据库引擎和名称。} adminPasswordMissing {请先设置数据库管理员密码。} peerAuth {由 systemd 运行的 Postgres 不允许单独的只读登录名（peer 认证）。} other {面板无法为此数据库创建只读登录名。}}",
     "assistantDbProvisionFailed": "数据库服务器拒绝了只读登录名：{reason}",
     "assistantDbDropFailed": "助手的访问已关闭，但无法删除登录名 {login}：{reason}",
     "assistantDbAccessBlocksRebind": "移动或移除此数据库前，请先关闭助手的数据库访问。",
@@ -4059,6 +4061,7 @@
     "panelGetEnvironmentStatus": "环境状态",
     "panelListDeploys": "部署历史",
     "panelGetDeploy": "部署",
+    "panelGetServiceLogs": "服务日志",
     "panelListBuilds": "构建",
     "panelListPeople": "成员",
     "panelListServers": "服务器",

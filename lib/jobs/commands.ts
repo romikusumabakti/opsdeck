@@ -69,7 +69,8 @@ export function pgQuoteLiteral(value: string): string {
 
 /**
  * Quote a MySQL/MariaDB identifier. Both engines wrap identifiers in backticks
- * (ANSI_QUOTES is off by default and we never set it), and a literal backtick
+ * (ANSI_QUOTES is off by default; the Assistant's queries clear it per
+ * session), and a literal backtick
  * is doubled. Returns the value WITH its backticks.
  */
 export function mysqlQuoteId(value: string): string {

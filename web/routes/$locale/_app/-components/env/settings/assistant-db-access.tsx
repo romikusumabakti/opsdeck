@@ -42,6 +42,7 @@ export function AssistantDbAccess({
   if (!service) return null;
   const reason = assistantDbUnavailableReason({
     dbKind: service.dbKind,
+    serviceType: service.serviceType,
     dbType: service.dbType,
     dbName: service.dbName,
     hasAdminPassword: service.hasDbPassword,

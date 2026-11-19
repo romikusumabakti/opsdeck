@@ -997,7 +997,8 @@
       "unavailable": {
         "external": "Tidak tersedia untuk basis data eksternal: Panel tidak punya akses admin ke sana.",
         "incomplete": "Belum tersedia sampai mesin dan nama basis data diisi.",
-        "adminPasswordMissing": "Belum tersedia sampai kata sandi admin basis data diisi di Opsi lanjutan."
+        "adminPasswordMissing": "Belum tersedia sampai kata sandi admin basis data diisi di Opsi lanjutan.",
+        "peerAuth": "Tidak tersedia untuk Postgres yang dijalankan systemd: Panel masuk ke sana lewat autentikasi peer, yang tidak mengizinkan login baca-saja terpisah."
       },
       "enabled": "Asisten sekarang bisa mengkueri basis data ini (baca-saja)",
       "disabled": "Asisten tidak bisa lagi mengkueri basis data ini",
@@ -1611,6 +1612,7 @@
     "environmentHasEscrowedVariables": "Environment ini punya variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus environment ini.",
     "projectHasEscrowedVariables": "Project ini punya environment dengan variabel escrow (misalnya kunci enkripsi data) yang hanya ada di Panel. Simpan dulu di tempat lain; setelah itu hanya admin yang bisa menghapus project ini.",
     "projectHasReleases": "Project ini punya release. Hapus dulu release-nya di halaman Releases project ini (file-nya tersimpan di storage), lalu hapus project-nya.",
+    "projectHasAssistantDbLogins": "Salah satu environment project ini masih punya login baca-saja Asisten di basis datanya. Nonaktifkan dulu \"Izinkan Asisten mengkueri basis data ini\" di Pengaturan › Basis data environment tersebut: itu menghapus login dari server basis data. Lalu hapus project-nya.",
     "deployLocked": "Deploy ke environment ini dikunci oleh {name} sampai {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "mantan pengguna",
     "deployLockReasonInvalid": "Isi alasan 1 sampai 200 karakter.",
@@ -1644,7 +1646,7 @@
     "componentNotInSources": "Service ini bukan sumber proyek ini. Tambahkan terlebih dahulu.",
     "cannotResetOwnTwoFactor": "Anda tidak dapat mereset autentikasi dua faktor sendiri. Matikan dari Akun > Keamanan.",
     "assistantDbNoDatabase": "Environment ini tidak punya basis data.",
-    "assistantDbUnavailable": "{reason, select, external {Panel tidak punya akses admin ke basis data eksternal.} incomplete {Isi mesin dan nama basis data terlebih dahulu.} adminPasswordMissing {Isi kata sandi admin basis data terlebih dahulu.} other {Panel tidak bisa membuat login baca-saja untuk basis data ini.}}",
+    "assistantDbUnavailable": "{reason, select, external {Panel tidak punya akses admin ke basis data eksternal.} incomplete {Isi mesin dan nama basis data terlebih dahulu.} adminPasswordMissing {Isi kata sandi admin basis data terlebih dahulu.} peerAuth {Postgres yang dijalankan systemd tidak mengizinkan login baca-saja terpisah (autentikasi peer).} other {Panel tidak bisa membuat login baca-saja untuk basis data ini.}}",
     "assistantDbProvisionFailed": "Server basis data menolak login baca-saja: {reason}",
     "assistantDbDropFailed": "Akses Asisten sudah nonaktif, tetapi login {login} tidak bisa dihapus: {reason}",
     "assistantDbAccessBlocksRebind": "Nonaktifkan akses basis data Asisten sebelum memindahkan atau menghapus basis data ini.",
@@ -4059,6 +4061,7 @@
     "panelGetEnvironmentStatus": "Status environment",
     "panelListDeploys": "Riwayat deploy",
     "panelGetDeploy": "Deploy",
+    "panelGetServiceLogs": "Log layanan",
     "panelListBuilds": "Build",
     "panelListPeople": "Orang",
     "panelListServers": "Server",

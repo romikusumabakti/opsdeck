@@ -997,7 +997,8 @@
       "unavailable": {
         "external": "Not available for an external database: the Panel has no admin access to it.",
         "incomplete": "Not available until the database's engine and name are set.",
-        "adminPasswordMissing": "Not available until the database's admin password is set under Advanced options."
+        "adminPasswordMissing": "Not available until the database's admin password is set under Advanced options.",
+        "peerAuth": "Not available for Postgres run by systemd: the Panel signs in there through peer authentication, which admits no separate read-only login."
       },
       "enabled": "The Assistant can now query this database (read-only)",
       "disabled": "The Assistant can no longer query this database",
@@ -1611,6 +1612,7 @@
     "environmentHasEscrowedVariables": "This environment has escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the environment.",
     "projectHasEscrowedVariables": "This project has environments with escrowed variables (such as a data encryption key) that exist only in the Panel. Store them elsewhere first; only an admin can then delete the project.",
     "projectHasReleases": "This project has releases. Delete them on the project's Releases page first (their files are kept in storage), then delete the project.",
+    "projectHasAssistantDbLogins": "An environment of this project still has the Assistant's read-only database login. Turn off \"Let the Assistant query this database\" under its Settings › Database first: that removes the login from the database server. Then delete the project.",
     "deployLocked": "Deploys to this environment are locked by {name} until {expiresAt, date, medium} {expiresAt, time, short}: {reason}",
     "deployLockHolderUnknown": "a former user",
     "deployLockReasonInvalid": "Give a reason of 1 to 200 characters.",
@@ -1644,7 +1646,7 @@
     "componentNotInSources": "This service isn't a source of this project. Add it first.",
     "cannotResetOwnTwoFactor": "You can't reset your own two-factor. Turn it off from Account > Security.",
     "assistantDbNoDatabase": "This environment has no database.",
-    "assistantDbUnavailable": "{reason, select, external {The Panel has no admin access to an external database.} incomplete {Set the database's engine and name first.} adminPasswordMissing {Set the database's admin password first.} other {The Panel can't create a read-only login for this database.}}",
+    "assistantDbUnavailable": "{reason, select, external {The Panel has no admin access to an external database.} incomplete {Set the database's engine and name first.} adminPasswordMissing {Set the database's admin password first.} peerAuth {Postgres run by systemd admits no separate read-only login (peer authentication).} other {The Panel can't create a read-only login for this database.}}",
     "assistantDbProvisionFailed": "The database server refused the read-only login: {reason}",
     "assistantDbDropFailed": "The Assistant's access is off, but the login {login} could not be removed: {reason}",
     "assistantDbAccessBlocksRebind": "Turn off the Assistant's database access before moving or removing this database.",
@@ -4059,6 +4061,7 @@
     "panelGetEnvironmentStatus": "Environment status",
     "panelListDeploys": "Deploy history",
     "panelGetDeploy": "Deploy",
+    "panelGetServiceLogs": "Service logs",
     "panelListBuilds": "Builds",
     "panelListPeople": "People",
     "panelListServers": "Servers",

@@ -614,6 +614,70 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
     );
   });
 
+  it("refuses a project delete (409, even confirming escrow) while an environment records a login", async () => {
+    const deleted = await app.request("/api/project-catalog/remove-project", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: PROJECT, confirmEscrowedDeletion: true }),
+    });
+    expect(deleted.status).toBe(409);
+    expect(await deleted.json()).toMatchObject({
+      code: "projectHasAssistantDbLogins",
+    });
+    expect(
+      (
+        await sql`select count(*)::int as n from projects where id = ${PROJECT}`
+      )[0]?.n
+    ).toBe(1);
+    expect((await row(SVC_MS))?.assistant_db_login).toBe(
+      "menara_ro_kestrel_sql"
+    );
+  });
+
+  it("a project delete waits for an enable in flight, then its guarded delete refuses the new login", async () => {
+    const { removeProject } = await import("@/server/services/project-catalog");
+    const login = (await row(SVC_MS))?.assistant_db_login ?? null;
+    await sql`update environment_services set assistant_db_login = null where id = ${SVC_MS}`;
+    // An enable in flight: the environment's lock shared, the login written
+    // but not committed, so the early check sees none.
+    let commit = () => {};
+    const committed = new Promise<void>((resolve) => {
+      commit = resolve;
+    });
+    let locked = () => {};
+    const holding = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const enabling = sql.begin(async (tx) => {
+      await tx`select pg_advisory_xact_lock_shared(hashtextextended(${ENV_MS}::text, 0))`;
+      await tx`update environment_services set assistant_db_login = ${login} where id = ${SVC_MS}`;
+      locked();
+      await committed;
+    });
+    await holding;
+    let settled = false;
+    const deleting = removeProject(PROJECT, {
+      confirmEscrowedDeletion: true,
+    }).finally(() => {
+      settled = true;
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    // Blocked on the environment lock the enable holds.
+    expect(settled).toBe(false);
+    commit();
+    await enabling;
+    await expect(deleting).rejects.toMatchObject({
+      status: 409,
+      code: "projectHasAssistantDbLogins",
+    });
+    expect(
+      (
+        await sql`select count(*)::int as n from projects where id = ${PROJECT}`
+      )[0]?.n
+    ).toBe(1);
+    expect((await row(SVC_MS))?.assistant_db_login).toBe(login);
+  });
+
   it("the teardown step on a stopped database container fails clearly and keeps the login for the retry", async () => {
     const { dropAssistantDbLogin } = await import(
       "@/lib/teardown/assistant-db"

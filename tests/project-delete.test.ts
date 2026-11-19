@@ -22,6 +22,12 @@ const state = vi.hoisted(() => ({
     escrow: boolean;
   }[],
   releases: [] as { id: string }[],
+  // Services with a recorded Assistant database login.
+  logins: [] as { id: string }[],
+  // After the guarded delete matched nothing (a login recorded since).
+  loginsAfter: null as { id: string }[] | null,
+  environments: [] as { id: string }[],
+  locked: [] as string[],
   deleted: [] as { id: string }[],
   deleteError: null as unknown,
   deletes: 0,
@@ -54,8 +60,21 @@ vi.mock("@/server/i18n", () => ({
   getServerTranslator: async () => (key: string) => key,
 }));
 vi.mock("@/lib/db", async () => {
-  const { releases } = await import("@/lib/db/schema");
-  // A select on releases answers state.releases, any other state.rows.
+  const { releases, environmentServices, environments } = await import(
+    "@/lib/db/schema"
+  );
+  // A select on releases answers state.releases, on environment_services
+  // state.logins, on environments state.environments, any other state.rows.
+  const answer = (table: unknown) => {
+    if (table === releases) return state.releases;
+    if (table === environmentServices) {
+      return state.deletes > 0 && state.loginsAfter
+        ? state.loginsAfter
+        : state.logins;
+    }
+    if (table === environments) return state.environments;
+    return state.rows;
+  };
   const select = () => {
     let table: unknown;
     // biome-ignore lint/suspicious/noExplicitAny: self-referential mock builder
@@ -70,27 +89,38 @@ vi.mock("@/lib/db", async () => {
       limit: () => chain,
       // biome-ignore lint/suspicious/noThenProperty: awaitable query builder
       then: (resolve: (rows: unknown[]) => unknown, reject: () => unknown) =>
-        Promise.resolve(table === releases ? state.releases : state.rows).then(
-          resolve,
-          reject
-        ),
+        Promise.resolve(answer(table)).then(resolve, reject),
     };
     return chain;
+  };
+  const remove = () => {
+    state.deletes++;
+    return {
+      where: () => ({
+        returning: async () => {
+          if (state.deleteError) throw state.deleteError;
+          return state.deleted;
+        },
+      }),
+    };
+  };
+  const tx = {
+    select,
+    delete: remove,
+    // The environment locks (pg_advisory_xact_lock on each id).
+    execute: async (query: { queryChunks?: unknown[] }) => {
+      const id = JSON.stringify(query.queryChunks ?? "").match(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
+      )?.[0];
+      if (id) state.locked.push(id);
+      return [];
+    },
   };
   return {
     db: {
       select,
-      delete: () => {
-        state.deletes++;
-        return {
-          where: () => ({
-            returning: async () => {
-              if (state.deleteError) throw state.deleteError;
-              return state.deleted;
-            },
-          }),
-        };
-      },
+      delete: remove,
+      transaction: async (fn: (t: typeof tx) => unknown) => fn(tx),
     },
   };
 });
@@ -101,6 +131,10 @@ beforeEach(() => {
   state.orgRole = "admin";
   state.rows = [];
   state.releases = [];
+  state.logins = [];
+  state.loginsAfter = null;
+  state.environments = [];
+  state.locked = [];
   state.deleted = [{ id: PROJECT_ID }];
   state.deleteError = null;
   state.deletes = 0;
@@ -234,5 +268,38 @@ describe("removeProject and releases", () => {
       status: 409,
       code: "projectHasEscrowedVariables",
     });
+  });
+});
+
+describe("removeProject and Assistant database logins", () => {
+  it("refuses (409 projectHasAssistantDbLogins) while an environment records a login, even for an admin confirming escrow", async () => {
+    state.logins = [{ id: "0197f3a0-1b2c-7def-8000-0123456789d1" }];
+    state.rows = [
+      { environmentId: ENV_A, environment: "Dev", name: "KEY", escrow: true },
+    ];
+    for (const options of [{}, { confirmEscrowedDeletion: true }]) {
+      await expect(removeProject(PROJECT_ID, options)).rejects.toMatchObject({
+        status: 409,
+        code: "projectHasAssistantDbLogins",
+        message: "projectHasAssistantDbLogins",
+      });
+    }
+    expect(state.deletes).toBe(0);
+  });
+
+  it("refuses when a login was recorded after the check (the guarded delete matched nothing)", async () => {
+    state.deleted = [];
+    state.loginsAfter = [{ id: "0197f3a0-1b2c-7def-8000-0123456789d1" }];
+    await expect(removeProject(PROJECT_ID)).rejects.toMatchObject({
+      status: 409,
+      code: "projectHasAssistantDbLogins",
+    });
+    expect(state.deletes).toBe(1);
+  });
+
+  it("holds every environment's lock exclusively, in id order, before deleting", async () => {
+    state.environments = [{ id: ENV_A }, { id: ENV_B }];
+    expect(await removeProject(PROJECT_ID)).toMatchObject({ success: true });
+    expect(state.locked).toEqual([ENV_A, ENV_B]);
   });
 });
