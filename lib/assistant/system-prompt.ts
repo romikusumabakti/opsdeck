@@ -1,6 +1,7 @@
 import { APP_NAME } from "@/lib/branding";
 import { APP_TIMEZONE } from "@/lib/timezone";
 import { callName } from "@/lib/user-display";
+import { MENARA_VERSION, parseVersion } from "@/lib/version";
 import type { StoredQuestionContext } from "./context";
 import type { AssistantSource } from "./sources";
 import { STATUS_PROBES_PER_TURN } from "./tools/panel";
@@ -103,15 +104,37 @@ function componentLine(source: PromptSource, question: QuestionSource): string {
   return `- ${source.componentKey}: repo ${source.repoFullName}, ${commit}, ${describeSourceState(source, question)}`;
 }
 
-/** Who the model talks with, and what to call them when that differs. */
+/**
+ * Who the model talks with, and what they prefer to be called. The model
+ * knows the name but does not open every answer with it.
+ */
 function talkingWith(ctx: SystemPromptContext): string {
   const call = callName({
     name: ctx.userName,
     preferredName: ctx.preferredName,
   });
-  return call === ctx.userName
-    ? `You are talking with ${ctx.userName}.`
-    : `You are talking with ${ctx.userName}. Address them as ${call}.`;
+  const who =
+    call === ctx.userName
+      ? `You are talking with ${ctx.userName}.`
+      : `You are talking with ${ctx.userName}, who prefers to be called ${call}.`;
+  return `${who} Do not open your answers with their name; use it only where it comes naturally, such as when returning a greeting.`;
+}
+
+/** Where Menara's source code lives (the open-source upstream). */
+export const UPSTREAM_REPO_URL = "https://github.com/romikusumabakti/menara";
+
+/**
+ * What the Panel itself is: the product, the running version (as Admin ›
+ * Instance reports it: MENARA_VERSION, fixed per image, so the cached
+ * prompt stays byte-stable while a build runs) and the upstream repository.
+ * Who runs it at the organisation is the admin's organisation context.
+ */
+export function aboutPanel(version: string): string {
+  const running = parseVersion(version)
+    ? `version ${version}`
+    : "a development build (no release version)";
+  return `# About this Panel
+${APP_NAME} runs Menara, ${running}. Menara is open source; its upstream repository is ${UPSTREAM_REPO_URL}. Use this when the user asks about the Panel itself: what it is, which version runs, where its code lives.`;
 }
 
 /**
@@ -136,6 +159,8 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
 ${DOMAIN_GLOSSARY}
 
 ${talkingWith(ctx)}
+
+${aboutPanel(MENARA_VERSION)}
 
 # Context
 Each question has its own context, chosen by the user. The question you are answering starts with a "# Context of this question" note naming it; only that latest note applies. Earlier questions start with a short "(Context: …)" line instead: their answers may cite other projects or commits than the ones you can read now.

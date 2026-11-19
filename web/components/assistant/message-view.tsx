@@ -1,3 +1,4 @@
+import { code } from "@streamdown/code";
 import { useQuery } from "@tanstack/react-query";
 import {
   FileText,
@@ -10,8 +11,13 @@ import {
   Server,
 } from "lucide-react";
 import * as React from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import {
+  type Components,
+  defaultComponents,
+  defaultRehypePlugins,
+  type ExtraProps,
+  Streamdown,
+} from "streamdown";
 import { useTranslations } from "use-intl";
 import { CopyButton } from "@/components/copy-button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -19,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { TooltipHint } from "@/components/ui/tooltip";
 import { qualifiedEnvName } from "@/lib/nav-path";
-import { formatBytes } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import {
   type ConversationMessage,
   getAllowanceQuery,
@@ -30,36 +36,112 @@ import { shouldSend } from "./composer-keys";
 import { useAssistantErrorText } from "./error-text";
 import { MessageSources } from "./message-sources";
 
+type StyledTag = "table" | "thead" | "th" | "td" | "h1" | "h2" | "h3";
+type StyledProps = { className?: string } & ExtraProps;
+
+/** Streamdown's own renderer for `tag`, with `extra` merged over its classes. */
+function Restyled({
+  tag,
+  extra,
+  ...props
+}: StyledProps & { tag: StyledTag; extra: string }) {
+  const Base = defaultComponents[tag] as React.ComponentType<StyledProps>;
+  return <Base {...props} className={cn(extra, props.className)} />;
+}
+
 /**
- * An answer's markdown, read-only: embedded HTML is dropped (`skipHtml`),
- * images are never loaded (an injected `![](https://…?d=<data>)` would leak
- * data without a click; only the alt text stays), and links open in a new
- * tab without access to this page.
+ * How an answer's elements render: Streamdown's components (tables in a
+ * scrolling frame, code blocks with a copy button) at the chat's size, a
+ * semantic <strong>, and two safety overrides. Images are never loaded (an injected
+ * `![](https://…?d=<data>)` would leak data without a click; only the alt
+ * text stays), and links open in a new tab without access to this page.
  */
-function AnswerMarkdown({ content }: { content: string }) {
+const ANSWER_COMPONENTS: Components = {
+  table: (props) => <Restyled tag="table" extra="text-sm" {...props} />,
+  thead: (props) => <Restyled tag="thead" extra="bg-muted" {...props} />,
+  th: (props) => <Restyled tag="th" extra="px-3 py-2" {...props} />,
+  td: (props) => <Restyled tag="td" extra="px-3 py-2" {...props} />,
+  h1: (props) => <Restyled tag="h1" extra="mt-4 text-lg" {...props} />,
+  h2: (props) => <Restyled tag="h2" extra="mt-4 text-base" {...props} />,
+  h3: (props) => <Restyled tag="h3" extra="mt-4 text-sm" {...props} />,
+  // A real <strong> (Streamdown's is a styled span), for assistive tech.
+  strong: ({ children }) => (
+    <strong className="font-semibold">{children}</strong>
+  ),
+  img: ({ alt }) => (alt ? <span>{alt}</span> : null),
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-primary underline underline-offset-4"
+    >
+      {children}
+    </a>
+  ),
+};
+
+// Streamdown's rehype chain without `raw`: HTML inside an answer is never
+// parsed into elements (it shows as the literal text the model wrote).
+const ANSWER_REHYPE_PLUGINS = [
+  defaultRehypePlugins.sanitize,
+  defaultRehypePlugins.undoubleClobberPrefix,
+  defaultRehypePlugins.harden,
+].filter((p) => p !== undefined);
+
+const ANSWER_PLUGINS = { code };
+
+// Copy on code blocks only: the answer has its own copy action, and tables
+// grow with the answer rather than scrolling inside it.
+const ANSWER_CONTROLS = {
+  table: false,
+  code: { copy: true, download: false },
+  mermaid: false,
+  image: false,
+} as const;
+
+// Our own links (above) instead of Streamdown's confirm-before-open dialog.
+const ANSWER_LINK_SAFETY = { enabled: false };
+
+/**
+ * An answer's markdown, read-only, with Streamdown: an unfinished answer
+ * renders while it streams (open emphasis, half a table or code fence),
+ * GFM tables scroll sideways, code is highlighted (Shiki, JavaScript regex
+ * engine: no eval, no remote fetch). Embedded HTML is never rendered as
+ * HTML; a link to a non-web URL (javascript:) is blocked. Each block
+ * takes the direction of its own text (an Arabic UI may get an English
+ * answer, and the reverse).
+ */
+function AnswerMarkdown({
+  content,
+  streaming,
+}: {
+  content: string;
+  streaming: boolean;
+}) {
+  const t = useTranslations("assistant");
+  const tCommon = useTranslations("common");
+  const translations = React.useMemo(
+    () => ({ copyCode: t("copyCode"), copied: tCommon("copied") }),
+    [t, tCommon]
+  );
   return (
-    <div className="flex flex-col gap-2 text-sm leading-relaxed break-words [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:font-mono [&_code]:text-xs [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_ol]:list-decimal [&_ol]:ps-5 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:text-xs [&_td]:border [&_td]:px-2 [&_th]:border [&_th]:px-2 [&_ul]:list-disc [&_ul]:ps-5">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        skipHtml
-        components={{
-          // Never an <img> (nor React's preload of one): the alt text only.
-          img: ({ alt }) => (alt ? <span>{alt}</span> : null),
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary underline underline-offset-4"
-            >
-              {children}
-            </a>
-          ),
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
+    <Streamdown
+      data-answer-markdown=""
+      dir="auto"
+      className="text-sm leading-relaxed break-words"
+      components={ANSWER_COMPONENTS}
+      rehypePlugins={ANSWER_REHYPE_PLUGINS}
+      skipHtml
+      plugins={ANSWER_PLUGINS}
+      controls={ANSWER_CONTROLS}
+      linkSafety={ANSWER_LINK_SAFETY}
+      tableMaxHeight={0}
+      isAnimating={streaming}
+      translations={translations}
+    >
+      {content}
+    </Streamdown>
   );
 }
 
@@ -304,7 +386,9 @@ export function MessageView({
   const pending = message.status === "queued" || message.status === "streaming";
   return (
     <div className="group/message flex flex-col gap-2" aria-busy={pending}>
-      {message.content && <AnswerMarkdown content={message.content} />}
+      {message.content && (
+        <AnswerMarkdown content={message.content} streaming={pending} />
+      )}
       {pending && (
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />

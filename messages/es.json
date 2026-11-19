@@ -3972,6 +3972,7 @@
     "fileTooComplex": "Este archivo no se puede leer de forma segura: al descomprimirse ocuparía mucho más que su tamaño. Guárdalo de nuevo o adjunta solo la parte que importa."
   },
   "assistant": {
+    "copyCode": "Copiar código",
     "title": "Asistente",
     "usageUsed": "{percent}% del límite de hoy usado",
     "usageResets": "Se restablece a las {time, time, short}",

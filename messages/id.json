@@ -3972,6 +3972,7 @@
     "fileTooComplex": "File ini tidak bisa dibaca dengan aman: isinya akan membengkak jauh melebihi ukurannya. Simpan ulang atau lampirkan hanya bagian yang diperlukan."
   },
   "assistant": {
+    "copyCode": "Salin kode",
     "title": "Asisten",
     "usageUsed": "{percent}% dari batas hari ini terpakai",
     "usageResets": "Direset {time, time, short}",

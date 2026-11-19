@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   AUTO_NOTE_PROJECT_LIMIT,
+  aboutPanel,
   buildSourceNote,
   buildSystemPrompt,
   questionContextLabel,
 } from "@/lib/assistant/system-prompt";
+import { MENARA_VERSION } from "@/lib/version";
 
 const project = (n: number, group: string | null = null) => ({
   key: `P${String(n).padStart(3, "0")}`,
@@ -66,15 +68,17 @@ describe("buildSystemPrompt", () => {
     expect(section).toContain('"checked": false');
   });
 
-  it("addresses the user by the preferred name, and still knows the full one", () => {
+  it("knows the preferred and the full name, but does not open answers with it", () => {
     const text = buildSystemPrompt({
       userName: "Dana Putri Lestari",
       preferredName: " Dana ",
       orgContext: null,
     });
     expect(text).toContain(
-      "You are talking with Dana Putri Lestari. Address them as Dana."
+      "You are talking with Dana Putri Lestari, who prefers to be called Dana."
     );
+    expect(text).not.toContain("Address them as");
+    expect(text).toContain("Do not open your answers with their name");
   });
 
   it("uses the full name when the preferred name is blank or the same", () => {
@@ -84,9 +88,35 @@ describe("buildSystemPrompt", () => {
         preferredName,
         orgContext: null,
       });
-      expect(text).toContain("You are talking with Ana Maria.\n");
+      expect(text).toContain("You are talking with Ana Maria.");
+      expect(text).not.toContain("prefers to be called");
       expect(text).not.toContain("Address them as");
+      expect(text).toContain("Do not open your answers with their name");
     }
+  });
+
+  it("says what this Panel is: Menara, open source, its upstream and version", () => {
+    const text = buildSystemPrompt({
+      userName: "Widya",
+      preferredName: null,
+      orgContext: null,
+    });
+    const about = text.slice(text.indexOf("# About this Panel"));
+    expect(text).toContain("# About this Panel");
+    expect(about).toContain("Menara");
+    expect(about).toContain("open source");
+    expect(about).toContain("https://github.com/romikusumabakti/menara");
+    expect(text).toContain(aboutPanel(MENARA_VERSION));
+  });
+});
+
+describe("aboutPanel", () => {
+  it("names a release version, or a development build", () => {
+    expect(aboutPanel("1.4.0")).toContain("version 1.4.0");
+    expect(aboutPanel("1.5.0-beta.2")).toContain("version 1.5.0-beta.2");
+    const dev = aboutPanel("0.0.0-dev");
+    expect(dev).toContain("development build");
+    expect(dev).not.toContain("0.0.0-dev");
   });
 });
 

@@ -3972,6 +3972,7 @@
     "fileTooComplex": "This file can't be read safely: it would unpack to far more data than its size. Save it again or attach only the part that matters."
   },
   "assistant": {
+    "copyCode": "Copy code",
     "title": "Assistant",
     "usageUsed": "{percent}% of today's limit used",
     "usageResets": "Resets {time, time, short}",

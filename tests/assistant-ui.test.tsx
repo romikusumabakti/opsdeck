@@ -1017,7 +1017,7 @@ describe("answer stream", () => {
     });
     await render(<ChatThread conversationId="c1" />);
     expect(container.querySelector("img")).toBeNull();
-    const link = container.querySelector('a[href="https://example.com"]');
+    const link = container.querySelector('a[href^="https://example.com"]');
     expect(link?.getAttribute("target")).toBe("_blank");
     expect(link?.getAttribute("rel")).toContain("noopener");
   });
@@ -1043,6 +1043,85 @@ describe("answer stream", () => {
     );
     expect(document.documentElement.innerHTML).not.toContain("NIK123");
     expect(text()).toContain("Lihat x dan");
+  });
+
+  const answer = (content: string, status = "done") => ({
+    ...conversation(status),
+    messages: conversation(status).messages.map((m) =>
+      m.id === "m2" ? { ...m, content } : m
+    ),
+  });
+
+  it("renders a GFM table readable: header row, padded cells, horizontal scroll", async () => {
+    queryClient.setQueryData(
+      key,
+      answer(
+        "Ringkasan:\n\n| Env | Versi |\n| --- | --- |\n| Dev 1 | 1.4.0 |\n\nSelesai."
+      )
+    );
+    await render(<ChatThread conversationId="c1" />);
+    const table = container.querySelector("table");
+    expect(table).not.toBeNull();
+    expect(table?.className).toContain("text-sm");
+    const th = table?.querySelector("thead th");
+    expect(th?.textContent).toBe("Env");
+    expect(th?.className).toMatch(/\bpx-3\b/);
+    expect(th?.className).toMatch(/\bpy-2\b/);
+    expect(table?.querySelector("thead")?.className).toContain("bg-muted");
+    const td = table?.querySelector("tbody td");
+    expect(td?.textContent).toBe("Dev 1");
+    expect(td?.className).toMatch(/\bpx-3\b/);
+    expect(td?.className).toMatch(/\bpy-2\b/);
+    // Wide tables scroll sideways inside the answer instead of overflowing it.
+    let scroll = table?.parentElement ?? null;
+    while (scroll && !scroll.className.includes("overflow-x-auto")) {
+      scroll = scroll.parentElement;
+    }
+    expect(scroll).not.toBeNull();
+  });
+
+  it("renders incomplete markdown mid-stream without throwing", async () => {
+    queryClient.setQueryData(
+      key,
+      answer(
+        "| Env | Versi |\n| --- | --- |\n| Dev 1 |\n\nIuran dihitung dari **gaji pok",
+        "streaming"
+      )
+    );
+    await render(<ChatThread conversationId="c1" />);
+    // The half-sent row still renders, and the open emphasis is closed.
+    expect(container.querySelector("tbody td")?.textContent).toBe("Dev 1");
+    expect(container.querySelector("strong")?.textContent).toBe("gaji pok");
+  });
+
+  it("renders an unclosed code fence mid-stream as code", async () => {
+    queryClient.setQueryData(
+      key,
+      answer("Query:\n\n```sql\nselect iuran from", "streaming")
+    );
+    await render(<ChatThread conversationId="c1" />);
+    expect(container.querySelector("pre code")?.textContent).toContain(
+      "select iuran from"
+    );
+  });
+
+  it("gives each block the direction of its own text", async () => {
+    queryClient.setQueryData(key, answer("Iuran bulanan.\n\nمرحبا بكم"));
+    await render(<ChatThread conversationId="c1" />);
+    const body = container.querySelector("[data-answer-markdown]");
+    const dirOf = (text: string) =>
+      [...(body?.querySelectorAll("[dir]") ?? [])]
+        .find((el) => el.textContent === text)
+        ?.getAttribute("dir");
+    expect(dirOf("Iuran bulanan.")).toBe("ltr");
+    expect(dirOf("مرحبا بكم")).toBe("rtl");
+  });
+
+  it("never links a javascript: URL", async () => {
+    queryClient.setQueryData(key, answer("[klik](javascript:alert(1))"));
+    await render(<ChatThread conversationId="c1" />);
+    expect(container.querySelector('a[href^="javascript"]')).toBeNull();
+    expect(container.innerHTML).not.toContain("javascript:");
   });
   // happy-dom does no layout: give the scroller a fixed geometry.
   const scroller = () => {

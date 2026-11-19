@@ -3972,6 +3972,7 @@
     "fileTooComplex": "无法安全读取此文件：解压后的数据会远大于其大小。请重新保存，或只附加需要的部分。"
   },
   "assistant": {
+    "copyCode": "复制代码",
     "title": "助手",
     "usageUsed": "今日额度已用 {percent}%",
     "usageResets": "{time, time, short} 重置",
