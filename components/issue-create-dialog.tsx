@@ -13,6 +13,7 @@ import {
   TypeProperty,
 } from "@/components/issue-property-trigger";
 import type { IssueType, Priority, Status } from "@/components/issues-board";
+import type { EditorHandle } from "@/components/knowledge-editor";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,6 +134,7 @@ function IssueCreateForm({
 }) {
   const t = useTranslations("issues");
   const titleRef = React.useRef<HTMLInputElement>(null);
+  const descriptionRef = React.useRef<EditorHandle>(null);
   const createMoreId = React.useId();
 
   const [title, setTitle] = React.useState(defaults?.title ?? "");
@@ -188,11 +190,14 @@ function IssueCreateForm({
 
   async function submit() {
     if (!canSubmit) return;
+    // The editor reports typing after a short debounce; Ctrl/⌘+Enter right
+    // after a keystroke would otherwise send the text from before it.
+    const body = descriptionRef.current?.flush() ?? description;
     setSaving(true);
     const result = await createIssue({
       projectId,
       title: title.trim(),
-      description: description.trim(),
+      description: body.trim(),
       type,
       priority,
       status,
@@ -244,9 +249,10 @@ function IssueCreateForm({
           onChange={(e) => setTitle(e.target.value)}
           placeholder={t("titlePlaceholder")}
           maxLength={300}
-          className="w-full bg-transparent text-xl font-semibold outline-none placeholder:text-muted-foreground/70"
+          className="w-full rounded-sm bg-transparent text-xl font-semibold outline-none placeholder:text-muted-foreground/70 focus-visible:ring-3 focus-visible:ring-ring/50"
         />
         <MarkdownEditor
+          ref={descriptionRef}
           borderless
           value={description}
           onChange={setDescription}

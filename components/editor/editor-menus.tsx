@@ -334,6 +334,7 @@ export function SelectionMenu({
   linkDocumentLabel,
   onLinkDocument,
   menuRef,
+  popupOwner,
 }: {
   editor: Editor;
   labels?: ToolbarLabels;
@@ -343,6 +344,8 @@ export function SelectionMenu({
   linkDocumentLabel?: string;
   onLinkDocument?: () => void;
   menuRef: (el: HTMLDivElement | null) => void;
+  /** Marks this menu's popover as the editor's own (see KnowledgeEditor). */
+  popupOwner?: string;
 }) {
   // Tiptap v3 does not re-render on transactions; subscribe to the slice the
   // buttons' pressed state reads.
@@ -455,6 +458,7 @@ export function SelectionMenu({
           className="w-80"
           // Focus the input, not the first button.
           initialFocus={linkInputRef}
+          data-editor-owner={popupOwner}
         >
           <form onSubmit={applyLink} className="flex flex-col gap-2">
             {/* type="text", not "url": native url validation would block
@@ -622,11 +626,14 @@ export function ImageMenu({
   label,
   labels,
   menuRef,
+  popupOwner,
 }: {
   editor: Editor;
   label?: string;
   labels?: ImageAltLabels;
   menuRef: (el: HTMLDivElement | null) => void;
+  /** Marks this menu's popover as the editor's own (see KnowledgeEditor). */
+  popupOwner?: string;
 }) {
   const [altOpen, setAltOpen] = useState(false);
   const [altText, setAltText] = useState("");
@@ -672,6 +679,7 @@ export function ImageMenu({
           align="start"
           className="w-80"
           initialFocus={altInputRef}
+          data-editor-owner={popupOwner}
         >
           <form onSubmit={applyAlt} className="flex flex-col gap-2">
             <Input

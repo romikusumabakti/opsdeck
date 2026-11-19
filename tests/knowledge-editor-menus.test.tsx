@@ -584,6 +584,126 @@ describe("image menu", () => {
   });
 });
 
+// Save-on-blur surfaces (the issue description) must not save when focus
+// only moves into the editor's own menus, their popovers (link, alt text) or
+// the "Link to document" dialog; leaving those for elsewhere still saves.
+describe("onBlur", () => {
+  function blurTo(dom: HTMLElement, next: Element | null) {
+    dom.dispatchEvent(new FocusEvent("blur", { relatedTarget: next }));
+    dom.dispatchEvent(
+      new FocusEvent("focusout", { bubbles: true, relatedTarget: next })
+    );
+  }
+
+  async function altInput() {
+    return vi.waitFor(() => {
+      const el = document.querySelector<HTMLInputElement>(
+        'input[placeholder="Describe the image"]'
+      );
+      if (!el) throw new Error("no alt input");
+      return el;
+    });
+  }
+
+  async function imageMenuOpen(onBlur: (markdown: string) => void) {
+    const ctx = await mount({ value: `Intro\n\n${IMAGE}`, onBlur });
+    await act(async () => {
+      ctx.editor
+        .chain()
+        .focus()
+        .setNodeSelection(posOf(ctx.editor, "image"))
+        .run();
+    });
+    return { ...ctx, bar: await menu("Image") };
+  }
+
+  it("fires when focus leaves for the page (control)", async () => {
+    const onBlur = vi.fn();
+    const { dom } = await mount({ value: "Hello", onBlur });
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    await act(async () => blurTo(dom, outside));
+    expect(onBlur).toHaveBeenCalledTimes(1);
+    expect(onBlur).toHaveBeenCalledWith("Hello");
+  });
+
+  it("waits while focus is in a menu or its popover, fires once it leaves them", async () => {
+    const onBlur = vi.fn();
+    const { dom, bar } = await imageMenuOpen(onBlur);
+    const edit = button(bar, "Edit alt text");
+    await act(async () => blurTo(dom, edit));
+    expect(onBlur).not.toHaveBeenCalled();
+
+    await click(edit);
+    const input = await altInput();
+    await act(async () => {
+      edit.dispatchEvent(
+        new FocusEvent("focusout", { bubbles: true, relatedTarget: input })
+      );
+    });
+    expect(onBlur).not.toHaveBeenCalled();
+
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    await act(async () => {
+      input.dispatchEvent(
+        new FocusEvent("focusout", { bubbles: true, relatedTarget: outside })
+      );
+    });
+    expect(onBlur).toHaveBeenCalledTimes(1);
+    expect(onBlur.mock.calls[0]?.[0]).toContain("Intro");
+  });
+
+  it("does not fire when focus goes from the popover back to the text", async () => {
+    const onBlur = vi.fn();
+    const { dom, bar } = await imageMenuOpen(onBlur);
+    const edit = button(bar, "Edit alt text");
+    await click(edit);
+    const input = await altInput();
+    await act(async () => blurTo(dom, input));
+    await act(async () => {
+      input.dispatchEvent(
+        new FocusEvent("focusout", { bubbles: true, relatedTarget: dom })
+      );
+      dom.dispatchEvent(new FocusEvent("focus"));
+    });
+    expect(onBlur).not.toHaveBeenCalled();
+  });
+
+  it("does not fire for the Link to document dialog", async () => {
+    const onBlur = vi.fn();
+    const { dom, editor } = await mount({
+      value: "",
+      onBlur,
+      linkableDocs: [{ title: "Runbook", slug: "runbook" }],
+    });
+    await act(async () => {
+      editor.commands.focus("end");
+    });
+    await act(async () => {
+      editor.view.dispatch(editor.state.tr.insertText("/"));
+    });
+    // Open the picker through the slash command, as a user would.
+    const item = await vi.waitFor(() => {
+      const found = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="option"]')
+      ).find((o) => (o.textContent ?? "").includes("Link to document"));
+      if (!found) throw new Error("no Link to document command");
+      return found;
+    });
+    await click(item);
+    const search = await vi.waitFor(() => {
+      const el = document.querySelector<HTMLInputElement>(
+        '[role="dialog"] input'
+      );
+      if (!el) throw new Error("no picker");
+      return el;
+    });
+    await act(async () => blurTo(dom, search));
+    expect(onBlur).not.toHaveBeenCalled();
+  });
+});
+
 describe("onChange", () => {
   async function wait(ms: number) {
     await act(() => new Promise((r) => setTimeout(r, ms)));

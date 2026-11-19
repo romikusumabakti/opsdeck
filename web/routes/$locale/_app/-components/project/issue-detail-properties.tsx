@@ -138,6 +138,26 @@ export function IssuePropertyChips(props: PropertiesProps) {
   );
 }
 
+/** Below `lg`: the sidebar's dates as one muted line under the chip row. */
+export function IssueDatesLine({ issue }: { issue: PropertiesProps["issue"] }) {
+  const t = useTranslations("issues");
+  return (
+    <p
+      data-slot="issue-dates-inline"
+      className="-mt-4 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground lg:hidden"
+    >
+      <span>
+        {t("columnCreated")} <RelativeTime date={issue.createdAt} />
+      </span>
+      <span aria-hidden="true">·</span>
+      <span className="sr-only">, </span>
+      <span>
+        {t("columnUpdated")} <RelativeTime date={issue.updatedAt} />
+      </span>
+    </p>
+  );
+}
+
 function DateRow({ label, date }: { label: string; date: string | Date }) {
   return (
     <div className="grid h-8 grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-2 text-sm">

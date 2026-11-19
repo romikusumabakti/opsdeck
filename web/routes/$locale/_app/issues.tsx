@@ -1,11 +1,16 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { GlobalIssuesClient } from "@/components/global-issues-client";
 import { PageHeader } from "@/components/page-header";
 import { DataTableSkeleton } from "@/components/skeletons/data-table-skeleton";
 import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton";
+import { defaultIssueTarget } from "@/lib/home/layout";
 import { BOARD_LIMIT, parseIssueParams } from "@/lib/issue-query";
+import {
+  listIssueProjectsQuery,
+  listRecentEnvironmentsQuery,
+} from "@/web/api/home";
 import { listAllIssuesQuery } from "@/web/api/issues";
 import { listLabelsQuery } from "@/web/api/labels";
 import { listProjectsQuery } from "@/web/api/project-catalog";
@@ -15,6 +20,8 @@ import { listAssignableUsersAcrossProjectsQuery } from "@/web/api/users";
 import { requireProjectUser } from "@/web/project-guard";
 import { loaderQuery } from "@/web/query-client";
 import type { SearchRecord } from "@/web/search-params";
+import { HomeIssueDialogProvider } from "./-components/home/home-issue-dialog";
+import { NewIssueButton } from "./-components/home/new-issue-button";
 
 // Filters, sort and page live in the query string (see lib/issue-query.ts), so
 // every key passes through untouched: saved views and shared links keep the
@@ -63,6 +70,12 @@ export const Route = createFileRoute("/$locale/_app/issues")({
   loader: async ({ deps: { search }, context: { queryClient } }) => {
     const me = await queryClient.query(meQuery());
     if (!me) return;
+    // New issue, as on Home: where the caller may file one, defaulting to the
+    // last-opened writable environment. A failure only hides the button.
+    const issueTargets = Promise.allSettled([
+      queryClient.query(listIssueProjectsQuery()),
+      queryClient.query(listRecentEnvironmentsQuery()),
+    ]);
     await Promise.all([
       loaderQuery(queryClient, issuesQueryFor(search, me.user.id)),
       loaderQuery(queryClient, listAssignableUsersAcrossProjectsQuery()),
@@ -72,6 +85,10 @@ export const Route = createFileRoute("/$locale/_app/issues")({
       // issue on the current page must still be selectable in the filter.
       loaderQuery(queryClient, listProjectsQuery()),
     ]);
+    for (const r of await issueTargets) {
+      if (r.status === "rejected")
+        console.error("Issue target query failed:", r.reason);
+    }
   },
   pendingComponent: IssuesPending,
   component: GlobalIssuesPage,
@@ -96,10 +113,23 @@ function GlobalIssuesPage() {
   const allLabels = useSuspenseQuery(listLabelsQuery()).data;
   const savedViews = useSuspenseQuery(listSavedViewsQuery()).data;
   const projects = useSuspenseQuery(listProjectsQuery()).data;
+  const issueProjects =
+    useQuery({ ...listIssueProjectsQuery(), retryOnMount: false }).data ?? [];
+  const recent =
+    useQuery({ ...listRecentEnvironmentsQuery(), retryOnMount: false }).data ??
+    [];
+  const target = defaultIssueTarget(
+    recent,
+    new Set(issueProjects.map((p) => p.id))
+  );
 
   return (
-    <>
-      <PageHeader title={t("globalTitle")} subtitle={t("globalSubtitle")} />
+    <HomeIssueDialogProvider projects={issueProjects} defaultTarget={target}>
+      <PageHeader
+        title={t("globalTitle")}
+        subtitle={t("globalSubtitle")}
+        action={<NewIssueButton />}
+      />
       <GlobalIssuesClient
         issues={page.rows}
         total={page.total}
@@ -110,6 +140,6 @@ function GlobalIssuesPage() {
         filters={filters}
         pageSize={pageSize}
       />
-    </>
+    </HomeIssueDialogProvider>
   );
 }

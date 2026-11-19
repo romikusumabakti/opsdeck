@@ -40,6 +40,22 @@ describe("issue tables use a fixed layout", () => {
     expect(hidden.length).toBe(4);
   });
 
+  // The global title takes the width the fixed columns leave (no cap), at
+  // least 20rem: at 1280px with the sidebar open that is 50+ characters, so
+  // Project, Created and Updated only join from 2xl. e2e/issue-create.spec.ts
+  // measures it in a real browser.
+  it("gives the global title the remaining width, at least 20rem", () => {
+    const global = readFileSync("components/global-issues-client.tsx", "utf8");
+    expect(global).not.toMatch(/max-w-\[28rem\]/);
+    expect(global).toMatch(
+      /headClassName: "min-w-80",\s*cellClassName: "overflow-hidden",\s*label: t\("columnTitle"\)/
+    );
+    expect(global).toMatch(/tableClassName="table-fixed min-w-\[54\.5rem\]"/);
+    const hidden = global.match(/"hidden w-28 2xl:table-cell"/g) ?? [];
+    expect(hidden.length).toBe(3);
+    expect(global).not.toMatch(/[\s"]xl:table-cell/);
+  });
+
   // Keys are up to 10 letters + "-" + number; w-32 shows DEMOPORTAL-12 whole.
   it("gives the key column w-32 and the full key as a tooltip", () => {
     const project = readFileSync(

@@ -80,8 +80,9 @@ test("global issues fit 1280px without horizontal scroll", async ({ page }) => {
   await page.goto("/en/issues");
   const scroller = page.locator('[data-slot="table-container"]').first();
   await expect(scroller).toBeVisible();
+  // Below 2xl the title takes the room Project/Created/Updated would use.
   await expect(
-    page.getByRole("columnheader", { name: /Updated/ })
+    page.getByRole("columnheader", { name: /Assignee/ })
   ).toBeVisible();
   const overflow = await scroller.evaluate(
     (el) => el.scrollWidth - el.clientWidth

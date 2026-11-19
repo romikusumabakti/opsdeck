@@ -212,6 +212,8 @@ describe("New issue dialog", () => {
   it("shows a large title, the description editor and property chips", async () => {
     await mount();
     expect(titleInput()).not.toBeNull();
+    // Borderless, with a focus-visible ring for keyboard users (WCAG 2.4.7).
+    expect(titleInput().className).toMatch(/focus-visible:ring-/);
     expect(editorDom()).not.toBeNull();
     // Value when set, the property's name when empty.
     expect(chip("Status: Open")).not.toBeNull();
@@ -283,6 +285,21 @@ describe("New issue dialog", () => {
     // ⌘+Enter (macOS) from the title works the same.
     await keyDown(titleInput(), { key: "Enter", metaKey: true });
     await vi.waitFor(() => expect(createIssue).toHaveBeenCalledTimes(2));
+  });
+
+  // The editor reports changes 300 ms after the last keystroke; a create
+  // right after typing must still send what was typed (found by the e2e).
+  it("Ctrl/⌘+Enter right after typing sends the text just typed", async () => {
+    await mount();
+    await setTitle("Voucher field accepts expired codes");
+    const editor = (editorDom() as HTMLElement & { editor: Editor }).editor;
+    await act(async () => {
+      editor.commands.focus("end");
+      editor.commands.insertContent("Typed just now");
+    });
+    await keyDown(editorDom(), { key: "Enter", ctrlKey: true });
+    await vi.waitFor(() => expect(createIssue).toHaveBeenCalledTimes(1));
+    expect(createIssue.mock.calls[0]?.[0].description).toBe("Typed just now");
   });
 
   it("closes after a create when Create more is off", async () => {

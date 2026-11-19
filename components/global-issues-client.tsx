@@ -325,7 +325,7 @@ export function GlobalIssuesClient({
           <DataTableColumnHeader column={column} title={t("columnTitle")} />
         ),
         cell: ({ row }) => (
-          <span className="flex max-w-[28rem] items-center gap-2 font-medium">
+          <span className="flex min-w-0 items-center gap-2 font-medium">
             <TypeIcon type={row.original.type} />
             <Link
               href={issueHref(row.original)}
@@ -342,7 +342,14 @@ export function GlobalIssuesClient({
           </span>
         ),
         enableHiding: false,
-        meta: { cellClassName: "overflow-hidden", label: t("columnTitle") },
+        // No width of its own: the title takes what the fixed columns leave.
+        // min-w-80 is the floor in an auto layout; under table-fixed the
+        // table's min width below holds it.
+        meta: {
+          headClassName: "min-w-80",
+          cellClassName: "overflow-hidden",
+          label: t("columnTitle"),
+        },
       },
       {
         id: "project",
@@ -360,8 +367,8 @@ export function GlobalIssuesClient({
           </Link>
         ),
         meta: {
-          headClassName: "hidden w-28 xl:table-cell",
-          cellClassName: "hidden truncate xl:table-cell",
+          headClassName: "hidden w-28 2xl:table-cell",
+          cellClassName: "hidden truncate 2xl:table-cell",
           label: t("columnProject"),
         },
       },
@@ -379,7 +386,7 @@ export function GlobalIssuesClient({
           />
         ),
         meta: {
-          headClassName: "w-36",
+          headClassName: "w-32",
           cellClassName: "px-1",
           label: t("columnStatus"),
         },
@@ -418,7 +425,7 @@ export function GlobalIssuesClient({
           />
         ),
         meta: {
-          headClassName: "w-36",
+          headClassName: "w-32",
           cellClassName: "px-1",
           label: t("columnAssignee"),
         },
@@ -435,8 +442,8 @@ export function GlobalIssuesClient({
           </span>
         ),
         meta: {
-          headClassName: "hidden w-28 xl:table-cell",
-          cellClassName: "hidden truncate xl:table-cell",
+          headClassName: "hidden w-28 2xl:table-cell",
+          cellClassName: "hidden truncate 2xl:table-cell",
           label: t("columnCreated"),
         },
       },
@@ -452,8 +459,8 @@ export function GlobalIssuesClient({
           </span>
         ),
         meta: {
-          headClassName: "hidden w-28 xl:table-cell",
-          cellClassName: "hidden truncate xl:table-cell",
+          headClassName: "hidden w-28 2xl:table-cell",
+          cellClassName: "hidden truncate 2xl:table-cell",
           label: t("columnUpdated"),
         },
       },
@@ -546,7 +553,12 @@ export function GlobalIssuesClient({
         <DataTable
           fillHeight
           dense
-          tableClassName="table-fixed min-w-2xl"
+          // Below 2xl the fixed columns (select, key, status, priority,
+          // assignee) take 34.5rem; + 20rem keeps the title at least 20rem
+          // (narrower screens scroll the table instead of squeezing it). At
+          // 1280px with the sidebar open that leaves 50+ title characters,
+          // which is why Project, Created and Updated only join from 2xl.
+          tableClassName="table-fixed min-w-[54.5rem]"
           toolbar={filterBar}
           label={t("globalTitle")}
           columns={columns}

@@ -1,7 +1,14 @@
 import { EditorState } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { FileText } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+  type Ref,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import {
   focusVisibleMenu,
@@ -74,6 +81,9 @@ function imageFiles(list: FileList | null | undefined): File[] {
  * instead need the ProseMirror JSON doc as the shared CRDT type, so this is a
  * deliberate trade-off away from collab, not toward it.
  */
+/** What a parent may ask of the editor (see the `ref` prop). */
+export type EditorHandle = { flush: () => string };
+
 export function KnowledgeEditor({
   value,
   onChange,
@@ -89,6 +99,7 @@ export function KnowledgeEditor({
   contentClassName,
   borderless = false,
   onBlur,
+  ref,
 }: {
   value: string;
   linkableDocs?: LinkableDoc[];
@@ -110,6 +121,9 @@ export function KnowledgeEditor({
   /** Focus left the editing surface; gets the markdown as last reported
    *  through `onChange` (already flushed), for save-on-blur surfaces. */
   onBlur?: (markdown: string) => void;
+  /** `flush()` reports a pending (debounced) change now and returns the
+   *  current markdown — for a submit that may come mid-debounce. */
+  ref?: Ref<EditorHandle>;
 }) {
   // Paste/drop handlers live inside the editor config (set once on mount) but
   // need the latest upload closure — route through a ref reassigned each render.
@@ -120,6 +134,19 @@ export function KnowledgeEditor({
   const menusRef = useRef<(HTMLDivElement | null)[]>([null, null, null]);
   const setMenu = (i: number) => (el: HTMLDivElement | null) => {
     menusRef.current[i] = el;
+  };
+  // Marks the popovers and the dialog this editor opens (they portal out of
+  // its DOM), so focus moving there is not "leaving the editor".
+  const popupOwner = useId();
+  // Focus went from the text into one of the editor's own menus, popovers or
+  // dialog: the `onBlur` callback waits until focus leaves those too (or
+  // comes back to the text, which cancels it).
+  const blurPendingRef = useRef(false);
+  const ownsFocus = (next: EventTarget | null) => {
+    if (!(next instanceof Element)) return false;
+    if (menusRef.current.some((m) => m?.contains(next))) return true;
+    const popup = next.closest("[data-editor-owner]");
+    return popup?.getAttribute("data-editor-owner") === popupOwner;
   };
   // Bridge between the `/` suggestion plugin and the React menu; created
   // once, before the editor that is configured with it.
@@ -247,15 +274,33 @@ export function KnowledgeEditor({
         emit(editorMarkdown(e));
       }, 300);
     },
-    onBlur: ({ editor: e }) => {
+    onBlur: ({ editor: e, event }) => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = undefined;
         emit(editorMarkdown(e));
       }
+      if (ownsFocus(event.relatedTarget)) {
+        blurPendingRef.current = true;
+        return;
+      }
       onBlurRef.current?.(lastEmittedRef.current);
     },
+    onFocus: () => {
+      blurPendingRef.current = false;
+    },
   });
+
+  useImperativeHandle(ref, () => ({
+    flush: () => {
+      if (debounceRef.current && editor) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = undefined;
+        emit(editorMarkdown(editor));
+      }
+      return lastEmittedRef.current;
+    },
+  }));
 
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -315,9 +360,15 @@ export function KnowledgeEditor({
 
   // Drop a pending debounced onChange on unmount so it can't fire after the
   // editor is torn down.
+  // A blur still waiting on a menu or popover is reported then too, so text
+  // typed before opening one is not left unsaved.
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (blurPendingRef.current) {
+        blurPendingRef.current = false;
+        onBlurRef.current?.(lastEmittedRef.current);
+      }
     };
   }, []);
 
@@ -380,7 +431,20 @@ export function KnowledgeEditor({
   // the caret is in a table, an image menu for a selected image. Undo/redo
   // stay on their keyboard shortcuts (Mod+Z / Mod+Shift+Z).
   return (
-    <div className="flex flex-col">
+    // React focus events bubble through portals, so focus leaving a menu,
+    // popover or the document picker for elsewhere arrives here.
+    // biome-ignore lint/a11y/noStaticElementInteractions: a focusout listener for the editor's own portaled menus, not an interactive element
+    <div
+      className="flex flex-col"
+      onBlur={(event) => {
+        if (!blurPendingRef.current) return;
+        const next = event.relatedTarget;
+        if (next instanceof Node && editor?.view.dom.contains(next)) return;
+        if (ownsFocus(next)) return;
+        blurPendingRef.current = false;
+        onBlurRef.current?.(lastEmittedRef.current);
+      }}
+    >
       <EditorContent editor={editor} />
       <SlashMenu
         editor={editor}
@@ -414,6 +478,7 @@ export function KnowledgeEditor({
           linkableDocs.length > 0 ? () => setPickerOpen(true) : undefined
         }
         menuRef={setMenu(0)}
+        popupOwner={popupOwner}
       />
       <TableMenu
         editor={editor}
@@ -426,6 +491,7 @@ export function KnowledgeEditor({
         label={toolbarLabels?.imageMenu}
         labels={imageAltLabels}
         menuRef={setMenu(2)}
+        popupOwner={popupOwner}
       />
 
       <CommandDialog
@@ -434,22 +500,26 @@ export function KnowledgeEditor({
         title={linkLabels?.title ?? "Link to document"}
         description={linkLabels?.title ?? "Link to document"}
       >
-        <CommandInput placeholder={linkLabels?.search ?? "Search documents…"} />
-        <CommandList>
-          <CommandEmpty>{linkLabels?.empty ?? "No documents"}</CommandEmpty>
-          <CommandGroup>
-            {linkableDocs.map((doc) => (
-              <CommandItem
-                key={doc.slug}
-                value={`${doc.title} ${doc.slug}`}
-                onSelect={() => insertDocLink(doc)}
-              >
-                <FileText className="text-muted-foreground" />
-                <span className="truncate">{doc.title}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
+        <div data-editor-owner={popupOwner} className="contents">
+          <CommandInput
+            placeholder={linkLabels?.search ?? "Search documents…"}
+          />
+          <CommandList>
+            <CommandEmpty>{linkLabels?.empty ?? "No documents"}</CommandEmpty>
+            <CommandGroup>
+              {linkableDocs.map((doc) => (
+                <CommandItem
+                  key={doc.slug}
+                  value={`${doc.title} ${doc.slug}`}
+                  onSelect={() => insertDocLink(doc)}
+                >
+                  <FileText className="text-muted-foreground" />
+                  <span className="truncate">{doc.title}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </div>
       </CommandDialog>
     </div>
   );

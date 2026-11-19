@@ -30,9 +30,13 @@ test("creating an issue assigned to me updates the sidebar badge without a reloa
   });
 
   await page.getByRole("button", { name: "New issue" }).first().click();
-  const issueDialog = page.getByRole("dialog");
+  const issueDialog = page.getByRole("dialog", { name: "New issue" });
   await issueDialog.getByLabel("Title").fill("Assigned to me");
-  await issueDialog.getByRole("combobox", { name: "Assignee" }).click();
+  // The dialog's Assignee chip (chip row since the New issue redesign).
+  await issueDialog
+    .getByRole("group", { name: "Properties" })
+    .locator("button", { hasText: "Assignee" })
+    .click();
   await page.getByRole("option", { name: /E2E Admin/ }).click();
   await issueDialog.getByRole("button", { name: "Create issue" }).click();
 

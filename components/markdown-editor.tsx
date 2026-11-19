@@ -1,5 +1,7 @@
+import type { Ref } from "react";
 import { useTranslations } from "use-intl";
 import {
+  type EditorHandle,
   KnowledgeEditor,
   type LinkableDoc,
 } from "@/components/knowledge-editor";
@@ -23,6 +25,7 @@ export function MarkdownEditor({
   contentClassName,
   borderless = false,
   onBlur,
+  ref,
 }: {
   value: string;
   onChange: (markdown: string) => void;
@@ -32,6 +35,8 @@ export function MarkdownEditor({
   borderless?: boolean;
   /** Focus left the editor; gets the (flushed) markdown. */
   onBlur?: (markdown: string) => void;
+  /** `flush()` returns the current markdown, a pending change included. */
+  ref?: Ref<EditorHandle>;
 }) {
   const t = useTranslations("knowledge");
 
@@ -44,6 +49,7 @@ export function MarkdownEditor({
       contentClassName={contentClassName}
       borderless={borderless}
       onBlur={onBlur}
+      ref={ref}
       linkLabels={{
         title: t("linkDocument"),
         search: t("searchPlaceholder"),

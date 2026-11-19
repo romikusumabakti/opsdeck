@@ -41,6 +41,7 @@ import { listTreeNodesQuery } from "@/web/api/knowledge";
 import { setIssueLabels } from "@/web/api/labels";
 import { recordTestRun, type TestRunRow } from "@/web/api/test-runs";
 import {
+  IssueDatesLine,
   type IssuePatch,
   IssuePropertiesSidebar,
   IssuePropertyChips,
@@ -108,6 +109,18 @@ export function IssueDetailClient({
   const [title, setTitle] = React.useState(issue.title);
   const [description, setDescription] = React.useState(issue.description);
   const [labelIds, setLabelIds] = React.useState(issue.labels.map((l) => l.id));
+  // The label set the server last confirmed (a successful toggle, or a
+  // refetch), which a failed toggle falls back to: with toggles in flight a
+  // snapshot taken at click time may be a set the server never had.
+  const serverLabelsRef = React.useRef(labelIds);
+  const issueLabelKey = issue.labels.map((l) => l.id).join(",");
+  React.useEffect(() => {
+    serverLabelsRef.current = issueLabelKey ? issueLabelKey.split(",") : [];
+  }, [issueLabelKey]);
+  const titleRef = React.useRef<HTMLInputElement>(null);
+  const keptRef = React.useRef<HTMLDivElement>(null);
+  // Set by Reload; the effect below moves focus once the new state is drawn.
+  const [focusAfterReload, setFocusAfterReload] = React.useState(false);
   const [comment, setComment] = React.useState("");
   const [posting, setPosting] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
@@ -229,7 +242,17 @@ export function IssueDetailClient({
     setDescription(fresh.description);
     setSaveState({ title: "idle", description: "idle" });
     setKept(Object.keys(mine).length > 0 ? mine : null);
+    setFocusAfterReload(true);
   }
+
+  // After Reload: to the kept text when there is some (the user copies from
+  // there), else to the title; the Reload button itself is gone.
+  React.useEffect(() => {
+    if (!focusAfterReload) return;
+    setFocusAfterReload(false);
+    const keptBox = keptRef.current?.querySelector("textarea");
+    (keptBox ?? titleRef.current)?.focus();
+  }, [focusAfterReload]);
 
   // --- Properties ------------------------------------------------------------
   function patch(data: IssuePatch) {
@@ -253,13 +276,14 @@ export function IssueDetailClient({
   }
 
   async function onLabelsChange(ids: string[]) {
-    const before = labelIds;
     setLabelIds(ids);
     const result = await setIssueLabels(issue.id, ids);
-    if (!result.success) {
-      setLabelIds(before);
-      toast.error(t("saveFailed"));
+    if (result.success) {
+      serverLabelsRef.current = ids;
+      return;
     }
+    setLabelIds(serverLabelsRef.current);
+    toast.error(t("saveFailed"));
   }
 
   // A parent can't be self (already excluded server-side) or one of this issue's
@@ -382,6 +406,7 @@ export function IssueDetailClient({
 
         {kept ? (
           <div
+            ref={keptRef}
             data-slot="kept-text"
             className="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3"
           >
@@ -414,6 +439,7 @@ export function IssueDetailClient({
         <div className="flex flex-col gap-1">
           {canEdit ? (
             <input
+              ref={titleRef}
               aria-label={tIssues("titleLabel")}
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
@@ -426,7 +452,7 @@ export function IssueDetailClient({
               }}
               placeholder={t("titlePlaceholder")}
               maxLength={300}
-              className="w-full bg-transparent text-xl font-semibold outline-none placeholder:text-muted-foreground/70"
+              className="w-full rounded-sm bg-transparent text-xl font-semibold outline-none placeholder:text-muted-foreground/70 focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           ) : (
             <h2 className="text-xl font-semibold break-words">{issue.title}</h2>
@@ -441,6 +467,7 @@ export function IssueDetailClient({
         </div>
 
         <IssuePropertyChips {...properties} />
+        <IssueDatesLine issue={issue} />
 
         {/* Description */}
         <div className="flex flex-col gap-1">

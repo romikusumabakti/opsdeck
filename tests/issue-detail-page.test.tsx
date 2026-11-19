@@ -243,6 +243,21 @@ describe("issue page layout", () => {
     expect(main?.contains(titleInput())).toBe(true);
     expect(main?.contains(editorDom())).toBe(true);
     expect(titleInput().className).not.toContain("border");
+    // Borderless but still shows keyboard focus (WCAG 2.4.7).
+    expect(titleInput().className).toMatch(/focus-visible:ring-/);
+  });
+
+  it("shows Created · Updated under the chip row below lg", async () => {
+    await mount();
+    const line = document.querySelector(
+      '[data-slot="issue-dates-inline"]'
+    ) as HTMLElement;
+    expect(line.className).toContain("lg:hidden");
+    expect(line.className).toContain("text-muted-foreground");
+    expect(spoken(line)).toMatch(/^Created .+, Updated .+$/);
+    expect(line.querySelectorAll("time")).toHaveLength(2);
+    // Right after the chip row, not inside it.
+    expect(chipRow()?.nextElementSibling).toBe(line);
   });
 
   it("lists the properties in the sidebar with read-only dates", async () => {
@@ -475,6 +490,8 @@ describe("saving the title and description", () => {
     ) as HTMLTextAreaElement;
     expect(kept.value).toBe("My careful repro steps");
     expect(kept.readOnly).toBe(true);
+    // Focus lands on the kept text, where the user continues.
+    await vi.waitFor(() => expect(document.activeElement).toBe(kept));
 
     // The next save goes out against the reloaded version.
     updateIssue.mockResolvedValue(
@@ -487,6 +504,97 @@ describe("saving the title and description", () => {
         expectedUpdatedAt: T2,
       })
     );
+  });
+});
+
+describe("after Reload with nothing to keep", () => {
+  it("moves focus to the title", async () => {
+    updateIssue.mockResolvedValue({
+      success: false,
+      message: "Someone else changed this issue",
+      code: "issueChanged",
+    });
+    // The server already has the very text the user typed.
+    const onReload = vi.fn(async () =>
+      issueFixture({ description: "Same words", updatedAt: T2 })
+    );
+    await mount({ onReload });
+    await editDescription("Same words");
+    await vi.waitFor(() => expect(text()).toContain("Changed by someone else"));
+    await click(button("Reload") as HTMLButtonElement);
+    await vi.waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(document.activeElement).toBe(titleInput()));
+    expect(document.querySelector('[data-slot="kept-text"]')).toBeNull();
+  });
+});
+
+describe("label toggles", () => {
+  const SECOND = "00000000-0000-4000-8000-0000000000c2";
+  const twoLabels = [
+    { id: LABEL, name: "regression", color: "#dc2626" },
+    { id: SECOND, name: "checkout", color: "#2563eb" },
+  ];
+
+  async function toggle(name: string) {
+    const trigger = Array.from(sidebar().querySelectorAll("button")).find((b) =>
+      spoken(b).startsWith("Labels")
+    ) as HTMLElement;
+    if (trigger.getAttribute("aria-expanded") !== "true") await click(trigger);
+    const option = await vi.waitFor(() => {
+      const found = Array.from(
+        document.querySelectorAll<HTMLElement>("[aria-pressed]")
+      ).find((o) => (o.textContent ?? "").includes(name));
+      if (!found) throw new Error(`no label ${name}`);
+      return found;
+    });
+    await click(option);
+    await act(async () => {});
+  }
+
+  const pressed = (name: string) =>
+    Array.from(document.querySelectorAll<HTMLElement>("[aria-pressed]"))
+      .find((o) => (o.textContent ?? "").includes(name))
+      ?.getAttribute("aria-pressed");
+
+  it("on failure reverts to the last set the server confirmed", async () => {
+    let failFirst: (v: { success: false }) => void = () => {};
+    setIssueLabels
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            failFirst = resolve;
+          })
+      )
+      .mockResolvedValueOnce({ success: false });
+    await mount({
+      allLabels: twoLabels,
+      issue: issueFixture({ labels: [] }),
+    });
+    // First toggle still in flight when the second one fails.
+    await toggle("regression");
+    expect(pressed("regression")).toBe("true");
+    await toggle("checkout");
+    await vi.waitFor(() => expect(setIssueLabels).toHaveBeenCalledTimes(2));
+    // The server never confirmed "regression": back to none, not to the
+    // ["regression"] the second toggle started from.
+    await vi.waitFor(() => expect(pressed("checkout")).toBe("false"));
+    expect(pressed("regression")).toBe("false");
+    await act(async () => failFirst({ success: false }));
+    expect(pressed("regression")).toBe("false");
+  });
+
+  it("keeps a confirmed set when a later toggle fails (control)", async () => {
+    setIssueLabels
+      .mockResolvedValueOnce({ success: true })
+      .mockResolvedValueOnce({ success: false });
+    await mount({ allLabels: twoLabels, issue: issueFixture({ labels: [] }) });
+    await toggle("regression");
+    await vi.waitFor(() => expect(setIssueLabels).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    await toggle("checkout");
+    await vi.waitFor(() => expect(setIssueLabels).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(pressed("checkout")).toBe("false"));
+    expect(pressed("regression")).toBe("true");
   });
 });
 
