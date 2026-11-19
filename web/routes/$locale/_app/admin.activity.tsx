@@ -367,6 +367,12 @@ function message(
         actor,
         environment: String(d.environment),
       });
+    case "environment.assistantDbAccess":
+      return t("environmentAssistantDbAccess", {
+        actor,
+        environment: String(d.environment),
+        enabled: String(d.enabled),
+      });
     case "environment.slugChanged":
       return t("environmentSlugChanged", {
         actor,

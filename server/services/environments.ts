@@ -1227,6 +1227,7 @@ export async function updateEnvironment(
     (input.hasDatabase === false && hasService(stored, "db")) ||
     (input.hasFrontend === false && hasService(stored, "frontend"));
   const changedInfra = changedInfraFields(input, stored);
+  await requireAssistantDbUnbound(input, stored, changedInfra);
   if (removesService || changedInfra.length > 0) {
     const mayRebind =
       !removesService &&
@@ -1499,6 +1500,42 @@ export async function updateEnvironment(
     console.error(`Failed to update environment ${id}:`, error);
     return { success: false, message: "Failed to update environment" };
   }
+}
+
+// The db binding fields that move the database somewhere else: the
+// Assistant's read-only login lives on the current one.
+const ASSISTANT_DB_BINDING_FIELDS: ReadonlySet<string> = new Set([
+  "dbServerId",
+  "dbServiceType",
+  "dbServiceName",
+  "dbType",
+  "dbName",
+  "dbKind",
+  "databaseHostId",
+]);
+
+/**
+ * 409 when an update would move or remove a database the Assistant has a
+ * read-only login on (or a login still left to drop): the login would stay
+ * behind on the old database. Turning the access off first drops it.
+ */
+async function requireAssistantDbUnbound(
+  input: EnvironmentUpdate,
+  stored: EnvironmentWithServers,
+  changedInfra: readonly string[]
+): Promise<void> {
+  const service = findService(stored, "db");
+  if (!(service?.assistantDbEnabled || service?.assistantDbLogin)) return;
+  const moves =
+    input.hasDatabase === false ||
+    changedInfra.some((field) => ASSISTANT_DB_BINDING_FIELDS.has(field));
+  if (!moves) return;
+  const t = await getServerTranslator("actionErrors");
+  throw new CodedHTTPException(
+    409,
+    "assistantDbAccessBlocksRebind",
+    t("assistantDbAccessBlocksRebind")
+  );
 }
 
 /** The 409 of a delete refused because the environment has escrowed variables. */

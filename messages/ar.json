@@ -985,7 +985,24 @@
     "deleteStarted": "جارٍ حذف {name}. يظهر التقدم أعلى الصفحة.",
     "removeFromPanel": "الإزالة من اللوحة فقط",
     "removeFromPanelDescription": "يزيل البيئة من اللوحة فقط. لا يُمس أي شيء على الخادم أو في Cloudflare. اكتب اسم البيئة أعلاه لتفعيله.",
-    "removedFromPanel": "أُزيلت {name} من اللوحة"
+    "removedFromPanel": "أُزيلت {name} من اللوحة",
+    "assistantDb": {
+      "title": "وصول المساعد إلى قاعدة البيانات",
+      "description": "يتيح للمساعد الإجابة عن أسئلة البيانات باستعلامات SELECT للقراءة فقط على قاعدة بيانات هذه البيئة. يستخدم تسجيل دخول مخصصًا لذلك لا يقرأ إلا هذه القاعدة. النتائج محدودة، والأعمدة التي تحوي بيانات شخصية تُخفى.",
+      "toggle": "السماح للمساعد بالاستعلام في قاعدة البيانات هذه (قراءة فقط)",
+      "warning": "لا تفعّل هذا في بيئة تحوي بيانات مشاركين حقيقية. الإخفاء ليس مضمونًا: يخفي الأعمدة حسب أسمائها، لذا قد يُظهر عرضٌ يعيد تسمية عمود (مثل email إلى contact) قيمه.",
+      "enabledAs": "مفعّل، باستخدام تسجيل الدخول {login}.",
+      "adminOnly": "يمكن للمسؤول أو فريق البنية التحتية فقط تفعيل هذا أو إيقافه.",
+      "leftover": "الوصول متوقف، لكن تسجيل الدخول {login} ما زال على خادم قاعدة البيانات.",
+      "unavailable": {
+        "external": "غير متاح لقاعدة بيانات خارجية: لا تملك اللوحة وصول مسؤول إليها.",
+        "incomplete": "غير متاح حتى يُحدَّد محرك قاعدة البيانات واسمها.",
+        "adminPasswordMissing": "غير متاح حتى تُحدَّد كلمة مرور مسؤول قاعدة البيانات في الخيارات المتقدمة."
+      },
+      "enabled": "يمكن للمساعد الآن الاستعلام في قاعدة البيانات هذه (قراءة فقط)",
+      "disabled": "لم يعد بإمكان المساعد الاستعلام في قاعدة البيانات هذه",
+      "retryRemove": "إزالة تسجيل الدخول"
+    }
   },
   "userMenu": {
     "users": "إدارة المستخدمين",
@@ -1625,7 +1642,12 @@
     "keyLineNotFound": "يسجّل المفتاح الدخول، لكن سطر اللوحة غير موجود في ~/.ssh/authorized_keys على الخادم. شغّل أمر التثبيت المعروض هنا.",
     "sourceInUse": "ما زالت بيئة في هذا المشروع تنشر هذه الخدمة، لذلك لا يمكن إزالتها.",
     "componentNotInSources": "هذه الخدمة ليست مصدرًا لهذا المشروع. أضفها أولًا.",
-    "cannotResetOwnTwoFactor": "لا يمكنك إعادة تعيين المصادقة الثنائية الخاصة بك. أوقفها من الحساب > الأمان."
+    "cannotResetOwnTwoFactor": "لا يمكنك إعادة تعيين المصادقة الثنائية الخاصة بك. أوقفها من الحساب > الأمان.",
+    "assistantDbNoDatabase": "لا توجد قاعدة بيانات لهذه البيئة.",
+    "assistantDbUnavailable": "{reason, select, external {لا تملك اللوحة وصول مسؤول إلى قاعدة بيانات خارجية.} incomplete {حدّد محرك قاعدة البيانات واسمها أولًا.} adminPasswordMissing {حدّد كلمة مرور مسؤول قاعدة البيانات أولًا.} other {لا تستطيع اللوحة إنشاء تسجيل دخول للقراءة فقط لقاعدة البيانات هذه.}}",
+    "assistantDbProvisionFailed": "رفض خادم قاعدة البيانات تسجيل الدخول للقراءة فقط: {reason}",
+    "assistantDbDropFailed": "وصول المساعد متوقف، لكن تعذّرت إزالة تسجيل الدخول {login}: {reason}",
+    "assistantDbAccessBlocksRebind": "أوقف وصول المساعد إلى قاعدة البيانات قبل نقل قاعدة البيانات هذه أو إزالتها."
   },
   "unsavedChanges": {
     "title": "تجاهل التغييرات غير المحفوظة؟",
@@ -2382,7 +2404,8 @@
       "download": "{actor} نزّل {path} من {target}",
       "downloadMany": "{actor} نزّل {count} عناصر (بدءًا من {path}) من {target}"
     },
-    "assistantConfigured": "قام {actor} بتحديث إعدادات المساعد: {enabled, select, true {مفعّل} other {معطّل}}، {model}، مستوى الجهد {effort}، الحد {dailyCapUsd, number} USD لكل مستخدم يوميًا{keyChanged, select, true {، تم تغيير مفتاح API} other {}}{providerChanged, select, true {، تم تغيير المزوّد} other {}}{pricesChanged, select, true {، تم تغيير الأسعار} other {}}{orgContextChanged, select, true {، تم تغيير سياق المؤسسة} other {}}"
+    "assistantConfigured": "قام {actor} بتحديث إعدادات المساعد: {enabled, select, true {مفعّل} other {معطّل}}، {model}، مستوى الجهد {effort}، الحد {dailyCapUsd, number} USD لكل مستخدم يوميًا{keyChanged, select, true {، تم تغيير مفتاح API} other {}}{providerChanged, select, true {، تم تغيير المزوّد} other {}}{pricesChanged, select, true {، تم تغيير الأسعار} other {}}{orgContextChanged, select, true {، تم تغيير سياق المؤسسة} other {}}",
+    "environmentAssistantDbAccess": "{actor} {enabled, select, true {سمح للمساعد بالاستعلام في قاعدة بيانات {environment} (قراءة فقط)} other {أوقف وصول المساعد إلى قاعدة بيانات {environment}}}"
   },
   "jira": {
     "title": "Jira",

@@ -985,7 +985,24 @@
     "deleteStarted": "Eliminando {name}. El progreso se muestra en la parte superior de la página.",
     "removeFromPanel": "Quitar solo del Panel",
     "removeFromPanelDescription": "Quita el entorno solo del Panel. No se toca nada en el servidor ni en Cloudflare. Escribe arriba el nombre del entorno para activarlo.",
-    "removedFromPanel": "{name} se quitó del Panel"
+    "removedFromPanel": "{name} se quitó del Panel",
+    "assistantDb": {
+      "title": "Acceso del asistente a la base de datos",
+      "description": "Permite que el asistente responda preguntas sobre datos con consultas SELECT de solo lectura en la base de datos de este entorno. Usa un inicio de sesión creado solo para esto, que lee únicamente esta base de datos. Los resultados están limitados y las columnas con datos personales se enmascaran.",
+      "toggle": "Permitir que el asistente consulte esta base de datos (solo lectura)",
+      "warning": "No lo actives en un entorno con datos reales de participantes. El enmascaramiento no es infalible: oculta columnas por su nombre, así que una vista que cambia el nombre de una columna (por ejemplo, email a contacto) aún puede mostrar sus valores.",
+      "enabledAs": "Activado, con el inicio de sesión {login}.",
+      "adminOnly": "Solo un administrador o infra puede activarlo o desactivarlo.",
+      "leftover": "El acceso está desactivado, pero el inicio de sesión {login} sigue en el servidor de base de datos.",
+      "unavailable": {
+        "external": "No disponible para una base de datos externa: el Panel no tiene acceso de administrador a ella.",
+        "incomplete": "No disponible hasta que se indiquen el motor y el nombre de la base de datos.",
+        "adminPasswordMissing": "No disponible hasta que se indique la contraseña de administrador de la base de datos en Opciones avanzadas."
+      },
+      "enabled": "El asistente ya puede consultar esta base de datos (solo lectura)",
+      "disabled": "El asistente ya no puede consultar esta base de datos",
+      "retryRemove": "Eliminar el inicio de sesión"
+    }
   },
   "userMenu": {
     "users": "Gestión de usuarios",
@@ -1625,7 +1642,12 @@
     "keyLineNotFound": "La clave inicia sesión, pero la línea del Panel no está en ~/.ssh/authorized_keys del servidor. Ejecuta el comando de instalación que se muestra aquí.",
     "sourceInUse": "Un entorno de este proyecto todavía despliega este servicio, por lo que no se puede quitar.",
     "componentNotInSources": "Este servicio no es una fuente de este proyecto. Añádelo primero.",
-    "cannotResetOwnTwoFactor": "No puedes restablecer tu propia verificación en dos pasos. Desactívala desde Cuenta > Seguridad."
+    "cannotResetOwnTwoFactor": "No puedes restablecer tu propia verificación en dos pasos. Desactívala desde Cuenta > Seguridad.",
+    "assistantDbNoDatabase": "Este entorno no tiene base de datos.",
+    "assistantDbUnavailable": "{reason, select, external {El Panel no tiene acceso de administrador a una base de datos externa.} incomplete {Indica primero el motor y el nombre de la base de datos.} adminPasswordMissing {Indica primero la contraseña de administrador de la base de datos.} other {El Panel no puede crear un inicio de sesión de solo lectura para esta base de datos.}}",
+    "assistantDbProvisionFailed": "El servidor de base de datos rechazó el inicio de sesión de solo lectura: {reason}",
+    "assistantDbDropFailed": "El acceso del asistente está desactivado, pero no se pudo eliminar el inicio de sesión {login}: {reason}",
+    "assistantDbAccessBlocksRebind": "Desactiva el acceso del asistente a la base de datos antes de mover o quitar esta base de datos."
   },
   "unsavedChanges": {
     "title": "¿Descartar los cambios sin guardar?",
@@ -2382,7 +2404,8 @@
       "download": "{actor} descargó {path} de {target}",
       "downloadMany": "{actor} descargó {count} elementos (empezando por {path}) de {target}"
     },
-    "assistantConfigured": "{actor} actualizó los ajustes del asistente: {enabled, select, true {activado} other {desactivado}}, {model}, esfuerzo {effort}, límite de {dailyCapUsd, number} USD por usuario al día{keyChanged, select, true {, clave de API cambiada} other {}}{providerChanged, select, true {, proveedor cambiado} other {}}{pricesChanged, select, true {, precios cambiados} other {}}{orgContextChanged, select, true {, contexto de la organización cambiado} other {}}"
+    "assistantConfigured": "{actor} actualizó los ajustes del asistente: {enabled, select, true {activado} other {desactivado}}, {model}, esfuerzo {effort}, límite de {dailyCapUsd, number} USD por usuario al día{keyChanged, select, true {, clave de API cambiada} other {}}{providerChanged, select, true {, proveedor cambiado} other {}}{pricesChanged, select, true {, precios cambiados} other {}}{orgContextChanged, select, true {, contexto de la organización cambiado} other {}}",
+    "environmentAssistantDbAccess": "{actor} {enabled, select, true {permitió que el asistente consulte la base de datos de {environment} (solo lectura)} other {desactivó el acceso del asistente a la base de datos de {environment}}}"
   },
   "jira": {
     "title": "Jira",

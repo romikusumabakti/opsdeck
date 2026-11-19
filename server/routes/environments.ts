@@ -7,6 +7,7 @@ import {
   uuidSchema,
 } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
+import { setAssistantDbAccess } from "@/server/services/environment-assistant-db";
 import {
   cancelTeardown,
   getTeardown,
@@ -112,6 +113,22 @@ export const environmentsRouter = sessionRouter()
   /** What each deploy target runs: tag, commit, when (dashboard card). */
   .get("/:id/running", envParam, async (c) =>
     c.json(await getEnvironmentRunning(c.req.valid("param").id))
+  )
+  /**
+   * The Assistant's read-only database login (admin/infra): provisions or
+   * drops it on the database server, then answers the new state.
+   */
+  .post(
+    "/:id/assistant-db-access",
+    envParam,
+    json(z.object({ enabled: z.boolean() })),
+    async (c) =>
+      c.json(
+        await setAssistantDbAccess(
+          c.req.valid("param").id,
+          c.req.valid("json").enabled
+        )
+      )
   )
   /** Delete for good: archive, bring down, remove (environment-teardown). */
   .get("/:id/teardown", envParam, async (c) =>

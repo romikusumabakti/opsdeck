@@ -1,0 +1,653 @@
+import { createHash, randomInt } from "node:crypto";
+import { assistantDbUnavailableReason } from "@/lib/assistant-db/availability";
+import {
+  mysqlQuoteId,
+  mysqlStdinCommand,
+  pgQuoteId,
+  pgQuoteLiteral,
+  sqlcmdStdinCommand,
+  sqlQuoteString,
+} from "@/lib/jobs/commands";
+import { provisionedRoleMarker } from "@/lib/provisioning/database";
+import {
+  buildDbShellCommand,
+  type DatabaseType,
+  dbAdminUser,
+  type ServiceType,
+} from "@/lib/services";
+import { shq } from "@/lib/sh";
+import { executeRemoteCommand, redactSecrets } from "@/lib/ssh";
+import { type SshTarget, sshTarget } from "@/lib/ssh-connect";
+
+// The Assistant's dedicated read-only login per environment (Stage 9 spec
+// F.2). Enabling creates, through the Panel's admin path, a login that reads
+// only that environment's database; disabling drops it. Server-only (SSH).
+//
+// - Postgres: role `menara_ro_<db>` with LOGIN and no password (the Panel
+//   connects over the container's trusted local socket), CONNECT on this
+//   database, USAGE + SELECT on its non-system schemas and tables, default
+//   privileges so new tables stay readable, `default_transaction_read_only`
+//   and a 10 s statement timeout. No predefined pg_* role, no
+//   pg_read_all_data: PUBLIC keeps CONNECT on a shared host's other
+//   databases (lib/provisioning/database), but without grants their tables
+//   stay unreadable. Marked like every role the Panel makes for the
+//   environment, so the teardown of a shared database drops it too.
+// - SQL Server: a login plus a user in this database, member of
+//   db_datareader only.
+// - MySQL/MariaDB: a user on 127.0.0.1 with SELECT on this database only.
+//   Neither engine stores a per-user statement timeout, so the query path
+//   sets MAX_EXECUTION_TIME (MySQL) / max_statement_time (MariaDB) itself.
+//
+// The MSSQL/MySQL password is generated here, stored encrypted by the
+// caller, and only ever travels on stdin (lib/jobs/commands#sqlcmdStdinCommand).
+
+export const ASSISTANT_DB_LOGIN_PREFIX = "menara_ro_";
+export const ASSISTANT_DB_STATEMENT_TIMEOUT = "10s";
+// Postgres identifiers are 63 bytes; SQL Server allows 128, kept at 63 too;
+// MySQL user names are 32 characters.
+const NAME_LIMITS: Record<DatabaseType, number> = {
+  postgres: 63,
+  mssql: 63,
+  mysql: 32,
+};
+
+/**
+ * `menara_ro_<db name>`, lowercased to `[a-z0-9_]`. A name that had to be
+ * changed or cut gets `_<8 hex of sha256(db name)>`, so two databases never
+ * share a login.
+ */
+export function assistantDbLoginName(
+  engine: DatabaseType,
+  dbName: string
+): string {
+  const limit = NAME_LIMITS[engine];
+  const clean = dbName.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const plain = `${ASSISTANT_DB_LOGIN_PREFIX}${clean}`;
+  if (clean === dbName && plain.length <= limit) return plain;
+  const hash = createHash("sha256").update(dbName).digest("hex").slice(0, 8);
+  const room = limit - ASSISTANT_DB_LOGIN_PREFIX.length - hash.length - 1;
+  return `${ASSISTANT_DB_LOGIN_PREFIX}${clean.slice(0, room)}_${hash}`;
+}
+
+const ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+/**
+ * 32 random alphanumerics (about 190 bits) with at least one upper, lower
+ * and digit, which SQL Server's password policy asks for. Nothing to escape.
+ */
+export function generateAssistantDbPassword(): string {
+  for (;;) {
+    let pw = "";
+    for (let i = 0; i < 32; i++) pw += ALPHABET[randomInt(ALPHABET.length)];
+    if (/[A-Z]/.test(pw) && /[a-z]/.test(pw) && /[0-9]/.test(pw)) return pw;
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NON_SYSTEM_SCHEMA =
+  "nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'";
+const TABLE_KINDS = "('r', 'v', 'm', 'p', 'f')";
+const SEARCH_PATH = "SET search_path = pg_catalog, pg_temp;";
+
+// --- Postgres ------------------------------------------------------------------
+
+/**
+ * The script that creates (or refreshes) the read-only role, run with
+ * `psql -X -q -1 -v ON_ERROR_STOP=on` as postgres connected to `database`,
+ * so it is one transaction: any refusal rolls everything back. The search
+ * path is pinned first, so a database setting made by its owner can't
+ * shadow a catalog function. Refuses an existing role without this
+ * environment's marker (a hand-made role is never taken over), and after
+ * granting verifies the role is unprivileged, a member of no role, and can't
+ * create in the database or any of its schemas nor write any of its tables
+ * (a privilege granted to PUBLIC would give it that).
+ *
+ * Default privileges are set for the database owner, the owners of its
+ * schemas and tables, and `appRoles` (the shared binding's role): whoever
+ * creates the next table, it stays readable. They live in this database only.
+ */
+export function pgEnableAssistantDbSql(input: {
+  database: string;
+  role: string;
+  environmentId: string;
+  appRoles: string[];
+}): string {
+  if (!UUID.test(input.environmentId)) {
+    throw new Error("environmentId must be a uuid");
+  }
+  const db = pgQuoteId(input.database);
+  const role = pgQuoteId(input.role);
+  const dbLit = pgQuoteLiteral(input.database);
+  const roleLit = pgQuoteLiteral(input.role);
+  const markerLit = pgQuoteLiteral(provisionedRoleMarker(input.environmentId));
+  const appRoles = input.appRoles.length
+    ? `UNION SELECT oid FROM pg_roles WHERE ${input.appRoles
+        .map((r) => `rolname = ${pgQuoteLiteral(r)}`)
+        .join(" OR ")}`
+    : "";
+  // DO bodies are ordinary string literals (pgQuoteLiteral), as in
+  // lib/provisioning/database: a quoted name inside can never end one early.
+  const guard = [
+    "DECLARE role_oid oid;",
+    "BEGIN",
+    `  IF current_database() <> ${dbLit} THEN`,
+    `    RAISE EXCEPTION 'connected to % instead of %', current_database(), ${dbLit};`,
+    "  END IF;",
+    `  SELECT oid INTO role_oid FROM pg_roles WHERE rolname = ${roleLit};`,
+    "  IF role_oid IS NULL THEN",
+    `    EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS', ${roleLit});`,
+    `    EXECUTE format('COMMENT ON ROLE %I IS %L', ${roleLit}, ${markerLit});`,
+    `  ELSIF shobj_description(role_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
+    `    RAISE EXCEPTION 'role % was not created by the Panel for this environment', ${roleLit};`,
+    "  END IF;",
+    "END",
+  ].join("\n");
+  const grants = [
+    "DECLARE s record; o record;",
+    "BEGIN",
+    `  FOR s IN SELECT nspname FROM pg_namespace WHERE ${NON_SYSTEM_SCHEMA} LOOP`,
+    `    EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', s.nspname, ${roleLit});`,
+    `    EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', s.nspname, ${roleLit});`,
+    "  END LOOP;",
+    "  FOR o IN SELECT rolname FROM pg_roles WHERE oid IN (",
+    "      SELECT datdba FROM pg_database WHERE datname = current_database()",
+    `      UNION SELECT nspowner FROM pg_namespace WHERE ${NON_SYSTEM_SCHEMA}`,
+    "      UNION SELECT c.relowner FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace",
+    `        WHERE n.${NON_SYSTEM_SCHEMA} AND c.relkind IN ${TABLE_KINDS}`,
+    `      ${appRoles}`,
+    `    ) AND rolname <> ${roleLit}`,
+    "  LOOP",
+    `    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT SELECT ON TABLES TO %I', o.rolname, ${roleLit});`,
+    `    EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I GRANT USAGE ON SCHEMAS TO %I', o.rolname, ${roleLit});`,
+    "  END LOOP;",
+    "END",
+  ].join("\n");
+  const verify = [
+    "DECLARE role_oid oid; bad text;",
+    "BEGIN",
+    `  SELECT oid INTO role_oid FROM pg_roles WHERE rolname = ${roleLit};`,
+    "  IF EXISTS (SELECT 1 FROM pg_roles WHERE oid = role_oid AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)) THEN",
+    `    RAISE EXCEPTION 'role % is privileged', ${roleLit};`,
+    "  END IF;",
+    "  IF EXISTS (SELECT 1 FROM pg_auth_members WHERE member = role_oid) THEN",
+    `    RAISE EXCEPTION 'role % is a member of another role', ${roleLit};`,
+    "  END IF;",
+    "  IF has_database_privilege(role_oid, current_database(), 'CREATE') THEN",
+    `    RAISE EXCEPTION 'role % could create schemas in %', ${roleLit}, current_database();`,
+    "  END IF;",
+    `  SELECT string_agg(nspname, ', ') INTO bad FROM pg_namespace WHERE ${NON_SYSTEM_SCHEMA} AND has_schema_privilege(role_oid, oid, 'CREATE');`,
+    "  IF bad IS NOT NULL THEN",
+    `    RAISE EXCEPTION 'role % could create objects in schema %; revoke CREATE from PUBLIC there first', ${roleLit}, left(bad, 300);`,
+    "  END IF;",
+    "  SELECT string_agg(format('%I.%I', n.nspname, c.relname), ', ') INTO bad FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace",
+    `    WHERE n.${NON_SYSTEM_SCHEMA} AND c.relkind IN ${TABLE_KINDS}`,
+    "    AND has_table_privilege(role_oid, c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER');",
+    "  IF bad IS NOT NULL THEN",
+    `    RAISE EXCEPTION 'role % could write table %; revoke the privilege from PUBLIC first', ${roleLit}, left(bad, 300);`,
+    "  END IF;",
+    "END",
+  ].join("\n");
+  return [
+    SEARCH_PATH,
+    `DO ${pgQuoteLiteral(guard)};`,
+    `ALTER ROLE ${role} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 5 PASSWORD NULL;`,
+    `ALTER ROLE ${role} SET default_transaction_read_only = on;`,
+    `ALTER ROLE ${role} SET statement_timeout = ${pgQuoteLiteral(ASSISTANT_DB_STATEMENT_TIMEOUT)};`,
+    `GRANT CONNECT ON DATABASE ${db} TO ${role};`,
+    `DO ${pgQuoteLiteral(grants)};`,
+    `DO ${pgQuoteLiteral(verify)};`,
+    "",
+  ].join("\n");
+}
+
+/**
+ * Drops the role: its privileges and default privileges in the connected
+ * database first (DROP OWNED also revokes CONNECT, a shared object), then the
+ * role. A role that is already gone is fine; one without this environment's
+ * marker is refused.
+ */
+export function pgDisableAssistantDbSql(input: {
+  role: string;
+  environmentId: string;
+}): string {
+  if (!UUID.test(input.environmentId)) {
+    throw new Error("environmentId must be a uuid");
+  }
+  const roleLit = pgQuoteLiteral(input.role);
+  const markerLit = pgQuoteLiteral(provisionedRoleMarker(input.environmentId));
+  const drop = [
+    "DECLARE role_oid oid;",
+    "BEGIN",
+    `  SELECT oid INTO role_oid FROM pg_roles WHERE rolname = ${roleLit};`,
+    "  IF role_oid IS NULL THEN RETURN; END IF;",
+    `  IF shobj_description(role_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
+    `    RAISE EXCEPTION 'role % was not created by the Panel for this environment', ${roleLit};`,
+    "  END IF;",
+    `  EXECUTE format('DROP OWNED BY %I', ${roleLit});`,
+    `  EXECUTE format('DROP ROLE %I', ${roleLit});`,
+    "END",
+  ].join("\n");
+  return [SEARCH_PATH, `DO ${pgQuoteLiteral(drop)};`, ""].join("\n");
+}
+
+const PSQL_ADMIN = "psql -X -q -1 -v ON_ERROR_STOP=on -U postgres";
+
+/**
+ * The inner shell command that runs pgEnableAssistantDbSql as postgres in the
+ * environment's database (the SQL carries no secret).
+ */
+export function pgEnableAssistantDbPipeline(
+  input: Parameters<typeof pgEnableAssistantDbSql>[0]
+): string {
+  const sql = pgEnableAssistantDbSql(input);
+  return `printf '%s\\n' ${shq(sql)} | ${PSQL_ADMIN} -d ${shq(input.database)}`;
+}
+
+/** Logs in as the role the way the query path will, over the local socket. */
+export function pgAssistantDbCheckCommand(role: string, database: string) {
+  return `psql -X -q -v ON_ERROR_STOP=on -U ${shq(role)} -d ${shq(database)} -Atc 'select 1'`;
+}
+
+/**
+ * The inner shell command that runs pgDisableAssistantDbSql against the
+ * environment's database when it still exists (its grants live there),
+ * else against `postgres`.
+ */
+export function pgDisableAssistantDbPipeline(input: {
+  database: string;
+  role: string;
+  environmentId: string;
+}): string {
+  const { database } = input;
+  const sql = pgDisableAssistantDbSql(input);
+  const exists =
+    `exists=$(psql -X -At -v ON_ERROR_STOP=on -U postgres -d postgres ` +
+    `-c ${shq(`SELECT 1 FROM pg_database WHERE datname = ${pgQuoteLiteral(database)}`)}) || exit 1`;
+  return (
+    `${exists}; if [ "$exists" = 1 ]; then target=${shq(database)}; else target=postgres; fi; ` +
+    `printf '%s\\n' ${shq(sql)} | ${PSQL_ADMIN} -d "$target"`
+  );
+}
+
+// --- SQL Server ----------------------------------------------------------------
+
+// Values reach T-SQL only as N'…' literals in DECLAREs; identifiers and the
+// password are bracketed/quoted by QUOTENAME at run time.
+function mssqlDeclares(values: {
+  database: string;
+  login: string;
+  password?: string;
+}): string[] {
+  return [
+    "SET NOCOUNT ON;",
+    "SET XACT_ABORT ON;",
+    `DECLARE @db sysname = N'${sqlQuoteString(values.database)}';`,
+    `DECLARE @login sysname = N'${sqlQuoteString(values.login)}';`,
+    ...(values.password === undefined
+      ? []
+      : [`DECLARE @pw nvarchar(128) = N'${sqlQuoteString(values.password)}';`]),
+    "DECLARE @sql nvarchar(max);",
+  ];
+}
+
+/**
+ * Creates (or re-passwords) the login and its user in `database`, member of
+ * db_datareader only. Refuses an existing login that holds a server role or
+ * any server permission besides CONNECT SQL, and a database user that
+ * belongs to another login or holds anything besides db_datareader.
+ */
+export function mssqlEnableAssistantDbSql(input: {
+  database: string;
+  login: string;
+  password: string;
+}): string {
+  // Runs inside the database (sp_executesql after USE), @login a parameter.
+  const inDatabase = [
+    "DECLARE @q nvarchar(max);",
+    "IF DATABASE_PRINCIPAL_ID(@login) IS NULL",
+    "BEGIN",
+    "  SET @q = N'CREATE USER ' + QUOTENAME(@login) + N' FOR LOGIN ' + QUOTENAME(@login);",
+    "  EXEC (@q);",
+    "END",
+    "ELSE IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @login AND (sid IS NULL OR sid <> SUSER_SID(@login)))",
+    "  THROW 50000, N'a database user with that name belongs to another login', 1;",
+    "IF EXISTS (SELECT 1 FROM sys.database_role_members rm JOIN sys.database_principals r ON r.principal_id = rm.role_principal_id",
+    "  WHERE rm.member_principal_id = DATABASE_PRINCIPAL_ID(@login) AND r.name <> N'db_datareader')",
+    "  THROW 50000, N'the database user holds roles besides db_datareader', 1;",
+    "IF EXISTS (SELECT 1 FROM sys.database_permissions WHERE grantee_principal_id = DATABASE_PRINCIPAL_ID(@login)",
+    "  AND permission_name <> N'CONNECT' AND state IN ('G', 'W'))",
+    "  THROW 50000, N'the database user holds permissions besides CONNECT', 1;",
+    "SET @q = N'ALTER ROLE db_datareader ADD MEMBER ' + QUOTENAME(@login);",
+    "EXEC (@q);",
+  ].join("\n");
+  return [
+    ...mssqlDeclares(input),
+    "IF DB_ID(@db) IS NULL THROW 50000, N'database not found', 1;",
+    "IF SUSER_ID(@login) IS NULL",
+    "BEGIN",
+    "  SET @sql = N'CREATE LOGIN ' + QUOTENAME(@login) + N' WITH PASSWORD = ' + QUOTENAME(@pw, '''')",
+    "    + N', DEFAULT_DATABASE = ' + QUOTENAME(@db) + N', CHECK_EXPIRATION = OFF, CHECK_POLICY = ON';",
+    "  EXEC (@sql);",
+    "END",
+    "ELSE",
+    "BEGIN",
+    "  IF EXISTS (SELECT 1 FROM sys.server_role_members WHERE member_principal_id = SUSER_ID(@login))",
+    "    OR EXISTS (SELECT 1 FROM sys.server_permissions WHERE grantee_principal_id = SUSER_ID(@login) AND permission_name <> N'CONNECT SQL')",
+    "    THROW 50000, N'the existing login holds server roles or permissions', 1;",
+    "  SET @sql = N'ALTER LOGIN ' + QUOTENAME(@login) + N' WITH PASSWORD = ' + QUOTENAME(@pw, '''')",
+    "    + N', DEFAULT_DATABASE = ' + QUOTENAME(@db);",
+    "  EXEC (@sql);",
+    "  SET @sql = N'ALTER LOGIN ' + QUOTENAME(@login) + N' ENABLE';",
+    "  EXEC (@sql);",
+    "END",
+    `SET @sql = N'USE ' + QUOTENAME(@db) + N';' + NCHAR(10) + N'${sqlQuoteString(inDatabase)}';`,
+    "EXEC sp_executesql @sql, N'@login sysname', @login = @login;",
+    "",
+  ].join("\n");
+}
+
+/** Drops the user (when the database exists), ends the login's sessions, drops the login. */
+export function mssqlDisableAssistantDbSql(input: {
+  database: string;
+  login: string;
+}): string {
+  const inDatabase = [
+    "DECLARE @q nvarchar(max);",
+    "IF DATABASE_PRINCIPAL_ID(@login) IS NOT NULL",
+    "BEGIN",
+    "  SET @q = N'DROP USER ' + QUOTENAME(@login);",
+    "  EXEC (@q);",
+    "END",
+  ].join("\n");
+  return [
+    ...mssqlDeclares(input),
+    "IF DB_ID(@db) IS NOT NULL",
+    "BEGIN",
+    `  SET @sql = N'USE ' + QUOTENAME(@db) + N';' + NCHAR(10) + N'${sqlQuoteString(inDatabase)}';`,
+    "  EXEC sp_executesql @sql, N'@login sysname', @login = @login;",
+    "END",
+    "IF SUSER_ID(@login) IS NOT NULL",
+    "BEGIN",
+    "  SET @sql = N'';",
+    "  SELECT @sql = @sql + N'KILL ' + CAST(session_id AS nvarchar(10)) + N';' FROM sys.dm_exec_sessions WHERE login_name = @login;",
+    "  EXEC (@sql);",
+    "  SET @sql = N'DROP LOGIN ' + QUOTENAME(@login);",
+    "  EXEC (@sql);",
+    "END",
+    "",
+  ].join("\n");
+}
+
+// --- MySQL / MariaDB -----------------------------------------------------------
+
+// Generated names and passwords only: nothing a string literal must escape,
+// whatever the server's NO_BACKSLASH_ESCAPES setting.
+const MYSQL_SAFE = /^[A-Za-z0-9_]+$/;
+
+function mysqlAccount(user: string): string {
+  if (!MYSQL_SAFE.test(user)) throw new Error("unexpected MySQL user name");
+  return `'${user}'@'127.0.0.1'`;
+}
+
+/**
+ * A database name as a GRANT target: `_` and `%` are wildcards there (even
+ * backquoted), so they are escaped, else `kestrel_qa` would also match
+ * `kestrelXqa`.
+ */
+function mysqlGrantDatabase(database: string): string {
+  return mysqlQuoteId(database.replace(/[\\_%]/g, (c) => `\\${c}`));
+}
+
+/**
+ * Creates (or re-passwords) the user on 127.0.0.1 only (the query path
+ * connects over the container's loopback), strips any privilege it holds,
+ * then grants SELECT on `database` alone.
+ */
+export function mysqlEnableAssistantDbSql(input: {
+  database: string;
+  user: string;
+  password: string;
+}): string {
+  const account = mysqlAccount(input.user);
+  if (!MYSQL_SAFE.test(input.password)) {
+    throw new Error("unexpected MySQL password characters");
+  }
+  const pw = `'${input.password}'`;
+  return [
+    `CREATE USER IF NOT EXISTS ${account} IDENTIFIED BY ${pw} WITH MAX_USER_CONNECTIONS 5;`,
+    `ALTER USER ${account} IDENTIFIED BY ${pw} WITH MAX_USER_CONNECTIONS 5;`,
+    `REVOKE ALL PRIVILEGES, GRANT OPTION FROM ${account};`,
+    `GRANT SELECT ON ${mysqlGrantDatabase(input.database)}.* TO ${account};`,
+  ].join("\n");
+}
+
+export function mysqlDisableAssistantDbSql(input: { user: string }): string {
+  return `DROP USER IF EXISTS ${mysqlAccount(input.user)};`;
+}
+
+// --- Runners -------------------------------------------------------------------
+
+/** The decrypted db service fields provisioning reads. */
+export type AssistantDbService = {
+  serviceType: ServiceType;
+  serviceName: string;
+  dbType: DatabaseType | null;
+  dbName: string | null;
+  dbUser: string | null;
+  // Decrypted admin password (mssql, mysql).
+  dbPassword: string | null;
+  dbKind: "shared" | "container" | "external" | null;
+  // The shared binding's app role.
+  dbRole: string | null;
+  server: {
+    id: string;
+    host: string;
+    username: string;
+    password: string | null;
+    auth: "password" | "key";
+  };
+};
+
+const PROVISION_TIMEOUT_MS = 60_000;
+
+type Ready = AssistantDbService & { dbType: DatabaseType; dbName: string };
+
+function ready(service: AssistantDbService): Ready {
+  const reason = assistantDbUnavailableReason({
+    dbKind: service.dbKind,
+    dbType: service.dbType,
+    dbName: service.dbName,
+    hasAdminPassword: Boolean(service.dbPassword),
+  });
+  if (reason)
+    throw new Error(`Assistant database login unavailable: ${reason}`);
+  return service as Ready;
+}
+
+async function run(
+  creds: SshTarget,
+  command: string,
+  secrets: string[],
+  stdin?: string
+): Promise<string> {
+  try {
+    return await executeRemoteCommand(creds, command, {
+      timeoutMs: PROVISION_TIMEOUT_MS,
+      secrets,
+      ...(stdin === undefined ? {} : { stdin }),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(redactSecrets(message, secrets));
+  }
+}
+
+function secretsOf(service: AssistantDbService, password: string | null) {
+  return [service.dbPassword, password, service.server.password].filter(
+    (s): s is string => Boolean(s)
+  );
+}
+
+/**
+ * Creates or refreshes the environment's read-only login, then proves it can
+ * log in the way the query path will (as the login, on the database host's
+ * local socket or loopback). A login that can't log in is dropped again and
+ * the error names the cause. Returns the login and, for mssql/mysql, its
+ * password: `password` when given (a rerun keeps the stored one), else a new
+ * one. Refuses an external database or a missing admin password before any
+ * SSH. Errors never carry a password.
+ */
+export async function enableAssistantDbLogin(
+  input: AssistantDbService,
+  opts: { environmentId: string; password: string | null }
+): Promise<{ login: string; password: string | null }> {
+  const service = ready(input);
+  const login = assistantDbLoginName(service.dbType, service.dbName);
+  const creds = sshTarget(service.server);
+  if (service.dbType === "postgres") {
+    const pipeline = pgEnableAssistantDbPipeline({
+      database: service.dbName,
+      role: login,
+      environmentId: opts.environmentId,
+      appRoles: service.dbRole ? [service.dbRole] : [],
+    });
+    const secrets = secretsOf(service, null);
+    await run(creds, pgShell(service, pipeline), secrets);
+    try {
+      await run(
+        creds,
+        pgShell(service, pgAssistantDbCheckCommand(login, service.dbName)),
+        secrets
+      );
+    } catch (error) {
+      await disableAssistantDbLogin(input, {
+        environmentId: opts.environmentId,
+        login,
+      }).catch(() => {});
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Role ${login} cannot connect to ${service.dbName} over the database host's local socket; its pg_hba must trust local connections: ${message}`
+      );
+    }
+    return { login, password: null };
+  }
+
+  const password = opts.password ?? generateAssistantDbPassword();
+  const secrets = secretsOf(service, password);
+  const admin = dbAdminUser(service.dbType, service.dbUser);
+  const adminPassword = service.dbPassword as string;
+  if (service.dbType === "mssql") {
+    const sql = mssqlEnableAssistantDbSql({
+      database: service.dbName,
+      login,
+      password,
+    });
+    await run(
+      creds,
+      sqlcmdStdinCommand(admin, service.serviceType, service.serviceName),
+      secrets,
+      `${adminPassword}\n${sql}`
+    );
+  } else {
+    const sql = mysqlEnableAssistantDbSql({
+      database: service.dbName,
+      user: login,
+      password,
+    });
+    await run(
+      creds,
+      mysqlStdinCommand(admin, service.serviceType, service.serviceName),
+      secrets,
+      `${adminPassword}\n${sql}\n`
+    );
+  }
+  try {
+    const check =
+      service.dbType === "mssql"
+        ? sqlcmdStdinCommand(login, service.serviceType, service.serviceName, [
+            "-d",
+            service.dbName,
+            "-Q",
+            "SELECT 1",
+          ])
+        : mysqlStdinCommand(login, service.serviceType, service.serviceName, [
+            "-e",
+            "SELECT 1",
+            service.dbName,
+          ]);
+    await run(creds, check, secrets, `${password}\n`);
+  } catch (error) {
+    await disableAssistantDbLogin(input, {
+      environmentId: opts.environmentId,
+      login,
+    }).catch(() => {});
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Login ${login} cannot log in to ${service.dbName}: ${message}`
+    );
+  }
+  return { login, password };
+}
+
+/**
+ * Drops the login/role. Idempotent: a login that is already gone is fine.
+ * Postgres refuses a role without this environment's marker.
+ */
+export async function disableAssistantDbLogin(
+  input: AssistantDbService,
+  opts: { environmentId: string; login: string }
+): Promise<void> {
+  if (input.dbKind === "external" || !input.dbType || !input.dbName) {
+    throw new Error("Assistant database login unavailable");
+  }
+  const service = input as Ready;
+  const creds = sshTarget(service.server);
+  if (service.dbType === "postgres") {
+    const pipeline = pgDisableAssistantDbPipeline({
+      database: service.dbName,
+      role: opts.login,
+      environmentId: opts.environmentId,
+    });
+    await run(creds, pgShell(service, pipeline), secretsOf(service, null));
+    return;
+  }
+  if (!service.dbPassword) {
+    throw new Error(
+      "Assistant database login unavailable: adminPasswordMissing"
+    );
+  }
+  const admin = dbAdminUser(service.dbType, service.dbUser);
+  const secrets = secretsOf(service, null);
+  if (service.dbType === "mssql") {
+    await run(
+      creds,
+      sqlcmdStdinCommand(admin, service.serviceType, service.serviceName),
+      secrets,
+      `${service.dbPassword}\n${mssqlDisableAssistantDbSql({ database: service.dbName, login: opts.login })}`
+    );
+    return;
+  }
+  await run(
+    creds,
+    mysqlStdinCommand(admin, service.serviceType, service.serviceName),
+    secrets,
+    `${service.dbPassword}\n${mysqlDisableAssistantDbSql({ user: opts.login })}\n`
+  );
+}
+
+// Postgres runs as its OS user on systemd (peer auth); inside a container
+// the exec already lands on the trusted local socket.
+function pgShell(service: Ready, inner: string): string {
+  return buildDbShellCommand(service.serviceType, service.serviceName, inner, {
+    runAsUser: "postgres",
+    server: service.server,
+  });
+}
+
+/**
+ * Connection options for the query path's psql (`PGOPTIONS`): they take
+ * precedence over the role's own defaults, which Postgres lets an ordinary
+ * role change for itself (ALTER ROLE <self> SET …).
+ */
+export const ASSISTANT_DB_PGOPTIONS = `-c default_transaction_read_only=on -c statement_timeout=${ASSISTANT_DB_STATEMENT_TIMEOUT}`;

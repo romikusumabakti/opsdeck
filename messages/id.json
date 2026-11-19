@@ -985,7 +985,24 @@
     "deleteStarted": "Menghapus {name}. Progresnya tampil di bagian atas halaman.",
     "removeFromPanel": "Hapus dari Panel saja",
     "removeFromPanelDescription": "Hanya menghapus environment dari Panel. Tidak ada yang diubah di server maupun di Cloudflare. Ketik nama environment di atas untuk mengaktifkannya.",
-    "removedFromPanel": "{name} dihapus dari Panel"
+    "removedFromPanel": "{name} dihapus dari Panel",
+    "assistantDb": {
+      "title": "Akses basis data untuk Asisten",
+      "description": "Asisten bisa menjawab pertanyaan data dengan kueri SELECT baca-saja pada basis data environment ini. Asisten memakai login khusus yang hanya bisa membaca basis data ini. Hasilnya dibatasi, dan kolom berisi data pribadi disamarkan.",
+      "toggle": "Izinkan Asisten mengkueri basis data ini (baca-saja)",
+      "warning": "Jangan aktifkan pada environment yang berisi data peserta sungguhan. Penyamaran tidak dijamin lengkap: kolom disembunyikan berdasarkan namanya, jadi view yang mengganti nama kolom (misalnya email menjadi kontak) masih bisa menampilkan isinya.",
+      "enabledAs": "Aktif, memakai login {login}.",
+      "adminOnly": "Hanya admin atau infra yang bisa mengaktifkan atau menonaktifkannya.",
+      "leftover": "Akses sudah nonaktif, tetapi login {login} masih ada di server basis data.",
+      "unavailable": {
+        "external": "Tidak tersedia untuk basis data eksternal: Panel tidak punya akses admin ke sana.",
+        "incomplete": "Belum tersedia sampai mesin dan nama basis data diisi.",
+        "adminPasswordMissing": "Belum tersedia sampai kata sandi admin basis data diisi di Opsi lanjutan."
+      },
+      "enabled": "Asisten sekarang bisa mengkueri basis data ini (baca-saja)",
+      "disabled": "Asisten tidak bisa lagi mengkueri basis data ini",
+      "retryRemove": "Hapus login"
+    }
   },
   "userMenu": {
     "users": "Manajemen pengguna",
@@ -1625,7 +1642,12 @@
     "keyLineNotFound": "Key bisa masuk, tetapi baris Panel tidak ada di ~/.ssh/authorized_keys server. Jalankan perintah pemasangan yang tampil di sini.",
     "sourceInUse": "Sebuah environment proyek ini masih men-deploy service ini, sehingga tidak dapat dihapus.",
     "componentNotInSources": "Service ini bukan sumber proyek ini. Tambahkan terlebih dahulu.",
-    "cannotResetOwnTwoFactor": "Anda tidak dapat mereset autentikasi dua faktor sendiri. Matikan dari Akun > Keamanan."
+    "cannotResetOwnTwoFactor": "Anda tidak dapat mereset autentikasi dua faktor sendiri. Matikan dari Akun > Keamanan.",
+    "assistantDbNoDatabase": "Environment ini tidak punya basis data.",
+    "assistantDbUnavailable": "{reason, select, external {Panel tidak punya akses admin ke basis data eksternal.} incomplete {Isi mesin dan nama basis data terlebih dahulu.} adminPasswordMissing {Isi kata sandi admin basis data terlebih dahulu.} other {Panel tidak bisa membuat login baca-saja untuk basis data ini.}}",
+    "assistantDbProvisionFailed": "Server basis data menolak login baca-saja: {reason}",
+    "assistantDbDropFailed": "Akses Asisten sudah nonaktif, tetapi login {login} tidak bisa dihapus: {reason}",
+    "assistantDbAccessBlocksRebind": "Nonaktifkan akses basis data Asisten sebelum memindahkan atau menghapus basis data ini."
   },
   "unsavedChanges": {
     "title": "Buang perubahan yang belum disimpan?",
@@ -2382,7 +2404,8 @@
       "download": "{actor} mengunduh {path} dari {target}",
       "downloadMany": "{actor} mengunduh {count} item (dimulai dari {path}) dari {target}"
     },
-    "assistantConfigured": "{actor} memperbarui pengaturan asisten: {enabled, select, true {aktif} other {nonaktif}}, {model}, effort {effort}, batas {dailyCapUsd, number} USD per pengguna per hari{keyChanged, select, true {, API key diubah} other {}}{providerChanged, select, true {, penyedia diubah} other {}}{pricesChanged, select, true {, harga diubah} other {}}{orgContextChanged, select, true {, konteks organisasi diubah} other {}}"
+    "assistantConfigured": "{actor} memperbarui pengaturan asisten: {enabled, select, true {aktif} other {nonaktif}}, {model}, effort {effort}, batas {dailyCapUsd, number} USD per pengguna per hari{keyChanged, select, true {, API key diubah} other {}}{providerChanged, select, true {, penyedia diubah} other {}}{pricesChanged, select, true {, harga diubah} other {}}{orgContextChanged, select, true {, konteks organisasi diubah} other {}}",
+    "environmentAssistantDbAccess": "{actor} {enabled, select, true {mengizinkan Asisten mengkueri basis data {environment} (baca-saja)} other {menonaktifkan akses Asisten ke basis data {environment}}}"
   },
   "jira": {
     "title": "Jira",

@@ -985,7 +985,24 @@
     "deleteStarted": "正在删除 {name}。进度显示在页面顶部。",
     "removeFromPanel": "仅从面板中移除",
     "removeFromPanelDescription": "仅从面板中移除该环境。不会改动服务器或 Cloudflare 上的任何内容。在上方输入环境名称即可启用。",
-    "removedFromPanel": "已从面板中移除 {name}"
+    "removedFromPanel": "已从面板中移除 {name}",
+    "assistantDb": {
+      "title": "助手数据库访问",
+      "description": "允许助手通过只读 SELECT 查询此环境的数据库来回答数据问题。它使用专为此创建的登录名，只能读取这个数据库。结果有数量上限，包含个人数据的列会被遮蔽。",
+      "toggle": "允许助手查询此数据库（只读）",
+      "warning": "不要在含有真实参与者数据的环境中开启。遮蔽只是尽力而为：它按列名隐藏列，因此重命名列的视图（例如把 email 改为 contact）仍可能显示其值。",
+      "enabledAs": "已开启，使用登录名 {login}。",
+      "adminOnly": "只有管理员或运维可以开启或关闭此项。",
+      "leftover": "访问已关闭，但登录名 {login} 仍留在数据库服务器上。",
+      "unavailable": {
+        "external": "外部数据库不可用：面板没有它的管理员权限。",
+        "incomplete": "需先设置数据库引擎和名称。",
+        "adminPasswordMissing": "需先在高级选项中设置数据库管理员密码。"
+      },
+      "enabled": "助手现在可以查询此数据库（只读）",
+      "disabled": "助手不再能查询此数据库",
+      "retryRemove": "删除登录名"
+    }
   },
   "userMenu": {
     "users": "用户管理",
@@ -1625,7 +1642,12 @@
     "keyLineNotFound": "密钥可以登录，但服务器的 ~/.ssh/authorized_keys 中没有面板的那一行。请运行此处显示的安装命令。",
     "sourceInUse": "此项目的某个环境仍在部署该服务，因此无法移除。",
     "componentNotInSources": "该服务不是此项目的来源。请先添加它。",
-    "cannotResetOwnTwoFactor": "不能重置自己的双重验证。请在“账户 > 安全”中关闭。"
+    "cannotResetOwnTwoFactor": "不能重置自己的双重验证。请在“账户 > 安全”中关闭。",
+    "assistantDbNoDatabase": "此环境没有数据库。",
+    "assistantDbUnavailable": "{reason, select, external {面板没有外部数据库的管理员权限。} incomplete {请先设置数据库引擎和名称。} adminPasswordMissing {请先设置数据库管理员密码。} other {面板无法为此数据库创建只读登录名。}}",
+    "assistantDbProvisionFailed": "数据库服务器拒绝了只读登录名：{reason}",
+    "assistantDbDropFailed": "助手的访问已关闭，但无法删除登录名 {login}：{reason}",
+    "assistantDbAccessBlocksRebind": "移动或移除此数据库前，请先关闭助手的数据库访问。"
   },
   "unsavedChanges": {
     "title": "放弃未保存的更改？",
@@ -2382,7 +2404,8 @@
       "download": "{actor} 从 {target} 下载了 {path}",
       "downloadMany": "{actor} 从 {target} 下载了 {count} 个项目（从 {path} 开始）"
     },
-    "assistantConfigured": "{actor} 更新了助手设置：{enabled, select, true {已启用} other {已停用}}，{model}，思考强度 {effort}，每位用户每日上限 {dailyCapUsd, number} USD{keyChanged, select, true {，API 密钥已更改} other {}}{providerChanged, select, true {，提供商已更改} other {}}{pricesChanged, select, true {，价格已更改} other {}}{orgContextChanged, select, true {，组织背景已更改} other {}}"
+    "assistantConfigured": "{actor} 更新了助手设置：{enabled, select, true {已启用} other {已停用}}，{model}，思考强度 {effort}，每位用户每日上限 {dailyCapUsd, number} USD{keyChanged, select, true {，API 密钥已更改} other {}}{providerChanged, select, true {，提供商已更改} other {}}{pricesChanged, select, true {，价格已更改} other {}}{orgContextChanged, select, true {，组织背景已更改} other {}}",
+    "environmentAssistantDbAccess": "{actor} {enabled, select, true {允许助手查询 {environment} 的数据库（只读）} other {关闭了助手对 {environment} 数据库的访问}}"
   },
   "jira": {
     "title": "Jira",

@@ -20,6 +20,7 @@ import {
 import { dbAdminUser } from "@/lib/services";
 import { listDatabaseHostsQuery } from "@/web/api/database-hosts";
 import { listVariablesQuery } from "@/web/api/variables";
+import { AssistantDbAccess } from "./assistant-db-access";
 import { EnumSelect, Hint, SaveButton, ServerSelect } from "./fields";
 import {
   DB_TYPES,
@@ -90,234 +91,243 @@ export function DatabaseTab({
   }
 
   return (
-    <Card>
-      <CardContent>
-        <form onSubmit={form.handleSubmit(onSave)}>
-          <FieldGroup>
-            {readOnly && <Hint>{t("infraReadOnlyHint")}</Hint>}
-            <Controller
-              name="dbKind"
-              control={form.control}
-              render={({ fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="env-db-kind">{t("dbKind")}</FieldLabel>
-                  <EnumSelect
-                    id="env-db-kind"
-                    invalid={fieldState.invalid}
-                    field={{
-                      value: hasDatabase ? dbKind : NONE,
-                      onChange: onKind,
-                    }}
-                    options={KIND_OPTIONS}
-                    getLabel={(v) =>
-                      v === NONE ? tSettings("noDatabase") : t(`dbKinds.${v}`)
-                    }
-                    placeholder={t("dbKindNone")}
-                    disabled={readOnly}
-                  />
-                  <Hint>{t("dbKindHint")}</Hint>
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
-
-            {hasDatabase && (
-              <>
-                <Controller
-                  name="dbName"
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field data-invalid={fieldState.invalid}>
-                      <FieldLabel htmlFor="env-db-name">
-                        {t("dbName")}
-                      </FieldLabel>
-                      <Input
-                        className="font-mono"
-                        disabled={readOnly}
-                        placeholder={
-                          shared
-                            ? suggestSharedDbName(projectKey, environment.slug)
-                            : undefined
-                        }
-                        {...field}
-                        id="env-db-name"
-                        aria-invalid={fieldState.invalid}
-                      />
-                      <FieldError errors={[fieldState.error]} />
-                    </Field>
-                  )}
-                />
-                <AdvancedOptions
-                  attempt={form.formState.submitCount}
-                  invalid={ADVANCED_FIELDS.some((field) => errors[field])}
-                >
-                  {shared ? (
-                    <SharedDatabaseFields
-                      environment={environment}
-                      projectKey={projectKey}
-                      readOnly={readOnly}
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardContent>
+          <form onSubmit={form.handleSubmit(onSave)}>
+            <FieldGroup>
+              {readOnly && <Hint>{t("infraReadOnlyHint")}</Hint>}
+              <Controller
+                name="dbKind"
+                control={form.control}
+                render={({ fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor="env-db-kind">{t("dbKind")}</FieldLabel>
+                    <EnumSelect
+                      id="env-db-kind"
+                      invalid={fieldState.invalid}
+                      field={{
+                        value: hasDatabase ? dbKind : NONE,
+                        onChange: onKind,
+                      }}
+                      options={KIND_OPTIONS}
+                      getLabel={(v) =>
+                        v === NONE ? tSettings("noDatabase") : t(`dbKinds.${v}`)
+                      }
+                      placeholder={t("dbKindNone")}
+                      disabled={readOnly}
                     />
-                  ) : (
-                    <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                      <Controller
-                        name="dbServerId"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field
-                            className="sm:col-span-2"
-                            data-invalid={fieldState.invalid}
-                          >
-                            <FieldLabel htmlFor="server-db">
-                              {t("server")}
-                            </FieldLabel>
-                            <ServerSelect
-                              id="server-db"
-                              value={field.value}
-                              onChange={field.onChange}
-                              servers={servers}
-                              disabled={readOnly}
-                              invalid={fieldState.invalid}
-                            />
-                            <FieldError errors={[fieldState.error]} />
-                          </Field>
-                        )}
-                      />
-                      <Controller
-                        name="dbServiceType"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field data-invalid={fieldState.invalid}>
-                            <FieldLabel htmlFor="env-db-service-type">
-                              {t("serviceType")}
-                            </FieldLabel>
-                            <EnumSelect
-                              id="env-db-service-type"
-                              invalid={fieldState.invalid}
-                              field={field}
-                              options={SERVICE_TYPES}
-                              getLabel={(v) => tEnums(`serviceTypes.${v}`)}
-                              disabled={readOnly}
-                            />
-                            <FieldError errors={[fieldState.error]} />
-                          </Field>
-                        )}
-                      />
-                      <Controller
-                        name="dbServiceName"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field data-invalid={fieldState.invalid}>
-                            <FieldLabel htmlFor="env-db-service-name">
-                              {t("serviceName")}
-                            </FieldLabel>
-                            <Input
-                              disabled={readOnly}
-                              {...field}
-                              id="env-db-service-name"
-                              aria-invalid={fieldState.invalid}
-                            />
-                            <FieldError errors={[fieldState.error]} />
-                          </Field>
-                        )}
-                      />
-                      <Controller
-                        name="dbType"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field data-invalid={fieldState.invalid}>
-                            <FieldLabel htmlFor="env-db-type">
-                              {t("dbType")}
-                            </FieldLabel>
-                            <EnumSelect
-                              id="env-db-type"
-                              invalid={fieldState.invalid}
-                              field={field}
-                              options={DB_TYPES}
-                              getLabel={(v) => tEnums(`dbTypes.${v}`)}
-                              disabled={readOnly}
-                            />
-                            <FieldError errors={[fieldState.error]} />
-                          </Field>
-                        )}
-                      />
-                      <Controller
-                        name="dbUser"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field data-invalid={fieldState.invalid}>
-                            <FieldLabel htmlFor="env-db-user">
-                              {t("dbUser")}
-                            </FieldLabel>
-                            {/* The placeholder shows the account used when
-                                the field is left blank. */}
-                            <Input
-                              autoComplete="off"
-                              disabled={readOnly}
-                              placeholder={dbAdminUser(dbType, null)}
-                              {...field}
-                              id="env-db-user"
-                              aria-invalid={fieldState.invalid}
-                            />
-                            <Hint>{t("dbUserHint")}</Hint>
-                            <FieldError errors={[fieldState.error]} />
-                          </Field>
-                        )}
-                      />
-                      <Controller
-                        name="dbPassword"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field data-invalid={fieldState.invalid}>
-                            <FieldLabel htmlFor="env-db-password">
-                              {t("dbPassword")}
-                            </FieldLabel>
-                            <PasswordInput
-                              autoComplete="new-password"
-                              disabled={readOnly}
-                              placeholder={t("dbPasswordEditPlaceholder")}
-                              {...field}
-                              id="env-db-password"
-                              aria-invalid={fieldState.invalid}
-                            />
-                            <Hint>{t("dbPasswordHint")}</Hint>
-                            <FieldError errors={[fieldState.error]} />
-                          </Field>
-                        )}
-                      />
-                      <Controller
-                        name="dbBackupPath"
-                        control={form.control}
-                        render={({ field, fieldState }) => (
-                          <Field
-                            className="sm:col-span-2"
-                            data-invalid={fieldState.invalid}
-                          >
-                            <FieldLabel htmlFor="env-db-backup-path">
-                              {t("backupPath")}
-                            </FieldLabel>
-                            <Input
-                              disabled={readOnly}
-                              placeholder="/var/backups/db"
-                              {...field}
-                              id="env-db-backup-path"
-                              aria-invalid={fieldState.invalid}
-                            />
-                            <Hint>{t("backupPathHint")}</Hint>
-                            <FieldError errors={[fieldState.error]} />
-                          </Field>
-                        )}
-                      />
-                    </FieldGroup>
-                  )}
-                </AdvancedOptions>
-              </>
-            )}
+                    <Hint>{t("dbKindHint")}</Hint>
+                    <FieldError errors={[fieldState.error]} />
+                  </Field>
+                )}
+              />
 
-            {!readOnly && <SaveButton />}
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
+              {hasDatabase && (
+                <>
+                  <Controller
+                    name="dbName"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel htmlFor="env-db-name">
+                          {t("dbName")}
+                        </FieldLabel>
+                        <Input
+                          className="font-mono"
+                          disabled={readOnly}
+                          placeholder={
+                            shared
+                              ? suggestSharedDbName(
+                                  projectKey,
+                                  environment.slug
+                                )
+                              : undefined
+                          }
+                          {...field}
+                          id="env-db-name"
+                          aria-invalid={fieldState.invalid}
+                        />
+                        <FieldError errors={[fieldState.error]} />
+                      </Field>
+                    )}
+                  />
+                  <AdvancedOptions
+                    attempt={form.formState.submitCount}
+                    invalid={ADVANCED_FIELDS.some((field) => errors[field])}
+                  >
+                    {shared ? (
+                      <SharedDatabaseFields
+                        environment={environment}
+                        projectKey={projectKey}
+                        readOnly={readOnly}
+                      />
+                    ) : (
+                      <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                        <Controller
+                          name="dbServerId"
+                          control={form.control}
+                          render={({ field, fieldState }) => (
+                            <Field
+                              className="sm:col-span-2"
+                              data-invalid={fieldState.invalid}
+                            >
+                              <FieldLabel htmlFor="server-db">
+                                {t("server")}
+                              </FieldLabel>
+                              <ServerSelect
+                                id="server-db"
+                                value={field.value}
+                                onChange={field.onChange}
+                                servers={servers}
+                                disabled={readOnly}
+                                invalid={fieldState.invalid}
+                              />
+                              <FieldError errors={[fieldState.error]} />
+                            </Field>
+                          )}
+                        />
+                        <Controller
+                          name="dbServiceType"
+                          control={form.control}
+                          render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid}>
+                              <FieldLabel htmlFor="env-db-service-type">
+                                {t("serviceType")}
+                              </FieldLabel>
+                              <EnumSelect
+                                id="env-db-service-type"
+                                invalid={fieldState.invalid}
+                                field={field}
+                                options={SERVICE_TYPES}
+                                getLabel={(v) => tEnums(`serviceTypes.${v}`)}
+                                disabled={readOnly}
+                              />
+                              <FieldError errors={[fieldState.error]} />
+                            </Field>
+                          )}
+                        />
+                        <Controller
+                          name="dbServiceName"
+                          control={form.control}
+                          render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid}>
+                              <FieldLabel htmlFor="env-db-service-name">
+                                {t("serviceName")}
+                              </FieldLabel>
+                              <Input
+                                disabled={readOnly}
+                                {...field}
+                                id="env-db-service-name"
+                                aria-invalid={fieldState.invalid}
+                              />
+                              <FieldError errors={[fieldState.error]} />
+                            </Field>
+                          )}
+                        />
+                        <Controller
+                          name="dbType"
+                          control={form.control}
+                          render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid}>
+                              <FieldLabel htmlFor="env-db-type">
+                                {t("dbType")}
+                              </FieldLabel>
+                              <EnumSelect
+                                id="env-db-type"
+                                invalid={fieldState.invalid}
+                                field={field}
+                                options={DB_TYPES}
+                                getLabel={(v) => tEnums(`dbTypes.${v}`)}
+                                disabled={readOnly}
+                              />
+                              <FieldError errors={[fieldState.error]} />
+                            </Field>
+                          )}
+                        />
+                        <Controller
+                          name="dbUser"
+                          control={form.control}
+                          render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid}>
+                              <FieldLabel htmlFor="env-db-user">
+                                {t("dbUser")}
+                              </FieldLabel>
+                              {/* The placeholder shows the account used when
+                                the field is left blank. */}
+                              <Input
+                                autoComplete="off"
+                                disabled={readOnly}
+                                placeholder={dbAdminUser(dbType, null)}
+                                {...field}
+                                id="env-db-user"
+                                aria-invalid={fieldState.invalid}
+                              />
+                              <Hint>{t("dbUserHint")}</Hint>
+                              <FieldError errors={[fieldState.error]} />
+                            </Field>
+                          )}
+                        />
+                        <Controller
+                          name="dbPassword"
+                          control={form.control}
+                          render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid}>
+                              <FieldLabel htmlFor="env-db-password">
+                                {t("dbPassword")}
+                              </FieldLabel>
+                              <PasswordInput
+                                autoComplete="new-password"
+                                disabled={readOnly}
+                                placeholder={t("dbPasswordEditPlaceholder")}
+                                {...field}
+                                id="env-db-password"
+                                aria-invalid={fieldState.invalid}
+                              />
+                              <Hint>{t("dbPasswordHint")}</Hint>
+                              <FieldError errors={[fieldState.error]} />
+                            </Field>
+                          )}
+                        />
+                        <Controller
+                          name="dbBackupPath"
+                          control={form.control}
+                          render={({ field, fieldState }) => (
+                            <Field
+                              className="sm:col-span-2"
+                              data-invalid={fieldState.invalid}
+                            >
+                              <FieldLabel htmlFor="env-db-backup-path">
+                                {t("backupPath")}
+                              </FieldLabel>
+                              <Input
+                                disabled={readOnly}
+                                placeholder="/var/backups/db"
+                                {...field}
+                                id="env-db-backup-path"
+                                aria-invalid={fieldState.invalid}
+                              />
+                              <Hint>{t("backupPathHint")}</Hint>
+                              <FieldError errors={[fieldState.error]} />
+                            </Field>
+                          )}
+                        />
+                      </FieldGroup>
+                    )}
+                  </AdvancedOptions>
+                </>
+              )}
+
+              {!readOnly && <SaveButton />}
+            </FieldGroup>
+          </form>
+        </CardContent>
+      </Card>
+      <AssistantDbAccess
+        environment={environment}
+        canManageServers={canManageServers}
+      />
+    </div>
   );
 }
 

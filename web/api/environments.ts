@@ -194,6 +194,23 @@ export async function retryTeardown(
   );
 }
 
+/**
+ * Turns the Assistant's read-only database login on or off (admin/infra).
+ * Rejects with an ApiError (409 assistantDbUnavailable / assistantDbNoDatabase,
+ * 502 assistantDbProvisionFailed / assistantDbDropFailed) when refused.
+ */
+export async function setAssistantDbAccess(
+  environmentId: string,
+  enabled: boolean
+) {
+  return parseResponse(
+    routes[":id"]["assistant-db-access"].$post({
+      param: { id: environmentId },
+      json: { enabled },
+    })
+  );
+}
+
 /** Cancels a teardown that has only checked and archived so far. */
 export async function cancelTeardown(environmentId: string) {
   return parseResponse(

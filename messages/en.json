@@ -985,7 +985,24 @@
     "deleteStarted": "Deleting {name}. Progress shows at the top of the page.",
     "removeFromPanel": "Remove from Panel only",
     "removeFromPanelDescription": "Removes the environment from the Panel only. Nothing on the server or in Cloudflare is touched. Type the environment name above to enable it.",
-    "removedFromPanel": "{name} removed from the Panel"
+    "removedFromPanel": "{name} removed from the Panel",
+    "assistantDb": {
+      "title": "Assistant database access",
+      "description": "Lets the Assistant answer data questions with read-only SELECT queries on this environment's database. It uses a login made only for this, which reads this database alone. Results are capped, and columns with personal data are masked.",
+      "toggle": "Let the Assistant query this database (read-only)",
+      "warning": "Don't turn this on for an environment with real participant data. Masking is best effort: it hides columns by name, so a view that renames a column (for example email to contact) can still show its values.",
+      "enabledAs": "On, using the login {login}.",
+      "adminOnly": "Only an admin or infra can turn this on or off.",
+      "leftover": "Access is off, but the login {login} is still on the database server.",
+      "unavailable": {
+        "external": "Not available for an external database: the Panel has no admin access to it.",
+        "incomplete": "Not available until the database's engine and name are set.",
+        "adminPasswordMissing": "Not available until the database's admin password is set under Advanced options."
+      },
+      "enabled": "The Assistant can now query this database (read-only)",
+      "disabled": "The Assistant can no longer query this database",
+      "retryRemove": "Remove the login"
+    }
   },
   "userMenu": {
     "users": "User management",
@@ -1625,7 +1642,12 @@
     "keyLineNotFound": "The key signs in, but the Panel's line is not in the server's ~/.ssh/authorized_keys. Run the install command shown here.",
     "sourceInUse": "An environment of this project still deploys this service, so it can't be removed.",
     "componentNotInSources": "This service isn't a source of this project. Add it first.",
-    "cannotResetOwnTwoFactor": "You can't reset your own two-factor. Turn it off from Account > Security."
+    "cannotResetOwnTwoFactor": "You can't reset your own two-factor. Turn it off from Account > Security.",
+    "assistantDbNoDatabase": "This environment has no database.",
+    "assistantDbUnavailable": "{reason, select, external {The Panel has no admin access to an external database.} incomplete {Set the database's engine and name first.} adminPasswordMissing {Set the database's admin password first.} other {The Panel can't create a read-only login for this database.}}",
+    "assistantDbProvisionFailed": "The database server refused the read-only login: {reason}",
+    "assistantDbDropFailed": "The Assistant's access is off, but the login {login} could not be removed: {reason}",
+    "assistantDbAccessBlocksRebind": "Turn off the Assistant's database access before moving or removing this database."
   },
   "unsavedChanges": {
     "title": "Discard unsaved changes?",
@@ -2382,7 +2404,8 @@
       "download": "{actor} downloaded {path} from {target}",
       "downloadMany": "{actor} downloaded {count} items starting with {path} from {target}"
     },
-    "assistantConfigured": "{actor} updated the assistant settings: {enabled, select, true {enabled} other {disabled}}, {model}, effort {effort}, limit {dailyCapUsd, number} USD per user per day{keyChanged, select, true {, API key changed} other {}}{providerChanged, select, true {, provider changed} other {}}{pricesChanged, select, true {, prices changed} other {}}{orgContextChanged, select, true {, organisation context changed} other {}}"
+    "assistantConfigured": "{actor} updated the assistant settings: {enabled, select, true {enabled} other {disabled}}, {model}, effort {effort}, limit {dailyCapUsd, number} USD per user per day{keyChanged, select, true {, API key changed} other {}}{providerChanged, select, true {, provider changed} other {}}{pricesChanged, select, true {, prices changed} other {}}{orgContextChanged, select, true {, organisation context changed} other {}}",
+    "environmentAssistantDbAccess": "{actor} {enabled, select, true {let the Assistant query the database of {environment} (read-only)} other {turned off the Assistant's access to the database of {environment}}}"
   },
   "jira": {
     "title": "Jira",

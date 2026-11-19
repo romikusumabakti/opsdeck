@@ -791,3 +791,69 @@ export function buildRemovePlacedCommand(
   }
   return privileged(`rm -f ${shq(dst)}`, db.server);
 }
+
+// --- Scripts on stdin --------------------------------------------------------
+//
+// For SQL that carries a secret (a generated password), the script and every
+// password travel on the command's stdin, never in argv where any user on the
+// host could read them from `ps`. The first stdin line is the login's
+// password, read into the engine's password variable; the rest is the script.
+// Only for the TCP-authenticating engines (sqlcmd, the MySQL client), which
+// need no `runAsUser`, so no `sudo -S` competes for stdin.
+
+/**
+ * Wrap `inner` for the service type with stdin attached (`docker exec -i`,
+ * `kubectl exec -i`, a plain `bash -c` on systemd).
+ */
+export function dbStdinShellCommand(
+  serviceType: ServiceType,
+  serviceName: string,
+  inner: string
+): string {
+  if (serviceType === "docker") {
+    return `docker exec -i ${shq(serviceName)} bash -c ${shq(inner)}`;
+  }
+  if (serviceType === "kubernetes") {
+    return `kubectl exec -i deploy/${shq(serviceName)} -- bash -c ${shq(inner)}`;
+  }
+  return `bash -c ${shq(inner)}`;
+}
+
+/**
+ * sqlcmd as `user`, its password read from the first stdin line into
+ * SQLCMDPASSWORD (which sqlcmd reads instead of `-P`), the script from the
+ * rest of stdin. Same binary probe and flags as buildSqlcmdCommand.
+ */
+export function sqlcmdStdinCommand(
+  user: string,
+  serviceType: ServiceType,
+  serviceName: string,
+  extraArgs: string[] = []
+): string {
+  const args = ["-S", "localhost", "-U", user, "-C", "-b", "-r0", ...extraArgs]
+    .map(shq)
+    .join(" ");
+  const inner =
+    "IFS= read -r SQLCMDPASSWORD || exit 1; export SQLCMDPASSWORD; " +
+    "for p in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do " +
+    `[ -x "$p" ] && exec "$p" ${args}; done; exec sqlcmd ${args}`;
+  return dbStdinShellCommand(serviceType, serviceName, inner);
+}
+
+/**
+ * The MySQL/MariaDB client as `user`, its password read from the first stdin
+ * line into MYSQL_PWD, the script from the rest of stdin.
+ */
+export function mysqlStdinCommand(
+  user: string,
+  serviceType: ServiceType,
+  serviceName: string,
+  extraArgs: string[] = []
+): string {
+  const args = extraArgs.map(shq).join(" ");
+  const inner =
+    `${MYSQL_CLIENT_RESOLVE}; ` +
+    "IFS= read -r MYSQL_PWD || exit 1; export MYSQL_PWD; " +
+    `"$MYSQL" ${mysqlConnectionFlags(user)}${args ? ` ${args}` : ""}`;
+  return dbStdinShellCommand(serviceType, serviceName, inner);
+}
