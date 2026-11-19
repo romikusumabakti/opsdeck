@@ -1598,7 +1598,6 @@
     "groupNotFound": "该分组已不存在。",
     "groupMergeSelf": "请选择另一个分组作为合并目标。",
     "groupReorderInvalid": "无法将该分组移到那里。",
-    "projectGroupForbidden": "只有管理员可以更改项目的分组。",
     "invalidFrom": "请输入 IP 地址或子网，例如 192.168.1.10 或 172.29.0.0/16。",
     "keyNotVerified": "SSH 密钥尚未成功登录。请在服务器上运行安装命令，然后点击检查密钥登录。",
     "notKeyServer": "此服务器不使用 SSH 密钥登录。",

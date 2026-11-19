@@ -365,9 +365,9 @@ export function canCreateProject(orgRole: string | null | undefined): boolean {
 }
 
 // Project groups are organisational and grant nothing; creating, renaming,
-// reordering, merging and deleting them, and setting a project's group, take
-// the org project:create statement (admin). Unlike canCreateProject, the
-// engineer set does not reach it.
+// reordering, merging and deleting them take the org project:create statement
+// (admin). Unlike canCreateProject, the engineer set does not reach it.
+// Assigning an existing group to a project is part of creating or editing it.
 export function canManageProjectGroups(
   orgRole: string | null | undefined
 ): boolean {

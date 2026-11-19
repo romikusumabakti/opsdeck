@@ -191,12 +191,14 @@ const GROUP_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
 const OTHER_GROUP_ID = "0197f3a0-1b2c-7def-8000-0123456789e2";
 
 describe("a project's group", () => {
-  it("refuses an engineer creating a project in a group, before writing", async () => {
+  it("lets an engineer create a project in an existing group", async () => {
     state.orgRole = "engineer";
-    await expect(
-      addProject({ ...input, groupId: GROUP_ID })
-    ).rejects.toMatchObject({ status: 403, code: "projectGroupForbidden" });
-    expect(state.inserts).toEqual([]);
+    expect((await addProject({ ...input, groupId: GROUP_ID })).success).toBe(
+      true
+    );
+    expect(
+      state.inserts.find((i) => i.table === schema.projects)?.values
+    ).toMatchObject({ groupId: GROUP_ID });
   });
 
   it("lets an admin create a project in a group, never writing client", async () => {
@@ -210,13 +212,31 @@ describe("a project's group", () => {
     expect(project?.values).not.toHaveProperty("client");
   });
 
-  it("refuses an engineer moving a project to another group", async () => {
+  it("lets an engineer move a project to another group or clear it", async () => {
     state.orgRole = "engineer";
-    state.selects = [[{ groupId: GROUP_ID, defaultServerId: null }]];
-    await expect(
-      editProject(PROJECT_ID, { groupId: OTHER_GROUP_ID })
-    ).rejects.toMatchObject({ status: 403, code: "projectGroupForbidden" });
-    expect(state.updates).toEqual([]);
+    state.selects = [
+      [{ groupId: GROUP_ID, defaultServerId: null }],
+      [{ name: "Beta" }],
+      [{ groupId: OTHER_GROUP_ID, defaultServerId: null }],
+    ];
+    expect(
+      (
+        await editProject(PROJECT_ID, {
+          name: "Kestrel",
+          groupId: OTHER_GROUP_ID,
+        })
+      ).success
+    ).toBe(true);
+    expect(state.updates[0]?.values).toMatchObject({ groupId: OTHER_GROUP_ID });
+    expect(
+      (await editProject(PROJECT_ID, { name: "Kestrel", groupId: null }))
+        .success
+    ).toBe(true);
+    expect(state.updates[1]?.values).toMatchObject({ groupId: null });
+    expect(state.activity.map((a) => (a as { data: unknown }).data)).toEqual([
+      { project: "Kestrel", group: "Beta" },
+      { project: "Kestrel", group: "" },
+    ]);
   });
 
   it("lets an engineer resend the unchanged group with other edits", async () => {

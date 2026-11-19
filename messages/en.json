@@ -1598,7 +1598,6 @@
     "groupNotFound": "That group no longer exists.",
     "groupMergeSelf": "Choose another group to merge into.",
     "groupReorderInvalid": "That group cannot be moved there.",
-    "projectGroupForbidden": "Only admins can change a project's group.",
     "invalidFrom": "Enter an IP address or subnet, like 192.168.1.10 or 172.29.0.0/16.",
     "keyNotVerified": "The SSH key has not signed in yet. Run the install command on the server, then Check key login.",
     "notKeyServer": "This server does not sign in with the SSH key.",

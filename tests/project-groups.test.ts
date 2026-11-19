@@ -127,7 +127,6 @@ const ERROR_KEYS = [
   "groupNotFound",
   "groupMergeSelf",
   "groupReorderInvalid",
-  "projectGroupForbidden",
 ] as const;
 
 const ACTIVITY_KEYS: Record<string, string[]> = {

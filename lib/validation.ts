@@ -137,9 +137,9 @@ export const projectKeySchema = z
 export const projectMetaInputSchema = z.object({
   name: z.string().trim().min(1).max(200),
   key: projectKeySchema,
-  // The project's group (null = ungrouped). Only the right that manages
-  // groups may set or change it (addProject / editProject check). Replaces
-  // the free-text `client`, which is no longer written.
+  // The project's group (null = ungrouped): an existing group, assigned by
+  // anyone who may create or edit the project (managing groups is admin-only).
+  // Replaces the free-text `client`, which is no longer written.
   groupId: z.uuid().nullish(),
   description: z.string().trim().max(2000).nullish(),
 });

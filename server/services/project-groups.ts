@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, ne, sql } from "drizzle-orm";
 import { generateKeyBetween } from "fractional-indexing";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { recordActivity } from "@/lib/activity";
@@ -282,27 +282,40 @@ export async function reorderGroup(
 
 /**
  * Move every project of `from` into `into`, then delete `from`, in one
- * transaction. Both rows are locked first, in id order, so a concurrent
- * rename or delete of either waits (or wins, and the merge answers 404), and
- * a project linked to `from` meanwhile (its foreign-key check locks the row
- * too) is moved as well.
+ * transaction. Both rows are locked first, in id order (so two merges of the
+ * same pair queue instead of deadlocking): `from` FOR UPDATE, since it is
+ * deleted, and `into` FOR NO KEY UPDATE, which a project write's foreign-key
+ * check (FOR KEY SHARE) does not wait for. A FOR UPDATE on `into` would
+ * deadlock with an edit that has already locked a project of `from` and is
+ * moving it to `into`: the edit would wait on `into` while the merge waits on
+ * the project. A concurrent rename or delete of either group waits (or wins,
+ * and the merge answers 404); a project linked to `from` meanwhile (its
+ * foreign-key check takes KEY SHARE on `from`) is moved as well.
  */
 export async function mergeGroups(input: {
   from: string;
   into: string;
 }): Promise<ProjectGroup> {
   const session = await requireManageGroups();
-  const { from, into } = parsed(projectGroupMergeSchema.safeParse(input));
+  // Lowercase, as Postgres prints uuids: the self check and the lock order
+  // below compare them as strings (hex order is the uuid byte order).
+  const ids = parsed(projectGroupMergeSchema.safeParse(input));
+  const from = ids.from.toLowerCase();
+  const into = ids.into.toLowerCase();
   if (from === into) return refuse("groupMergeSelf");
   const { source, target, count } = await db.transaction(async (tx) => {
-    const locked = await tx
-      .select()
-      .from(projectGroups)
-      .where(inArray(projectGroups.id, [from, into]))
-      .orderBy(asc(projectGroups.id))
-      .for("update");
-    const source = locked.find((g) => g.id === from);
-    const target = locked.find((g) => g.id === into);
+    const lock = async (id: string) => {
+      const [row] = await tx
+        .select()
+        .from(projectGroups)
+        .where(eq(projectGroups.id, id))
+        .for(id === from ? "update" : "no key update");
+      return row;
+    };
+    const [first, second] = from < into ? [from, into] : [into, from];
+    const locked = [await lock(first), await lock(second)];
+    const source = locked.find((g) => g?.id === from);
+    const target = locked.find((g) => g?.id === into);
     if (!source || !target) return refuse("groupNotFound");
     const movedProjects = await tx
       .update(projects)

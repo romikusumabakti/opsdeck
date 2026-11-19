@@ -27,7 +27,7 @@ import {
 } from "@/lib/db/schema";
 import { pgErrorCode } from "@/lib/domains/errors";
 import { OWNER_COLUMNS } from "@/lib/environments";
-import { canCreateProject, canManageProjectGroups } from "@/lib/permissions";
+import { canCreateProject } from "@/lib/permissions";
 import { isProjectReleasable } from "@/lib/releases/repository";
 import type { ActionResponse } from "@/lib/types";
 import {
@@ -172,9 +172,6 @@ export async function addProject(
   if (!parsed.success) {
     return { success: false, message: "Invalid project data" };
   }
-  if (parsed.data.groupId && !canManageProjectGroups(session.user.role)) {
-    await refuseGroup("projectGroupForbidden");
-  }
   try {
     // The creator always becomes a member, in the same transaction: it lists
     // them on the project, and it is what makes the project visible to an
@@ -203,8 +200,9 @@ export async function addProject(
     if (pgErrorCode(error) === "23505") {
       return { success: false, message: "keyTaken" };
     }
-    // Foreign-key violation: the group does not exist (or was just deleted).
-    if (pgErrorCode(error) === "23503") await refuseGroup("groupNotFound");
+    // Foreign-key violation on the group: it does not exist (or was just
+    // deleted).
+    if (isMissingGroup(error)) await refuseGroupNotFound();
     console.error("Failed to create project:", error);
     return { success: false, message: "Failed to create project" };
   }
@@ -237,25 +235,22 @@ export async function editProject(
   }
   const changesDefaultServer = parsed.data.defaultServerId !== undefined;
   const sendsGroup = parsed.data.groupId !== undefined;
-  const [before] =
-    changesDefaultServer || sendsGroup
-      ? await db
-          .select({
-            defaultServerId: projects.defaultServerId,
-            groupId: projects.groupId,
-          })
-          .from(projects)
-          .where(eq(projects.id, id))
-          .limit(1)
-      : [];
-  // Only the right that manages groups moves a project between groups; the
-  // form may resend the unchanged group with other edits.
-  const changesGroup =
-    sendsGroup && (parsed.data.groupId ?? null) !== (before?.groupId ?? null);
-  if (changesGroup && !canManageProjectGroups(session.user.role)) {
-    await refuseGroup("projectGroupForbidden");
-  }
   try {
+    const [before] =
+      changesDefaultServer || sendsGroup
+        ? await db
+            .select({
+              defaultServerId: projects.defaultServerId,
+              groupId: projects.groupId,
+            })
+            .from(projects)
+            .where(eq(projects.id, id))
+            .limit(1)
+        : [];
+    // Anyone who may edit the project assigns it an existing group (managing
+    // groups is admin-only); the form may resend the unchanged group.
+    const changesGroup =
+      sendsGroup && (parsed.data.groupId ?? null) !== (before?.groupId ?? null);
     const [updated] = await db
       .update(projects)
       .set({ ...parsed.data, updatedAt: new Date() })
@@ -277,10 +272,8 @@ export async function editProject(
       return { success: false, message: "keyTaken" };
     }
     // Foreign-key violation: the group or the default server does not exist.
+    if (isMissingGroup(error)) await refuseGroupNotFound();
     if (pgErrorCode(error) === "23503") {
-      if (pgConstraint(error) === "projects_group_id_fkey") {
-        await refuseGroup("groupNotFound");
-      }
       return { success: false, message: "serverNotFound" };
     }
     console.error(`Failed to update project ${id}:`, error);
@@ -288,24 +281,23 @@ export async function editProject(
   }
 }
 
-async function refuseGroup(
-  code: "projectGroupForbidden" | "groupNotFound"
-): Promise<never> {
+async function refuseGroupNotFound(): Promise<never> {
   const t = await getServerTranslator("actionErrors");
-  if (code === "groupNotFound") {
-    throw new CodedHTTPException(404, code, t(code));
-  }
-  throw new ForbiddenError(t(code), code);
+  throw new CodedHTTPException(404, "groupNotFound", t("groupNotFound"));
 }
 
-// The violated constraint's name, as postgres.js reports it (drizzle wraps
-// the driver error in `cause`).
-function pgConstraint(error: unknown): string | undefined {
+// A foreign-key violation on projects.group_id. The constraint name comes
+// from postgres.js (drizzle wraps the driver error in `cause`).
+function isMissingGroup(error: unknown): boolean {
   const e = error as {
     constraint_name?: string;
     cause?: { constraint_name?: string };
   };
-  return e?.constraint_name ?? e?.cause?.constraint_name;
+  return (
+    pgErrorCode(error) === "23503" &&
+    (e?.constraint_name ?? e?.cause?.constraint_name) ===
+      "projects_group_id_fkey"
+  );
 }
 
 /** The activity entry for a project's new group (`group: ""` = none). */

@@ -419,6 +419,38 @@ describe.skipIf(!enabled)("project groups service on Postgres", () => {
       expect(orphans?.n).toBe(0);
     });
 
+    it("does not deadlock with an edit moving a project of A into B", async () => {
+      const a = await svc.createGroup({ name: "Acme" });
+      const b = await svc.createGroup({ name: "Beta" });
+      await project("DL1", a.id);
+      await project("DL2", a.id);
+      const reserved = await other.reserve();
+      try {
+        // The edit has locked DL1 (a name change: no foreign-key check yet)...
+        await reserved`begin`;
+        await reserved`update projects set name = 'Moved' where key = 'DL1'`;
+        // ...the merge locks both groups and waits on DL1...
+        const merge = svc.mergeGroups({ from: a.id, into: b.id });
+        await waitForLockWait();
+        // ...and the edit now moves DL1 into B, whose FK check takes KEY SHARE
+        // on B. With B locked FOR UPDATE this was a deadlock (40P01).
+        await reserved`update projects set group_id = ${b.id} where key = 'DL1'`;
+        await reserved`commit`;
+        expect(await merge).toMatchObject({ id: b.id });
+      } finally {
+        reserved.release();
+      }
+      expect(await groupOf("DL1")).toBe("Beta");
+      expect(await groupOf("DL2")).toBe("Beta");
+      expect((await groupRows()).map((r) => r.name)).toEqual(["Beta"]);
+      // The edit moved DL1 itself; the merge moved only DL2.
+      expect((await activity("projectGroup.merged"))[0]?.data).toEqual({
+        from: "Acme",
+        into: "Beta",
+        count: 1,
+      });
+    });
+
     it("refuses cleanly when a concurrent delete of A wins", async () => {
       const a = await svc.createGroup({ name: "Acme" });
       const b = await svc.createGroup({ name: "Beta" });
@@ -543,30 +575,27 @@ describe.skipIf(!enabled)("project groups service on Postgres", () => {
       });
     });
 
-    it("refuses an engineer setting a group on create, creating nothing", async () => {
+    it("lets an engineer create a project in an existing group", async () => {
       const a = await svc.createGroup({ name: "Acme" });
       as(ENGINEER, "engineer");
-      expect(
-        await refusal(
-          catalog.addProject({ name: "Kestrel", key: "KST", groupId: a.id })
-        )
-      ).toEqual({ status: 403, code: "projectGroupForbidden" });
-      const [n] = await sql<{ n: number }[]>`
-        select count(*)::int as n from projects`;
-      expect(n?.n).toBe(0);
-      // Without a group the engineer still creates projects.
       expect(
         (
           await catalog.addProject({
             name: "Kestrel",
             key: "KST",
-            groupId: null,
+            groupId: a.id,
           })
         ).success
       ).toBe(true);
+      expect(await groupOf("KST")).toBe("Acme");
+      expect(
+        await refusal(
+          catalog.addProject({ name: "Osprey", key: "OSP", groupId: MISSING })
+        )
+      ).toEqual({ status: 404, code: "groupNotFound" });
     });
 
-    it("lets only an admin change a project's group, recording it", async () => {
+    it("lets an engineer of the project set and clear an existing group, recording it", async () => {
       const a = await svc.createGroup({ name: "Acme" });
       const b = await svc.createGroup({ name: "Beta" });
       const id = await project("EP1", a.id);
@@ -574,21 +603,13 @@ describe.skipIf(!enabled)("project groups service on Postgres", () => {
         values (${id}, ${ENGINEER})`;
 
       as(ENGINEER, "engineer");
-      expect(await refusal(catalog.editProject(id, { groupId: b.id }))).toEqual(
-        { status: 403, code: "projectGroupForbidden" }
-      );
-      expect(await refusal(catalog.editProject(id, { groupId: null }))).toEqual(
-        { status: 403, code: "projectGroupForbidden" }
-      );
-      expect(await groupOf("EP1")).toBe("Acme");
-      // Sending the unchanged group with other edits is fine.
+      // Resending the unchanged group with other edits records nothing.
       expect(
         (await catalog.editProject(id, { name: "Renamed", groupId: a.id }))
           .success
       ).toBe(true);
       expect(await activity("project.groupChanged")).toEqual([]);
 
-      as(ADMIN, "admin");
       expect((await catalog.editProject(id, { groupId: b.id })).success).toBe(
         true
       );

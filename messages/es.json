@@ -1598,7 +1598,6 @@
     "groupNotFound": "Ese grupo ya no existe.",
     "groupMergeSelf": "Elige otro grupo con el que fusionarlo.",
     "groupReorderInvalid": "Ese grupo no se puede mover ahí.",
-    "projectGroupForbidden": "Solo los administradores pueden cambiar el grupo de un proyecto.",
     "invalidFrom": "Introduce una dirección IP o una subred, como 192.168.1.10 o 172.29.0.0/16.",
     "keyNotVerified": "La clave SSH aún no ha iniciado sesión. Ejecuta el comando de instalación en el servidor y luego Comprobar inicio con clave.",
     "notKeyServer": "Este servidor no inicia sesión con la clave SSH.",

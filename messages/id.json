@@ -1598,7 +1598,6 @@
     "groupNotFound": "Grup itu sudah tidak ada.",
     "groupMergeSelf": "Pilih grup lain sebagai tujuan penggabungan.",
     "groupReorderInvalid": "Grup itu tidak bisa dipindahkan ke sana.",
-    "projectGroupForbidden": "Hanya admin yang bisa mengubah grup proyek.",
     "invalidFrom": "Isi alamat IP atau subnet, misalnya 192.168.1.10 atau 172.29.0.0/16.",
     "keyNotVerified": "SSH key belum pernah berhasil masuk. Jalankan perintah pemasangan di server, lalu Cek login key.",
     "notKeyServer": "Server ini tidak masuk dengan SSH key.",
