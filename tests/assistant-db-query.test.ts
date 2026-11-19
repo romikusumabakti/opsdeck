@@ -204,4 +204,32 @@ describe("runAssistantDbQuery", () => {
     expect((error as Error).message).toContain("Login failed");
     expect((error as Error).message).not.toContain(MSSQL.password);
   });
+
+  it("takes data values out of an engine error before it is thrown or logged", async () => {
+    const logged: string[] = [];
+    const spy = vi
+      .spyOn(console, "error")
+      .mockImplementation((...args: unknown[]) => {
+        logged.push(args.map(String).join(" "));
+      });
+    ssh.results.push({
+      code: 1,
+      stdout: "",
+      stderr:
+        "Msg 245, Level 16, State 1, Line 1\nConversion failed when converting the varchar value 'rani@example.invalid' to data type int.",
+    });
+    const error = await runAssistantDbQuery(
+      "env-1",
+      MSSQL,
+      "SELECT id FROM members WHERE email = 1",
+      101
+    ).catch((e: unknown) => e);
+    spy.mockRestore();
+    expect((error as Error).message).toContain(
+      "varchar value ? to data type int"
+    );
+    expect((error as Error).message).not.toContain("rani@example.invalid");
+    expect(logged.join("\n")).not.toContain("rani@example.invalid");
+    expect(logged.length).toBeGreaterThan(0);
+  });
 });

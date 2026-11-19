@@ -9,6 +9,7 @@ import { sshTarget } from "@/lib/ssh-connect";
 import type { AssistantDbLogin } from "./login";
 import type { Cell } from "./mask";
 import { ASSISTANT_DB_PGOPTIONS } from "./provision";
+import { redactEngineError } from "./redact";
 
 // Runs SQL the gate accepted (or the tool's own schema query) as the
 // environment's dedicated read-only login, never the admin account (Stage 9
@@ -319,6 +320,9 @@ export async function runAssistantDbQuery(
     stdout = await executeRemoteCommand(sshTarget(service.server), command, {
       timeoutMs: SSH_TIMEOUT_MS,
       secrets,
+      // Engine errors can echo values (e.g. a failed conversion): out
+      // before the error is logged or thrown.
+      redact: redactEngineError,
       ...(stdin === undefined ? {} : { stdin }),
     });
   } catch (error) {
@@ -328,7 +332,10 @@ export async function runAssistantDbQuery(
         : error instanceof Error
           ? error.message
           : String(error);
-    const message = redactSecrets(detail, secrets).slice(0, MAX_ERROR_CHARS);
+    const message = redactEngineError(redactSecrets(detail, secrets)).slice(
+      0,
+      MAX_ERROR_CHARS
+    );
     throw new AssistantDbQueryError(message || "The query failed.");
   }
   return parseQueryOutput(login.engine, stdout);

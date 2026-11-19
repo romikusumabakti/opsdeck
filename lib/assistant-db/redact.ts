@@ -173,3 +173,28 @@ export function redactLiterals(
     ? `${line.slice(0, MAX_REDACTED_SQL)}…`
     : line;
 }
+
+/**
+ * Engine error text with every value it could echo taken out, for the
+ * model, logs and anything else outside the server (Stage 9: a masked value
+ * must not come back through an error such as SQL Server's Msg 245
+ * "Conversion failed when converting the varchar value '<value>' …" or
+ * Postgres' `invalid input syntax for type integer: "<value>"`). Quoted
+ * substrings ('…', "…", `…`) become `?`, Postgres `Key (…)=(…)` values
+ * become `(?)`, and DETAIL / CONTEXT / WHERE lines, which echo row values,
+ * are dropped. Names in quotes go too; the error class and position stay.
+ */
+export function redactEngineError(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*(?:DETAIL|CONTEXT|WHERE):/i.test(line))
+    .map((line) =>
+      line
+        .replace(/\)=\((?:[^()]|\([^()]*\))*\)/g, ")=(?)")
+        .replace(/'(?:[^']|'')*'?/g, "?")
+        .replace(/"(?:[^"]|"")*"?/g, "?")
+        .replace(/`(?:[^`]|``)*`?/g, "?")
+    )
+    .join("\n")
+    .trim();
+}

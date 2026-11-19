@@ -12,7 +12,7 @@ import {
   type QueryResult,
   runAssistantDbQuery,
 } from "@/lib/assistant-db/query";
-import { redactLiterals } from "@/lib/assistant-db/redact";
+import { redactEngineError, redactLiterals } from "@/lib/assistant-db/redact";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 import { environmentName } from "@/lib/environments";
 import { holdsEngineerAnywhere } from "@/lib/permissions";
@@ -212,7 +212,7 @@ async function resolve(
 
 const failedMessage = (error: unknown) =>
   error instanceof AssistantDbQueryError
-    ? `The database returned an error: ${redactSecretLines(error.message).text}`
+    ? `The database returned an error (values and quoted names shown as ?): ${redactEngineError(redactSecretLines(error.message).text)}`
     : "The query could not be run on the database server.";
 
 // --- list_tables ---------------------------------------------------------------------

@@ -91,8 +91,10 @@ export function isSensitiveName(name: string): boolean {
 export type Cell = string | null;
 
 /**
- * Replaces every cell of a column that is sensitive by its result name, or
- * by `sensitive[i]` (the gate's resolution of the select list), with MASK.
+ * Replaces every cell of a sensitive column with MASK. With one flag per
+ * result column (`sensitive`, the gate's resolution of a select list without
+ * `*`) the flags decide, so a count of a sensitive column stays a number;
+ * otherwise a column is sensitive by its result name.
  * NULL cells are masked too, so the model can't tell which rows hold a
  * value. Returns the masked column names.
  */
@@ -101,8 +103,9 @@ export function maskRows(
   rows: readonly (readonly Cell[])[],
   sensitive: readonly boolean[] = []
 ): { rows: Cell[][]; masked: string[] } {
-  const hide = columns.map(
-    (name, i) => sensitive[i] === true || isSensitiveName(name)
+  const aligned = sensitive.length > 0 && sensitive.length === columns.length;
+  const hide = columns.map((name, i) =>
+    aligned ? sensitive[i] === true : isSensitiveName(name)
   );
   return {
     rows: rows.map((row) => row.map((cell, i) => (hide[i] ? MASK : cell))),

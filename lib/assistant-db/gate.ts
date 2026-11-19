@@ -2,6 +2,7 @@ import { Parser as MysqlParser } from "node-sql-parser/build/mysql";
 import { Parser as PostgresParser } from "node-sql-parser/build/postgresql";
 import { Parser as TransactSqlParser } from "node-sql-parser/build/transactsql";
 import type { DatabaseType } from "@/lib/services";
+import { isReservedWord } from "./keywords";
 import { isSensitiveName } from "./mask";
 import { sqlSegments } from "./redact";
 
@@ -404,11 +405,16 @@ function resolveColumn(item: Node): ResolvedColumn {
     ),
   ];
   const name = alias ?? (expr.type === "column_ref" ? columnName(expr) : null);
+  // A count is a number, whatever it counts (and however it is named).
+  const count =
+    expr.type === "aggr_func" && String(expr.name).toUpperCase() === "COUNT";
   return {
     name,
     sources,
     sensitive:
-      (name !== null && isSensitiveName(name)) || sources.some(isSensitiveName),
+      !count &&
+      ((name !== null && isSensitiveName(name)) ||
+        sources.some(isSensitiveName)),
     star: false,
   };
 }
@@ -558,6 +564,24 @@ function astCheck(
         }
       }
     }
+    // An alias spelled as a reserved word: on SQL Server `SELECT 1 shutdown`
+    // is two statements (no `;` needed), so only plain, unreserved aliases
+    // pass there; elsewhere a reserved word is refused too.
+    const alias = textOf(node.as);
+    if (alias !== null && !alias.includes("(")) {
+      if (isReservedWord(engine, alias)) {
+        return refuse(
+          "not_select",
+          `The alias ${alias} is a reserved word; use another alias.`
+        );
+      }
+      if (engine === "mssql" && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(alias)) {
+        return refuse(
+          "parse",
+          `The alias ${alias} is not supported on SQL Server; use a plain alias of letters, digits and _.`
+        );
+      }
+    }
     // `AS s(a, b)` renames a relation's columns.
     if (typeof node.as === "string" && node.as.includes("(")) {
       return refuse(
@@ -694,11 +718,11 @@ export function checkReadOnlyQuery(
   }
   const ast = statements[0];
   if (!isNode(ast) || ast.type !== "select") {
-    const type = isNode(ast) && typeof ast.type === "string" ? ast.type : "?";
-    return refuse(
-      "not_select",
-      `${type.toUpperCase()} is not allowed; ${ONE_SELECT}`
-    );
+    const type =
+      isNode(ast) && typeof ast.type === "string"
+        ? ast.type.toUpperCase()
+        : "This statement";
+    return refuse("not_select", `${type} is not allowed; ${ONE_SELECT}`);
   }
   const checked = astCheck(ast, engine);
   if ("ok" in checked) return checked;

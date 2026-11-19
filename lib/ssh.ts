@@ -36,6 +36,11 @@ export type RemoteCommandOptions = {
   timeoutMs?: number;
   stdin?: string;
   secrets?: string[];
+  /**
+   * Applied (after `secrets`) to a failure's output before it is thrown or
+   * logged, e.g. to take data values out of a database error.
+   */
+  redact?: (text: string) => string;
 };
 
 export async function executeRemoteCommand(
@@ -55,7 +60,10 @@ export async function executeRemoteCommand(
     timeoutMs = 10000,
     stdin,
     secrets = [],
-  } = typeof options === "number" ? { timeoutMs: options } : options;
+    redact,
+  } = typeof options === "number"
+    ? { timeoutMs: options, redact: undefined }
+    : options;
   // Fresh client per call: a shared singleton races when concurrent callers
   // (e.g. parallel worker jobs, overlapping backup/restore requests) all
   // connect/dispose the same instance and tear down each other's session.
@@ -93,19 +101,20 @@ export async function executeRemoteCommand(
   } catch (error) {
     // Carries no secret, and its code must reach the caller.
     if (error instanceof HostKeyMismatchError) throw error;
-    if (secrets.length > 0) {
+    if (secrets.length > 0 || redact) {
+      const clean = (text: string) => {
+        const out = redactSecrets(text, secrets);
+        return redact ? redact(out) : out;
+      };
       const redacted =
         error instanceof RemoteCommandError
           ? new RemoteCommandError(
               error.code,
-              redactSecrets(error.stdout, secrets),
-              redactSecrets(error.stderr, secrets)
+              clean(error.stdout),
+              clean(error.stderr)
             )
           : new Error(
-              redactSecrets(
-                error instanceof Error ? error.message : String(error),
-                secrets
-              )
+              clean(error instanceof Error ? error.message : String(error))
             );
       console.error("SSH Error:", redacted.message);
       throw redacted;

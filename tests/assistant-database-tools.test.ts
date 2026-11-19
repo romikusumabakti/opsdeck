@@ -345,9 +345,31 @@ describe("query_database", () => {
     const result = await query("SELECT id FROM orderz");
     expect(result).toMatchObject({
       ok: false,
-      error: expect.stringContaining('relation "orderz" does not exist'),
+      error: expect.stringContaining("relation ? does not exist"),
     });
     expect(fakes.activity[0]?.data).toMatchObject({ outcome: "failed" });
+  });
+
+  it("never passes a masked value back through a conversion error (SQL Server Msg 245)", async () => {
+    fakes.login = { ...POSTGRES_LOGIN, engine: "mssql", password: "pw" };
+    fakes.error = new AssistantDbQueryError(
+      "Msg 245, Level 16, State 1, Line 1\nConversion failed when converting the varchar value 'rani@example.invalid' to data type int."
+    );
+    const result = await query("SELECT id FROM members WHERE email = 1");
+    expect(result.ok).toBe(false);
+    const error = result.ok ? "" : result.error;
+    expect(error).toContain(
+      "Conversion failed when converting the varchar value ? to data type int"
+    );
+    expect(error).not.toContain("rani@example.invalid");
+  });
+
+  it("returns a count of a sensitive column as a number", async () => {
+    fakes.result = { columns: ["email_count"], rows: [["42"]] };
+    const result = await query(
+      "SELECT count(DISTINCT email) AS email_count FROM members"
+    );
+    expect(result).toMatchObject({ ok: true, data: { rows: [["42"]] } });
   });
 
   it("hides an unexpected failure's text", async () => {

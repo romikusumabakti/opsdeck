@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checkReadOnlyQuery } from "@/lib/assistant-db/gate";
 import { isSensitiveName, MASK, maskRows } from "@/lib/assistant-db/mask";
-import { redactLiterals } from "@/lib/assistant-db/redact";
+import { redactEngineError, redactLiterals } from "@/lib/assistant-db/redact";
 
 // The Assistant's database gate (Stage 9 spec F.3): exactly one read-only
 // SELECT, parsed per engine before anything is sent; sensitive columns are
@@ -289,20 +289,74 @@ describe("isSensitiveName", () => {
 });
 
 describe("maskRows", () => {
-  it("replaces the cells of sensitive columns and names them", () => {
+  it("masks by result name without the gate's flags (SELECT *)", () => {
     const result = maskRows(
-      ["id", "password_hash", "shipment_date", "x"],
+      ["id", "password_hash", "shipment_date"],
       [
-        ["1", "$2b$hash", "2026-01-01", "a"],
-        ["2", null, "2026-01-02", "b"],
-      ],
-      [false, false, false, true]
+        ["1", "$2b$hash", "2026-01-01"],
+        ["2", null, "2026-01-02"],
+      ]
     );
     expect(result.rows).toEqual([
-      ["1", MASK, "2026-01-01", MASK],
-      ["2", MASK, "2026-01-02", MASK],
+      ["1", MASK, "2026-01-01"],
+      ["2", MASK, "2026-01-02"],
     ]);
-    expect(result.masked).toEqual(["password_hash", "x"]);
+    expect(result.masked).toEqual(["password_hash"]);
+  });
+
+  it("follows the gate's flags when there is one per column", () => {
+    const result = maskRows(
+      ["id", "email_count", "x"],
+      [["1", "42", "a"]],
+      [false, false, true]
+    );
+    expect(result.rows).toEqual([["1", "42", MASK]]);
+    expect(result.masked).toEqual(["x"]);
+  });
+});
+
+describe("checkReadOnlyQuery: aliases spelled as reserved words", () => {
+  it.each([
+    "SELECT 1 shutdown",
+    "SELECT 1 checkpoint",
+    "SELECT 1 reconfigure",
+    "SELECT 1 setuser",
+    "SELECT 1 revert",
+    "SELECT 1 commit",
+    "SELECT 1 rollback",
+    "SELECT 1 throw",
+    "SELECT id FROM orders shutdown",
+    "SELECT 1 x, 2 checkpoint",
+    "SELECT id AS checkpoint FROM orders",
+  ])("mssql refuses %j", (sql) => {
+    expect(refused(sql, "mssql")).toBe("not_select");
+  });
+
+  it("mssql accepts only plain aliases", () => {
+    expect(refused("SELECT 1 AS [Total Amount]", "mssql")).toBe("parse");
+    expect(refused("SELECT id total, o.status FROM orders o", "mssql")).toBe(
+      "accepted"
+    );
+  });
+
+  it("postgres and mysql refuse reserved-word aliases too", () => {
+    expect(refused('SELECT 1 AS "select"', "postgres")).toBe("not_select");
+    expect(refused("SELECT 1 AS `lock`", "mysql")).toBe("not_select");
+    expect(refused("SELECT 1 AS total", "postgres")).toBe("accepted");
+  });
+});
+
+describe("checkReadOnlyQuery: counts of sensitive columns", () => {
+  it("resolves a count as not sensitive, whatever its alias", () => {
+    const result = checkReadOnlyQuery(
+      "SELECT count(email), count(DISTINCT nik) AS nik_count, email FROM members GROUP BY email",
+      "postgres"
+    );
+    expect(result.ok && result.outputColumns.map((c) => c.sensitive)).toEqual([
+      false,
+      false,
+      true,
+    ]);
   });
 });
 
@@ -346,5 +400,51 @@ describe("redactLiterals", () => {
 
   it("redacts an unterminated literal to the end", () => {
     expect(redactLiterals("SELECT 'secret")).toBe("SELECT ?");
+  });
+});
+
+describe("redactEngineError", () => {
+  it.each([
+    [
+      "mssql Msg 245",
+      "Msg 245, Level 16, State 1, Server db1, Line 1\nConversion failed when converting the varchar value 'rani@example.invalid' to data type int.",
+      "Msg 245, Level 16, State 1, Server db1, Line 1\nConversion failed when converting the varchar value ? to data type int.",
+    ],
+    [
+      "mssql Msg 8114",
+      "Msg 8114, Level 16, State 5, Line 1\nError converting data type nvarchar to numeric. Value N'3201234567890001'",
+      "Msg 8114, Level 16, State 5, Line 1\nError converting data type nvarchar to numeric. Value N?",
+    ],
+    [
+      "postgres invalid input",
+      'ERROR:  invalid input syntax for type integer: "3201234567890001"\nLINE 1: SELECT * FROM (SELECT id FROM members WHERE nik = 1) AS menara_q LIMIT 101\n                                                            ^',
+      "ERROR:  invalid input syntax for type integer: ?\nLINE 1: SELECT * FROM (SELECT id FROM members WHERE nik = 1) AS menara_q LIMIT 101\n                                                            ^",
+    ],
+    [
+      "postgres DETAIL and CONTEXT",
+      'ERROR:  duplicate key value violates unique constraint "members_email_key"\nDETAIL:  Key (email)=(rani@example.invalid) already exists.\nCONTEXT:  SQL function "f" statement 1',
+      "ERROR:  duplicate key value violates unique constraint ?",
+    ],
+    [
+      "postgres Key value inline",
+      "ERROR:  conflict: Key (nik)=(3201 (old)) already exists.",
+      "ERROR:  conflict: Key (nik)=(?) already exists.",
+    ],
+    [
+      "mysql truncated value",
+      "ERROR 1292 (22007) at line 1: Truncated incorrect DOUBLE value: 'rani@example.invalid'",
+      "ERROR 1292 (22007) at line 1: Truncated incorrect DOUBLE value: ?",
+    ],
+    [
+      "mysql unknown column",
+      "ERROR 1054 (42S22) at line 1: Unknown column 'emial' in 'field list'",
+      "ERROR 1054 (42S22) at line 1: Unknown column ? in ?",
+    ],
+  ])("%s", (_, error, expected) => {
+    expect(redactEngineError(error)).toBe(expected);
+  });
+
+  it("hides an unterminated quote to the end of its line", () => {
+    expect(redactEngineError("value 'rani@exam")).toBe("value ?");
   });
 });
