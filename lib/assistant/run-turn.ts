@@ -43,6 +43,7 @@ import {
   type QuestionSource,
   questionContextLabel,
 } from "./system-prompt";
+import { generateConversationTitle } from "./title";
 import {
   buildTools,
   type ListedProject,
@@ -122,6 +123,8 @@ export type RunTurnDeps = {
   panelCores?: Partial<PanelCores>;
   /** The Panel status probe's wall-clock bound (tests). */
   probeTimeoutMs?: number;
+  /** The auto title, asked for after a done answer (lib/assistant/title.ts). */
+  generateTitle?: (conversationId: string) => Promise<unknown>;
 };
 
 /** A turn- or request-level failure carrying its stable code. */
@@ -713,6 +716,20 @@ export async function runTurn(
       messageId,
       { status: "failed", content: writer.text, errorCode: code },
       now()
+    );
+    return;
+  }
+  // The answer is done: name the chat if it was the first (a no-op for any
+  // other turn, a temporary chat or a renamed one). Its failure keeps the
+  // answer done.
+  try {
+    await (deps.generateTitle ?? generateConversationTitle)(
+      turn.conversationId
+    );
+  } catch (error) {
+    console.error(
+      `[assistant] auto title of ${turn.conversationId} failed`,
+      error
     );
   }
 }

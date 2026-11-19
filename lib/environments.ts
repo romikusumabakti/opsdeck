@@ -86,6 +86,7 @@ function decryptService(service: ServiceWithServer): ServiceWithServer {
     ...service,
     dbPassword: decryptNullable(service.dbPassword),
     mockTimeApiKey: decryptNullable(service.mockTimeApiKey),
+    assistantDbPassword: decryptNullable(service.assistantDbPassword),
     server: decryptServer(service.server),
   };
 }
@@ -97,7 +98,14 @@ function decryptServer(server: Server): Server {
 
 /** Drop a service's secrets, keeping presence flags for the edit forms. */
 function stripService(service: ServiceWithServer): SafeServiceWithServer {
-  const { dbPassword, mockTimeApiKey, server, ...rest } = service;
+  const {
+    dbPassword,
+    mockTimeApiKey,
+    // The Assistant login's password never leaves the server.
+    assistantDbPassword: _assistantDbPassword,
+    server,
+    ...rest
+  } = service;
   return {
     ...rest,
     server: toSafeServer(server),

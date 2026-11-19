@@ -7,16 +7,22 @@ import {
   authorizeMessageStream,
   conversationIdInputSchema,
   createConversation,
+  createConversationInputSchema,
   createJiraIssue,
   deleteConversation,
   draftIdInputSchema,
+  editQuestion,
+  editQuestionInputSchema,
   generateConversationDraft,
   generateDraftInputSchema,
   getAllowance,
   getConversation,
   listConversations,
+  listConversationsInputSchema,
   listDraftProjects,
   listIssueAttachmentsForPicker,
+  pinConversation,
+  pinConversationInputSchema,
   renameConversation,
   renameConversationInputSchema,
   retryAnswer,
@@ -45,9 +51,21 @@ const STREAM_MAX_DURATION_MS = 10 * 60 * 1000;
 /** The assistant's chats. Each service function authorizes the caller. */
 export const assistantRouter = sessionRouter()
   .get("/allowance", async (c) => c.json(await getAllowance()))
-  // The caller's own conversations, all projects; a new one has no project.
-  .get("/list-conversations", async (c) => c.json(await listConversations()))
-  .post("/create-conversation", async (c) => c.json(await createConversation()))
+  // The caller's own conversations, all projects: `{ pinned, recent }`,
+  // never a temporary chat; `query` searches titles and message text.
+  .get("/list-conversations", query(listConversationsInputSchema), async (c) =>
+    c.json(await listConversations(c.req.valid("query")))
+  )
+  // `{ temporary: true }` for a temporary chat.
+  .post(
+    "/create-conversation",
+    json(createConversationInputSchema),
+    async (c) => c.json(await createConversation(c.req.valid("json")))
+  )
+  .post("/pin-conversation", json(pinConversationInputSchema), async (c) => {
+    const { conversationId, pinned } = c.req.valid("json");
+    return c.json(await pinConversation(conversationId, pinned));
+  })
   .get(
     "/get-conversation",
     query(z.object({ conversationId: uuidSchema })),
@@ -76,6 +94,10 @@ export const assistantRouter = sessionRouter()
   // Replaces the last answer with a new one to the same question.
   .post("/retry-answer", json(conversationIdInputSchema), async (c) =>
     c.json(await retryAnswer(c.req.valid("json").conversationId))
+  )
+  // Replaces the last question's text and its answer (stop a running one first).
+  .post("/edit-last-question", json(editQuestionInputSchema), async (c) =>
+    c.json(await editQuestion(c.req.valid("json")))
   )
   .post("/send-message", json(sendMessageInputSchema), async (c) =>
     c.json(await sendMessage(c.req.valid("json")))

@@ -119,6 +119,7 @@ const JOB_PAYLOAD_SCHEMAS: { [N in JobName]: z.ZodType<JobMap[N]> } = {
   "environment/archives.prune": z.object({}).strict(),
   "deploy/lock-sweep": z.object({}).strict(),
   "assistant/uploads.prune": z.object({}).strict(),
+  "assistant/temporary.prune": z.object({}).strict(),
   "instance/backup.run": z.object({ trigger: z.enum(["schedule", "manual"]) }),
   "instance/update.check": z.object({}).strict(),
   "server-key-move-all": z.object({ keyJobId: uuidSchema }),

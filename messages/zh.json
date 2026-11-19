@@ -3948,6 +3948,8 @@
     "refused": "助手拒绝回答此请求。",
     "tooManySteps": "助手执行的步骤过多已停止，请尝试更具体的问题。",
     "nothingToRetry": "没有可重试的回答。",
+    "nothingToEdit": "没有可编辑的问题。",
+    "temporaryChat": "临时聊天无法置顶。",
     "interrupted": "回答已中断，请重新发送消息。",
     "stopped": "已停止",
     "failed": "助手无法回答，请重试。",

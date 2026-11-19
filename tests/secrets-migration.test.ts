@@ -61,6 +61,12 @@ describe("secrets migration", () => {
         column: "mock_time_api_key",
         idType: "uuid",
       },
+      // The Assistant's read-only login (mssql, mysql).
+      {
+        table: "environment_services",
+        column: "assistant_db_password",
+        idType: "uuid",
+      },
       { table: "s3_connections", column: "secret_key", idType: "uuid" },
       // The instance backup destination's own secret (single row, id 1).
       {

@@ -487,6 +487,26 @@ export const environmentServices = pgTable(
     mockTimeApiUrl: text("mock_time_api_url"),
     // Optional API key sent as the `X-Api-Key` header on mock-time requests.
     mockTimeApiKey: text("mock_time_api_key"),
+
+    // --- db-role: the Assistant's read-only access (opt-in, off by default) ---
+    // An admin or infra user let the Assistant query this database through a
+    // dedicated least-privilege login (Stage 9 spec F).
+    assistantDbEnabled: boolean("assistant_db_enabled")
+      .notNull()
+      .default(false),
+    // The dedicated read-only login/role; null while not enabled.
+    assistantDbLogin: text("assistant_db_login"),
+    // The login's generated password (mssql, mysql), encrypted with
+    // lib/secrets.ts like db_password; null for postgres (trusted local auth).
+    assistantDbPassword: text("assistant_db_password"),
+    assistantDbEnabledAt: timestamp("assistant_db_enabled_at"),
+    assistantDbEnabledBy: uuid("assistant_db_enabled_by").references(
+      () => users.id,
+      {
+        name: "environment_services_assistant_db_enabled_by_fkey",
+        onDelete: "set null",
+      }
+    ),
   },
   (t) => [
     // Exactly one service per role today (getServiceConfig resolves by role).
@@ -2533,7 +2553,7 @@ export type SafeServer = Omit<
 // requirements without ever receiving the secret.
 export type SafeServiceWithServer = Omit<
   EnvironmentService,
-  "dbPassword" | "mockTimeApiKey"
+  "dbPassword" | "mockTimeApiKey" | "assistantDbPassword"
 > & {
   server: SafeServer;
   hasDbPassword: boolean;
@@ -2954,6 +2974,15 @@ export const assistantConversations = pgTable(
     // null for a project-level conversation.
     environmentName: text("environment_name"),
     title: text("title").notNull().default(""),
+    // Where the title came from: the first question (default), the auto
+    // title (lib/assistant/title.ts) or the user's rename, which the auto
+    // title never overwrites.
+    titleSource: text("title_source").notNull().default("first_message"),
+    // Set while pinned; the Pinned section is ordered by it, newest first.
+    pinnedAt: timestamp("pinned_at"),
+    // A temporary chat: never listed, searched, pinned or auto-titled, and
+    // deleted 24 h after its last activity (updated_at).
+    temporary: boolean("temporary").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -2961,6 +2990,14 @@ export const assistantConversations = pgTable(
     index("assistant_conversations_user_updated_idx").on(
       t.userId,
       t.updatedAt.desc()
+    ),
+    // The hourly prune finds temporary chats by their last activity.
+    index("assistant_conversations_temporary_updated_idx")
+      .on(t.updatedAt)
+      .where(sql`${t.temporary}`),
+    check(
+      "assistant_conversations_title_source_check",
+      sql`${t.titleSource} in ('first_message', 'generated', 'user')`
     ),
   ]
 );

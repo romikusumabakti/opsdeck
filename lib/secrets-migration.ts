@@ -16,6 +16,11 @@ export const SECRET_COLUMNS = [
     column: "mock_time_api_key",
     idType: "uuid",
   },
+  {
+    table: "environment_services",
+    column: "assistant_db_password",
+    idType: "uuid",
+  },
   { table: "s3_connections", column: "secret_key", idType: "uuid" },
   {
     table: "instance_settings",

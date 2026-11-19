@@ -28,17 +28,27 @@ export const getAllowanceQuery = () =>
   });
 
 /**
- * The caller's conversations, all projects, newest first, each with the
- * label of its latest question's context (`lastContextLabel`).
+ * The caller's conversations, all projects: `pinned` (most recently pinned
+ * first) and `recent` (newest first), each with the label of its latest
+ * question's context (`lastContextLabel`); never a temporary chat. `query`
+ * (at most 200 characters) searches the caller's chats by title or message
+ * text, case-insensitively.
  */
-export async function listConversations() {
-  return parseResponse(routes["list-conversations"].$get());
+export async function listConversations(query?: string) {
+  return parseResponse(
+    routes["list-conversations"].$get({
+      query: query ? { query } : {},
+    })
+  );
 }
 
-export const listConversationsQuery = () =>
+/** Without a query: the list. With one: its search results, cached apart. */
+export const listConversationsQuery = (query?: string) =>
   queryOptions({
-    queryKey: ["assistant", "listConversations"],
-    queryFn: listConversations,
+    queryKey: query
+      ? ["assistant", "listConversations", { query }]
+      : ["assistant", "listConversations"],
+    queryFn: () => listConversations(query),
   });
 
 export async function getConversation(conversationId: string) {
@@ -70,9 +80,29 @@ export const listIssueAttachmentsQuery = (
     queryFn: () => listIssueAttachments(...args),
   });
 
-/** A new conversation (no project); each question then picks its context. */
-export async function createConversation() {
-  return parseResponse(routes["create-conversation"].$post());
+/**
+ * A new conversation (no project); each question then picks its context.
+ * `temporary`: never listed, searched, pinned or auto-titled, deleted 24 h
+ * after its last activity.
+ */
+export async function createConversation(
+  input: Body<"create-conversation"> = {}
+) {
+  return parseResponse(routes["create-conversation"].$post({ json: input }));
+}
+
+/** Pins or unpins the caller's chat; a temporary one is refused. */
+export async function pinConversation(input: Body<"pin-conversation">) {
+  return parseResponse(routes["pin-conversation"].$post({ json: input }));
+}
+
+/**
+ * Replaces the last question's text and its answer with a new one
+ * (`assistantMessageId`); refused with `assistant.busy` while the answer
+ * runs.
+ */
+export async function editLastQuestion(input: Body<"edit-last-question">) {
+  return parseResponse(routes["edit-last-question"].$post({ json: input }));
 }
 
 /** Renames the caller's chat (1..80 characters, one line). */
@@ -229,9 +259,8 @@ export type DraftProjectOption = Awaited<
 >[number];
 /** A user message's context; null on assistant messages. */
 export type MessageContext = NonNullable<ConversationMessage["context"]>;
-export type ConversationSummary = Awaited<
-  ReturnType<typeof listConversations>
->[number];
+export type ConversationList = Awaited<ReturnType<typeof listConversations>>;
+export type ConversationSummary = ConversationList["recent"][number];
 export type IssueAttachmentList = Awaited<
   ReturnType<typeof listIssueAttachments>
 >;

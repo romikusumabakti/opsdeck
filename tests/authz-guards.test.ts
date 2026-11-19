@@ -554,6 +554,8 @@ describe("lookups by client-supplied id check the caller first", () => {
       "sendMessage",
       "renameConversation",
       "deleteConversation",
+      "pinConversation",
+      "editQuestion",
     ]) {
       expect(body(source, fn)).toMatch(/ownConversation\(/);
     }
@@ -566,7 +568,7 @@ describe("lookups by client-supplied id check the caller first", () => {
       /requireOwnConversation\(/
     );
     expect(body(source, "listConversations")).toMatch(
-      /requireAssistantGate\(\)[\s\S]*listConversationsOf\(session\.user\.id\)/
+      /requireAssistantGate\(\)[\s\S]*listConversationsOf\(session\.user\.id[,)]/
     );
   });
   it("assistant uploads are their uploader's, behind the global gate", () => {

@@ -61,6 +61,11 @@ function makeDbService(
     databaseHostId: null,
     dbRole: null,
     dbPasswordVariable: null,
+    assistantDbEnabled: false,
+    assistantDbLogin: null,
+    assistantDbPassword: null,
+    assistantDbEnabledAt: null,
+    assistantDbEnabledBy: null,
     server: makeServer("11"),
     ...overrides,
   };
@@ -87,6 +92,11 @@ function makeBackendService(
     databaseHostId: null,
     dbRole: null,
     dbPasswordVariable: null,
+    assistantDbEnabled: false,
+    assistantDbLogin: null,
+    assistantDbPassword: null,
+    assistantDbEnabledAt: null,
+    assistantDbEnabledBy: null,
     server: makeServer("22"),
     ...overrides,
   };
@@ -113,6 +123,11 @@ function makeFrontendService(
     databaseHostId: null,
     dbRole: null,
     dbPasswordVariable: null,
+    assistantDbEnabled: false,
+    assistantDbLogin: null,
+    assistantDbPassword: null,
+    assistantDbEnabledAt: null,
+    assistantDbEnabledBy: null,
     server: makeServer("33"),
     ...overrides,
   };
@@ -153,6 +168,26 @@ describe("sanitizeEnvironment", () => {
       expect(service).not.toHaveProperty("dbPassword");
       expect(service).not.toHaveProperty("mockTimeApiKey");
     }
+  });
+
+  it("strips the Assistant login's password, keeping the opt-in", () => {
+    const safe = sanitizeEnvironment(
+      makeProject({
+        services: [
+          makeDbService({
+            assistantDbEnabled: true,
+            assistantDbLogin: "menara_ro_appdb",
+            assistantDbPassword: "assistant-ro-secret",
+          }),
+        ],
+      })
+    );
+    expect(dbService(safe)).not.toHaveProperty("assistantDbPassword");
+    expect(dbService(safe)).toMatchObject({
+      assistantDbEnabled: true,
+      assistantDbLogin: "menara_ro_appdb",
+    });
+    expect(JSON.stringify(safe)).not.toContain("assistant-ro-secret");
   });
 
   it("sets presence flags true when secrets are present", () => {

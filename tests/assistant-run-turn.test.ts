@@ -120,6 +120,15 @@ vi.mock("@/lib/assistant/turn-store", () => ({
   ),
 }));
 
+// The auto title runs after a done answer; its own tests are
+// tests/assistant-title.test.ts.
+const title = vi.hoisted(() => ({
+  generate: vi.fn(async (_conversationId: string) => "generated" as const),
+}));
+vi.mock("@/lib/assistant/title", () => ({
+  generateConversationTitle: title.generate,
+}));
+
 const {
   runTurn,
   classifyError,
@@ -477,6 +486,7 @@ beforeEach(() => {
   state.sourceWriteFailures = 0;
   state.usage = [];
   state.finishes = 0;
+  title.generate.mockClear();
 });
 
 // One response's cost at PRICES.
@@ -487,6 +497,37 @@ const spentSoFar = () =>
   state.usage.reduce((sum, row) => sum + Number(row.costUsd), 1.49);
 
 describe("runTurn", () => {
+  it("asks for the auto title once the answer is done, never after a failure", async () => {
+    const { model } = mockModel([{ text: ["Jawaban."], finish: "stop" }]);
+    await runTurn(MESSAGE_ID, deps(model));
+    expect(state.message.status).toBe("done");
+    expect(title.generate).toHaveBeenCalledExactlyOnceWith("conv-1");
+
+    title.generate.mockClear();
+    state.message = {
+      status: "queued",
+      content: "",
+      errorCode: null,
+      sources: null,
+    };
+    const { model: failing } = mockModel([
+      { error: new UnsupportedFunctionalityError({ functionality: "tools" }) },
+    ]);
+    await runTurn(MESSAGE_ID, deps(failing));
+    expect(state.message.status).toBe("failed");
+    expect(title.generate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the answer done when the auto title throws", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    title.generate.mockRejectedValueOnce(new Error("db blip"));
+    const { model } = mockModel([{ text: ["Jawaban."], finish: "stop" }]);
+    await runTurn(MESSAGE_ID, deps(model));
+    expect(state.message.status).toBe("done");
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it("runs a tool call and ends done with the final text", async () => {
     const { model, calls } = mockModel([
       {

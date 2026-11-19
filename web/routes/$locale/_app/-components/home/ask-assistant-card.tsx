@@ -141,7 +141,12 @@ export function AskAssistantCard() {
       ? errorText(ask.error)
       : null;
   const locked = capped || ask.isPending;
-  const recents = conversations?.slice(0, MAX_RECENTS);
+  // The latest chats, pinned or not.
+  const recents = conversations
+    ? [...conversations.pinned, ...conversations.recent]
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+        .slice(0, MAX_RECENTS)
+    : undefined;
 
   return (
     <section className="flex flex-col gap-3">

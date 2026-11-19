@@ -1,4 +1,16 @@
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  lt,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   assistantConversations,
@@ -105,10 +117,12 @@ export async function findEnvironment(environmentId: string): Promise<{
   return row ?? null;
 }
 
-export type ConversationSummary = {
+export type ConversationListItem = {
   id: string;
   title: string;
   updatedAt: Date;
+  /** When the user pinned it; null when not pinned. */
+  pinnedAt: Date | null;
   /**
    * The name of the project or environment (with its project) the latest
    * question pinned, kept once deleted; null for an automatic one or no
@@ -119,19 +133,81 @@ export type ConversationSummary = {
   lastContextDeleted: boolean;
 };
 
-/** The user's conversations, all projects, newest first. */
+/** The longest chat search query, in characters. */
+export const SEARCH_QUERY_MAX_CHARS = 200;
+
+/** `text` as a literal ILIKE pattern: its wildcards and escapes matched as-is. */
+function containsPattern(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+export type ConversationList = {
+  /** Most recently pinned first. */
+  pinned: ConversationListItem[];
+  /** The rest, newest (updated_at) first. */
+  recent: ConversationListItem[];
+};
+
+/**
+ * The user's conversations, all projects: the pinned ones (most recently
+ * pinned first) and the rest (newest first). Temporary chats are never
+ * listed. With a `query`, only chats whose title or any message (question
+ * or answer) contains it, case-insensitively.
+ */
 export async function listConversationsOf(
-  userId: string
-): Promise<ConversationSummary[]> {
+  userId: string,
+  options: { query?: string } = {}
+): Promise<ConversationList> {
+  const query = options.query?.trim() ?? "";
+  const filters: SQL[] = [
+    eq(assistantConversations.userId, userId),
+    eq(assistantConversations.temporary, false),
+  ];
+  if (query) {
+    const pattern = containsPattern(query);
+    const match = or(
+      ilike(assistantConversations.title, pattern),
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(assistantMessages)
+          .where(
+            and(
+              eq(assistantMessages.conversationId, assistantConversations.id),
+              ilike(assistantMessages.content, pattern)
+            )
+          )
+      )
+    );
+    if (match) filters.push(match);
+  }
   const conversations = await db
     .select({
       id: assistantConversations.id,
       title: assistantConversations.title,
       updatedAt: assistantConversations.updatedAt,
+      pinnedAt: assistantConversations.pinnedAt,
     })
     .from(assistantConversations)
-    .where(eq(assistantConversations.userId, userId))
-    .orderBy(desc(assistantConversations.updatedAt));
+    .where(and(...filters))
+    .orderBy(
+      sql`${assistantConversations.pinnedAt} desc nulls last`,
+      desc(assistantConversations.updatedAt)
+    );
+  const items = await withContextLabels(conversations);
+  return {
+    pinned: items.filter((c) => c.pinnedAt !== null),
+    recent: items.filter((c) => c.pinnedAt === null),
+  };
+}
+
+/** Each conversation with the label of its latest question's context. */
+async function withContextLabels(
+  conversations: Omit<
+    ConversationListItem,
+    "lastContextLabel" | "lastContextDeleted"
+  >[]
+): Promise<ConversationListItem[]> {
   if (conversations.length === 0) return [];
   // The latest user message of each (uuidv7 ids sort by creation).
   const latest = await db
@@ -163,16 +239,62 @@ export async function listConversationsOf(
   }));
 }
 
-/** A conversation; each question then carries its own context (insertTurn). */
+/**
+ * A conversation; each question then carries its own context (insertTurn).
+ * A temporary one is never listed, searched, pinned or auto-titled, and the
+ * hourly prune deletes it 24 h after its last activity.
+ */
 export async function insertConversation(values: {
   userId: string;
+  temporary?: boolean;
 }): Promise<string> {
   const [row] = await db
     .insert(assistantConversations)
-    .values(values)
+    .values({ userId: values.userId, temporary: values.temporary ?? false })
     .returning({ id: assistantConversations.id });
   if (!row) throw new Error("conversation insert returned no row");
   return row.id;
+}
+
+/**
+ * Pins or unpins the user's conversation. Pinning keeps an existing pin's
+ * time (and so its place); updated_at stays, so Recent keeps its order.
+ * "not_found" for another user's or an unknown chat, "temporary" for a
+ * temporary chat (never pinned); nothing written either way.
+ */
+export async function setConversationPinned(
+  userId: string,
+  conversationId: string,
+  pinned: boolean,
+  now: Date = new Date()
+): Promise<"ok" | "not_found" | "temporary"> {
+  const [row] = await db
+    .select({ temporary: assistantConversations.temporary })
+    .from(assistantConversations)
+    .where(
+      and(
+        eq(assistantConversations.id, conversationId),
+        eq(assistantConversations.userId, userId)
+      )
+    )
+    .limit(1);
+  if (!row) return "not_found";
+  if (row.temporary) return "temporary";
+  await db
+    .update(assistantConversations)
+    .set({
+      pinnedAt: pinned
+        ? sql`coalesce(${assistantConversations.pinnedAt}, ${now})`
+        : null,
+    })
+    .where(
+      and(
+        eq(assistantConversations.id, conversationId),
+        eq(assistantConversations.userId, userId),
+        eq(assistantConversations.temporary, false)
+      )
+    );
+  return "ok";
 }
 
 export type ConversationOwner = {
@@ -194,15 +316,97 @@ export async function findConversation(
   return row ?? null;
 }
 
-/** Sets the title the user chose; updated_at stays, so the list keeps its order. */
+/**
+ * Sets the title the user chose, which the auto title then never
+ * overwrites; updated_at stays, so the list keeps its order.
+ */
 export async function updateConversationTitle(
   conversationId: string,
   title: string
 ): Promise<void> {
   await db
     .update(assistantConversations)
-    .set({ title })
+    .set({ title, titleSource: "user" })
     .where(eq(assistantConversations.id, conversationId));
+}
+
+export type TitleInput = {
+  userId: string;
+  question: string;
+  answer: string;
+  answerMessageId: string;
+};
+
+/**
+ * What the auto title is made from: the first question and its done answer.
+ * Null (no title to make) unless the conversation still has its first-message
+ * title, is not temporary, has exactly one question and that question's
+ * answer is done.
+ */
+export async function loadTitleInput(
+  conversationId: string
+): Promise<TitleInput | null> {
+  const [conversation] = await db
+    .select({ userId: assistantConversations.userId })
+    .from(assistantConversations)
+    .where(
+      and(
+        eq(assistantConversations.id, conversationId),
+        eq(assistantConversations.titleSource, "first_message"),
+        eq(assistantConversations.temporary, false)
+      )
+    )
+    .limit(1);
+  if (!conversation) return null;
+  const messages = await db
+    .select({
+      id: assistantMessages.id,
+      role: assistantMessages.role,
+      status: assistantMessages.status,
+      content: assistantMessages.content,
+    })
+    .from(assistantMessages)
+    .where(eq(assistantMessages.conversationId, conversationId))
+    .orderBy(asc(assistantMessages.id))
+    .limit(3);
+  const [question, answer, more] = messages;
+  if (
+    more ||
+    question?.role !== "user" ||
+    answer?.role !== "assistant" ||
+    answer.status !== "done"
+  ) {
+    return null;
+  }
+  return {
+    userId: conversation.userId,
+    question: question.content,
+    answer: answer.content,
+    answerMessageId: answer.id,
+  };
+}
+
+/**
+ * Stores the auto title, unless the user renamed the chat (or it was titled
+ * already, or is temporary) meanwhile: the check and the write are one
+ * statement. False when nothing was written.
+ */
+export async function saveGeneratedTitle(
+  conversationId: string,
+  title: string
+): Promise<boolean> {
+  const saved = await db
+    .update(assistantConversations)
+    .set({ title, titleSource: "generated" })
+    .where(
+      and(
+        eq(assistantConversations.id, conversationId),
+        eq(assistantConversations.titleSource, "first_message"),
+        eq(assistantConversations.temporary, false)
+      )
+    )
+    .returning({ id: assistantConversations.id });
+  return saved.length > 0;
 }
 
 /**
@@ -215,13 +419,36 @@ export async function updateConversationTitle(
 export async function deleteConversationRows(
   conversationId: string
 ): Promise<string[]> {
+  return (await deleteRowsIf(conversationId)) ?? [];
+}
+
+/**
+ * deleteConversationRows; with `idleBefore`, only while the chat is still a
+ * temporary one idle since before it. Null when nothing was deleted.
+ */
+async function deleteRowsIf(
+  conversationId: string,
+  idleBefore?: Date
+): Promise<string[] | null> {
   return db.transaction(async (tx) => {
     const [conversation] = await tx
       .select({ id: assistantConversations.id })
       .from(assistantConversations)
-      .where(eq(assistantConversations.id, conversationId))
+      .where(
+        and(
+          eq(assistantConversations.id, conversationId),
+          // The prune's own check, again under the lock: a question asked
+          // meanwhile keeps the chat.
+          idleBefore
+            ? and(
+                eq(assistantConversations.temporary, true),
+                lt(assistantConversations.updatedAt, idleBefore)
+              )
+            : undefined
+        )
+      )
       .for("update");
-    if (!conversation) return [];
+    if (!conversation) return null;
     const files = await tx
       .delete(assistantFiles)
       .where(
@@ -308,6 +535,10 @@ export type ConversationDraft = {
 export type ConversationDetail = {
   id: string;
   title: string;
+  /** A temporary chat (shown with a badge; never listed). */
+  temporary: boolean;
+  /** When the user pinned it; null when not pinned. */
+  pinnedAt: Date | null;
   messages: ConversationMessage[];
   drafts: ConversationDraft[];
 };
@@ -342,6 +573,8 @@ export async function loadConversationDetail(
       id: assistantConversations.id,
       title: assistantConversations.title,
       userId: assistantConversations.userId,
+      temporary: assistantConversations.temporary,
+      pinnedAt: assistantConversations.pinnedAt,
     })
     .from(assistantConversations)
     .where(eq(assistantConversations.id, conversationId))
@@ -394,6 +627,8 @@ export async function loadConversationDetail(
   return {
     id: conversation.id,
     title: conversation.title,
+    temporary: conversation.temporary,
+    pinnedAt: conversation.pinnedAt,
     messages: messages.map(
       ({ projectId, projectName, environmentId, environmentName, ...m }) => ({
         ...m,
@@ -590,6 +825,120 @@ export async function replaceLastAnswer(
       .where(eq(assistantConversations.id, conversationId));
     return { assistantMessageId: answer.id };
   });
+}
+
+/**
+ * Edit of the last question: replaces the user's last question text and its
+ * answer with a new queued one, in one transaction with the conversation row
+ * locked first (as replaceLastAnswer). The question keeps its id, context and
+ * files. "not_found" for another user's or an unknown chat, "busy" while the
+ * last answer is queued or streaming, "nothing_to_edit" before any question;
+ * nothing written in each case. The old answer goes (its tool calls with it,
+ * its usage rows stay with message_id null). An only question still titled
+ * from it gets the title of its new text.
+ */
+export async function editLastQuestion(
+  userId: string,
+  conversationId: string,
+  text: string,
+  now: Date = new Date()
+): Promise<CreatedTurn | "not_found" | "busy" | "nothing_to_edit"> {
+  return await db.transaction(async (tx) => {
+    const [conversation] = await tx
+      .select({ titleSource: assistantConversations.titleSource })
+      .from(assistantConversations)
+      .where(
+        and(
+          eq(assistantConversations.id, conversationId),
+          eq(assistantConversations.userId, userId)
+        )
+      )
+      .for("update");
+    if (!conversation) return "not_found";
+
+    const messages = await tx
+      .select({
+        id: assistantMessages.id,
+        role: assistantMessages.role,
+        status: assistantMessages.status,
+      })
+      .from(assistantMessages)
+      .where(eq(assistantMessages.conversationId, conversationId))
+      .orderBy(desc(assistantMessages.id));
+    const [last] = messages;
+    if (
+      last?.role === "assistant" &&
+      (last.status === "queued" || last.status === "streaming")
+    ) {
+      return "busy";
+    }
+    const question = messages.find((m) => m.role === "user");
+    if (!question) return "nothing_to_edit";
+
+    await tx
+      .update(assistantMessages)
+      .set({ content: text, finishedAt: now })
+      .where(eq(assistantMessages.id, question.id));
+    // Every answer after the question (there is one at most).
+    const answers = messages
+      .filter((m) => m.role === "assistant" && m.id > question.id)
+      .map((m) => m.id);
+    if (answers.length > 0) {
+      await tx
+        .delete(assistantMessages)
+        .where(inArray(assistantMessages.id, answers));
+    }
+    const [answer] = await tx
+      .insert(assistantMessages)
+      .values({ conversationId, role: "assistant", status: "queued" })
+      .returning({ id: assistantMessages.id });
+    if (!answer) throw new Error("message insert returned no row");
+    const onlyQuestion = messages.filter((m) => m.role === "user").length === 1;
+    await tx
+      .update(assistantConversations)
+      .set({
+        updatedAt: now,
+        ...(onlyQuestion && conversation.titleSource === "first_message"
+          ? { title: titleFrom(text) }
+          : {}),
+      })
+      .where(eq(assistantConversations.id, conversationId));
+    return { userMessageId: question.id, assistantMessageId: answer.id };
+  });
+}
+
+/** A temporary chat goes this long after its last activity (updated_at). */
+export const TEMPORARY_CHAT_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Deletes every temporary conversation whose last activity (updated_at:
+ * moved by each question, retry and edit) is more than 24 h before `now`,
+ * each like deleteConversationRows. Returns how many went and the storage
+ * keys of their files, for the caller to remove.
+ */
+export async function deleteStaleTemporaryConversations(
+  now: Date = new Date()
+): Promise<{ count: number; storageKeys: string[] }> {
+  const idleBefore = new Date(now.getTime() - TEMPORARY_CHAT_TTL_MS);
+  const stale = await db
+    .select({ id: assistantConversations.id })
+    .from(assistantConversations)
+    .where(
+      and(
+        eq(assistantConversations.temporary, true),
+        lt(assistantConversations.updatedAt, idleBefore)
+      )
+    );
+  let count = 0;
+  const storageKeys: string[] = [];
+  for (const { id } of stale) {
+    const keys = await deleteRowsIf(id, idleBefore);
+    if (keys) {
+      count += 1;
+      storageKeys.push(...keys);
+    }
+  }
+  return { count, storageKeys };
 }
 
 /**

@@ -3948,6 +3948,8 @@
     "refused": "The assistant declined to answer this request.",
     "tooManySteps": "The assistant stopped after too many steps. Try a narrower question.",
     "nothingToRetry": "There is no answer to retry.",
+    "nothingToEdit": "There is no question to edit.",
+    "temporaryChat": "A temporary chat can't be pinned.",
     "interrupted": "The answer was interrupted. Send your message again.",
     "stopped": "Stopped",
     "failed": "The assistant could not answer. Try again.",

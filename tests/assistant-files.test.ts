@@ -75,6 +75,11 @@ vi.mock("@/lib/assistant/queue", () => ({
   enqueueAssistantTurn: queue.enqueue,
 }));
 
+const temporaryPrune = vi.hoisted(() => ({
+  keys: [] as string[],
+  cutoffs: [] as Date[],
+}));
+
 vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
   const real =
     await importOriginal<typeof import("@/lib/assistant/conversation-store")>();
@@ -89,6 +94,14 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
   return {
     ...real,
     loadAssistantLimits: async () => state.limits,
+    // The real query is covered by the conversation store's scratch suite.
+    deleteStaleTemporaryConversations: vi.fn(async (now: Date) => {
+      temporaryPrune.cutoffs.push(now);
+      return {
+        count: temporaryPrune.keys.length > 0 ? 1 : 0,
+        storageKeys: temporaryPrune.keys,
+      };
+    }),
     findConversation: async (id: string) =>
       owners[id] ? { id, userId: owners[id] } : null,
     // Like the transaction: every file must be the owner's unsent upload,
@@ -172,7 +185,9 @@ const storage = vi.hoisted(() => ({
 vi.mock("@/lib/storage", () => storage);
 
 const { app } = await import("@/server/app");
-const { pruneUnsentUploads } = await import("@/lib/assistant/upload-prune");
+const { pruneUnsentUploads, pruneTemporaryConversations } = await import(
+  "@/lib/assistant/upload-prune"
+);
 const { executeTool, toolModelOutput } = await import(
   "@/lib/assistant/tool-defs"
 );
@@ -462,6 +477,23 @@ describe("pruneUnsentUploads", () => {
       expect.any(Error)
     );
     errors.mockRestore();
+  });
+});
+
+describe("pruneTemporaryConversations", () => {
+  it("deletes stale temporary chats, then their stored files", async () => {
+    state.objects.set("assistant/x/temp-1", {
+      bytes: Buffer.from("hi"),
+      contentType: "text/plain",
+    });
+    temporaryPrune.keys = ["assistant/x/temp-1"];
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    expect(await pruneTemporaryConversations()).toBe(1);
+    expect(state.objects.has("assistant/x/temp-1")).toBe(false);
+    expect(temporaryPrune.cutoffs).toHaveLength(1);
+    temporaryPrune.keys = [];
+    expect(await pruneTemporaryConversations()).toBe(0);
+    info.mockRestore();
   });
 });
 

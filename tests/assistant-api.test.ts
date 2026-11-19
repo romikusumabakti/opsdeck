@@ -37,6 +37,9 @@ type Conversation = {
   projectId: string | null;
   title: string;
   updatedAt: Date;
+  temporary?: boolean;
+  pinnedAt?: Date | null;
+  titleSource?: "first_message" | "generated" | "user";
 };
 
 const state = vi.hoisted(() => ({
@@ -213,7 +216,7 @@ vi.mock("@/lib/assistant/tools/context", async (importOriginal) => ({
 }));
 
 vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
-  const { titleFrom, TITLE_MAX_CHARS } =
+  const { titleFrom, TITLE_MAX_CHARS, SEARCH_QUERY_MAX_CHARS } =
     await importOriginal<typeof import("@/lib/assistant/conversation-store")>();
   const { contextFromRow, contextListLabel, messageContextOf } = await import(
     "@/lib/assistant/context"
@@ -233,6 +236,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
   return {
     titleFrom,
     TITLE_MAX_CHARS,
+    SEARCH_QUERY_MAX_CHARS,
     loadAssistantLimits: async () => state.limits,
     findProject: async (id: string) =>
       PROJECT_NAME[id] ? { id, name: PROJECT_NAME[id] } : null,
@@ -248,9 +252,23 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
           }
         : null;
     },
-    listConversationsOf: async (userId: string) =>
-      store.conversations
-        .filter((c) => c.userId === userId)
+    listConversationsOf: async (
+      userId: string,
+      options: { query?: string } = {}
+    ) => {
+      const query = options.query?.trim().toLowerCase();
+      const items = store.conversations
+        .filter((c) => c.userId === userId && !c.temporary)
+        .filter(
+          (c) =>
+            !query ||
+            c.title.toLowerCase().includes(query) ||
+            store.messages.some(
+              (m) =>
+                m.conversationId === c.id &&
+                m.content.toLowerCase().includes(query)
+            )
+        )
         .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
         .map((c) => {
           const last = lastQuestion(c.id);
@@ -258,11 +276,22 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
             id: c.id,
             title: c.title,
             updatedAt: c.updatedAt,
+            pinnedAt: c.pinnedAt ?? null,
             lastContextLabel: last ? contextListLabel(last).label : null,
             lastContextDeleted: last ? contextListLabel(last).deleted : false,
           };
-        }),
-    insertConversation: async (v: { userId: string }) => {
+        });
+      return {
+        pinned: items
+          .filter((c) => c.pinnedAt)
+          .sort(
+            (a, b) =>
+              (b.pinnedAt?.getTime() ?? 0) - (a.pinnedAt?.getTime() ?? 0)
+          ),
+        recent: items.filter((c) => !c.pinnedAt),
+      };
+    },
+    insertConversation: async (v: { userId: string; temporary?: boolean }) => {
       const id = nextId();
       store.conversations.push({
         userId: v.userId,
@@ -270,8 +299,65 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
         id,
         title: "",
         updatedAt: new Date(),
+        temporary: v.temporary ?? false,
+        pinnedAt: null,
+        titleSource: "first_message",
       });
       return id;
+    },
+    setConversationPinned: async (
+      userId: string,
+      conversationId: string,
+      pinned: boolean,
+      now: Date = new Date()
+    ) => {
+      const c = store.conversations.find(
+        (x) => x.id === conversationId && x.userId === userId
+      );
+      if (!c) return "not_found";
+      if (c.temporary) return "temporary";
+      c.pinnedAt = pinned ? (c.pinnedAt ?? now) : null;
+      return "ok";
+    },
+    editLastQuestion: async (
+      userId: string,
+      conversationId: string,
+      text: string
+    ) => {
+      const c = store.conversations.find(
+        (x) => x.id === conversationId && x.userId === userId
+      );
+      if (!c) return "not_found";
+      const mine = store.messages.filter(
+        (x) => x.conversationId === conversationId
+      );
+      const last = mine.at(-1);
+      if (
+        last?.role === "assistant" &&
+        (last.status === "queued" || last.status === "streaming")
+      )
+        return "busy";
+      const question = mine.findLast((x) => x.role === "user");
+      if (!question) return "nothing_to_edit";
+      question.content = text;
+      if (last?.role === "assistant") {
+        store.messages = store.messages.filter((x) => x !== last);
+      }
+      const answer: Message = {
+        conversationId,
+        errorCode: null,
+        projectId: null,
+        projectName: null,
+        environmentId: null,
+        environmentName: null,
+        id: nextId(),
+        role: "assistant",
+        content: "",
+        status: "queued",
+        attachmentIds: [],
+      };
+      store.messages.push(answer);
+      return { userMessageId: question.id, assistantMessageId: answer.id };
     },
     findConversation: async (id: string) =>
       owner(store.conversations.find((c) => c.id === id)),
@@ -381,7 +467,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
     },
     updateConversationTitle: async (id: string, title: string) => {
       const c = store.conversations.find((x) => x.id === id);
-      if (c) c.title = title;
+      if (c) Object.assign(c, { title, titleSource: "user" });
     },
     // Like the cascade: messages, their tool calls, drafts and files go.
     deleteConversationRows: async (id: string) => {
@@ -734,10 +820,11 @@ describe("list-conversations", () => {
     const res = await get("/list-conversations");
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      id: string;
-      lastContextLabel: string | null;
-    }[];
-    expect(body.map((c) => [c.id, c.lastContextLabel])).toEqual([
+      pinned: unknown[];
+      recent: { id: string; lastContextLabel: string | null }[];
+    };
+    expect(body.pinned).toEqual([]);
+    expect(body.recent.map((c) => [c.id, c.lastContextLabel])).toEqual([
       [hmem, "Heron Membership · UAT"],
       [kmem, "Kestrel Membership"],
       ["stage2", "Kestrel Membership"],
@@ -749,12 +836,226 @@ describe("list-conversations", () => {
     const auto = await newConversation();
     await send(auto, "Apa saja?", { context: { kind: "auto" } });
     const body = (await (await get("/list-conversations")).json()) as {
-      id: string;
-      lastContextLabel: string | null;
-    }[];
+      recent: { id: string; lastContextLabel: string | null }[];
+    };
     expect(
-      Object.fromEntries(body.map((c) => [c.id, c.lastContextLabel]))
+      Object.fromEntries(body.recent.map((c) => [c.id, c.lastContextLabel]))
     ).toEqual({ [empty]: null, [auto]: null });
+  });
+
+  type ListBody = {
+    pinned: { id: string; title: string }[];
+    recent: { id: string; title: string }[];
+  };
+  const listed = async (query?: string) => {
+    const res = await get(
+      `/list-conversations${query === undefined ? "" : `?query=${encodeURIComponent(query)}`}`
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as ListBody;
+    return {
+      pinned: body.pinned.map((c) => c.id),
+      recent: body.recent.map((c) => c.id),
+    };
+  };
+
+  it("never lists or finds a temporary chat, which its owner can still open", async () => {
+    const kept = await newConversation();
+    await send(kept, "Rekonsiliasi harian");
+    const res = await post("/create-conversation", { temporary: true });
+    expect(res.status).toBe(200);
+    const temporary = ((await res.json()) as { id: string }).id;
+    expect(store.conversations.find((c) => c.id === temporary)).toMatchObject({
+      temporary: true,
+    });
+    expect((await send(temporary, "Rekonsiliasi rahasia")).status).toBe(200);
+    expect(await listed()).toEqual({ pinned: [], recent: [kept] });
+    expect(await listed("rahasia")).toEqual({ pinned: [], recent: [] });
+    expect(await listed("rekonsiliasi")).toEqual({
+      pinned: [],
+      recent: [kept],
+    });
+    // Its owner opens it; anyone else gets a 404.
+    expect(
+      (await get(`/get-conversation?conversationId=${temporary}`)).status
+    ).toBe(200);
+    as(OTHER);
+    expect(
+      (await get(`/get-conversation?conversationId=${temporary}`)).status
+    ).toBe(404);
+  });
+
+  it("searches only the caller's own chats, by title or message text", async () => {
+    const mine = await newConversation();
+    await send(mine, "Status batch?");
+    store.messages[1]!.content = "Batch Rekonsiliasi selesai.";
+    store.messages[1]!.status = "done";
+    as(OTHER);
+    const theirs = await newConversation();
+    await send(theirs, "Rekonsiliasi milik orang lain");
+    as(QA);
+    expect(await listed("REKONSILIASI")).toEqual({
+      pinned: [],
+      recent: [mine],
+    });
+    expect(await listed("status")).toEqual({ pinned: [], recent: [mine] });
+    expect(await listed("milik orang lain")).toEqual({
+      pinned: [],
+      recent: [],
+    });
+    // An oversized query is refused.
+    expect(
+      (await get(`/list-conversations?query=${"a".repeat(201)}`)).status
+    ).toBe(400);
+  });
+});
+
+describe("pin-conversation", () => {
+  const pinned = async () =>
+    (
+      (await (await get("/list-conversations")).json()) as {
+        pinned: { id: string }[];
+      }
+    ).pinned.map((c) => c.id);
+
+  it("pins the caller's chats, most recently pinned first, and unpins them", async () => {
+    const first = await newConversation();
+    const second = await newConversation();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-20T01:00:00Z"));
+    const res = await post("/pin-conversation", {
+      conversationId: first,
+      pinned: true,
+    });
+    vi.setSystemTime(new Date("2026-11-20T02:00:00Z"));
+    await post("/pin-conversation", { conversationId: second, pinned: true });
+    vi.useRealTimers();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: first, pinned: true });
+    expect(await pinned()).toEqual([second, first]);
+    expect(
+      (
+        await post("/pin-conversation", {
+          conversationId: second,
+          pinned: false,
+        })
+      ).status
+    ).toBe(200);
+    expect(await pinned()).toEqual([first]);
+  });
+
+  it("refuses to pin a temporary chat", async () => {
+    const temporary = (
+      (await (
+        await post("/create-conversation", { temporary: true })
+      ).json()) as { id: string }
+    ).id;
+    const res = await post("/pin-conversation", {
+      conversationId: temporary,
+      pinned: true,
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      code: "assistant.temporary_chat",
+    });
+    expect(store.conversations[0]?.pinnedAt).toBeNull();
+  });
+
+  it("is a 404 for another user's or an unknown chat", async () => {
+    as(OTHER);
+    const theirs = await newConversation();
+    for (const user of [QA, ADMIN]) {
+      as(user, user === ADMIN ? "admin" : "qa");
+      for (const id of [theirs, UNKNOWN_ID]) {
+        expect(
+          (
+            await post("/pin-conversation", {
+              conversationId: id,
+              pinned: true,
+            })
+          ).status
+        ).toBe(404);
+      }
+    }
+    expect(store.conversations[0]?.pinnedAt).toBeNull();
+  });
+});
+
+describe("edit-last-question", () => {
+  it("replaces the last question and its answer, and enqueues the new answer", async () => {
+    const id = await newConversation();
+    await send(id, "Berapa iuran minimum?");
+    store.messages[1]!.status = "done";
+    queue.enqueue.mockClear();
+    const res = await post("/edit-last-question", {
+      conversationId: id,
+      text: "  Berapa iuran maksimum?  ",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      userMessageId: string;
+      assistantMessageId: string;
+    };
+    expect(store.messages.map((m) => [m.role, m.content, m.status])).toEqual([
+      ["user", "Berapa iuran maksimum?", "done"],
+      ["assistant", "", "queued"],
+    ]);
+    expect(queue.enqueue).toHaveBeenCalledExactlyOnceWith(
+      body.assistantMessageId
+    );
+  });
+
+  it("is busy while the answer runs, and refuses a chat without a question", async () => {
+    const id = await newConversation();
+    const empty = await post("/edit-last-question", {
+      conversationId: id,
+      text: "Hai",
+    });
+    expect(empty.status).toBe(409);
+    expect(await empty.json()).toMatchObject({
+      code: "assistant.nothing_to_edit",
+    });
+    await send(id);
+    queue.enqueue.mockClear();
+    for (const status of ["queued", "streaming"] as const) {
+      store.messages[1]!.status = status;
+      const busy = await post("/edit-last-question", {
+        conversationId: id,
+        text: "Ubah",
+      });
+      expect(busy.status).toBe(409);
+      expect(await busy.json()).toMatchObject({ code: "assistant.busy" });
+    }
+    expect(store.messages[0]?.content).toBe("Bagaimana iuran dihitung?");
+    expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 for another user's chat, and refuses at the daily cap", async () => {
+    as(OTHER);
+    const theirs = await newConversation();
+    await send(theirs);
+    store.messages[1]!.status = "done";
+    as(QA);
+    expect(
+      (
+        await post("/edit-last-question", {
+          conversationId: theirs,
+          text: "Ubah",
+        })
+      ).status
+    ).toBe(404);
+    expect(store.messages[0]?.content).toBe("Bagaimana iuran dihitung?");
+
+    const mine = await newConversation();
+    await send(mine);
+    store.messages[3]!.status = "done";
+    state.spend.push({ userId: QA, at: new Date(), costUsd: 5 });
+    const capped = await post("/edit-last-question", {
+      conversationId: mine,
+      text: "Ubah",
+    });
+    expect(capped.status).toBe(429);
+    expect(store.messages[2]?.content).toBe("Bagaimana iuran dihitung?");
   });
 });
 

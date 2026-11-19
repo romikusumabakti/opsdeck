@@ -10,6 +10,7 @@ vi.mock("bullmq", () => ({
 
 process.env.REDIS_URL ??= "redis://test";
 const {
+  scheduleAssistantTemporaryPrune,
   scheduleAssistantUploadPrune,
   scheduleEnvironmentArchivePrune,
   scheduleInstanceBackup,
@@ -65,6 +66,20 @@ it("registers the daily environment archive prune under one id", async () => {
       "environment-archives-prune",
       { pattern: "40 3 * * *", tz: "Asia/Jakarta" },
       expect.objectContaining({ name: "environment/archives.prune", data: {} }),
+    ]);
+  }
+});
+
+it("registers the hourly temporary chat prune under one id", async () => {
+  upsert.mockClear();
+  await scheduleAssistantTemporaryPrune();
+  await scheduleAssistantTemporaryPrune();
+  expect(upsert).toHaveBeenCalledTimes(2);
+  for (const call of upsert.mock.calls as unknown[][]) {
+    expect(call).toEqual([
+      "assistant-temporary-prune",
+      { every: 60 * 60 * 1000 },
+      expect.objectContaining({ name: "assistant/temporary.prune", data: {} }),
     ]);
   }
 });

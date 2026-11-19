@@ -1575,10 +1575,10 @@ describe("drafts panel in the workspace", () => {
       capReached: false,
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
-    queryClient.setQueryData(
-      ["assistant", "listConversations"],
-      [{ id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }]
-    );
+    queryClient.setQueryData(["assistant", "listConversations"], {
+      pinned: [],
+      recent: [{ id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" }],
+    });
     queryClient.setQueryData(conversationKey, conversation);
     await render(<AssistantWorkspace />);
   };
@@ -1643,13 +1643,13 @@ describe("drafts panel in the workspace", () => {
   });
   it("does not open when switching to a conversation that already has drafts", async () => {
     await renderWorkspace();
-    queryClient.setQueryData(
-      ["assistant", "listConversations"],
-      [
+    queryClient.setQueryData(["assistant", "listConversations"], {
+      pinned: [],
+      recent: [
         { id: "c1", title: "Iuran", updatedAt: "2026-11-16T01:00:00Z" },
         { id: "c2", title: "Pajak", updatedAt: "2026-11-16T01:00:00Z" },
-      ]
-    );
+      ],
+    });
     queryClient.setQueryData(["assistant", "getConversation", ["c2"]], {
       ...conversation,
       id: "c2",
@@ -1730,7 +1730,10 @@ describe("context picker", () => {
       capReached: false,
       resetsAt: "2026-11-16T17:00:00.000Z",
     });
-    queryClient.setQueryData(["assistant", "listConversations"], conversations);
+    queryClient.setQueryData(["assistant", "listConversations"], {
+      pinned: [],
+      recent: conversations,
+    });
     queryClient.setQueryData(["assistant", "getConversation", [CONV_ID]], {
       id: CONV_ID,
       title: "Iuran",

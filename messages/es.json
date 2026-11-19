@@ -3948,6 +3948,8 @@
     "refused": "El asistente se negó a responder esta solicitud.",
     "tooManySteps": "El asistente se detuvo tras demasiados pasos. Prueba con una pregunta más concreta.",
     "nothingToRetry": "No hay ninguna respuesta que reintentar.",
+    "nothingToEdit": "No hay ninguna pregunta que editar.",
+    "temporaryChat": "Un chat temporal no se puede fijar.",
     "interrupted": "La respuesta se interrumpió. Envía tu mensaje de nuevo.",
     "stopped": "Detenida",
     "failed": "El asistente no pudo responder. Inténtalo de nuevo.",

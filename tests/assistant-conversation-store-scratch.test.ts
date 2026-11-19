@@ -200,7 +200,7 @@ describe.skipIf(!enabled)(
       expect(first.userMessageId < first.assistantMessageId).toBe(true);
       // The list names an environment with its project.
       expect(
-        (await store.listConversationsOf(user.id)).find(
+        (await store.listConversationsOf(user.id)).recent.find(
           (c) => c.id === conversationId
         )?.lastContextLabel
       ).toBe("Kestrel Membership · Dev 1");
@@ -260,13 +260,15 @@ describe.skipIf(!enabled)(
       // Every conversation of the user, newest first, labelled with the
       // latest question's context.
       const listed = await store.listConversationsOf(user.id);
-      expect(listed).toEqual([
+      expect(listed.pinned).toEqual([]);
+      expect(listed.recent).toEqual([
         {
           id: conversationId,
           title: "Bagaimana iuran dihitung? Jelaskan.",
           updatedAt: expect.any(Date),
           lastContextLabel: "Kestrel Membership",
           lastContextDeleted: false,
+          pinnedAt: null,
         },
         {
           id: empty,
@@ -274,6 +276,7 @@ describe.skipIf(!enabled)(
           updatedAt: expect.any(Date),
           lastContextLabel: null,
           lastContextDeleted: false,
+          pinnedAt: null,
         },
       ]);
       const detail = await store.loadConversationDetail(conversationId);
@@ -361,7 +364,7 @@ describe.skipIf(!enabled)(
         environment_name: null,
       });
       expect(
-        (await store.listConversationsOf(user.id))[0]?.lastContextLabel
+        (await store.listConversationsOf(user.id)).recent[0]?.lastContextLabel
       ).toBeNull();
       await client`update assistant_messages set status = 'done' where id = ${third.assistantMessageId}`;
       const fourth = await store.insertTurn({
@@ -774,6 +777,454 @@ describe.skipIf(!enabled)(
         )
       ).toHaveLength(1);
       expect(await messages(race)).toHaveLength(2);
+    });
+
+    it("lists pinned and recent chats, searches title and message text, never a temporary chat", async () => {
+      const d = drizzle({ client });
+      const store = await import("@/lib/assistant/conversation-store");
+      const [owner, other] = await d
+        .insert(schema.users)
+        .values([
+          {
+            id: "00000000-0000-7000-8000-00000000c0a1",
+            name: "Sekar",
+            email: "sekar@example.invalid",
+            role: "qa",
+          },
+          {
+            id: "00000000-0000-7000-8000-00000000c0a2",
+            name: "Bayu",
+            email: "bayu@example.invalid",
+            role: "qa",
+          },
+        ])
+        .returning();
+      if (!owner || !other) throw new Error("users");
+      const auto = { kind: "auto" } as const;
+      const chatWith = async (
+        userId: string,
+        text: string,
+        at: string,
+        options: { temporary?: boolean; answer?: string } = {}
+      ) => {
+        const id = await store.insertConversation({
+          userId,
+          temporary: options.temporary ?? false,
+        });
+        const turn = await store.insertTurn({
+          conversationId: id,
+          text,
+          attachmentIds: [],
+          context: auto,
+          now: new Date(at),
+        });
+        if (typeof turn === "string") throw new Error(turn);
+        await client`update assistant_messages set status = 'done', content = ${options.answer ?? "Ok."} where id = ${turn.assistantMessageId}`;
+        return id;
+      };
+      const iuran = await chatWith(
+        owner.id,
+        "Iuran tambahan dibulatkan?",
+        "2026-11-20T01:00:00Z"
+      );
+      const recon = await chatWith(
+        owner.id,
+        "Cek status batch",
+        "2026-11-20T02:00:00Z",
+        { answer: "Batch Rekonsiliasi selesai 03:00." }
+      );
+      const secret = await chatWith(
+        owner.id,
+        "Rekonsiliasi sementara",
+        "2026-11-20T03:00:00Z",
+        { temporary: true }
+      );
+      const theirs = await chatWith(
+        other.id,
+        "Rekonsiliasi milik Bayu",
+        "2026-11-20T04:00:00Z"
+      );
+      const ids = (items: { id: string }[]) => items.map((c) => c.id);
+
+      expect(
+        await client`select temporary, title_source, pinned_at from assistant_conversations where id = ${secret}`
+      ).toEqual([
+        { temporary: true, title_source: "first_message", pinned_at: null },
+      ]);
+
+      // Newest first; the temporary chat and the other user's are absent.
+      let list = await store.listConversationsOf(owner.id);
+      expect(ids(list.pinned)).toEqual([]);
+      expect(ids(list.recent)).toEqual([recon, iuran]);
+
+      // Pins: most recently pinned first, out of Recent; unpin puts it back.
+      expect(
+        await store.setConversationPinned(
+          owner.id,
+          iuran,
+          true,
+          new Date("2026-11-20T05:00:00Z")
+        )
+      ).toBe("ok");
+      expect(
+        await store.setConversationPinned(
+          owner.id,
+          recon,
+          true,
+          new Date("2026-11-20T06:00:00Z")
+        )
+      ).toBe("ok");
+      list = await store.listConversationsOf(owner.id);
+      expect(ids(list.pinned)).toEqual([recon, iuran]);
+      expect(list.pinned[0]?.pinnedAt).toEqual(
+        new Date("2026-11-20T06:00:00Z")
+      );
+      expect(ids(list.recent)).toEqual([]);
+      // Pinning again keeps the original pin time (and order).
+      expect(
+        await store.setConversationPinned(
+          owner.id,
+          iuran,
+          true,
+          new Date("2026-11-20T07:00:00Z")
+        )
+      ).toBe("ok");
+      expect(ids((await store.listConversationsOf(owner.id)).pinned)).toEqual([
+        recon,
+        iuran,
+      ]);
+      expect(await store.setConversationPinned(owner.id, recon, false)).toBe(
+        "ok"
+      );
+      list = await store.listConversationsOf(owner.id);
+      expect(ids(list.pinned)).toEqual([iuran]);
+      expect(ids(list.recent)).toEqual([recon]);
+      // Pinning leaves updated_at (the Recent order) alone.
+      expect(list.recent[0]?.updatedAt).toEqual(
+        new Date("2026-11-20T02:00:00Z")
+      );
+
+      // A temporary chat can't be pinned; another user's chat is not found.
+      expect(await store.setConversationPinned(owner.id, secret, true)).toBe(
+        "temporary"
+      );
+      expect(await store.setConversationPinned(other.id, iuran, false)).toBe(
+        "not_found"
+      );
+      expect(await store.setConversationPinned(owner.id, theirs, true)).toBe(
+        "not_found"
+      );
+      expect(
+        await client`select pinned_at from assistant_conversations where id in (${secret}, ${theirs})`
+      ).toEqual([{ pinned_at: null }, { pinned_at: null }]);
+      expect(ids((await store.listConversationsOf(owner.id)).pinned)).toEqual([
+        iuran,
+      ]);
+
+      // Search: case-insensitive, on the title or any message (answers too),
+      // own non-temporary chats only, split like the list.
+      list = await store.listConversationsOf(owner.id, {
+        query: "rekonsiliasi",
+      });
+      expect(ids(list.pinned)).toEqual([]);
+      expect(ids(list.recent)).toEqual([recon]);
+      list = await store.listConversationsOf(owner.id, { query: "IURAN" });
+      expect(ids(list.pinned)).toEqual([iuran]);
+      expect(ids(list.recent)).toEqual([]);
+      list = await store.listConversationsOf(owner.id, { query: "milik Bayu" });
+      expect([...list.pinned, ...list.recent]).toEqual([]);
+      list = await store.listConversationsOf(owner.id, {
+        query: "sementara",
+      });
+      expect([...list.pinned, ...list.recent]).toEqual([]);
+      // LIKE wildcards are matched literally.
+      for (const query of ["%", "_", "\\"]) {
+        list = await store.listConversationsOf(owner.id, { query });
+        expect([...list.pinned, ...list.recent], query).toEqual([]);
+      }
+      // A blank query is no query.
+      list = await store.listConversationsOf(owner.id, { query: "  " });
+      expect(ids(list.recent)).toEqual([recon]);
+
+      // The other user sees only their own chat.
+      list = await store.listConversationsOf(other.id, {
+        query: "rekonsiliasi",
+      });
+      expect(ids(list.recent)).toEqual([theirs]);
+    });
+
+    it("keeps a renamed title from the auto title", async () => {
+      const d = drizzle({ client });
+      const store = await import("@/lib/assistant/conversation-store");
+      const user = one(
+        await d
+          .insert(schema.users)
+          .values({
+            id: "00000000-0000-7000-8000-00000000c0b1",
+            name: "Laras",
+            email: "laras@example.invalid",
+            role: "qa",
+          })
+          .returning()
+      );
+      const titleOf = async (id: string) =>
+        one(
+          await client`select title, title_source from assistant_conversations where id = ${id}`
+        );
+      const ask = async (id: string, text: string) => {
+        const turn = await store.insertTurn({
+          conversationId: id,
+          text,
+          attachmentIds: [],
+          context: { kind: "auto" },
+        });
+        if (typeof turn === "string") throw new Error(turn);
+        await client`update assistant_messages set status = 'done', content = 'Jawaban pertama.' where id = ${turn.assistantMessageId}`;
+        return turn;
+      };
+
+      const chat = await store.insertConversation({ userId: user.id });
+      const turn = await ask(chat, "Kapan batch iuran berjalan?");
+      expect(await titleOf(chat)).toEqual({
+        title: "Kapan batch iuran berjalan?",
+        title_source: "first_message",
+      });
+      expect(await store.loadTitleInput(chat)).toEqual({
+        userId: user.id,
+        question: "Kapan batch iuran berjalan?",
+        answer: "Jawaban pertama.",
+        answerMessageId: turn.assistantMessageId,
+      });
+      expect(await store.saveGeneratedTitle(chat, "Jadwal batch iuran")).toBe(
+        true
+      );
+      expect(await titleOf(chat)).toEqual({
+        title: "Jadwal batch iuran",
+        title_source: "generated",
+      });
+      // Generated once: not again.
+      expect(await store.loadTitleInput(chat)).toBeNull();
+      expect(await store.saveGeneratedTitle(chat, "Lain")).toBe(false);
+
+      // A rename is the user's: the auto title never overwrites it.
+      const renamed = await store.insertConversation({ userId: user.id });
+      await ask(renamed, "Siapa pemilik server staging?");
+      await store.updateConversationTitle(renamed, "Server staging");
+      expect(await titleOf(renamed)).toEqual({
+        title: "Server staging",
+        title_source: "user",
+      });
+      expect(await store.loadTitleInput(renamed)).toBeNull();
+      expect(await store.saveGeneratedTitle(renamed, "Pemilik server")).toBe(
+        false
+      );
+      expect((await titleOf(renamed)).title).toBe("Server staging");
+
+      // A temporary chat gets no auto title.
+      const temporary = await store.insertConversation({
+        userId: user.id,
+        temporary: true,
+      });
+      await ask(temporary, "Pertanyaan sementara");
+      expect(await store.loadTitleInput(temporary)).toBeNull();
+      expect(await store.saveGeneratedTitle(temporary, "Judul")).toBe(false);
+
+      // Only after the first answer is done, and only for the first question.
+      const pending = await store.insertConversation({ userId: user.id });
+      await store.insertTurn({
+        conversationId: pending,
+        text: "Masih menunggu",
+        attachmentIds: [],
+        context: { kind: "auto" },
+      });
+      expect(await store.loadTitleInput(pending)).toBeNull();
+      const longer = await store.insertConversation({ userId: user.id });
+      await ask(longer, "Pertama");
+      await ask(longer, "Kedua");
+      expect(await store.loadTitleInput(longer)).toBeNull();
+    });
+
+    it("edits the last question and re-answers it", async () => {
+      const d = drizzle({ client });
+      const store = await import("@/lib/assistant/conversation-store");
+      const turns = await import("@/lib/assistant/turn-store");
+      const [user, other] = await d
+        .insert(schema.users)
+        .values([
+          {
+            id: "00000000-0000-7000-8000-00000000c0c1",
+            name: "Gilang",
+            email: "gilang@example.invalid",
+            role: "qa",
+          },
+          {
+            id: "00000000-0000-7000-8000-00000000c0c2",
+            name: "Rani",
+            email: "rani@example.invalid",
+            role: "qa",
+          },
+        ])
+        .returning();
+      if (!user || !other) throw new Error("users");
+      const messages = async (chat: string) =>
+        await client`select id, role, status, content from assistant_messages where conversation_id = ${chat} order by id`;
+
+      const chat = await store.insertConversation({ userId: user.id });
+      const first = await store.insertTurn({
+        conversationId: chat,
+        text: "Berapa iuran minimum?",
+        attachmentIds: [],
+        context: { kind: "auto" },
+      });
+      if (typeof first === "string") throw new Error(first);
+
+      // Queued or streaming: busy, nothing changed.
+      expect(await store.editLastQuestion(user.id, chat, "Ubah")).toBe("busy");
+      expect(await turns.claimMessage(first.assistantMessageId)).toBe(true);
+      expect(await store.editLastQuestion(user.id, chat, "Ubah")).toBe("busy");
+      expect((await messages(chat)).map((m) => m.content)).toEqual([
+        "Berapa iuran minimum?",
+        "",
+      ]);
+      await client`update assistant_messages set status = 'done', content = 'Rp 100.000.' where id = ${first.assistantMessageId}`;
+
+      // Another user's chat: not found.
+      expect(await store.editLastQuestion(other.id, chat, "Ubah")).toBe(
+        "not_found"
+      );
+
+      const at = new Date("2026-11-20T08:00:00Z");
+      const edited = await store.editLastQuestion(
+        user.id,
+        chat,
+        "Berapa iuran maksimum?",
+        at
+      );
+      if (typeof edited === "string") throw new Error(edited);
+      expect(edited.userMessageId).toBe(first.userMessageId);
+      expect(await messages(chat)).toEqual([
+        {
+          id: first.userMessageId,
+          role: "user",
+          status: "done",
+          content: "Berapa iuran maksimum?",
+        },
+        {
+          id: edited.assistantMessageId,
+          role: "assistant",
+          status: "queued",
+          content: "",
+        },
+      ]);
+      // The first question's title follows its edit; updated_at moves.
+      expect(
+        await client`select title, title_source, updated_at::text as updated_at from assistant_conversations where id = ${chat}`
+      ).toEqual([
+        {
+          title: "Berapa iuran maksimum?",
+          title_source: "first_message",
+          updated_at: "2026-11-20 08:00:00",
+        },
+      ]);
+
+      // A renamed title stays; only the last question changes.
+      await client`update assistant_messages set status = 'failed', error_code = 'assistant.stopped' where id = ${edited.assistantMessageId}`;
+      await store.updateConversationTitle(chat, "Iuran");
+      const second = await store.insertTurn({
+        conversationId: chat,
+        text: "Dan untuk peserta baru?",
+        attachmentIds: [],
+        context: { kind: "auto" },
+      });
+      if (typeof second === "string") throw new Error(second);
+      await client`update assistant_messages set status = 'failed', error_code = 'assistant.stopped' where id = ${second.assistantMessageId}`;
+      const again = await store.editLastQuestion(
+        user.id,
+        chat,
+        "Dan untuk peserta lama?"
+      );
+      if (typeof again === "string") throw new Error(again);
+      expect(again.userMessageId).toBe(second.userMessageId);
+      expect((await messages(chat)).map((m) => m.content)).toEqual([
+        "Berapa iuran maksimum?",
+        "",
+        "Dan untuk peserta lama?",
+        "",
+      ]);
+      expect(
+        one(
+          await client`select title from assistant_conversations where id = ${chat}`
+        ).title
+      ).toBe("Iuran");
+
+      // No question yet: nothing to edit.
+      const empty = await store.insertConversation({ userId: user.id });
+      expect(await store.editLastQuestion(user.id, empty, "Hai")).toBe(
+        "nothing_to_edit"
+      );
+    });
+
+    it("prunes temporary chats 24 h after their last activity", async () => {
+      const d = drizzle({ client });
+      const store = await import("@/lib/assistant/conversation-store");
+      const user = one(
+        await d
+          .insert(schema.users)
+          .values({
+            id: "00000000-0000-7000-8000-00000000c0d1",
+            name: "Wira",
+            email: "wira@example.invalid",
+            role: "qa",
+          })
+          .returning()
+      );
+      const now = new Date("2026-11-21T12:00:00Z");
+      const DAY = 24 * 60 * 60 * 1000;
+      const chat = async (temporary: boolean, lastActivityMs: number) => {
+        const id = await store.insertConversation({
+          userId: user.id,
+          temporary,
+        });
+        const turn = await store.insertTurn({
+          conversationId: id,
+          text: "Sementara",
+          attachmentIds: [],
+          context: { kind: "auto" },
+          now: new Date(now.getTime() - lastActivityMs),
+        });
+        if (typeof turn === "string") throw new Error(turn);
+        return { id, turn };
+      };
+      const stale = await chat(true, DAY + 1000);
+      const fresh = await chat(true, DAY - 1000);
+      const kept = await chat(false, 3 * DAY);
+      await d.insert(schema.assistantFiles).values({
+        userId: user.id,
+        conversationId: stale.id,
+        messageId: stale.turn.userMessageId,
+        storageKey: `assistant/${user.id}/stale-file`,
+        filename: "catatan.txt",
+        mediaType: "text/plain",
+        size: 3,
+      });
+
+      // Earlier tests' temporary chats are idle at `now` too: they go as well.
+      const before =
+        await client`select count(*)::int as n from assistant_conversations where temporary and updated_at < ${new Date(now.getTime() - DAY)}`;
+      const pruned = await store.deleteStaleTemporaryConversations(now);
+      expect(pruned.count).toBe(one(before).n);
+      expect(pruned.storageKeys).toEqual([`assistant/${user.id}/stale-file`]);
+      const left =
+        await client`select id from assistant_conversations where user_id = ${user.id} order by id`;
+      expect(left.map((r) => r.id).sort()).toEqual([fresh.id, kept.id].sort());
+      expect(
+        await client`select id from assistant_messages where conversation_id = ${stale.id}`
+      ).toEqual([]);
+      // Nothing left to prune at the same instant.
+      expect(await store.deleteStaleTemporaryConversations(now)).toEqual({
+        count: 0,
+        storageKeys: [],
+      });
     });
   }
 );

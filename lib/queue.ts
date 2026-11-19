@@ -119,6 +119,9 @@ export type JobMap = {
   // Hourly: delete assistant uploads no question carried within 24 h
   // (repeatable; see scheduleAssistantUploadPrune).
   "assistant/uploads.prune": Record<string, never>;
+  // Hourly: delete temporary assistant chats idle for 24 h
+  // (repeatable; see scheduleAssistantTemporaryPrune).
+  "assistant/temporary.prune": Record<string, never>;
   // --- Instance self-backup ---
   // One backup of the Panel itself (lib/instance-backup/archive). The
   // destination and retention are read from instance_settings in the worker.
@@ -371,6 +374,32 @@ export async function scheduleEnvironmentArchivePrune(
     { pattern: ENVIRONMENT_ARCHIVE_PRUNE_CRON, tz },
     {
       name: "environment/archives.prune",
+      data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 50 },
+      },
+    }
+  );
+}
+
+const ASSISTANT_TEMPORARY_PRUNE_SCHEDULER_ID = "assistant-temporary-prune";
+export const ASSISTANT_TEMPORARY_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Register the hourly prune of temporary assistant chats
+ * (lib/assistant/upload-prune). Keyed like the other schedulers, so every
+ * worker boot replaces it instead of stacking a second one.
+ */
+export async function scheduleAssistantTemporaryPrune(
+  everyMs: number = ASSISTANT_TEMPORARY_PRUNE_INTERVAL_MS
+): Promise<void> {
+  await getQueue().upsertJobScheduler(
+    ASSISTANT_TEMPORARY_PRUNE_SCHEDULER_ID,
+    { every: everyMs },
+    {
+      name: "assistant/temporary.prune",
       data: {},
       opts: {
         attempts: 1,

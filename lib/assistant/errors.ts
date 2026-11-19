@@ -9,6 +9,8 @@ export const ASSISTANT_ERROR_MESSAGE_KEYS = {
   "assistant.daily_cap_reached": "dailyCapReached",
   "assistant.busy": "busy",
   "assistant.nothing_to_retry": "nothingToRetry",
+  "assistant.nothing_to_edit": "nothingToEdit",
+  "assistant.temporary_chat": "temporaryChat",
   "assistant.unavailable": "unavailable",
   "assistant.credit_exhausted": "creditExhausted",
   "assistant.refused": "refused",

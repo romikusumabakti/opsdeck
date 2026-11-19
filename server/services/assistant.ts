@@ -15,10 +15,11 @@ import {
 } from "@/lib/assistant/context";
 import {
   type ConversationDetail,
+  type ConversationList,
   type ConversationOwner,
-  type ConversationSummary,
   type CreatedTurn,
   deleteConversationRows,
+  editLastQuestion,
   failQueuedMessage,
   findAssistantMessageConversation,
   findConversation,
@@ -31,6 +32,8 @@ import {
   loadAssistantLimits,
   loadConversationDetail,
   replaceLastAnswer,
+  SEARCH_QUERY_MAX_CHARS,
+  setConversationPinned,
   stopPendingAnswer,
   TITLE_MAX_CHARS,
   updateConversationTitle,
@@ -186,17 +189,60 @@ function ownConversation(conversationId: string) {
   );
 }
 
-/** The caller's own conversations, all projects, newest first. */
-export async function listConversations(): Promise<ConversationSummary[]> {
+export const listConversationsInputSchema = z.object({
+  query: z.string().max(SEARCH_QUERY_MAX_CHARS).optional(),
+});
+
+/**
+ * The caller's own conversations, all projects: pinned (most recently pinned
+ * first) and recent (newest first), never a temporary chat. A `query`
+ * searches the caller's chats only, by title or message text.
+ */
+export async function listConversations(
+  input: z.infer<typeof listConversationsInputSchema> = {}
+): Promise<ConversationList> {
   const session = await requireAssistantGate();
-  return listConversationsOf(session.user.id);
+  return listConversationsOf(session.user.id, { query: input.query });
 }
 
+export const createConversationInputSchema = z.object({
+  // Never listed, searched, pinned or auto-titled; deleted 24 h after its
+  // last activity.
+  temporary: z.boolean().optional(),
+});
+
 /** A new conversation; each question then picks its context. */
-export async function createConversation(): Promise<{ id: string }> {
+export async function createConversation(
+  input: z.infer<typeof createConversationInputSchema> = {}
+): Promise<{ id: string }> {
   const session = await requireAssistantGate();
-  const id = await insertConversation({ userId: session.user.id });
+  const id = await insertConversation({
+    userId: session.user.id,
+    temporary: input.temporary ?? false,
+  });
   return { id };
+}
+
+export const pinConversationInputSchema = z.object({
+  conversationId: uuidSchema,
+  pinned: z.boolean(),
+});
+
+/**
+ * Pins or unpins the caller's own conversation; a temporary chat is
+ * refused (assistant.temporary_chat).
+ */
+export async function pinConversation(
+  conversationId: string,
+  pinned: boolean
+): Promise<{ id: string; pinned: boolean }> {
+  const { conversation, userId } = await ownConversation(conversationId);
+  const result = await setConversationPinned(userId, conversation.id, pinned);
+  if (result === "not_found") notFound();
+  if (result === "temporary") {
+    throw await refusal(409, "assistant.temporary_chat");
+  }
+  return { id: conversation.id, pinned };
 }
 
 export const renameConversationInputSchema = z.object({
@@ -433,7 +479,58 @@ export async function retryAnswer(
   // Retry answers the same question as asked, so its context must still be
   // usable: checked before the old answer is replaced (the worker checks
   // again when the turn runs).
-  const context = await lastQuestionContext(conversation.id);
+  await requireUsableLastContext(conversation.id);
+
+  const result = await replaceLastAnswer(conversation.id, now);
+  if (result === "busy") throw await refusal(409, "assistant.busy");
+  if (result === "nothing_to_retry") {
+    throw await refusal(409, "assistant.nothing_to_retry");
+  }
+  await enqueueOrFail(result.assistantMessageId);
+  return result;
+}
+
+export const editQuestionInputSchema = z.object({
+  conversationId: uuidSchema,
+  text: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
+});
+
+/**
+ * Edit of the last question: its text is replaced and its answer with a new
+ * queued one, then the turn is queued. Checked like a retry: the daily
+ * allowance, and the question's context must still be usable. Refused while
+ * the answer runs (assistant.busy: stop it first) and before any question.
+ */
+export async function editQuestion(
+  input: z.infer<typeof editQuestionInputSchema>
+): Promise<CreatedTurn> {
+  const { conversation, userId } = await ownConversation(input.conversationId);
+  const now = new Date();
+  await requireAllowance(userId, await requireRuntime(), now);
+  await requireUsableLastContext(conversation.id);
+
+  const result = await editLastQuestion(
+    userId,
+    conversation.id,
+    input.text,
+    now
+  );
+  if (result === "not_found") notFound();
+  if (result === "busy") throw await refusal(409, "assistant.busy");
+  if (result === "nothing_to_edit") {
+    throw await refusal(409, "assistant.nothing_to_edit");
+  }
+  await enqueueOrFail(result.assistantMessageId);
+  return result;
+}
+
+/**
+ * The context of the chat's last question, which a retry or an edit answers
+ * again, must still be usable: refused when its project or environment is
+ * gone, 404 when the caller lost access (the worker checks again).
+ */
+async function requireUsableLastContext(conversationId: string): Promise<void> {
+  const context = await lastQuestionContext(conversationId);
   if (context?.kind === "gone") {
     throw await refusal(
       409,
@@ -449,14 +546,6 @@ export async function retryAnswer(
         : { kind: "environment", environmentId: context.environmentId }
     );
   }
-
-  const result = await replaceLastAnswer(conversation.id, now);
-  if (result === "busy") throw await refusal(409, "assistant.busy");
-  if (result === "nothing_to_retry") {
-    throw await refusal(409, "assistant.nothing_to_retry");
-  }
-  await enqueueOrFail(result.assistantMessageId);
-  return result;
 }
 
 /**

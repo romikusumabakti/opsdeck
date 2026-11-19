@@ -131,10 +131,10 @@ async function renderCard(opts: {
   conversations?: object[] | null;
 }) {
   if (opts.conversations !== null) {
-    queryClient.setQueryData(
-      ["assistant", "listConversations"],
-      opts.conversations ?? []
-    );
+    queryClient.setQueryData(["assistant", "listConversations"], {
+      pinned: [],
+      recent: opts.conversations ?? [],
+    });
   }
   queryClient.setQueryData(["environments", "listEnvironments"], []);
   queryClient.setQueryData(

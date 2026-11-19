@@ -57,7 +57,9 @@ export function ConversationList({
   const t = useTranslations("assistant");
   const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
-  const conversations = useQuery(listConversationsQuery()).data ?? [];
+  const list = useQuery(listConversationsQuery()).data;
+  // Pinned first (the sections come with the 2026 list layout).
+  const conversations = list ? [...list.pinned, ...list.recent] : [];
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [titleTooLong, setTitleTooLong] = React.useState(false);
   // Escape cancels; the blur that may follow must not save.

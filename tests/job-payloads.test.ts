@@ -199,6 +199,13 @@ describe("parseJobPayload", () => {
     expect(parseJobPayload("deploy/lock-sweep", {})).toEqual({});
   });
 
+  it("assistant temporary chat prune payload is empty", () => {
+    expect(parseJobPayload("assistant/temporary.prune", {})).toEqual({});
+    expect(() =>
+      parseJobPayload("assistant/temporary.prune", { all: true })
+    ).toThrow();
+  });
+
   it("assistant upload prune payload is empty", () => {
     expect(parseJobPayload("assistant/uploads.prune", {})).toEqual({});
     expect(() =>
