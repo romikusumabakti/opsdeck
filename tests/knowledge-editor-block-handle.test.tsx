@@ -215,6 +215,12 @@ describe("block handle", () => {
   it("a framed surface holds it in its padding; a borderless one keeps the text column", async () => {
     const { dom } = await mount("First");
     expect(dom.className.split(/\s+/)).toContain("ps-9");
+    // Framed: shown at every width, hidden on touch only.
+    const framedHandle = container.querySelector('[data-testid="drag-handle"]');
+    expect(framedHandle?.className.split(/\s+/)).toContain(
+      "pointer-coarse:hidden"
+    );
+    expect(framedHandle?.className.split(/\s+/)).not.toContain("max-lg:hidden");
     act(() => root.unmount());
     root = createRoot(container);
     await act(async () => {
@@ -230,6 +236,11 @@ describe("block handle", () => {
       // No inline padding: the handle hangs in the container's margin.
       expect(bare.className).not.toMatch(/(^|\s)(ps|px|pl)-/);
     });
+    // Borderless: that margin exists from lg up; never on touch.
+    const bareHandle = container.querySelector('[data-testid="drag-handle"]');
+    expect(bareHandle?.className.split(/\s+/)).toEqual(
+      expect.arrayContaining(["max-lg:hidden", "pointer-coarse:hidden"])
+    );
   });
 
   it("sits on the inline-start side: left in LTR, right in RTL", async () => {

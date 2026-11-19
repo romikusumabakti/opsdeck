@@ -481,7 +481,19 @@ export function KnowledgeEditor({
       }}
     >
       <EditorContent editor={editor} />
-      <BlockHandle editor={editor} labels={blockHandleLabels} />
+      <BlockHandle
+        editor={editor}
+        labels={blockHandleLabels}
+        // A framed editor keeps the handle inside its own padding at every
+        // width; a borderless one hangs it in the page's lg:px-8 margin,
+        // which narrower layouts lack. Touch has no hover, so the handle
+        // never helps there: the `/` menu is the touch and keyboard path.
+        className={
+          borderless
+            ? "max-lg:hidden pointer-coarse:hidden"
+            : "pointer-coarse:hidden"
+        }
+      />
       <SlashMenu
         editor={editor}
         store={slashStore}

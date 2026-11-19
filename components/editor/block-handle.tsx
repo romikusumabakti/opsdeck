@@ -4,6 +4,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { GripVertical, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export type BlockHandleLabels = { insert: string; drag: string };
 
@@ -52,9 +53,12 @@ export function openSlashAtBlock(editor: Editor, node: PMNode, pos: number) {
 export function BlockHandle({
   editor,
   labels = DEFAULT_LABELS,
+  className,
 }: {
   editor: Editor;
   labels?: BlockHandleLabels;
+  /** Merged into the handle's own classes (e.g. where it is hidden). */
+  className?: string;
 }) {
   // The block under the pointer; read only on click, so no re-render.
   const target = useRef<{ node: PMNode; pos: number } | null>(null);
@@ -83,7 +87,7 @@ export function BlockHandle({
       // 2px from the block: with the 16px "+" and the 14px grip the handle
       // is 32px wide, so it fits the page's inline padding (lg:px-8) and the
       // New issue dialog's (ps-8) when it hangs outside the text column.
-      className="pe-0.5"
+      className={cn("pe-0.5", className)}
     >
       <div
         data-slot="block-handle"

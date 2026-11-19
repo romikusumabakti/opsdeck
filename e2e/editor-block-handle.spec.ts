@@ -180,6 +180,14 @@ test("on an issue, the description shares the title's column and the handle show
   ).toBeLessThanOrEqual(titleX + 1);
 
   // New issue dialog.
+  // Below lg the page has no margin for it: the borderless editor hides it.
+  await page.setViewportSize({ width: 800, height: 900 });
+  await page.mouse.move(0, 0);
+  await bravo.hover();
+  await expect(plus).toBeHidden();
+  await expect(grip).toBeHidden();
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   await page.goto(`/en/${key}/issues`);
   await page.getByRole("button", { name: "New issue" }).first().click();
   const dialog = page.getByRole("dialog", { name: "New issue" });
@@ -199,6 +207,19 @@ test("on an issue, the description shares the title's column and the handle show
   expect(
     await hitsItself(dialog.locator('[data-slot="block-drag-grip"]'))
   ).toBe(true);
+});
+
+test("a framed editor keeps the handle below lg", async ({ page }) => {
+  const doc = await createDoc(page, "Framed narrow");
+  await page.setViewportSize({ width: 800, height: 900 });
+  await page.goto(`/en/knowledge/${doc.slug}/edit`);
+  const editor = page.locator(".ProseMirror");
+  const bravo = editor.locator(":scope > p", { hasText: "Bravo line" });
+  await expect(bravo).toBeVisible();
+  await bravo.hover();
+  const plus = page.getByRole("button", { name: "Add a block below" });
+  await expect(plus).toBeVisible();
+  expect(await hitsItself(plus)).toBe(true);
 });
 
 test("issue row controls have the same width in every row, chevron on hover", async ({
