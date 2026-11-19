@@ -66,6 +66,7 @@ export function KeyboardShortcuts({
       // lives in contextual menus, so their keyboard route is listed here.
       title: t("groupEditor"),
       shortcuts: [
+        { keys: ["/"], label: t("editorSlashMenu") },
         { keys: ["Alt", "F10"], label: t("editorFocusMenu") },
         // Alt+F10 is taken by GNOME's window manager; this one always works.
         { keys: [modKey, "Shift", "."], label: t("editorFocusMenu") },

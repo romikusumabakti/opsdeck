@@ -16,6 +16,12 @@ import {
   type ToolbarLabels,
 } from "@/components/editor/editor-menus";
 import {
+  createSlashStore,
+  SlashCommand,
+  type SlashLabels,
+  SlashMenu,
+} from "@/components/editor/slash-menu";
+import {
   CommandDialog,
   CommandEmpty,
   CommandGroup,
@@ -42,6 +48,7 @@ export type {
   TableLabels,
   ToolbarLabels,
 } from "@/components/editor/editor-menus";
+export type { SlashLabels } from "@/components/editor/slash-menu";
 
 export type LinkableDoc = { title: string; slug: string };
 
@@ -79,6 +86,7 @@ export function KnowledgeEditor({
   tableLabels,
   imageAltLabels,
   toolbarLabels,
+  slashLabels,
   contentClassName,
   borderless = false,
 }: {
@@ -90,6 +98,7 @@ export function KnowledgeEditor({
   tableLabels?: TableLabels;
   imageAltLabels?: ImageAltLabels;
   toolbarLabels?: ToolbarLabels;
+  slashLabels?: SlashLabels;
   onChange: (markdown: string) => void;
   placeholder?: string;
   // Extra classes on the editing surface — merged last, so a min-h/height
@@ -109,6 +118,11 @@ export function KnowledgeEditor({
   const setMenu = (i: number) => (el: HTMLDivElement | null) => {
     menusRef.current[i] = el;
   };
+  // Bridge between the `/` suggestion plugin and the React menu; created
+  // once, before the editor that is configured with it.
+  const [slashStore] = useState(createSlashStore);
+  // The hidden file input the `/` Image command opens.
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // onChange is debounced: serializing the whole doc to markdown on every
   // keystroke is O(doc) and re-renders the parent form each time. Coalesce to
@@ -152,6 +166,9 @@ export function KnowledgeEditor({
     extensions: [
       ...buildEditorExtensions(placeholder ?? ""),
       UploadPlaceholder,
+      // The `/` command menu: like UploadPlaceholder, UI only — it adds no
+      // node or mark, so the markdown contract is untouched.
+      SlashCommand.configure({ store: slashStore }),
     ],
     content: value,
     // `content` is markdown, not HTML — without this it parses as HTML.
@@ -359,12 +376,34 @@ export function KnowledgeEditor({
   return (
     <div className="flex flex-col">
       <EditorContent editor={editor} />
+      <SlashMenu
+        editor={editor}
+        store={slashStore}
+        labels={slashLabels}
+        onImage={() => fileInputRef.current?.click()}
+        onLinkDocument={
+          linkableDocs.length > 0 ? () => setPickerOpen(true) : undefined
+        }
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        tabIndex={-1}
+        aria-label={uploadLabels?.button ?? "Insert image"}
+        onChange={(e) => {
+          for (const f of imageFiles(e.target.files)) uploadRef.current(f);
+          e.target.value = "";
+        }}
+      />
       <SelectionMenu
         editor={editor}
         labels={toolbarLabels}
         linkLabels={linkInputLabels}
-        // Until the `/` menu exists, "Link to document" rides on the selection
-        // toolbar so the doc picker stays reachable.
+        // "Link to document" is also on the selection toolbar: there it links
+        // the selected text (the `/` command inserts the document's title).
         linkDocumentLabel={linkLabels?.title ?? "Link to document"}
         onLinkDocument={
           linkableDocs.length > 0 ? () => setPickerOpen(true) : undefined

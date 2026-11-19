@@ -11,7 +11,8 @@ import {
  * and its translations stay in one place instead of being re-declared per call
  * site.
  *
- * The placeholder defaults to the `/` command hint; `borderless` drops the
+ * The placeholder defaults to the `/` command hint (callers that pass their
+ * own keep the hint in it); `borderless` drops the
  * frame for surfaces that sit directly in a page (issue descriptions).
  */
 export function MarkdownEditor({
@@ -83,6 +84,21 @@ export function MarkdownEditor({
         taskList: t("editorTaskList"),
         code: t("editorInlineCode"),
         quote: t("editorQuote"),
+      }}
+      slashLabels={{
+        menu: t("slashMenu"),
+        empty: t("slashEmpty"),
+        heading2: t("editorHeading2"),
+        heading3: t("editorHeading3"),
+        bulletList: t("slashBulletList"),
+        orderedList: t("slashNumberedList"),
+        taskList: t("editorTaskList"),
+        quote: t("editorQuote"),
+        codeBlock: t("editorCodeBlock"),
+        table: t("slashTable"),
+        image: t("slashImage"),
+        divider: t("slashDivider"),
+        linkDocument: t("linkDocument"),
       }}
     />
   );

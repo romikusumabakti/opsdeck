@@ -338,8 +338,8 @@ export function SelectionMenu({
   editor: Editor;
   labels?: ToolbarLabels;
   linkLabels?: LinkInputLabels;
-  /** Shown only when set — "Link to document" lives here until the `/` menu
-   *  takes it over. */
+  /** Shown only when set — links the selected text to a document (the `/`
+   *  menu's Link to document inserts the title at the caret instead). */
   linkDocumentLabel?: string;
   onLinkDocument?: () => void;
   menuRef: (el: HTMLDivElement | null) => void;
