@@ -127,31 +127,31 @@ export async function insertProjectService(
 }
 
 /**
- * One transaction: refuse when a deploy target of the project uses the
- * service, else delete its default branch and the project_services row. A
- * target inserted concurrently re-adds the row (recordTargetSourceIn waits on
- * the deleted row and then inserts it), so a target never outlives its
+ * The per-project lock between removing a project service and adding a deploy
+ * target (which adds its service). Transaction-scoped advisory locks on one
+ * key per project, built from the uuid's canonical text so every spelling of
+ * the id takes the same lock.
+ */
+const projectServicesLockKey = (projectId: SQL) =>
+  sql`hashtextextended(${sql`'project-services:'`} || (${projectId})::uuid::text, 0)`;
+
+/**
+ * One transaction under the project's services lock, held exclusively from
+ * the in-use check to the delete: refuse when a deploy target of the project
+ * uses the service, else delete its default branch and the project_services
+ * row. A target's transaction shares the lock from its project-service insert
+ * to its commit (recordTargetSourceIn), so whichever comes second waits: a
+ * removal never misses a target written meanwhile, and a target written
+ * after a removal adds its service again. A target never outlives its
  * project service.
  */
-/**
- * The per-project lock between removing a project service and adding a deploy
- * target (which adds its service): a removal holds it exclusively from its
- * in-use check to its delete, a target's transaction shares it from its
- * project-service insert to its commit (recordTargetSourceIn). Whichever
- * comes second waits, so a removal never misses a target written meanwhile,
- * and a target written after a removal adds its service again.
- * Transaction-scoped advisory locks on one key per project.
- */
-const projectServicesLockKey = (projectId: SQL | string) =>
-  sql`hashtextextended(${sql`'project-services:'`} || ${projectId}, 0)`;
-
 export async function deleteProjectService(
   projectId: string,
   componentKey: string
 ): Promise<"deleted" | "absent" | "inUse"> {
   return await db.transaction(async (tx) => {
     await tx.execute(
-      sql`select pg_advisory_xact_lock(${projectServicesLockKey(projectId)})`
+      sql`select pg_advisory_xact_lock(${projectServicesLockKey(sql`${projectId}`)})`
     );
     if (await serviceInUse(projectId, componentKey, tx)) return "inUse";
     await tx
@@ -231,7 +231,7 @@ export async function recordTargetSourceIn(
 ): Promise<void> {
   await executor
     .select({
-      locked: sql`pg_advisory_xact_lock_shared(${projectServicesLockKey(sql`${environments.projectId}::text`)})`,
+      locked: sql`pg_advisory_xact_lock_shared(${projectServicesLockKey(sql`${environments.projectId}`)})`,
     })
     .from(environments)
     .where(eq(environments.id, target.environmentId));

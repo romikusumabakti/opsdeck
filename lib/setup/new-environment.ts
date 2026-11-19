@@ -13,7 +13,8 @@ import {
   copiedVariable,
   defaultDatabaseName,
   defaultDbContainer,
-  defaultDeployDir,
+  defaultTargetDirs,
+  repoKeyOf,
   variableInput,
 } from "@/lib/setup/draft";
 import {
@@ -162,6 +163,11 @@ export type NewEnvironmentContext = {
   services: { componentKey: string; detection: RepoDetection | null }[];
   /** The names the templates of the input's registered services define. */
   templateNames: string[];
+  /**
+   * The repository (repoKeyOf) of every registered service the input or the
+   * copy source names, for the default deploy dirs.
+   */
+  repoOf: Record<string, string>;
   /** The input's URL name, else the unique one its name gives (uniqueEnvSlug). */
   slug: string;
   /** Already filtered by the copy rules (secrets only with variable:read). */
@@ -269,6 +275,8 @@ type ResolvedRepo = {
   componentKey: string;
   branch: string;
   detection: RepoDetection | null;
+  /** The service's repository (repoKeyOf); null when unknown. */
+  repo: string | null;
 };
 
 export function resolveNewEnvironment(
@@ -313,6 +321,7 @@ export function resolveNewEnvironment(
         componentKey: t.componentKey,
         branch: t.sourceBranch,
         detection: known?.detection ?? null,
+        repo: ctx.repoOf[t.componentKey] ?? null,
       });
     }
   } else if (input.repos.length === 0 && input.services.length === 0) {
@@ -336,6 +345,7 @@ export function resolveNewEnvironment(
       componentKey: service.componentKey,
       branch: service.branch,
       detection: known.detection,
+      repo: ctx.repoOf[service.componentKey] ?? null,
     });
   });
   input.repos.forEach((pickedRepo, index) => {
@@ -367,6 +377,7 @@ export function resolveNewEnvironment(
         componentKey: repo.component.componentKey,
         branch: pickedRepo.branch,
         detection: repo.detection,
+        repo: repoKeyOf(repo.ciConnectionId, repo.repoFullName),
       });
       return;
     }
@@ -423,16 +434,33 @@ export function resolveNewEnvironment(
       componentKey,
       branch: pickedRepo.branch,
       detection: repo.detection,
+      repo: repoKeyOf(repo.ciConnectionId, repo.repoFullName),
     });
   });
 
-  // Targets: one per service in the stack's deploy dir, the copy source's
-  // settings where it deploys the service too; auto-deploy except for prod.
+  // Targets: one per service, the services of one repository (or of one
+  // dir of the copy source) in one dir (defaultTargetDirs: the first is the
+  // stack dir), the copy
+  // source's settings where it deploys the service too; auto-deploy except
+  // for prod. Each dir holds its own `.env`, so its tag variable is its own.
   const kind = advanced.kind ?? null;
-  const deployDir = defaultDeployDir({ projectKey, slug });
+  // Services the copy source deploys in one dir (e.g. a former app's) stay
+  // together; the others go by repository.
+  const deployDirs = defaultTargetDirs(
+    { projectKey, slug },
+    repos.map((r) => {
+      const fromDir = source?.targets.find(
+        (t) => t.componentKey === r.componentKey
+      )?.deployDir;
+      return {
+        componentKey: r.componentKey,
+        repo: fromDir ? `dir:${fromDir}` : r.repo,
+      };
+    })
+  );
   const targets: EnvironmentSetupTarget[] =
     advanced.targets ??
-    repos.map((repo) => {
+    repos.map((repo, index) => {
       const from = source?.targets.find(
         (t) => t.componentKey === repo.componentKey
       );
@@ -440,7 +468,7 @@ export function resolveNewEnvironment(
         componentKey: repo.componentKey,
         sourceBranch: repo.branch,
         autoDeploy: kind !== "prod",
-        deployDir,
+        deployDir: deployDirs[index] as string,
         services: from
           ? from.services
           : (repo.detection?.services.map((s) => s.name) ?? []),

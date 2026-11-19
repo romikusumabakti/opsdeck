@@ -27,6 +27,7 @@ import {
   type ProjectRole,
 } from "@/lib/permissions";
 import { listServices, type Service } from "@/lib/service-catalog";
+import { repoKeyOf } from "@/lib/setup/draft";
 import {
   type NewEnvironmentContext,
   type NewEnvironmentInput,
@@ -441,6 +442,15 @@ async function loadContext(
     repos,
     services,
     templateNames,
+    repoOf: Object.fromEntries(
+      components
+        .filter(
+          (c) =>
+            input.services.some((p) => p.componentKey === c.key) ||
+            source?.targets.some((t) => t.componentKey === c.key)
+        )
+        .map((c) => [c.key, repoKeyOf(c.ciConnectionId, c.repoFullName)])
+    ),
     slug,
     copySource: source,
     suggestedPort,

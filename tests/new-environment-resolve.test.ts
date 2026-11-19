@@ -80,6 +80,7 @@ function context(
     ],
     services: [],
     templateNames: [],
+    repoOf: {},
     slug: "canary-2",
     copySource: null,
     suggestedPort: 8104,
@@ -831,9 +832,101 @@ describe("resolveNewEnvironment", () => {
         ["ledger-api", "kestrel/dev"],
         ["panel-canary", "main"],
       ]);
-      // Each target keeps its own deploy dir (the stack's by default).
-      expect(new Set(plan.setup.targets.map((t) => t.deployDir)).size).toBe(1);
+      // Services of different repositories never share a dir by default:
+      // each deploy copies its bundle (compose file included) into the dir.
+      expect(plan.setup.targets.map((t) => t.deployDir)).toEqual([
+        "/deployments/cnry-canary-2",
+        "/deployments/cnry-canary-2-panel-canary",
+      ]);
       expect(plan.setup).not.toHaveProperty("appId");
+    });
+
+    it("lets the services of one repository share the stack dir", () => {
+      const repo = "ci:acme/ledger";
+      const plan = resolveNewEnvironment(
+        input({
+          repos: [],
+          services: [
+            { componentKey: "ledger-api", branch: "main" },
+            { componentKey: "ledger-web", branch: "main" },
+            { componentKey: "panel-canary", branch: "main" },
+          ],
+        }),
+        twoServices({
+          services: [
+            { componentKey: "ledger-api", detection: null },
+            { componentKey: "ledger-web", detection: null },
+            { componentKey: "panel-canary", detection: detection() },
+          ],
+          repoOf: {
+            "ledger-api": repo,
+            "ledger-web": repo,
+            "panel-canary": "ci:acme/panel-canary",
+          },
+        })
+      );
+      expect(plan.issues).toEqual([]);
+      expect(
+        plan.setup.targets.map((t) => [t.componentKey, t.deployDir])
+      ).toEqual([
+        ["ledger-api", "/deployments/cnry-canary-2"],
+        ["ledger-web", "/deployments/cnry-canary-2"],
+        ["panel-canary", "/deployments/cnry-canary-2-panel-canary"],
+      ]);
+    });
+
+    it("keeps together the services the copy source deploys in one dir", () => {
+      const shared = (componentKey: string) => ({
+        ...(source.targets[0] as CopySourceLike["targets"][number]),
+        componentKey,
+        deployDir: "/deployments/cnry-dev",
+      });
+      const plan = resolveNewEnvironment(
+        input({ repos: [], copyFromEnvironmentId: SOURCE_ENV }),
+        context({
+          repos: [],
+          copySource: {
+            ...source,
+            targets: [shared("core-api"), shared("core-web")],
+          },
+          // Two repositories, one stack in the source.
+          repoOf: { "core-api": "ci:acme/api", "core-web": "ci:acme/web" },
+        })
+      );
+      expect(plan.setup.targets.map((t) => t.deployDir)).toEqual([
+        "/deployments/cnry-canary-2",
+        "/deployments/cnry-canary-2",
+      ]);
+    });
+
+    it("gives a new repository its own dir next to a registered one", () => {
+      const plan = resolveNewEnvironment(
+        input({
+          repos: [
+            ...input().repos,
+            {
+              ciConnectionId: CI,
+              repoFullName: "acme/panel-canary-2",
+              branch: "main",
+            },
+          ],
+        }),
+        context({
+          repos: [
+            ...context().repos,
+            {
+              repoFullName: "acme/panel-canary-2",
+              ciConnectionId: CI,
+              detection: detection(),
+              component: null,
+            },
+          ],
+        })
+      );
+      expect(plan.setup.targets.map((t) => t.deployDir)).toEqual([
+        "/deployments/cnry-canary-2",
+        "/deployments/cnry-canary-2-panel-canary-2",
+      ]);
     });
 
     it("refuses a service picked twice, unknown, or also picked by its repo", () => {

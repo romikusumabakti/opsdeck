@@ -420,11 +420,13 @@ describe.skipIf(!enabled)("services model on a real Postgres", () => {
     });
     await targetWritten;
     let settled = false;
-    const removal = deleteProjectService(OTHER_PROJECT, "cms-web").finally(
-      () => {
-        settled = true;
-      }
-    );
+    // Any spelling of the project id takes the same lock.
+    const removal = deleteProjectService(
+      OTHER_PROJECT.toUpperCase(),
+      "cms-web"
+    ).finally(() => {
+      settled = true;
+    });
     await new Promise((resolve) => setTimeout(resolve, 300));
     // The removal waits for the target's transaction...
     expect(settled).toBe(false);
@@ -435,6 +437,66 @@ describe.skipIf(!enabled)("services model on a real Postgres", () => {
     expect(
       await sql`select 1 from project_services
       where project_id = ${OTHER_PROJECT} and component_key = 'cms-web'`
+    ).toHaveLength(1);
+  });
+
+  it("a target added while a removal holds the lock waits, then adds its service back", async () => {
+    const { db } = await import("@/lib/db");
+    const { insertDeployTargetIn } = await import("@/server/services/deploys");
+    const { insertProjectService } = await import("@/lib/project-sources");
+    const RACE_ENV = id(22);
+    await insertProjectService(OTHER_PROJECT, "core-backend");
+
+    // A removal in progress: the lock (as deleteProjectService takes it) and
+    // the row deleted, not committed yet.
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held = () => {};
+    const lockHeld = new Promise<void>((resolve) => {
+      held = resolve;
+    });
+    const removal = sql.begin(async (tx) => {
+      await tx`select pg_advisory_xact_lock(hashtextextended('project-services:' || ${OTHER_PROJECT}::uuid::text, 0))`;
+      await tx`delete from project_services
+      where project_id = ${OTHER_PROJECT} and component_key = 'core-backend'`;
+      held();
+      await gate;
+    });
+    await lockHeld;
+    let settled = false;
+    const targetTx = db
+      .transaction((tx) =>
+        insertDeployTargetIn(tx, {
+          environmentId: RACE_ENV,
+          componentKey: "core-backend",
+          serverId: SERVER,
+          sourceBranch: BRANCH,
+          kind: "compose",
+          deployDir: "/opt/race-core",
+          services: ["app"],
+          tagVariable: "IMAGE_TAG",
+          autoDeploy: false,
+          healthTimeoutSeconds: 180,
+          backupBeforeDeploy: false,
+          preStartCommand: null,
+          healthUrl: null,
+        })
+      )
+      .finally(() => {
+        settled = true;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    // The target waits for the removal...
+    expect(settled).toBe(false);
+    release();
+    await removal;
+    await targetTx;
+    // ...and then adds its service again.
+    expect(
+      await sql`select 1 from project_services
+      where project_id = ${OTHER_PROJECT} and component_key = 'core-backend'`
     ).toHaveLength(1);
   });
 

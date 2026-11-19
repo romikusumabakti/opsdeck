@@ -40,6 +40,7 @@ import {
   type EnvironmentDraft,
   effectiveServices,
   issuesByField,
+  repoKeyOf,
 } from "@/lib/setup/draft";
 import { isSetupIssueCode } from "@/lib/setup/issues";
 import type {
@@ -365,6 +366,17 @@ export function NewEnvironmentForm({
       : undefined;
   const defaultSlug = checkedSlug ?? baseEnvSlug(name || PROBE_NAME);
   const draftCtx: DraftContext = {
+    // Services of one repository share a default deploy dir.
+    repoOf: Object.fromEntries([
+      ...components.map((c) => [
+        c.componentKey,
+        repoKeyOf(c.ciConnectionId, c.repoFullName),
+      ]),
+      ...(plan?.registrations ?? []).map((r) => [
+        r.componentKey,
+        repoKeyOf(r.ciConnectionId, r.repoFullName),
+      ]),
+    ]),
     projectKey: project.key,
     slug: slug || defaultSlug,
     suggestedServices: [],

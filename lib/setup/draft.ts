@@ -109,6 +109,11 @@ export type DraftContext = {
   entryService?: string | null;
   /** Fills a placeholder so the preview can run and suggest a port. */
   probe?: boolean;
+  /**
+   * The repository of each service (repoKeyOf), for the default deploy dirs
+   * (defaultTargetDirs); a service missing here gets a dir of its own.
+   */
+  repoOf?: Readonly<Record<string, string>>;
 };
 
 /**
@@ -119,6 +124,40 @@ export function defaultDeployDir(
   ctx: Pick<DraftContext, "projectKey" | "slug">
 ): string {
   return `/deployments/${ctx.projectKey.toLowerCase()}-${ctx.slug}`;
+}
+
+/** A repository's identity for the default deploy dirs. */
+export function repoKeyOf(
+  ciConnectionId: string,
+  repoFullName: string
+): string {
+  return `${ciConnectionId}:${repoFullName}`;
+}
+
+/**
+ * The default deploy dir of each target, in order. Every deploy copies its
+ * bundle into the dir (compose file included), so only services of one
+ * repository share a dir by default: the first target's repository gets the
+ * stack dir (defaultDeployDir), every other repository
+ * `<stack dir>-<its first service's key>`. A target whose repository is
+ * unknown (null) is a repository of its own. Sharing a dir across
+ * repositories is the user's explicit choice.
+ */
+export function defaultTargetDirs(
+  ctx: Pick<DraftContext, "projectKey" | "slug">,
+  targets: readonly { componentKey: string; repo: string | null }[]
+): string[] {
+  const stack = defaultDeployDir(ctx);
+  const dirOf = new Map<string, string>();
+  return targets.map((t) => {
+    const group = t.repo ?? `service:${t.componentKey}`;
+    let dir = dirOf.get(group);
+    if (!dir) {
+      dir = dirOf.size === 0 ? stack : `${stack}-${t.componentKey}`;
+      dirOf.set(group, dir);
+    }
+    return dir;
+  });
 }
 
 /** `<project key>_<slug>` with underscores, the shared database name rule. */
@@ -200,6 +239,8 @@ export type CopySourceLike = {
     componentKey: string;
     sourceBranch: string;
     autoDeploy: boolean;
+    /** The source's dir: services it deploys together stay together. */
+    deployDir?: string;
     services: string[];
     tagVariable: string;
     preStartCommand?: string | null;
@@ -509,16 +550,23 @@ export function buildSetupInput(
     return input;
   });
 
+  const defaultDirs = defaultTargetDirs(
+    ctx,
+    draft.targets.map((t) => ({
+      componentKey: t.componentKey,
+      repo: ctx.repoOf?.[t.componentKey] ?? null,
+    }))
+  );
   const input = {
     projectId: draft.projectId,
     name: draft.name,
     copyFromEnvironmentId: draft.copyFromEnvironmentId,
     server: { serverId: draft.serverId },
-    targets: draft.targets.map((t) => ({
+    targets: draft.targets.map((t, i) => ({
       componentKey: t.componentKey,
       sourceBranch: t.sourceBranch,
       autoDeploy: t.autoDeploy,
-      deployDir: t.deployDir ?? defaultDeployDir(ctx),
+      deployDir: t.deployDir ?? defaultDirs[i] ?? defaultDeployDir(ctx),
       services: splitList(t.services),
       tagVariable: t.tagVariable,
       preStartCommand: t.preStartCommand.trim() || null,

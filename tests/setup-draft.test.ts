@@ -11,6 +11,7 @@ import {
   emptyDraft,
   PUBLIC_POLICY,
   parseSetupInput,
+  repoKeyOf,
   variableHandling,
 } from "@/lib/setup/draft";
 import {
@@ -97,16 +98,38 @@ const source: CopySourceLike = {
 describe("defaults", () => {
   it("puts the deploy dir under /deployments/<project key>-<slug>", () => {
     expect(defaultDeployDir(ctx)).toBe("/deployments/hris-staging");
-    // One stack per app: every component shares the directory.
-    const { input } = buildSetupInput(
-      emptyDraft(UUID, [{ componentKey: "api" }, { componentKey: "web" }]),
-      ctx
-    );
-    expect(
-      (input as { targets: { deployDir: string }[] }).targets.map(
-        (t) => t.deployDir
-      )
-    ).toEqual(["/deployments/hris-staging", "/deployments/hris-staging"]);
+    const dirs = (repoOf: Record<string, string> | undefined) =>
+      (
+        buildSetupInput(
+          emptyDraft(UUID, [
+            { componentKey: "api" },
+            { componentKey: "web" },
+            { componentKey: "worker" },
+          ]),
+          { ...ctx, repoOf }
+        ).input as { targets: { deployDir: string }[] }
+      ).targets.map((t) => t.deployDir);
+    // One repository: its services share the stack dir.
+    const one = repoKeyOf(UUID, "acme/hris");
+    expect(dirs({ api: one, web: one, worker: one })).toEqual([
+      "/deployments/hris-staging",
+      "/deployments/hris-staging",
+      "/deployments/hris-staging",
+    ]);
+    // Another repository's bundle would overwrite the stack's: its own dir,
+    // shared by its services.
+    const other = repoKeyOf(UUID, "acme/hris-web");
+    expect(dirs({ api: one, web: other, worker: other })).toEqual([
+      "/deployments/hris-staging",
+      "/deployments/hris-staging-web",
+      "/deployments/hris-staging-web",
+    ]);
+    // A service of unknown repository is never put in another's dir.
+    expect(dirs(undefined)).toEqual([
+      "/deployments/hris-staging",
+      "/deployments/hris-staging-web",
+      "/deployments/hris-staging-worker",
+    ]);
   });
 
   it("builds the input from the draft with the defaults filled in", () => {
