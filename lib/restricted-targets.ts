@@ -16,7 +16,7 @@ import {
   type OrgPermissions,
   type ProjectPermissions,
 } from "@/lib/permissions";
-import { sameS3Bucket } from "@/lib/validation";
+import { normalizeKeyPrefix, s3BucketKey } from "@/lib/validation";
 import { notFound } from "@/server/errors";
 
 // Restricted targets: the servers and the buckets the engineer grant does not
@@ -24,8 +24,8 @@ import { notFound } from "@/server/errors";
 // An infra-only server (servers.infra_only), and the places that hold full
 // dumps of the Panel database: the backup destination (instance_settings
 // backup_s3_*), which is no S3 connection and so never an explorer source,
-// but any connection pointing into it (same endpoint and bucket, a key
-// prefix inside the destination's or containing it), and the S3 connection
+// but any connection pointing into it (the same bucket name on any
+// endpoint, a key prefix inside the destination's or containing it), and the S3 connection
 // backups went to before the destination got its own credentials
 // (instance_settings.backup_destination_id), until a later release drops it.
 
@@ -50,14 +50,24 @@ type S3Location = {
 
 /**
  * Whether a bucket location reaches into the backup destination: the same
- * endpoint and bucket, and one key prefix inside the other (no prefix is the
- * whole bucket, which holds every prefix).
+ * bucket name and one key prefix inside the other (no prefix is the whole
+ * bucket, which holds every prefix). The endpoint is deliberately not
+ * compared: one store answers under aliases no comparison can enumerate (DNS
+ * names, IP literals, proxies), so the same bucket name with an overlapping
+ * prefix counts as the destination on any endpoint. Prefixes are compared in
+ * their stored form (normalizeKeyPrefix); one that does not normalise counts
+ * as the whole bucket.
  */
 export function locationsOverlap(a: S3Location, b: S3Location): boolean {
-  if (!sameS3Bucket(a, b)) return false;
-  const pa = a.keyPrefix ?? "";
-  const pb = b.keyPrefix ?? "";
+  if (s3BucketKey(a.bucket) !== s3BucketKey(b.bucket)) return false;
+  const pa = prefixKey(a.keyPrefix);
+  const pb = prefixKey(b.keyPrefix);
   return pa.startsWith(pb) || pb.startsWith(pa);
+}
+
+function prefixKey(prefix: string | null): string {
+  const normalised = normalizeKeyPrefix(prefix);
+  return normalised.ok ? (normalised.prefix ?? "") : "";
 }
 
 async function loadRestrictedLocations() {
@@ -92,6 +102,24 @@ export async function overlapsBackupDestination(
   return destination !== null && locationsOverlap(location, destination);
 }
 
+type S3ConnectionLocation = S3Location & { id: string };
+
+/**
+ * The restricted-connection check, loaded once for many rows: whether a
+ * connection is the legacy backup destination connection or reaches into
+ * the backup destination (locationsOverlap). The rule isRestrictedSource
+ * applies, for the pages' isBackupDestination flag.
+ */
+export async function restrictedConnectionCheck(): Promise<
+  (connection: S3ConnectionLocation) => boolean
+> {
+  const restricted = await loadRestrictedLocations();
+  return (connection) =>
+    connection.id === restricted.legacyId ||
+    (restricted.destination !== null &&
+      locationsOverlap(connection, restricted.destination));
+}
+
 /**
  * Whether an explorer source is a restricted target. An unknown server or
  * connection is not: the explorer then answers it as not found, as before.
@@ -102,7 +130,7 @@ export async function isRestrictedSource(
   if (source.kind === "s3") {
     // Looked up in SQL, with the uuid semantics resolveBackend's lookup uses;
     // the row's own id is then compared, so "<UPPERCASE id>" is no way round.
-    const [[connection], restricted] = await Promise.all([
+    const [[connection], isRestricted] = await Promise.all([
       db
         .select({
           id: s3Connections.id,
@@ -113,14 +141,9 @@ export async function isRestrictedSource(
         .from(s3Connections)
         .where(eq(s3Connections.id, source.connectionId))
         .limit(1),
-      loadRestrictedLocations(),
+      restrictedConnectionCheck(),
     ]);
-    if (!connection) return false;
-    return (
-      connection.id === restricted.legacyId ||
-      (restricted.destination !== null &&
-        locationsOverlap(connection, restricted.destination))
-    );
+    return connection ? isRestricted(connection) : false;
   }
   const [row] = await db
     .select({ infraOnly: servers.infraOnly })

@@ -494,15 +494,49 @@ export function normalizeS3Endpoint(endpoint: string): string {
 }
 
 /**
- * Whether two S3 locations are the same bucket of the same endpoint (host
- * case and trailing slashes aside).
+ * The place an S3 endpoint names, for comparing locations: every spelling of
+ * one endpoint maps to the same key. Scheme, userinfo, query, fragment and
+ * trailing slashes are ignored, the host is lowercased without a trailing
+ * dot, and a default port (80, 443, under either scheme) is dropped; a
+ * non-default port and a non-root path stay. A value that does not parse is
+ * compared trimmed and lowercased.
+ */
+export function s3EndpointKey(endpoint: string): string {
+  const trimmed = endpoint.trim();
+  let url: URL;
+  try {
+    url = new URL(
+      /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+    );
+  } catch {
+    return normalizeS3Endpoint(trimmed).toLowerCase();
+  }
+  const host = url.hostname.toLowerCase().replace(/\.+$/, "");
+  const port =
+    url.port === "" || url.port === "80" || url.port === "443"
+      ? ""
+      : `:${url.port}`;
+  const path = url.pathname.replace(/\/+$/, "");
+  return `${host}${port}${path}`;
+}
+
+/**
+ * Whether two S3 locations are the same bucket of the same endpoint, however
+ * the endpoint is spelled (s3EndpointKey).
  */
 export function sameS3Bucket(
   a: { endpoint: string; bucket: string },
   b: { endpoint: string; bucket: string }
 ): boolean {
-  const host = (e: string) => normalizeS3Endpoint(e).toLowerCase();
-  return a.bucket === b.bucket && host(a.endpoint) === host(b.endpoint);
+  return (
+    s3BucketKey(a.bucket) === s3BucketKey(b.bucket) &&
+    s3EndpointKey(a.endpoint) === s3EndpointKey(b.endpoint)
+  );
+}
+
+/** A bucket name for comparing locations: trimmed, lowercased. */
+export function s3BucketKey(bucket: string): string {
+  return bucket.trim().toLowerCase();
 }
 
 // The instance backup destination (Admin › Instance › Backups): an S3 bucket
