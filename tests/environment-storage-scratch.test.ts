@@ -706,31 +706,22 @@ describe.skipIf(!enabled)("environment storage on Postgres", () => {
       expect(s3.probes).toEqual([]);
     });
 
-    it("can't be set to an environment's connection", async () => {
+    it("is no longer picked from the connections: the schedule save leaves the legacy setting alone", async () => {
       as(ADMIN, "admin");
-      const settings = {
-        time: "02:00",
-        keepDaily: 7,
-        keepWeekly: 4,
-      };
-      expect(
-        await refusal(
-          backups.saveInstanceBackupSettings({
-            ...settings,
-            destinationId: CONN_A,
-          })
-        )
-      ).toEqual({ status: 400, code: "backupDestinationEnvironmentOwned" });
+      // An old client still sending destinationId: dropped by the schema.
       expect(
         await backups.saveInstanceBackupSettings({
-          ...settings,
-          destinationId: CONN_FREE,
-        })
+          time: "02:00",
+          keepDaily: 7,
+          keepWeekly: 4,
+          destinationId: CONN_A,
+        } as never)
       ).toEqual({ success: true });
+      const [row] = await sql<{ backup_destination_id: string | null }[]>`
+        select backup_destination_id from instance_settings where id = 1`;
+      expect(row?.backup_destination_id).toBe(CONN_BACKUP);
       const page = await backups.getInstanceBackups();
-      expect(page.destinations.map((d) => d.id).sort()).toEqual(
-        [CONN_FREE, CONN_BACKUP].sort()
-      );
+      expect(page).not.toHaveProperty("destinations");
     });
   });
 

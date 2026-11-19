@@ -193,9 +193,38 @@ export async function updateS3Connection(
   }
 }
 
+/**
+ * Refuses (coded 409) deleting a connection something still reads by id:
+ * the legacy instance backup destination (backup_destination_id, kept until
+ * a later release; `s3BackupDestinationRestricted`) and one old environment
+ * archives live in (`s3ConnectionHoldsArchives`: their download and prune
+ * resolve it, and the delete would leave them unreachable).
+ */
+async function refuseNeededConnection(connectionId: string): Promise<void> {
+  const [[connection], legacyId] = await Promise.all([
+    db
+      .select({ id: s3Connections.id })
+      .from(s3Connections)
+      .where(eq(s3Connections.id, connectionId))
+      .limit(1),
+    backupDestinationId(),
+  ]);
+  if (!connection) return;
+  if (connection.id === legacyId) {
+    throw await conflict("s3BackupDestinationRestricted");
+  }
+  const [archive] = await db
+    .select({ id: environmentArchives.id })
+    .from(environmentArchives)
+    .where(eq(environmentArchives.s3ConnectionId, connection.id))
+    .limit(1);
+  if (archive) throw await conflict("s3ConnectionHoldsArchives");
+}
+
 export async function deleteS3Connection(id: string): Promise<ActionResponse> {
   await requireOrgPermission({ storage: ["manage"] });
   const t = await getServerTranslator("actionErrors");
+  await refuseNeededConnection(id);
   try {
     await db.delete(s3Connections).where(eq(s3Connections.id, id));
     return { success: true, message: t("s3Deleted") };
@@ -221,6 +250,7 @@ export async function testS3ConnectionAction(input: {
   const t = await getServerTranslator("actionErrors");
 
   let secretKey = input.secretKey;
+  let keyPrefix: string | null = null;
   if (!secretKey && input.connectionId != null) {
     const [row] = await db
       .select()
@@ -244,6 +274,8 @@ export async function testS3ConnectionAction(input: {
       };
     }
     secretKey = decryptSecret(row.secretKey);
+    // The stored secret probes only where the connection is confined to.
+    keyPrefix = row.keyPrefix;
   }
   if (!secretKey) {
     return { ok: false, message: t("s3SecretRequiredForTest") };
@@ -256,6 +288,7 @@ export async function testS3ConnectionAction(input: {
     accessKeyId: input.accessKeyId.trim(),
     secretKey,
     forcePathStyle: input.forcePathStyle,
+    keyPrefix,
   });
 }
 
@@ -342,11 +375,15 @@ export async function assignS3Connection(
   return toSafeS3Connection(updated, null);
 }
 
-/** Delete an unassigned connection (404 for one an environment owns). */
+/**
+ * Delete an unassigned connection (404 for one an environment owns; the
+ * coded 409s of refuseNeededConnection).
+ */
 export async function deleteUnassignedS3Connection(
   connectionId: string
 ): Promise<void> {
   const session = await requireOrgStorage(STORAGE_MANAGE);
+  await refuseNeededConnection(connectionId);
   const [deleted] = await db
     .delete(s3Connections)
     .where(

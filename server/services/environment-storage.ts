@@ -13,6 +13,7 @@ import { testS3Connection } from "@/lib/explorer/s3";
 import {
   backupDestinationId,
   isRestrictedSource,
+  overlapsBackupDestination,
 } from "@/lib/restricted-targets";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import {
@@ -39,7 +40,8 @@ import {
 // secret is only ever used with the location it was given for
 // (changesS3Location): moving a connection to another endpoint, bucket,
 // prefix, access key or addressing style takes a new secret. The instance
-// backup destination is never handled here, wherever it sits (409).
+// backup destination is never handled here, wherever it sits (409), and no
+// connection is added or moved into it (409 s3BackupDestinationOverlap).
 
 const VIEW = { project: ["read"] } as const;
 const MANAGE = { environment: ["update"] } as const;
@@ -89,6 +91,23 @@ async function refuseRestricted(connectionId: string): Promise<void> {
     409,
     "s3BackupDestinationRestricted",
     t("s3BackupDestinationRestricted")
+  );
+}
+
+// An environment's connection never points into the instance backup
+// destination (same endpoint and bucket, overlapping key prefix): its
+// managers could then browse and edit the Panel's dumps.
+async function refuseBackupDestinationOverlap(location: {
+  endpoint: string;
+  bucket: string;
+  keyPrefix: string | null;
+}): Promise<void> {
+  if (!(await overlapsBackupDestination(location))) return;
+  const t = await getServerTranslator("actionErrors");
+  throw new CodedHTTPException(
+    409,
+    "s3BackupDestinationOverlap",
+    t("s3BackupDestinationOverlap")
   );
 }
 
@@ -143,6 +162,7 @@ export async function createEnvironmentStorage(
 ): Promise<SafeS3Connection> {
   const { session } = await requireManage(environmentId);
   const keyPrefix = await keyPrefixOf(data.keyPrefix);
+  await refuseBackupDestinationOverlap({ ...data, keyPrefix });
   const environment = await environmentName(environmentId);
   const created = one(
     await db
@@ -193,6 +213,11 @@ export async function updateEnvironmentStorage(
   ) {
     await secretRequiredForLocationChange();
   }
+  await refuseBackupDestinationOverlap({
+    endpoint: fields.endpoint ?? stored.endpoint,
+    bucket: fields.bucket ?? stored.bucket,
+    keyPrefix: keyPrefix === undefined ? stored.keyPrefix : keyPrefix,
+  });
   const environment = await environmentName(environmentId);
   const [updated] = await db
     .update(s3Connections)

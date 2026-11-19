@@ -7,7 +7,6 @@ import { instanceName, LOCAL_BACKUP_ROOT } from "@/lib/instance-backup/archive";
 import {
   type BackupDestination,
   loadBackupDestination,
-  loadS3ConnectionStore,
   type ObjectStore,
 } from "@/lib/instance-backup/destination";
 import { sharedDbRole } from "@/lib/jobs/commands";
@@ -17,6 +16,7 @@ import { decryptNullable } from "@/lib/secrets";
 import { shq } from "@/lib/sh";
 import { redactSecrets, streamRemoteCommandToFile } from "@/lib/ssh";
 import { HostKeyMismatchError, type SshTarget } from "@/lib/ssh-connect";
+import { loadArchiveStore } from "@/lib/teardown/archive-store";
 import { StepFailed } from "@/lib/teardown/errors";
 import {
   isSafeDeployDir,
@@ -39,8 +39,8 @@ import {
 
 // The archive steps of a teardown: a pg_dump of each database, a tarball of
 // each deploy dir and of each stack volume, streamed over SSH into a file and
-// kept at the instance backup destination (the S3 connection, else the local
-// backup root). They come before anything destructive in the plan, so a
+// kept at the instance backup destination (its S3 bucket, under its key
+// prefix, else the local backup root). They come before anything destructive in the plan, so a
 // failure (archiveFailed) leaves everything in place.
 //
 // One archive row per teardown: the environment's row with no completed_at,
@@ -52,7 +52,9 @@ import {
 import { ENV_ARCHIVE_RETENTION_DAYS } from "@/lib/teardown/retention";
 
 export { ENV_ARCHIVE_RETENTION_DAYS };
-/** S3 keys: `menara-env-archives/<instance>/<archiveId>/<file>`. */
+/**
+ * S3 keys: `[<destination key prefix>]menara-env-archives/<instance>/<archiveId>/<file>`.
+ */
 export const ENV_ARCHIVE_PREFIX = "menara-env-archives/";
 
 const DAY_MS = 86_400_000;
@@ -117,26 +119,30 @@ function errorMessage(ctx: TeardownContext, error: unknown): string {
   return redactSecrets(raw, ctx.secrets);
 }
 
-/** The store of an `s3` archive: the S3 connection it was created on. */
+/**
+ * The store of an `s3` archive (loadArchiveStore): the backup destination it
+ * was created on while that still points at the same bucket, or, for an
+ * archive from before, the S3 connection it names.
+ */
 async function archiveStore(
   ctx: TeardownContext,
   archive: EnvironmentArchive
 ): Promise<ObjectStore> {
   let store: ObjectStore | null = null;
   try {
-    store = archive.s3ConnectionId
-      ? await loadS3ConnectionStore(archive.s3ConnectionId)
-      : null;
+    store = await loadArchiveStore(archive);
   } catch (error) {
     throw new StepFailed(
       "archiveFailed",
-      `the archive's S3 connection could not be loaded: ${errorMessage(ctx, error)}`
+      `the archive's S3 location could not be loaded: ${errorMessage(ctx, error)}`
     );
   }
   if (!store) {
     throw new StepFailed(
       "archiveFailed",
-      "this archive goes to S3, but its S3 connection no longer exists"
+      archive.inBackupDestination
+        ? "this archive goes to the backup destination, which no longer points at its bucket"
+        : "this archive goes to S3, but its S3 connection no longer exists"
     );
   }
   return store;
@@ -157,9 +163,10 @@ async function loadDestination(
 
 /**
  * The environment's open archive, created on the first archive step at
- * today's backup destination (its S3 connection is recorded, so later
- * steps, downloads and the prune use that bucket even after the setting
- * changes).
+ * today's backup destination. Its endpoint and bucket are recorded, and the
+ * key prefix whole (destination prefix included), so later steps, downloads
+ * and the prune use that bucket and those keys, and find it unreachable
+ * rather than look elsewhere once the setting points at another bucket.
  */
 async function openArchive(ctx: ArchiveContext): Promise<EnvironmentArchive> {
   const existing = await findOpenArchive(ctx.environmentId);
@@ -178,9 +185,12 @@ async function openArchive(ctx: ArchiveContext): Promise<EnvironmentArchive> {
     deletedById: ctx.userId,
     expiresAt: new Date(Date.now() + ENV_ARCHIVE_RETENTION_DAYS * DAY_MS),
     location: destination ? "s3" : "local",
-    s3ConnectionId: destination?.connectionId ?? null,
+    s3ConnectionId: null,
+    inBackupDestination: destination !== null,
+    s3Endpoint: destination?.endpoint ?? null,
+    s3Bucket: destination?.bucket ?? null,
     keyPrefix: destination
-      ? `${ENV_ARCHIVE_PREFIX}${instance}/${id}/`
+      ? `${destination.keyPrefix ?? ""}${ENV_ARCHIVE_PREFIX}${instance}/${id}/`
       : `${localArchiveDir(instance, id)}/`,
   });
 }

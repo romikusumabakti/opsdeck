@@ -35,6 +35,9 @@ type Archive = {
   expiresAt: Date;
   location: "local" | "s3";
   s3ConnectionId: string | null;
+  inBackupDestination?: boolean;
+  s3Endpoint?: string | null;
+  s3Bucket?: string | null;
   keyPrefix: string;
   files: { name: string; size: number }[];
   completedAt: Date | null;
@@ -64,6 +67,9 @@ const state = vi.hoisted(() => ({
   run: { status: "started" } as { status: string; error?: string },
   log: [] as string[],
   destination: true,
+  // Where today's backup destination points (its bucket and key prefix).
+  destinationBucket: "fictional-panel-backups",
+  destinationPrefix: null as string | null,
   connectionGone: false,
   uploads: [] as { key: string; body: string }[],
   uploadError: null as null | string,
@@ -87,8 +93,8 @@ vi.mock("@/lib/instance-backup/archive", () => ({
   instanceName: () => "menara-test",
 }));
 
-// The fake connection "conn-1": today's backup destination while
-// `destination` is set, and loadable while `connectionGone` is not.
+// Today's backup destination while `destination` is set, and the old
+// archives' S3 connection "conn-1", loadable while `connectionGone` is not.
 const fakeStore = () => ({
   upload: async (key: string, filePath: string) => {
     if (state.uploadError) {
@@ -107,10 +113,17 @@ vi.mock("@/lib/instance-backup/destination", () => ({
   loadBackupDestination: async () =>
     state.destination
       ? {
-          connectionId: "conn-1",
+          endpoint: "https://objects.example.test",
+          bucket: state.destinationBucket,
+          keyPrefix: state.destinationPrefix,
           keepDaily: 7,
           keepWeekly: 4,
-          store: fakeStore(),
+          store: {
+            upload: async () => {
+              throw new Error("archives use the whole-bucket store");
+            },
+          },
+          bucketStore: fakeStore(),
         }
       : null,
   loadS3ConnectionStore: async (id: string) =>
@@ -324,6 +337,8 @@ beforeEach(() => {
   state.run = { status: "started" };
   state.log = [];
   state.destination = true;
+  state.destinationBucket = "fictional-panel-backups";
+  state.destinationPrefix = null;
   state.connectionGone = false;
   state.uploads = [];
   state.uploadError = null;
@@ -552,26 +567,98 @@ describe("archiveDatabase", () => {
     expect(state.uploads).toEqual([]);
   });
 
-  it("keeps an S3 archive on its own connection, whatever the destination setting says", async () => {
+  it("records a new archive against the backup destination, under its key prefix", async () => {
+    state.destinationPrefix = "panel/";
     await archiveDatabase(ctx(), { serviceId: "svc" });
-    expect(state.archives[0]?.s3ConnectionId).toBe("conn-1");
-    // The setting changed to local since: the archive still goes to conn-1.
-    state.destination = false;
+    const archive = state.archives[0] as Archive;
+    expect(archive).toMatchObject({
+      location: "s3",
+      inBackupDestination: true,
+      s3ConnectionId: null,
+      s3Endpoint: "https://objects.example.test",
+      s3Bucket: "fictional-panel-backups",
+      keyPrefix: `panel/menara-env-archives/menara-test/${archive.id}/`,
+    });
+    expect(state.uploads.map((u) => u.key)).toEqual([
+      `panel/menara-env-archives/menara-test/${archive.id}/${DB_FILE}`,
+    ]);
+  });
+
+  it("keeps adding to the archive's bucket after a prefix change, and fails once the destination moved", async () => {
+    await archiveDatabase(ctx(), { serviceId: "svc" });
+    const archive = state.archives[0] as Archive;
+    // The recorded key prefix wins over today's.
+    state.destinationPrefix = "elsewhere/";
     await archiveDeployDir(ctx(), DIR);
     expect(state.uploads.map((u) => u.key)).toEqual([
-      expect.stringMatching(/db-/),
-      expect.stringMatching(/deploy-/),
+      `menara-env-archives/menara-test/${archive.id}/${DB_FILE}`,
+      `menara-env-archives/menara-test/${archive.id}/${DEPLOY_FILE}`,
+    ]);
+    for (const moved of [
+      () => {
+        state.destinationBucket = "fictional-other-bucket";
+      },
+      () => {
+        state.destination = false;
+      },
+    ]) {
+      moved();
+      await expect(
+        archiveDeployDir(ctx(), { ...DIR, deployDir: "/deployments/other" })
+      ).rejects.toThrow(expect.objectContaining({ code: "archiveFailed" }));
+    }
+    expect(state.archives).toHaveLength(1);
+  });
+
+  it("keeps an old archive on its own S3 connection, whatever the destination setting says", async () => {
+    // An open archive from before the backup destination got its own
+    // credentials: it names the connection it was written to.
+    state.archives.push({
+      id: "0197f3a0-1b2c-7def-8000-0123456789f1",
+      environmentId: ENV_ID,
+      projectName: "HRIS",
+      environmentName: "Staging",
+      environmentSlug: "staging",
+      deletedById: USER_ID,
+      expiresAt: new Date(Date.now() + 86_400_000),
+      location: "s3",
+      s3ConnectionId: "conn-1",
+      keyPrefix:
+        "menara-env-archives/menara-test/0197f3a0-1b2c-7def-8000-0123456789f1/",
+      files: [],
+      completedAt: null,
+    });
+    state.destination = false;
+    await archiveDatabase(ctx(), { serviceId: "svc" });
+    await archiveDeployDir(ctx(), DIR);
+    expect(state.uploads.map((u) => u.key)).toEqual([
+      expect.stringMatching(/0123456789f1\/db-/),
+      expect.stringMatching(/0123456789f1\/deploy-/),
     ]);
     expect(state.archives).toHaveLength(1);
   });
 
-  it("fails the step once the archive's S3 connection is gone", async () => {
-    await archiveDatabase(ctx(), { serviceId: "svc" });
+  it("fails the step once an old archive's S3 connection is gone", async () => {
+    state.archives.push({
+      id: "0197f3a0-1b2c-7def-8000-0123456789f1",
+      environmentId: ENV_ID,
+      projectName: "HRIS",
+      environmentName: "Staging",
+      environmentSlug: "staging",
+      deletedById: USER_ID,
+      expiresAt: new Date(Date.now() + 86_400_000),
+      location: "s3",
+      s3ConnectionId: "conn-1",
+      keyPrefix:
+        "menara-env-archives/menara-test/0197f3a0-1b2c-7def-8000-0123456789f1/",
+      files: [],
+      completedAt: null,
+    });
     state.connectionGone = true;
     await expect(archiveDeployDir(ctx(), DIR)).rejects.toThrow(
       expect.objectContaining({ code: "archiveFailed" })
     );
-    expect(state.archives).toHaveLength(1);
+    expect(state.uploads).toEqual([]);
   });
 });
 

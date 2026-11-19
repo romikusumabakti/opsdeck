@@ -5,19 +5,17 @@ import type { Readable } from "node:stream";
 import type { EnvironmentArchive } from "@/lib/db/schema";
 import { LOCAL_BACKUP_ROOT } from "@/lib/instance-backup/archive";
 import {
-  loadS3ConnectionStore,
-  type ObjectStore,
-} from "@/lib/instance-backup/destination";
-import {
   ENV_ARCHIVE_PREFIX,
   ENV_ARCHIVE_RETENTION_DAYS,
 } from "@/lib/teardown/archive";
+import { loadArchiveStore } from "@/lib/teardown/archive-store";
 import {
   deleteArchiveRow,
   getArchive,
   listArchives,
   listPrunableArchives,
 } from "@/lib/teardown/repository";
+import { normalizeKeyPrefix } from "@/lib/validation";
 import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 import { requireInstanceManage } from "@/server/services/instance-backups";
@@ -29,8 +27,11 @@ import { requireInstanceManage } from "@/server/services/instance-backups";
 // A file is read only by a name the archive row lists, under the row's own
 // prefix, and only once that prefix has the shape the archive step writes
 // (`<root>/<instance>/env-archives/<id>/`, or
-// `menara-env-archives/<instance>/<id>/`): nothing from the request becomes
-// a path or an S3 key.
+// `[<destination key prefix>]menara-env-archives/<instance>/<id>/`): nothing
+// from the request becomes a path or an S3 key. An S3 archive is read where
+// lib/teardown/archive-store finds it: the backup destination it was written
+// to while that still points at its bucket, or the S3 connection an older
+// archive names.
 
 const DAY_MS = 86_400_000;
 
@@ -82,26 +83,32 @@ function localDir(archive: EnvironmentArchive): string | null {
   return ok ? dir : null;
 }
 
-/** Whether an S3 prefix is `menara-env-archives/<instance>/<id>/`. */
+/**
+ * Whether an S3 prefix is `menara-env-archives/<instance>/<id>/`, after the
+ * backup destination's own key prefix (a normalised one) for an archive
+ * written there; an older archive has none.
+ */
 function s3PrefixOk(archive: EnvironmentArchive): boolean {
   const parts = archive.keyPrefix.split("/");
+  if (parts.length < 4) return false;
+  const [root, instance, id, end] = parts.slice(-4);
+  const lead = parts.slice(0, -4);
+  const leadPrefix = `${lead.join("/")}/`;
+  const normalised = normalizeKeyPrefix(leadPrefix);
+  const leadOk =
+    lead.length === 0 ||
+    (archive.inBackupDestination &&
+      normalised.ok &&
+      normalised.prefix === leadPrefix);
   return (
-    archive.keyPrefix.startsWith(ENV_ARCHIVE_PREFIX) &&
-    parts.length === 4 &&
-    parts[1] !== "" &&
-    parts[1] !== ".." &&
-    parts[2] === archive.id &&
-    parts[3] === ""
+    leadOk &&
+    `${root}/` === ENV_ARCHIVE_PREFIX &&
+    instance !== undefined &&
+    instance !== "" &&
+    instance !== ".." &&
+    id === archive.id &&
+    end === ""
   );
-}
-
-/** The store of an `s3` archive's own connection, or null when it is gone. */
-async function archiveStore(
-  archive: EnvironmentArchive
-): Promise<ObjectStore | null> {
-  return archive.s3ConnectionId
-    ? loadS3ConnectionStore(archive.s3ConnectionId)
-    : null;
 }
 
 async function connectionGone(): Promise<never> {
@@ -118,7 +125,8 @@ async function connectionGone(): Promise<never> {
  * the S3 connection the archive was written to), read as the response
  * consumes it, with its size. 404 when the archive, the name in its list,
  * or the file is not there; 404 `backupDestinationNotFound` when the
- * archive's S3 connection was deleted.
+ * archive's S3 location is gone (its connection deleted, or the backup
+ * destination moved to another bucket or removed).
  */
 export async function openArchiveFile(
   id: string,
@@ -137,7 +145,7 @@ export async function openArchiveFile(
     return { name: file.name, size: info.size, stream: createReadStream(path) };
   }
   if (!s3PrefixOk(archive)) notFound();
-  const store = (await archiveStore(archive)) ?? (await connectionGone());
+  const store = (await loadArchiveStore(archive)) ?? (await connectionGone());
   try {
     return {
       name: file.name,
@@ -164,7 +172,7 @@ async function deleteArchiveFiles(archive: EnvironmentArchive): Promise<void> {
   if (!s3PrefixOk(archive)) {
     throw new Error("the archive's S3 prefix is not an archive prefix");
   }
-  const store = await archiveStore(archive);
+  const store = await loadArchiveStore(archive);
   if (!store) throw new ConnectionGone();
   const objects = await store.list(archive.keyPrefix);
   if (objects.length > 0) await store.delete(objects.map((o) => o.key));
@@ -174,9 +182,9 @@ async function deleteArchiveFiles(archive: EnvironmentArchive): Promise<void> {
  * The daily prune (job `environment/archives.prune`): for each archive
  * listPrunableArchives selects, deletes its files, then its row. An archive
  * whose files cannot be deleted keeps its row, so the next prune tries
- * again; so does an S3 archive whose connection was deleted (its objects
- * may still exist, and the row is the only record of them), reported in one
- * log line per run.
+ * again; so does an S3 archive whose location is gone (connection deleted,
+ * backup destination moved or removed: its objects may still exist, and the
+ * row is the only record of them), reported in one log line per run.
  */
 export async function pruneEnvironmentArchives(
   now: Date = new Date()
@@ -206,7 +214,7 @@ export async function pruneEnvironmentArchives(
   }
   if (orphaned.length > 0) {
     console.error(
-      `${orphaned.length} expired environment archives kept: their S3 connection no longer exists (${orphaned.join(", ")})`
+      `${orphaned.length} expired environment archives kept: their S3 connection no longer exists or the backup destination no longer points at their bucket (${orphaned.join(", ")})`
     );
   }
   return { deleted, failed };

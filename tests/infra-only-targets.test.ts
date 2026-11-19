@@ -79,11 +79,21 @@ vi.mock("@/lib/db", async () => {
           }
           if (table === schema.s3Connections) {
             return answer(() => {
+              // The row as Postgres returns it: its id in canonical form.
               const id = whereId()?.toLowerCase();
-              if (id === BUCKET_ID) return [{ environmentId: ENV_P1 }];
-              if (id === OTHER_BUCKET_ID) return [{ environmentId: ENV_P2 }];
+              const row = (environmentId: string | null) => [
+                {
+                  id,
+                  environmentId,
+                  endpoint: "https://objects.example.test",
+                  bucket: `bucket-${id}`,
+                  keyPrefix: null,
+                },
+              ];
+              if (id === BUCKET_ID) return row(ENV_P1);
+              if (id === OTHER_BUCKET_ID) return row(ENV_P2);
               if (id === BACKUP_BUCKET_ID || id === FREE_BUCKET_ID) {
-                return [{ environmentId: null }];
+                return row(null);
               }
               return [];
             });
@@ -103,8 +113,19 @@ vi.mock("@/lib/db", async () => {
             return answer(() => {
               // Postgres compares uuids case-insensitively; so does this fake
               // when the query filters on one (backup_destination_id = …).
+              // No backup_s3_* destination here: only the legacy setting.
               const id = whereId();
-              if (id === undefined) return [{ id: state.backupId }];
+              if (id === undefined) {
+                return [
+                  {
+                    id: state.backupId,
+                    legacyId: state.backupId,
+                    endpoint: null,
+                    bucket: null,
+                    keyPrefix: null,
+                  },
+                ];
+              }
               return id.toLowerCase() === state.backupId ? [{ id: 1 }] : [];
             });
           }

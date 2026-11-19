@@ -340,3 +340,27 @@ describe("activity page storage events", () => {
     expect(text).not.toContain("storage.");
   });
 });
+
+describe("activity page backup destination events", () => {
+  it("renders the backup destination set and removed", async () => {
+    const text = await renderEvents([
+      row("1", "instance.backupDestinationChanged", {
+        state: "set",
+        endpoint: "https://objects.example.test",
+        bucket: "fictional-panel-backups",
+      }),
+      row("2", "instance.backupDestinationChanged", {
+        state: "cleared",
+        endpoint: "",
+        bucket: "",
+      }),
+    ]);
+    expect(text).toContain(
+      "Rina set the backup destination to fictional-panel-backups at https://objects.example.test"
+    );
+    expect(text).toContain(
+      "Rina removed the backup destination; backups stay on this server"
+    );
+    expect(text).not.toContain("instance.");
+  });
+});

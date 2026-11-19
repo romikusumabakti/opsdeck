@@ -1528,6 +1528,7 @@
     "s3BackupDestinationNotAssignable": "此连接是实例备份目标，不能分配给环境",
     "s3SecretRequiredForLocationChange": "更改端点、区域、存储桶、键前缀、访问密钥或路径样式时需要重新输入密钥",
     "s3BackupDestinationRestricted": "此连接是实例备份目标，请在 管理 › 实例 中管理",
+    "s3BackupDestinationOverlap": "此存储桶和键前缀存放实例备份；请选择其他存储桶或其外的前缀",
     "s3ConnectionAlreadyAssigned": "此连接已属于某个环境",
     "s3ConnectionHoldsArchives": "此连接中仍存有已删除环境的归档，在其过期前保持未分配",
     "unsupportedObjectName": "不支持此对象名称：其中包含经过编码或形似的“/”、“\\”或点段",
@@ -2314,6 +2315,8 @@
     "storageDeleted": "{actor} 从 {environment} 移除了存储 {name}",
     "storageDeletedUnassigned": "{actor} 删除了未分配的存储 {name}",
     "storageAssigned": "{actor} 将存储 {name} 分配给了 {environment}",
+    "backupDestinationSet": "{actor} 将备份目标设为 {endpoint} 上的 {bucket}",
+    "backupDestinationCleared": "{actor} 移除了备份目标；备份保存在本服务器",
     "projectDefaultServerSet": "{actor} 将 {project} 的默认服务器设为 {server}",
     "projectDefaultServerCleared": "{actor} 清除了 {project} 的默认服务器",
     "projectGroupCreated": "{actor} 创建了项目分组 {group}",
@@ -3502,11 +3505,20 @@
     "tabSshKey": "SSH 密钥"
   },
   "instanceBackups": {
-    "settingsTitle": "计划与目标",
+    "settingsTitle": "计划",
     "settingsDescription": "每天在此时间运行一次备份，包含数据库和已存储的文件。",
-    "destination": "目标",
-    "destinationLocal": "无 — 仅保存在本服务器",
-    "destinationDescription": "一个 S3 连接，最好在异地（例如 Cloudflare R2）。",
+    "destinationCard": {
+      "title": "备份目标",
+      "description": "备份和已删除环境的归档所存放的 S3 存储桶，最好位于异地（例如 Cloudflare R2）。它有自己的密钥，绝不会出现在任何环境的存储中。",
+      "keyPrefix": "键前缀",
+      "keyPrefixDescription": "可选。存放备份的存储桶文件夹，例如 panel/。",
+      "secretKeyPlaceholderSet": "留空以保留已保存的密钥",
+      "remove": "移除目标",
+      "removeTitle": "移除备份目标？",
+      "removeDescription": "之后的备份只保存在本服务器。已上传的备份仍保留在存储桶中。",
+      "saved": "备份目标已保存",
+      "removed": "备份目标已移除"
+    },
     "time": "时间",
     "timeDescription": "每天，时区 {zone}。",
     "keepDaily": "保留的每日备份",
@@ -3519,7 +3531,7 @@
     "runNow": "立即备份",
     "runQueued": "备份已开始",
     "notOffsiteTitle": "备份不在异地",
-    "notOffsiteDescription": "未设置目标时，备份只保存在本服务器（保留最新 3 份）。服务器丢失时备份也会丢失。请选择一个 S3 连接。",
+    "notOffsiteDescription": "未设置目标时，备份只保存在本服务器（保留最新 3 份）。服务器丢失时备份也会丢失。请设置备份目标。",
     "secretsKeyTitle": "妥善保管 SECRETS_KEY",
     "secretsKeyDescription": "恢复需要本实例的 SECRETS_KEY，而该密钥不在备份中。请离线保存一份副本。其指纹为 {fingerprint}。",
     "secretsKeyNoFingerprint": "未知",
@@ -3556,8 +3568,7 @@
     "acknowledged": "已确认",
     "errors": {
       "backupAlreadyRunning": "已有备份正在进行。",
-      "backupDestinationNotFound": "该 S3 连接已不存在。",
-      "backupDestinationEnvironmentOwned": "环境的存储不能作为备份目标。请选择未分配的连接。",
+      "backupDestinationNotFound": "此归档所在的存储桶已不是备份目标，或其 S3 连接已不存在。",
       "backupScheduleFailed": "设置已保存，但无法更新计划。Panel 重启时会重新设置。"
     },
     "errorCodes": {

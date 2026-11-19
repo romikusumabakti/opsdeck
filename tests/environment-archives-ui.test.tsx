@@ -28,6 +28,7 @@ vi.mock("@/web/api/instance", async (importOriginal) => ({
   }),
 }));
 
+import { DialogProvider } from "@/components/dialog-provider";
 import { BackupsTab } from "../web/routes/$locale/_app/-components/admin/instance/backups-tab";
 
 (
@@ -37,14 +38,13 @@ import { BackupsTab } from "../web/routes/$locale/_app/-components/admin/instanc
 const backups = {
   instance: "menara",
   settings: {
-    destinationId: "x",
     time: "02:30",
     keepDaily: 14,
     keepWeekly: 8,
     timeZone: "UTC",
     secretsKeyFingerprint: null,
   },
-  destinations: [],
+  destination: null,
   backups: [],
 };
 
@@ -70,7 +70,9 @@ async function render() {
           timeZone="UTC"
           now={new Date("2026-11-10T00:00:00Z")}
         >
-          <BackupsTab />
+          <DialogProvider>
+            <BackupsTab />
+          </DialogProvider>
         </IntlProvider>
       </QueryClientProvider>
     );

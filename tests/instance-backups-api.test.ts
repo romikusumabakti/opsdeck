@@ -89,8 +89,6 @@ const { app } = await import("@/server/app");
 const { secretsKeyFingerprint } = await import(
   "@/lib/instance-backup/manifest"
 );
-// The environment an env-owned connection belongs to.
-const ENV_ID = "0196a000-0000-7000-8000-0000000000e1";
 const { instanceBackups, instanceSettings, s3Connections } = await import(
   "@/lib/db/schema"
 );
@@ -139,10 +137,19 @@ function send(method: string, path: string, body?: unknown) {
 }
 
 const validSettings = {
-  destinationId: DEST_ID,
   time: "03:15",
   keepDaily: 14,
   keepWeekly: 8,
+};
+
+const destinationBody = {
+  endpoint: "https://objects.example.test",
+  region: "auto",
+  bucket: "fictional-panel-backups",
+  accessKeyId: "AKFICTIONAL",
+  secretKey: "fictional-secret",
+  forcePathStyle: true,
+  keyPrefix: null,
 };
 
 beforeEach(() => {
@@ -168,6 +175,10 @@ describe("permissions", () => {
         ["POST", "/api/instance/backups/run"],
         ["POST", `/api/instance/backups/${BACKUP_ID}/acknowledge`],
         ["POST", "/api/instance/backups/verify-key", { key: KEY }],
+        ["GET", "/api/instance/backups/destination"],
+        ["PUT", "/api/instance/backups/destination", destinationBody],
+        ["DELETE", "/api/instance/backups/destination"],
+        ["POST", "/api/instance/backups/destination/test", destinationBody],
       ];
       for (const [method, path, body] of calls) {
         const res = await send(method, path, body);
@@ -196,12 +207,11 @@ describe("permissions", () => {
 });
 
 describe("GET /api/instance/backups", () => {
-  it("returns the settings, the history and the destinations", async () => {
+  it("returns the settings, the history and the destination", async () => {
     const res = await send("GET", "/api/instance/backups");
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.settings).toEqual({
-      destinationId: null,
       time: "02:30",
       keepDaily: 14,
       keepWeekly: 8,
@@ -210,9 +220,8 @@ describe("GET /api/instance/backups", () => {
     });
     expect(body.backups).toHaveLength(1);
     expect(body.backups[0]).toMatchObject({ id: BACKUP_ID, version: "1.2.0" });
-    expect(body.destinations).toEqual([
-      { id: DEST_ID, name: "R2", bucket: "b" },
-    ]);
+    expect(body.destination).toBeNull();
+    expect(body).not.toHaveProperty("destinations");
   });
 });
 
@@ -228,7 +237,6 @@ describe("PUT /api/instance/backups/settings", () => {
       op: "update",
       table: T.settings,
       values: {
-        backupDestinationId: DEST_ID,
         backupTime: "03:15",
         backupKeepDaily: 14,
         backupKeepWeekly: 8,
@@ -237,39 +245,14 @@ describe("PUT /api/instance/backups/settings", () => {
     expect(state.scheduled).toEqual([{ time: "03:15" }]);
   });
 
-  it("accepts no destination (local only)", async () => {
+  it("ignores a destinationId from an old client: the destination is saved on its own", async () => {
     const res = await send("PUT", "/api/instance/backups/settings", {
       ...validSettings,
-      destinationId: null,
+      destinationId: DEST_ID,
     });
     expect(res.status).toBe(200);
-  });
-
-  it("refuses an environment's connection as the destination", async () => {
-    state.results[`select:${T.connections}`] = [{ environmentId: ENV_ID }];
-    const res = await send(
-      "PUT",
-      "/api/instance/backups/settings",
-      validSettings
-    );
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({
-      code: "backupDestinationEnvironmentOwned",
-    });
-  });
-
-  it("refuses a destination that does not exist", async () => {
-    state.results[`select:${T.connections}`] = [];
-    const res = await send(
-      "PUT",
-      "/api/instance/backups/settings",
-      validSettings
-    );
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({
-      code: "backupDestinationNotFound",
-    });
-    expect(state.scheduled).toEqual([]);
+    const write = state.writes.find((w) => w.table === T.settings);
+    expect(write?.values).not.toHaveProperty("backupDestinationId");
   });
 
   it.each([
@@ -280,7 +263,6 @@ describe("PUT /api/instance/backups/settings", () => {
     { keepWeekly: -1 },
     { keepWeekly: 53 },
     { keepDaily: 1.5 },
-    { destinationId: "not-a-uuid" },
   ])("rejects %o", async (patch) => {
     const res = await send("PUT", "/api/instance/backups/settings", {
       ...validSettings,

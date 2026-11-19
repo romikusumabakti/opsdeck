@@ -9,9 +9,12 @@ import {
   type InstanceBackup,
   instanceBackups,
   instanceSettings,
-  s3Connections,
 } from "@/lib/db/schema";
 import { instanceName, isBackupRunning } from "@/lib/instance-backup/archive";
+import {
+  type BackupDestinationView,
+  backupDestinationView,
+} from "@/lib/instance-backup/destination";
 import {
   type BackupManifest,
   parseManifest,
@@ -50,8 +53,9 @@ import { getServerTranslator } from "@/server/i18n";
 /** How many runs the history shows. */
 export const BACKUP_HISTORY_LIMIT = 50;
 
+// The schedule and retention. Where backups go is the backup destination
+// (server/services/backup-destination), saved on its own.
 export const instanceBackupSettingsSchema = z.object({
-  destinationId: z.uuid().nullable(),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   keepDaily: z.number().int().min(1).max(90),
   keepWeekly: z.number().int().min(0).max(52),
@@ -73,8 +77,8 @@ export type InstanceBackupsPage = {
   instance: string;
   settings: InstanceBackupSettings;
   backups: InstanceBackup[];
-  /** The S3 connections a backup can go to (no credentials). */
-  destinations: { id: string; name: string; bucket: string }[];
+  /** Where backups go (no secret); null = they stay on this server. */
+  destination: BackupDestinationView | null;
 };
 
 export async function requireInstanceManage() {
@@ -124,28 +128,17 @@ function liveFingerprint(): string | null {
 
 export async function getInstanceBackups(): Promise<InstanceBackupsPage> {
   await requireInstanceManage();
-  const [row, backups, destinations] = await Promise.all([
+  const [row, backups] = await Promise.all([
     loadSettingsRow(),
     db
       .select()
       .from(instanceBackups)
       .orderBy(desc(instanceBackups.startedAt))
       .limit(BACKUP_HISTORY_LIMIT),
-    db
-      .select({
-        id: s3Connections.id,
-        name: s3Connections.name,
-        bucket: s3Connections.bucket,
-      })
-      .from(s3Connections)
-      // Only unassigned connections can be the destination (see save).
-      .where(isNull(s3Connections.environmentId))
-      .orderBy(s3Connections.name),
   ]);
   return {
     instance: instanceName(),
     settings: {
-      destinationId: row.backupDestinationId,
       time: row.backupTime,
       keepDaily: row.backupKeepDaily,
       keepWeekly: row.backupKeepWeekly,
@@ -153,7 +146,7 @@ export async function getInstanceBackups(): Promise<InstanceBackupsPage> {
       secretsKeyFingerprint: row.secretsKeyFingerprint ?? liveFingerprint(),
     },
     backups,
-    destinations,
+    destination: backupDestinationView(row),
   };
 }
 
@@ -162,24 +155,9 @@ export async function saveInstanceBackupSettings(
   input: InstanceBackupSettingsInput
 ): Promise<{ success: true }> {
   await requireInstanceManage();
-  if (input.destinationId) {
-    const [found] = await db
-      .select({ environmentId: s3Connections.environmentId })
-      .from(s3Connections)
-      .where(eq(s3Connections.id, input.destinationId))
-      .limit(1);
-    if (!found) throw await coded(400, "backupDestinationNotFound");
-    // An environment's bucket is its managers' to browse and edit, so dumps
-    // of the Panel database never go there (until Task 3 gives the backup
-    // destination its own credentials).
-    if (found.environmentId) {
-      throw await coded(400, "backupDestinationEnvironmentOwned");
-    }
-  }
   await db
     .update(instanceSettings)
     .set({
-      backupDestinationId: input.destinationId,
       backupTime: input.time,
       backupKeepDaily: input.keepDaily,
       backupKeepWeekly: input.keepWeekly,

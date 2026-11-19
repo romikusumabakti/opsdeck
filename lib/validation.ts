@@ -484,6 +484,45 @@ export function normalizeKeyPrefix(
   return { ok: true, prefix };
 }
 
+/**
+ * The stored form of an S3 endpoint: trimmed, without trailing slashes. The
+ * backup destination keeps it this way, and environment archives record it,
+ * so "the same place" is a plain string compare.
+ */
+export function normalizeS3Endpoint(endpoint: string): string {
+  return endpoint.trim().replace(/\/+$/, "");
+}
+
+/**
+ * Whether two S3 locations are the same bucket of the same endpoint (host
+ * case and trailing slashes aside).
+ */
+export function sameS3Bucket(
+  a: { endpoint: string; bucket: string },
+  b: { endpoint: string; bucket: string }
+): boolean {
+  const host = (e: string) => normalizeS3Endpoint(e).toLowerCase();
+  return a.bucket === b.bucket && host(a.endpoint) === host(b.endpoint);
+}
+
+// The instance backup destination (Admin › Instance › Backups): an S3 bucket
+// with its own credentials and an optional key prefix (normalised by the
+// service, like an environment's, and answered with a coded 400 when bad).
+// A blank or omitted secret keeps the stored one, only for the stored
+// location.
+export const backupDestinationInputSchema = z.object({
+  endpoint: z.url().max(2048),
+  region: z.string().trim().min(1).max(100),
+  bucket: z.string().trim().min(1).max(255),
+  accessKeyId: z.string().trim().min(1).max(512),
+  secretKey: z.string().max(1024).optional(),
+  forcePathStyle: z.boolean(),
+  keyPrefix: z.string().max(2048).nullish(),
+});
+export type BackupDestinationInput = z.infer<
+  typeof backupDestinationInputSchema
+>;
+
 // --- Jira integration ---
 
 export const jiraFlavorSchema = z.enum(["cloud", "datacenter"]);

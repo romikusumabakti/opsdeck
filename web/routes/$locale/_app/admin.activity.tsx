@@ -266,6 +266,15 @@ function message(
         name: String(d.name),
         environment: String(d.environment),
       });
+    // Admin › Instance › Backups: the backup destination set or removed.
+    case "instance.backupDestinationChanged":
+      return d.state === "cleared"
+        ? t("backupDestinationCleared", { actor })
+        : t("backupDestinationSet", {
+            actor,
+            bucket: String(d.bucket),
+            endpoint: String(d.endpoint),
+          });
     case "mailpit.configured":
       return t("mailpitConfigured", {
         actor,

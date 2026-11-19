@@ -20,6 +20,7 @@ import {
   type BackupDestination,
   backupS3Client,
   type ObjectStore,
+  prefixedStore,
   s3ObjectStore,
 } from "@/lib/instance-backup/destination";
 import {
@@ -133,8 +134,11 @@ function destination(
   keep: Partial<BackupDestination> = {}
 ): BackupDeps["destination"] {
   return async () => ({
-    connectionId: "conn-1",
+    endpoint: "https://objects.example.test",
+    bucket: "fictional-panel-backups",
+    keyPrefix: null,
     store,
+    bucketStore: store,
     keepDaily: 14,
     keepWeekly: 8,
     ...keep,
@@ -282,6 +286,53 @@ describe("runInstanceBackup", () => {
     ]);
     // The local staging copy goes once the upload has succeeded.
     expect(await readdir(join(root, "test"))).toEqual([]);
+  });
+
+  it("keeps a destination's backups under its key prefix, retention included", async () => {
+    const bucket = memoryStore({
+      "panel/menara-backups/test/2026-11-08T010000Z-1.2.2/manifest.json": "{}",
+      "panel/menara-backups/test/2026-11-07T010000Z-1.2.2/manifest.json": "{}",
+      // Beside the prefix: never listed, never pruned.
+      "menara-backups/test/2026-11-06T010000Z-1.2.2/manifest.json": "{}",
+    });
+    const result = await runInstanceBackup(
+      "manual",
+      deps({
+        destination: destination(prefixedStore(bucket.store, "panel/"), {
+          keepDaily: 2,
+          keepWeekly: 0,
+        }),
+      })
+    );
+    expect(result).toMatchObject({ status: "succeeded", objectKey: PREFIX });
+    expect(bucket.uploads.at(-1)).toBe(`panel/${PREFIX}manifest.json`);
+    expect([...bucket.objects.keys()].sort()).toEqual(
+      [
+        "menara-backups/test/2026-11-06T010000Z-1.2.2/manifest.json",
+        "panel/menara-backups/test/2026-11-08T010000Z-1.2.2/manifest.json",
+        `panel/${PREFIX}database.dump`,
+        `panel/${PREFIX}garage/attachments/a.png`,
+        `panel/${PREFIX}garage/issues/b/c.txt`,
+        `panel/${PREFIX}manifest.json`,
+      ].sort()
+    );
+  });
+
+  it("keeps a local copy when the destination can't be loaded (an undecryptable secret)", async () => {
+    const result = await runInstanceBackup(
+      "schedule",
+      deps({
+        destination: async () => {
+          throw new Error("Unsupported state or unable to authenticate data");
+        },
+      })
+    );
+    expect(result).toMatchObject({
+      status: "failed",
+      location: "local",
+      errorCode: "backupDestinationFailed",
+    });
+    expect(await readdir(join(root, "test"))).toHaveLength(1);
   });
 
   it("a restore-trigger backup to S3 also keeps a marked local copy", async () => {

@@ -1528,6 +1528,7 @@
     "s3BackupDestinationNotAssignable": "هذا الاتصال هو وجهة النسخ الاحتياطي للمثيل ولا يمكن إسناده إلى بيئة",
     "s3SecretRequiredForLocationChange": "أدخل المفتاح السري مجددًا لتغيير نقطة النهاية أو المنطقة أو الحاوية أو بادئة المفاتيح أو مفتاح الوصول أو نمط المسار",
     "s3BackupDestinationRestricted": "هذا الاتصال هو وجهة النسخ الاحتياطي للمثيل؛ أدِره من الإدارة › المثيل",
+    "s3BackupDestinationOverlap": "يحتوي هذا الحاوية وبادئة المفتاح على النسخ الاحتياطية للمثيل؛ اختر حاوية أخرى أو بادئة خارجها",
     "s3ConnectionAlreadyAssigned": "هذا الاتصال مسند إلى بيئة بالفعل",
     "s3ConnectionHoldsArchives": "لا تزال أرشيفات البيئات المحذوفة مخزنة في هذا الاتصال، لذا يبقى غير مسند حتى تنتهي صلاحيتها",
     "unsupportedObjectName": "اسم الكائن هذا غير مدعوم: يحتوي على «/» أو «\\» أو مقطع نقطة مرمّز أو مشابه",
@@ -2314,6 +2315,8 @@
     "storageDeleted": "{actor} أزال التخزين {name} من {environment}",
     "storageDeletedUnassigned": "{actor} حذف التخزين غير المسند {name}",
     "storageAssigned": "{actor} أسند التخزين {name} إلى {environment}",
+    "backupDestinationSet": "{actor} عيّن وجهة النسخ الاحتياطي إلى {bucket} على {endpoint}",
+    "backupDestinationCleared": "{actor} أزال وجهة النسخ الاحتياطي؛ تبقى النسخ على هذا الخادم",
     "projectDefaultServerSet": "عيّن {actor} الخادم الافتراضي لـ {project} إلى {server}",
     "projectDefaultServerCleared": "أزال {actor} الخادم الافتراضي لـ {project}",
     "projectGroupCreated": "أنشأ {actor} مجموعة المشاريع {group}",
@@ -3502,11 +3505,20 @@
     "tabSshKey": "مفتاح SSH"
   },
   "instanceBackups": {
-    "settingsTitle": "الجدول والوجهة",
+    "settingsTitle": "الجدول",
     "settingsDescription": "تُنشأ نسخة احتياطية كل يوم في هذا الوقت، وتضم قاعدة البيانات والملفات المخزنة.",
-    "destination": "الوجهة",
-    "destinationLocal": "لا شيء — على هذا الخادم فقط",
-    "destinationDescription": "اتصال S3، ويُفضّل أن يكون خارج الموقع (مثل Cloudflare R2).",
+    "destinationCard": {
+      "title": "وجهة النسخ الاحتياطي",
+      "description": "حاوية S3 التي تذهب إليها النسخ الاحتياطية وأرشيفات البيئات المحذوفة، ويُفضّل أن تكون خارج الموقع (مثل Cloudflare R2). لها مفاتيحها الخاصة ولا تظهر أبدًا في تخزين أي بيئة.",
+      "keyPrefix": "بادئة المفتاح",
+      "keyPrefixDescription": "اختياري. مجلد في الحاوية لحفظ النسخ، مثل panel/.",
+      "secretKeyPlaceholderSet": "اتركه فارغًا للإبقاء على المفتاح المحفوظ",
+      "remove": "إزالة الوجهة",
+      "removeTitle": "إزالة وجهة النسخ الاحتياطي؟",
+      "removeDescription": "ستبقى النسخ اللاحقة على هذا الخادم فقط. النسخ المرفوعة سابقًا تبقى في الحاوية.",
+      "saved": "حُفظت وجهة النسخ الاحتياطي",
+      "removed": "أُزيلت وجهة النسخ الاحتياطي"
+    },
     "time": "الوقت",
     "timeDescription": "يوميًا، بتوقيت {zone}.",
     "keepDaily": "النسخ اليومية المحفوظة",
@@ -3519,7 +3531,7 @@
     "runNow": "انسخ الآن",
     "runQueued": "بدأ النسخ الاحتياطي",
     "notOffsiteTitle": "النسخ الاحتياطية ليست خارج الموقع",
-    "notOffsiteDescription": "من دون وجهة تبقى النسخ على هذا الخادم (تُحفظ أحدث 3). إذا فُقد الخادم فُقدت معه. اختر اتصال S3.",
+    "notOffsiteDescription": "من دون وجهة تبقى النسخ على هذا الخادم (تُحفظ أحدث 3). إذا فُقد الخادم فُقدت معه. عيّن وجهة للنسخ الاحتياطي.",
     "secretsKeyTitle": "احفظ SECRETS_KEY في مكان آمن",
     "secretsKeyDescription": "تتطلب الاستعادة مفتاح SECRETS_KEY لهذا المثيل، والمفتاح غير موجود في النسخة الاحتياطية. احتفظ بنسخة منه دون اتصال. بصمته {fingerprint}.",
     "secretsKeyNoFingerprint": "غير معروفة",
@@ -3556,8 +3568,7 @@
     "acknowledged": "تم الإقرار",
     "errors": {
       "backupAlreadyRunning": "هناك نسخ احتياطي قيد التشغيل بالفعل.",
-      "backupDestinationNotFound": "اتصال S3 هذا لم يعد موجودًا.",
-      "backupDestinationEnvironmentOwned": "لا يمكن أن يكون تخزين بيئة وجهةً للنسخ الاحتياطي. اختر اتصالًا غير مسند.",
+      "backupDestinationNotFound": "لم تعد حاوية هذا الأرشيف وجهة النسخ الاحتياطي، أو لم يعد اتصال S3 الخاص به موجودًا.",
       "backupScheduleFailed": "تم حفظ الإعدادات، لكن تعذّر تحديث الجدول. سيُضبط مجددًا عند إعادة تشغيل اللوحة."
     },
     "errorCodes": {

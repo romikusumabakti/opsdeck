@@ -24,6 +24,25 @@ export async function saveInstanceBackupSettings(
   return parseResponse(routes.backups.settings.$put({ json }));
 }
 
+export type BackupDestinationBody = InferRequestType<
+  (typeof routes.backups.destination)["$put"]
+>["json"];
+
+/** Sets the backup destination; a blank secret keeps the stored one. */
+export async function saveBackupDestination(json: BackupDestinationBody) {
+  return parseResponse(routes.backups.destination.$put({ json }));
+}
+
+/** Removes the backup destination: backups stay on this server. */
+export async function clearBackupDestination() {
+  return parseResponse(routes.backups.destination.$delete());
+}
+
+/** Probes typed values without saving them. */
+export async function testBackupDestination(json: BackupDestinationBody) {
+  return parseResponse(routes.backups.destination.test.$post({ json }));
+}
+
 export async function runInstanceBackupNow() {
   return parseResponse(routes.backups.run.$post());
 }

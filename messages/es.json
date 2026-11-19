@@ -1528,6 +1528,7 @@
     "s3BackupDestinationNotAssignable": "Esta conexión es el destino de las copias de seguridad de la instancia y no se puede asignar a un entorno",
     "s3SecretRequiredForLocationChange": "Vuelve a introducir la clave secreta para cambiar el endpoint, la región, el bucket, el prefijo de claves, la clave de acceso o el estilo de ruta",
     "s3BackupDestinationRestricted": "Esta conexión es el destino de las copias de seguridad de la instancia; gestiónala en Administración › Instancia",
+    "s3BackupDestinationOverlap": "Este bucket y prefijo de clave guardan las copias de seguridad de la instancia; elige otro bucket o un prefijo fuera de ellos",
     "s3ConnectionAlreadyAssigned": "Esta conexión ya pertenece a un entorno",
     "s3ConnectionHoldsArchives": "Esta conexión aún guarda archivos de entornos eliminados, así que sigue sin asignar hasta que caduquen",
     "unsupportedObjectName": "Este nombre de objeto no es compatible: contiene un “/”, un “\\” o un segmento de punto codificado o similar",
@@ -2314,6 +2315,8 @@
     "storageDeleted": "{actor} quitó el almacenamiento {name} de {environment}",
     "storageDeletedUnassigned": "{actor} eliminó el almacenamiento sin asignar {name}",
     "storageAssigned": "{actor} asignó el almacenamiento {name} a {environment}",
+    "backupDestinationSet": "{actor} fijó el destino de las copias en {bucket} de {endpoint}",
+    "backupDestinationCleared": "{actor} quitó el destino de las copias; se quedan en este servidor",
     "projectDefaultServerSet": "{actor} fijó el servidor predeterminado de {project} en {server}",
     "projectDefaultServerCleared": "{actor} quitó el servidor predeterminado de {project}",
     "projectGroupCreated": "{actor} creó el grupo de proyectos {group}",
@@ -3502,11 +3505,20 @@
     "tabSshKey": "Clave SSH"
   },
   "instanceBackups": {
-    "settingsTitle": "Programación y destino",
+    "settingsTitle": "Programación",
     "settingsDescription": "Cada día a esta hora se hace una copia. Incluye la base de datos y los archivos guardados.",
-    "destination": "Destino",
-    "destinationLocal": "Ninguno: solo en este servidor",
-    "destinationDescription": "Una conexión S3, idealmente externa (por ejemplo Cloudflare R2).",
+    "destinationCard": {
+      "title": "Destino de las copias",
+      "description": "El bucket S3 al que van las copias y los archivos de los entornos eliminados, idealmente fuera del sitio (por ejemplo Cloudflare R2). Tiene sus propias claves y nunca aparece en el almacenamiento de un entorno.",
+      "keyPrefix": "Prefijo de clave",
+      "keyPrefixDescription": "Opcional. Una carpeta del bucket para las copias, como panel/.",
+      "secretKeyPlaceholderSet": "Déjalo vacío para conservar la clave guardada",
+      "remove": "Quitar destino",
+      "removeTitle": "¿Quitar el destino de las copias?",
+      "removeDescription": "Las próximas copias se quedarán solo en este servidor. Las ya subidas siguen en el bucket.",
+      "saved": "Destino de las copias guardado",
+      "removed": "Destino de las copias quitado"
+    },
     "time": "Hora",
     "timeDescription": "Diaria, en {zone}.",
     "keepDaily": "Copias diarias a conservar",
@@ -3519,7 +3531,7 @@
     "runNow": "Copiar ahora",
     "runQueued": "Copia iniciada",
     "notOffsiteTitle": "Las copias no están fuera del servidor",
-    "notOffsiteDescription": "Sin destino, las copias se quedan en este servidor (se conservan las 3 más recientes). Si se pierde el servidor, se pierden también. Elige una conexión S3.",
+    "notOffsiteDescription": "Sin destino, las copias se quedan en este servidor (se conservan las 3 más recientes). Si se pierde el servidor, se pierden también. Configura un destino de copias.",
     "secretsKeyTitle": "Guarda SECRETS_KEY en lugar seguro",
     "secretsKeyDescription": "Restaurar requiere la SECRETS_KEY de esta instancia, y la clave no está en la copia. Guarda una copia sin conexión. Su huella es {fingerprint}.",
     "secretsKeyNoFingerprint": "desconocida",
@@ -3556,8 +3568,7 @@
     "acknowledged": "Marcada como vista",
     "errors": {
       "backupAlreadyRunning": "Ya hay una copia en curso.",
-      "backupDestinationNotFound": "Esa conexión S3 ya no existe.",
-      "backupDestinationEnvironmentOwned": "El almacenamiento de un entorno no puede ser el destino de las copias. Elige una conexión sin asignar.",
+      "backupDestinationNotFound": "El bucket de este archivo ya no es el destino de las copias, o su conexión S3 ya no existe.",
       "backupScheduleFailed": "Los ajustes se guardaron, pero no se pudo actualizar la programación. Se vuelve a configurar cuando el Panel se reinicia."
     },
     "errorCodes": {

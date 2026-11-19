@@ -1528,6 +1528,7 @@
     "s3BackupDestinationNotAssignable": "Koneksi ini adalah tujuan backup instance dan tidak dapat diberikan ke environment",
     "s3SecretRequiredForLocationChange": "Masukkan secret key lagi untuk mengubah endpoint, region, bucket, key prefix, access key, atau path style",
     "s3BackupDestinationRestricted": "Koneksi ini adalah tujuan backup instance; kelola di Admin › Instance",
+    "s3BackupDestinationOverlap": "Bucket dan key prefix ini menyimpan backup instance; pilih bucket lain atau prefix di luarnya",
     "s3ConnectionAlreadyAssigned": "Koneksi ini sudah dimiliki sebuah environment",
     "s3ConnectionHoldsArchives": "Arsip environment yang dihapus masih tersimpan di koneksi ini, jadi koneksi tetap tanpa environment sampai arsip kedaluwarsa",
     "unsupportedObjectName": "Nama objek ini tidak didukung: berisi “/”, “\\”, atau segmen titik yang ter-encode atau mirip",
@@ -2314,6 +2315,8 @@
     "storageDeleted": "{actor} menghapus storage {name} dari {environment}",
     "storageDeletedUnassigned": "{actor} menghapus storage tanpa environment {name}",
     "storageAssigned": "{actor} menetapkan storage {name} ke {environment}",
+    "backupDestinationSet": "{actor} mengatur tujuan backup ke {bucket} di {endpoint}",
+    "backupDestinationCleared": "{actor} menghapus tujuan backup; backup tetap di server ini",
     "projectDefaultServerSet": "{actor} mengatur server default {project} ke {server}",
     "projectDefaultServerCleared": "{actor} menghapus server default {project}",
     "projectGroupCreated": "{actor} membuat grup proyek {group}",
@@ -3502,11 +3505,20 @@
     "tabSshKey": "SSH key"
   },
   "instanceBackups": {
-    "settingsTitle": "Jadwal dan tujuan",
+    "settingsTitle": "Jadwal",
     "settingsDescription": "Cadangan berjalan setiap hari pada jam ini. Isinya basis data dan berkas yang tersimpan.",
-    "destination": "Tujuan",
-    "destinationLocal": "Tidak ada — simpan di server ini saja",
-    "destinationDescription": "Koneksi S3, sebaiknya di luar lokasi (misalnya Cloudflare R2).",
+    "destinationCard": {
+      "title": "Tujuan backup",
+      "description": "Bucket S3 tempat backup dan arsip environment yang dihapus disimpan, sebaiknya di luar lokasi (misalnya Cloudflare R2). Punya key sendiri dan tidak pernah tampil di storage environment.",
+      "keyPrefix": "Key prefix",
+      "keyPrefixDescription": "Opsional. Folder di bucket untuk menyimpan backup, misalnya panel/.",
+      "secretKeyPlaceholderSet": "Kosongkan untuk tetap memakai key yang tersimpan",
+      "remove": "Hapus tujuan",
+      "removeTitle": "Hapus tujuan backup?",
+      "removeDescription": "Backup berikutnya hanya disimpan di server ini. Backup yang sudah diunggah tetap ada di bucket.",
+      "saved": "Tujuan backup disimpan",
+      "removed": "Tujuan backup dihapus"
+    },
     "time": "Jam",
     "timeDescription": "Setiap hari, dalam zona {zone}.",
     "keepDaily": "Cadangan harian yang disimpan",
@@ -3519,7 +3531,7 @@
     "runNow": "Cadangkan sekarang",
     "runQueued": "Pencadangan dimulai",
     "notOffsiteTitle": "Cadangan tidak disimpan di luar lokasi",
-    "notOffsiteDescription": "Tanpa tujuan, cadangan tetap di server ini (3 terbaru disimpan). Jika server hilang, cadangannya ikut hilang. Pilih koneksi S3.",
+    "notOffsiteDescription": "Tanpa tujuan, cadangan tetap di server ini (3 terbaru disimpan). Jika server hilang, cadangannya ikut hilang. Atur tujuan backup.",
     "secretsKeyTitle": "Simpan SECRETS_KEY dengan aman",
     "secretsKeyDescription": "Pemulihan memerlukan SECRETS_KEY instans ini, dan kunci itu tidak ada di dalam cadangan. Simpan salinannya secara offline. Sidik jarinya {fingerprint}.",
     "secretsKeyNoFingerprint": "tidak diketahui",
@@ -3556,8 +3568,7 @@
     "acknowledged": "Sudah ditandai",
     "errors": {
       "backupAlreadyRunning": "Pencadangan sedang berjalan.",
-      "backupDestinationNotFound": "Koneksi S3 itu sudah tidak ada.",
-      "backupDestinationEnvironmentOwned": "Storage milik environment tidak dapat menjadi tujuan backup. Pilih koneksi tanpa environment.",
+      "backupDestinationNotFound": "Bucket arsip ini bukan lagi tujuan backup, atau koneksi S3-nya sudah tidak ada.",
       "backupScheduleFailed": "Pengaturan sudah disimpan, tetapi jadwal tidak bisa diperbarui. Jadwal dipasang ulang saat Panel dimulai ulang."
     },
     "errorCodes": {

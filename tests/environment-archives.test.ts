@@ -7,7 +7,6 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Admin → Instance → Backups, "Deleted environments": the archives a
@@ -28,6 +27,9 @@ type Row = {
   expiresAt: Date;
   location: "local" | "s3";
   s3ConnectionId: string | null;
+  inBackupDestination: boolean;
+  s3Endpoint: string | null;
+  s3Bucket: string | null;
   keyPrefix: string;
   files: { name: string; size: number }[];
   completedAt: Date | null;
@@ -40,6 +42,8 @@ const state = vi.hoisted(() => ({
   prunable: [] as Row[],
   removedRows: [] as string[],
   connectionGone: false,
+  // Today's backup destination (instance_settings backup_s3_*), or null.
+  destination: null as null | { endpoint: string; bucket: string },
   objects: new Map<string, Buffer>(),
   listed: [] as string[],
   deletedKeys: [] as string[][],
@@ -76,37 +80,50 @@ vi.mock("@/lib/instance-backup/archive", async (importOriginal) => ({
   instanceName: () => "menara-test",
 }));
 
-// The archive's own S3 connection "conn-1" (whatever today's backup
-// destination is), loadable unless `connectionGone`.
+// One in-memory bucket behind both: the old archives' S3 connection "conn-1"
+// (loadable unless `connectionGone`) and today's backup destination (while
+// `destination` is set; its whole-bucket store, keys used as recorded).
+const memoryStore = vi.hoisted(() => () => ({
+  list: async (prefix: string) => {
+    state.listed.push(prefix);
+    return [...state.objects.entries()]
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, body]) => ({ key, size: body.length }));
+  },
+  read: async (key: string) => {
+    state.reads.push(key);
+    const body = state.objects.get(key);
+    if (!body) throw new Error("NoSuchKey");
+    const { Readable: R } = await import("node:stream");
+    return R.from([body]);
+  },
+  download: async () => 0,
+  upload: async () => {},
+  delete: async (keys: string[]) => {
+    if (state.deleteError) throw state.deleteError;
+    state.deletedKeys.push(keys);
+    for (const key of keys) state.objects.delete(key);
+  },
+}));
 vi.mock("@/lib/instance-backup/destination", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  loadBackupDestination: async () => {
-    throw new Error("an archive never reads today's destination");
-  },
-  loadS3ConnectionStore: async (id: string) =>
-    id === "conn-1" && !state.connectionGone
+  loadBackupDestination: async () =>
+    state.destination
       ? {
-          list: async (prefix: string) => {
-            state.listed.push(prefix);
-            return [...state.objects.entries()]
-              .filter(([key]) => key.startsWith(prefix))
-              .map(([key, body]) => ({ key, size: body.length }));
+          ...state.destination,
+          keyPrefix: "panel/",
+          keepDaily: 14,
+          keepWeekly: 8,
+          store: {
+            list: async () => {
+              throw new Error("archives use the whole-bucket store");
+            },
           },
-          read: async (key: string) => {
-            state.reads.push(key);
-            const body = state.objects.get(key);
-            if (!body) throw new Error("NoSuchKey");
-            return Readable.from([body]);
-          },
-          download: async () => 0,
-          upload: async () => {},
-          delete: async (keys: string[]) => {
-            if (state.deleteError) throw state.deleteError;
-            state.deletedKeys.push(keys);
-            for (const key of keys) state.objects.delete(key);
-          },
+          bucketStore: memoryStore(),
         }
       : null,
+  loadS3ConnectionStore: async (id: string) =>
+    id === "conn-1" && !state.connectionGone ? memoryStore() : null,
 }));
 
 const repo = vi.hoisted(() => ({
@@ -146,6 +163,9 @@ function row(extra: Partial<Row> = {}): Row {
     expiresAt: new Date("2026-12-01T00:00:00Z"),
     location: "local",
     s3ConnectionId: null,
+    inBackupDestination: false,
+    s3Endpoint: null,
+    s3Bucket: null,
     keyPrefix: `${localArchiveDir("menara-test", id, state.root)}/`,
     files: [{ name: "db-hris-0123456789.dump", size: 10 }],
     completedAt: new Date("2026-11-01T00:05:00Z"),
@@ -159,6 +179,22 @@ function s3Row(extra: Partial<Row> = {}): Row {
     location: "s3",
     s3ConnectionId: "conn-1",
     keyPrefix: `menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
+    ...extra,
+  });
+}
+
+const ENDPOINT = "https://objects.example.test";
+const BUCKET = "fictional-panel-backups";
+
+/** An archive written to the backup destination, under its key prefix. */
+function destinationRow(extra: Partial<Row> = {}): Row {
+  return row({
+    id: S3_ARCHIVE_ID,
+    location: "s3",
+    inBackupDestination: true,
+    s3Endpoint: ENDPOINT,
+    s3Bucket: BUCKET,
+    keyPrefix: `panel/menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
     ...extra,
   });
 }
@@ -179,6 +215,7 @@ beforeEach(() => {
   state.prunable = [];
   state.removedRows = [];
   state.connectionGone = false;
+  state.destination = null;
   state.objects = new Map();
   state.listed = [];
   state.deletedKeys = [];
@@ -311,6 +348,104 @@ describe("GET /api/instance/environment-archives/:id/files/:name", () => {
       });
     }
     expect(state.reads).toEqual([]);
+  });
+});
+
+describe("archives written to the backup destination", () => {
+  const url = `/api/instance/environment-archives/${S3_ARCHIVE_ID}/files/db-hris-0123456789.dump`;
+
+  it("streams the file from today's destination while it still points at the archive's bucket", async () => {
+    const archive = destinationRow();
+    state.rows = [archive];
+    state.destination = { endpoint: ENDPOINT, bucket: BUCKET };
+    state.objects.set(
+      `${archive.keyPrefix}db-hris-0123456789.dump`,
+      Buffer.from("dest dump!")
+    );
+    const res = await app.request(url);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("dest dump!");
+    expect(state.reads).toEqual([
+      `panel/menara-env-archives/menara-test/${S3_ARCHIVE_ID}/db-hris-0123456789.dump`,
+    ]);
+  });
+
+  it("answers 404 backupDestinationNotFound once the destination moved or was removed", async () => {
+    state.rows = [destinationRow()];
+    for (const destination of [
+      null,
+      { endpoint: ENDPOINT, bucket: "fictional-other-bucket" },
+      { endpoint: "https://elsewhere.example.test", bucket: BUCKET },
+    ]) {
+      state.destination = destination;
+      const res = await app.request(url);
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({
+        code: "backupDestinationNotFound",
+      });
+    }
+    expect(state.reads).toEqual([]);
+  });
+
+  it("never reads a key prefix that is not an archive's", async () => {
+    state.destination = { endpoint: ENDPOINT, bucket: BUCKET };
+    for (const keyPrefix of [
+      "panel/menara-backups/menara-test/",
+      `../menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
+      `panel//menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
+      `panel/menara-env-archives/menara-test/other-id/`,
+    ]) {
+      state.rows = [destinationRow({ keyPrefix })];
+      expect((await app.request(url)).status).toBe(404);
+    }
+    expect(state.reads).toEqual([]);
+  });
+
+  it("prunes through the destination; keeps the row when the destination moved", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const archive = destinationRow({
+      expiresAt: new Date(NOW.getTime() - DAY),
+    });
+    state.objects.set(`${archive.keyPrefix}db.dump`, Buffer.from("x"));
+    state.prunable = [archive];
+    state.destination = {
+      endpoint: ENDPOINT,
+      bucket: "fictional-other-bucket",
+    };
+    expect(await pruneEnvironmentArchives(NOW)).toEqual({
+      deleted: 0,
+      failed: 1,
+    });
+    expect(state.removedRows).toEqual([]);
+    expect(state.listed).toEqual([]);
+
+    state.destination = { endpoint: ENDPOINT, bucket: BUCKET };
+    expect(await pruneEnvironmentArchives(NOW)).toEqual({
+      deleted: 1,
+      failed: 0,
+    });
+    expect(state.deletedKeys).toEqual([[`${archive.keyPrefix}db.dump`]]);
+    expect(state.removedRows).toEqual([S3_ARCHIVE_ID]);
+    errors.mockRestore();
+  });
+
+  it("still downloads and prunes an old archive through its S3 connection, whatever the destination", async () => {
+    const old = s3Row({ expiresAt: new Date(NOW.getTime() - DAY) });
+    state.rows = [old];
+    state.prunable = [old];
+    state.destination = null;
+    state.objects.set(
+      `${old.keyPrefix}db-hris-0123456789.dump`,
+      Buffer.from("old dump!!")
+    );
+    const res = await app.request(url);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("old dump!!");
+    expect(await pruneEnvironmentArchives(NOW)).toEqual({
+      deleted: 1,
+      failed: 0,
+    });
+    expect(state.removedRows).toEqual([S3_ARCHIVE_ID]);
   });
 });
 

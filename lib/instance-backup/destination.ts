@@ -1,6 +1,7 @@
 // Where instance backups come from and go to, as S3 object stores: the
 // in-network Garage bucket (the source of the attachments mirror) and the
-// S3 connection chosen as the backup destination in instance_settings.
+// backup destination of instance_settings (backup_s3_*, its own credentials;
+// not an S3 connection row, so no environment can browse it).
 import { createReadStream, createWriteStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
@@ -15,7 +16,11 @@ import {
 import { Upload } from "@aws-sdk/lib-storage";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { instanceSettings, s3Connections } from "@/lib/db/schema";
+import {
+  type InstanceSettings,
+  instanceSettings,
+  s3Connections,
+} from "@/lib/db/schema";
 import { decryptSecret } from "@/lib/secrets";
 
 export interface ObjectStore {
@@ -69,12 +74,44 @@ export function backupS3Client(
 }
 
 export type BackupDestination = {
-  /** The s3_connections row the store writes to. */
-  connectionId: string;
+  /** Where it points, as saved; environment archives record these. */
+  endpoint: string;
+  bucket: string;
+  /** The folder of the bucket it is confined to; null = the bucket root. */
+  keyPrefix: string | null;
+  /** Instance backups: keys relative to keyPrefix. */
   store: ObjectStore;
+  /**
+   * Keys as they are in the bucket: environment archives record theirs whole
+   * (keyPrefix included), so a later prefix change doesn't lose them.
+   */
+  bucketStore: ObjectStore;
   keepDaily: number;
   keepWeekly: number;
 };
+
+/**
+ * `inner` confined to `prefix` (normalised: no leading "/", one trailing
+ * "/"): every key given is put under it, every key listed comes back without
+ * it. Keys come from the backup code, never from a request.
+ */
+export function prefixedStore(
+  inner: ObjectStore,
+  prefix: string | null
+): ObjectStore {
+  if (!prefix) return inner;
+  return {
+    async list(under) {
+      return (await inner.list(`${prefix}${under}`))
+        .filter((o) => o.key.startsWith(prefix))
+        .map((o) => ({ key: o.key.slice(prefix.length), size: o.size }));
+    },
+    download: (key, filePath) => inner.download(`${prefix}${key}`, filePath),
+    read: (key) => inner.read(`${prefix}${key}`),
+    upload: (key, filePath) => inner.upload(`${prefix}${key}`, filePath),
+    delete: (keys) => inner.delete(keys.map((key) => `${prefix}${key}`)),
+  };
+}
 
 export function s3ObjectStore(client: S3Client, Bucket: string): ObjectStore {
   return {
@@ -216,32 +253,114 @@ export function restoreS3Source(
   return s3ObjectStore(client, v("bucket"));
 }
 
+type DestinationSettings = Pick<
+  InstanceSettings,
+  | "backupS3Endpoint"
+  | "backupS3Region"
+  | "backupS3Bucket"
+  | "backupS3AccessKeyId"
+  | "backupS3SecretKey"
+  | "backupS3ForcePathStyle"
+  | "backupS3KeyPrefix"
+  | "backupKeepDaily"
+  | "backupKeepWeekly"
+>;
+
 /**
- * The destination chosen in instance_settings with its retention, built from
- * the s3_connections row (secret key decrypted with SECRETS_KEY), or null
- * when none is chosen and backups stay local.
+ * The destination the settings row names, with its retention (secret key
+ * decrypted with SECRETS_KEY, which throws when it can't), or null when none
+ * is set and backups stay local.
  */
+export function destinationFromSettings(
+  row: DestinationSettings,
+  /** Tests pass a fake requestHandler here. */
+  extra: Pick<S3ClientConfig, "requestHandler"> = {}
+): BackupDestination | null {
+  const stored = storedBackupDestination(row);
+  if (!stored) return null;
+  const { endpoint, bucket, keyPrefix } = stored;
+  const client = backupS3Client(
+    {
+      endpoint,
+      region: stored.region,
+      forcePathStyle: stored.forcePathStyle,
+      accessKeyId: stored.accessKeyId,
+      secretAccessKey: decryptSecret(stored.secretKey),
+    },
+    extra
+  );
+  const bucketStore = s3ObjectStore(client, bucket);
+  return {
+    endpoint,
+    bucket,
+    keyPrefix,
+    store: prefixedStore(bucketStore, keyPrefix),
+    bucketStore,
+    keepDaily: row.backupKeepDaily,
+    keepWeekly: row.backupKeepWeekly,
+  };
+}
+
+/** The destination as the client sees it: no secret. */
+export type BackupDestinationView = {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  forcePathStyle: boolean;
+  keyPrefix: string | null;
+  secretSet: boolean;
+};
+
+/** A settings row's destination with its secret ciphertext, or null. */
+export function storedBackupDestination(row: DestinationSettings): {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  forcePathStyle: boolean;
+  keyPrefix: string | null;
+  secretKey: string;
+} | null {
+  const {
+    backupS3Endpoint: endpoint,
+    backupS3Region: region,
+    backupS3Bucket: bucket,
+    backupS3AccessKeyId: accessKeyId,
+    backupS3SecretKey: secretKey,
+  } = row;
+  if (!endpoint || !region || !bucket || !accessKeyId || !secretKey) {
+    return null;
+  }
+  return {
+    endpoint,
+    region,
+    bucket,
+    accessKeyId,
+    forcePathStyle: row.backupS3ForcePathStyle,
+    keyPrefix: row.backupS3KeyPrefix,
+    secretKey,
+  };
+}
+
+/** The client-safe projection of a settings row's destination. */
+export function backupDestinationView(
+  row: DestinationSettings
+): BackupDestinationView | null {
+  const stored = storedBackupDestination(row);
+  if (!stored) return null;
+  const { secretKey, ...rest } = stored;
+  return { ...rest, secretSet: secretKey.length > 0 };
+}
+
+/** Today's backup destination (destinationFromSettings of the row). */
 export async function loadBackupDestination(): Promise<BackupDestination | null> {
   const [row] = await db
-    .select({
-      keepDaily: instanceSettings.backupKeepDaily,
-      keepWeekly: instanceSettings.backupKeepWeekly,
-      connection: s3Connections,
-    })
+    .select()
     .from(instanceSettings)
-    .innerJoin(
-      s3Connections,
-      eq(s3Connections.id, instanceSettings.backupDestinationId)
-    )
     .where(eq(instanceSettings.id, 1))
     .limit(1);
-  if (!row) return null;
-  return {
-    connectionId: row.connection.id,
-    store: connectionStore(row.connection),
-    keepDaily: row.keepDaily,
-    keepWeekly: row.keepWeekly,
-  };
+  return row ? destinationFromSettings(row) : null;
 }
 
 function connectionStore(conn: typeof s3Connections.$inferSelect): ObjectStore {
@@ -257,8 +376,9 @@ function connectionStore(conn: typeof s3Connections.$inferSelect): ObjectStore {
 
 /**
  * The object store of one S3 connection (secret key decrypted with
- * SECRETS_KEY), whether or not it is today's backup destination; null when
- * the connection is gone. What an environment archive was written to.
+ * SECRETS_KEY), keys used whole; null when the connection is gone. What an
+ * environment archive written before the backup destination got its own
+ * credentials lives in (environment_archives.s3_connection_id).
  */
 export async function loadS3ConnectionStore(
   connectionId: string

@@ -13,6 +13,9 @@ const api = vi.hoisted(() => ({
   acknowledge: vi.fn(),
   verify: vi.fn(),
   restore: vi.fn(),
+  saveDestination: vi.fn(),
+  clearDestination: vi.fn(),
+  testDestination: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -41,6 +44,9 @@ vi.mock("@/web/api/instance", () => ({
   acknowledgeInstanceBackup: api.acknowledge,
   verifySecretsKey: api.verify,
   restoreInstanceBackup: api.restore,
+  saveBackupDestination: api.saveDestination,
+  clearBackupDestination: api.clearDestination,
+  testBackupDestination: api.testDestination,
   listEnvironmentArchivesQuery: () => ({
     queryKey: ["instance", "listEnvironmentArchives"],
     queryFn: async () => [],
@@ -48,6 +54,7 @@ vi.mock("@/web/api/instance", () => ({
   environmentArchiveFileHref: () => "",
 }));
 
+import { DialogProvider } from "@/components/dialog-provider";
 import { AttentionList } from "../web/routes/$locale/_app/-components/home/attention-list";
 import { Route } from "../web/routes/$locale/_app/admin.instance";
 
@@ -55,21 +62,27 @@ import { Route } from "../web/routes/$locale/_app/admin.instance";
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-const DEST_ID = "0197f3a0-1b2c-7def-8000-0123456789d1";
+const DESTINATION = {
+  endpoint: "https://objects.example.test",
+  region: "auto",
+  bucket: "fictional-panel-backups",
+  accessKeyId: "AKFICTIONALPANEL",
+  forcePathStyle: true,
+  keyPrefix: "panel/" as string | null,
+  secretSet: true,
+};
 
-function data(extra: { destinationId?: string | null } = {}) {
+function data(extra: { destination?: typeof DESTINATION | null } = {}) {
   return {
     instance: "menara",
+    destination: extra.destination ?? null,
     settings: {
-      destinationId: null as string | null,
       time: "02:30",
       keepDaily: 14,
       keepWeekly: 8,
       timeZone: "Asia/Jakarta",
       secretsKeyFingerprint: "0123456789abcdef",
-      ...extra,
     },
-    destinations: [{ id: DEST_ID, name: "R2 backups", bucket: "menara" }],
     backups: [
       {
         id: "b1",
@@ -119,7 +132,7 @@ async function render(node: React.ReactNode, cached?: unknown) {
     root.render(
       <QueryClientProvider client={queryClient}>
         <IntlProvider locale="en" messages={messages} timeZone="UTC">
-          {node}
+          <DialogProvider>{node}</DialogProvider>
         </IntlProvider>
       </QueryClientProvider>
     );
@@ -139,6 +152,18 @@ afterEach(() => {
 
 const input = (name: string) =>
   container.querySelector<HTMLInputElement>(`input[name='${name}']`);
+const byId = (id: string) =>
+  container.querySelector<HTMLInputElement>(`#${id}`);
+
+async function type(field: HTMLInputElement | null, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set?.call(field, value);
+    field?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
 
 describe("Admin → Instance → Backups", () => {
   it("renders the settings, the history and both warnings", async () => {
@@ -146,9 +171,12 @@ describe("Admin → Instance → Backups", () => {
     const text = container.textContent ?? "";
     const t = messages.instanceBackups;
 
-    // Destination select, with "local only" chosen.
-    const trigger = container.querySelector("[role='combobox']");
-    expect(trigger?.textContent).toContain(t.destinationLocal);
+    // An empty destination form: no picker of connections any more.
+    expect(container.querySelector("[role='combobox']")).toBeNull();
+    expect(text).toContain(t.destinationCard.title);
+    expect(byId("backup-destination-endpoint")?.value).toBe("");
+    expect(byId("backup-destination-region")?.value).toBe("auto");
+    expect(text).not.toContain(t.destinationCard.remove);
     expect(input("time")?.value).toBe("02:30");
     expect(input("keepDaily")?.value).toBe("14");
     expect(input("keepWeekly")?.value).toBe("8");
@@ -165,13 +193,81 @@ describe("Admin → Instance → Backups", () => {
     expect(text).toContain("0123456789abcdef");
   });
 
-  it("hides the not-offsite warning once a destination is chosen", async () => {
-    await renderPage(data({ destinationId: DEST_ID }));
+  it("hides the not-offsite warning once a destination is set, and shows it without the secret", async () => {
+    await renderPage(data({ destination: DESTINATION }));
     const t = messages.instanceBackups;
     expect(container.textContent).not.toContain(t.notOffsiteTitle);
     expect(container.textContent).toContain(t.secretsKeyTitle);
-    const trigger = container.querySelector("[role='combobox']");
-    expect(trigger?.textContent).toContain("R2 backups");
+    expect(byId("backup-destination-endpoint")?.value).toBe(
+      DESTINATION.endpoint
+    );
+    expect(byId("backup-destination-bucket")?.value).toBe(DESTINATION.bucket);
+    expect(byId("backup-destination-keyPrefix")?.value).toBe("panel/");
+    const secret = byId("backup-destination-secretKey");
+    expect(secret?.value).toBe("");
+    expect(secret?.placeholder).toBe(t.destinationCard.secretKeyPlaceholderSet);
+  });
+
+  it("saves the destination keeping the stored secret when it is left blank", async () => {
+    api.saveDestination.mockResolvedValue(DESTINATION);
+    await renderPage(data({ destination: DESTINATION }));
+    await type(byId("backup-destination-bucket"), "fictional-other-bucket");
+    await act(async () => {
+      byId("backup-destination-bucket")?.form?.requestSubmit();
+    });
+    await vi.waitFor(() =>
+      expect(api.saveDestination).toHaveBeenCalledWith({
+        endpoint: DESTINATION.endpoint,
+        region: "auto",
+        bucket: "fictional-other-bucket",
+        accessKeyId: DESTINATION.accessKeyId,
+        keyPrefix: "panel/",
+        forcePathStyle: true,
+      })
+    );
+  });
+
+  it("needs the secret for a new destination", async () => {
+    await renderPage(data());
+    await type(
+      byId("backup-destination-endpoint"),
+      "https://objects.example.test"
+    );
+    await type(byId("backup-destination-bucket"), "fictional-panel-backups");
+    await type(byId("backup-destination-accessKeyId"), "AKFICTIONALPANEL");
+    await act(async () => {
+      byId("backup-destination-bucket")?.form?.requestSubmit();
+    });
+    expect(api.saveDestination).not.toHaveBeenCalled();
+    await type(byId("backup-destination-secretKey"), "fictional-secret");
+    await act(async () => {
+      byId("backup-destination-bucket")?.form?.requestSubmit();
+    });
+    await vi.waitFor(() =>
+      expect(api.saveDestination).toHaveBeenCalledWith(
+        expect.objectContaining({
+          secretKey: "fictional-secret",
+          keyPrefix: null,
+        })
+      )
+    );
+  });
+
+  it("removes the destination after a confirmation", async () => {
+    api.clearDestination.mockResolvedValue({ success: true });
+    await renderPage(data({ destination: DESTINATION }));
+    const remove = messages.instanceBackups.destinationCard.remove;
+    const byText = (label: string) =>
+      [...document.querySelectorAll("button")].findLast(
+        (b) => b.textContent?.trim() === label
+      );
+    await act(async () => byText(remove)?.click());
+    expect(api.clearDestination).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain(
+      messages.instanceBackups.destinationCard.removeTitle
+    );
+    await act(async () => byText(remove)?.click());
+    await vi.waitFor(() => expect(api.clearDestination).toHaveBeenCalled());
   });
 
   it("offers acknowledge only on an unacknowledged failure", async () => {

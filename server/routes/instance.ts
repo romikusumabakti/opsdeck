@@ -1,6 +1,12 @@
 import { z } from "zod";
-import { uuidSchema } from "@/lib/validation";
+import { backupDestinationInputSchema, uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
+import {
+  clearBackupDestination,
+  getBackupDestination,
+  saveBackupDestination,
+  testBackupDestination,
+} from "@/server/services/backup-destination";
 import {
   acknowledgeInstanceBackup,
   getInstanceBackups,
@@ -61,6 +67,22 @@ export const instanceRouter = sessionRouter()
   .get("/backups", async (c) => c.json(await getInstanceBackups()))
   .put("/backups/settings", json(instanceBackupSettingsSchema), async (c) =>
     c.json(await saveInstanceBackupSettings(c.req.valid("json")))
+  )
+  // The backup destination (its own S3 credentials; the secret never comes
+  // back, only `secretSet`).
+  .get("/backups/destination", async (c) =>
+    c.json(await getBackupDestination())
+  )
+  .put("/backups/destination", json(backupDestinationInputSchema), async (c) =>
+    c.json(await saveBackupDestination(c.req.valid("json")))
+  )
+  .delete("/backups/destination", async (c) =>
+    c.json(await clearBackupDestination())
+  )
+  .post(
+    "/backups/destination/test",
+    json(backupDestinationInputSchema),
+    async (c) => c.json(await testBackupDestination(c.req.valid("json")))
   )
   .post("/backups/run", async (c) => c.json(await requestInstanceBackup(), 202))
   .post("/backups/verify-key", json(verifyKeySchema), async (c) =>

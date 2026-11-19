@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import { useTranslations } from "use-intl";
 import { z } from "zod";
 import { RelativeTime } from "@/components/relative-time";
-import { SearchSelect } from "@/components/search-select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,12 +56,10 @@ import {
   saveInstanceBackupSettings,
   verifySecretsKey,
 } from "@/web/api/instance";
+import { BackupDestinationCard } from "./backup-destination-card";
 import { DeletedEnvironmentsCard } from "./deleted-environments-card";
 import { reportError } from "./report-error";
 import { RestoreDialog } from "./restore-dialog";
-
-// The Select's value for "no destination" (Base UI items need a string).
-const LOCAL = "local";
 
 // Every code runInstanceBackup can record (lib/instance-backup/archive).
 const ERROR_CODES = [
@@ -92,7 +89,7 @@ export function BackupsTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      {settings.destinationId === null && (
+      {data.destination === null && (
         <Alert>
           <TriangleAlert className="text-amber-600 dark:text-amber-500" />
           <AlertTitle>{t("notOffsiteTitle")}</AlertTitle>
@@ -110,6 +107,7 @@ export function BackupsTab() {
           <VerifyKey />
         </AlertDescription>
       </Alert>
+      <BackupDestinationCard destination={data.destination} />
       <SettingsCard data={data} />
       <HistoryCard backups={data.backups} instance={data.instance} />
       <DeletedEnvironmentsCard />
@@ -194,7 +192,7 @@ function VerifyKey() {
 function SettingsCard({ data }: { data: InstanceBackupsData }) {
   const t = useTranslations("instanceBackups");
   const tCommon = useTranslations("common");
-  const { settings, destinations } = data;
+  const { settings } = data;
 
   const count = (min: number, max: number) =>
     z
@@ -206,7 +204,6 @@ function SettingsCard({ data }: { data: InstanceBackupsData }) {
         t("invalidRange", { min, max })
       );
   const schema = z.object({
-    destinationId: z.string(),
     time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, t("invalidTime")),
     keepDaily: count(1, 90),
     keepWeekly: count(0, 52),
@@ -216,7 +213,6 @@ function SettingsCard({ data }: { data: InstanceBackupsData }) {
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
-      destinationId: settings.destinationId ?? LOCAL,
       time: settings.time,
       keepDaily: String(settings.keepDaily),
       keepWeekly: String(settings.keepWeekly),
@@ -229,8 +225,6 @@ function SettingsCard({ data }: { data: InstanceBackupsData }) {
   async function onSubmit(values: Values) {
     try {
       await saveInstanceBackupSettings({
-        destinationId:
-          values.destinationId === LOCAL ? null : values.destinationId,
         time: values.time,
         keepDaily: Number(values.keepDaily),
         keepWeekly: Number(values.keepWeekly),
@@ -282,35 +276,6 @@ function SettingsCard({ data }: { data: InstanceBackupsData }) {
           className="flex max-w-2xl flex-col gap-4"
         >
           <FieldGroup>
-            <Controller
-              name="destinationId"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="instance-backup-destination">
-                    {t("destination")}
-                  </FieldLabel>
-                  <SearchSelect
-                    id="instance-backup-destination"
-                    invalid={fieldState.invalid}
-                    value={field.value}
-                    onChange={(value) => field.onChange(value ?? LOCAL)}
-                    options={[
-                      { value: LOCAL, label: t("destinationLocal") },
-                      ...destinations.map((d) => ({
-                        value: d.id,
-                        label: d.name,
-                      })),
-                    ]}
-                    placeholder={t("destinationLocal")}
-                  />
-                  <FieldDescription>
-                    {t("destinationDescription")}
-                  </FieldDescription>
-                  <FieldError errors={[fieldState.error]} />
-                </Field>
-              )}
-            />
             <Controller
               name="time"
               control={form.control}

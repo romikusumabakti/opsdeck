@@ -1528,6 +1528,7 @@
     "s3BackupDestinationNotAssignable": "This connection is the instance backup destination and can’t be given to an environment",
     "s3SecretRequiredForLocationChange": "Enter the secret key again to change the endpoint, region, bucket, key prefix, access key or path style",
     "s3BackupDestinationRestricted": "This connection is the instance backup destination; manage it in Admin › Instance",
+    "s3BackupDestinationOverlap": "This bucket and key prefix hold the instance backups; choose another bucket or a prefix outside them",
     "s3ConnectionAlreadyAssigned": "This connection already belongs to an environment",
     "s3ConnectionHoldsArchives": "Archives of deleted environments are still stored in this connection, so it stays unassigned until they expire",
     "unsupportedObjectName": "This object name isn’t supported: it contains an encoded or look-alike “/”, “\\” or dot segment",
@@ -2314,6 +2315,8 @@
     "storageDeleted": "{actor} removed the storage {name} from {environment}",
     "storageDeletedUnassigned": "{actor} deleted the unassigned storage {name}",
     "storageAssigned": "{actor} assigned the storage {name} to {environment}",
+    "backupDestinationSet": "{actor} set the backup destination to {bucket} at {endpoint}",
+    "backupDestinationCleared": "{actor} removed the backup destination; backups stay on this server",
     "projectDefaultServerSet": "{actor} set the default server of {project} to {server}",
     "projectDefaultServerCleared": "{actor} cleared the default server of {project}",
     "projectGroupCreated": "{actor} created the project group {group}",
@@ -3502,11 +3505,20 @@
     "tabSshKey": "SSH key"
   },
   "instanceBackups": {
-    "settingsTitle": "Schedule and destination",
+    "settingsTitle": "Schedule",
     "settingsDescription": "A backup runs every day at this time. It holds the database and the stored files.",
-    "destination": "Destination",
-    "destinationLocal": "None — keep on this server only",
-    "destinationDescription": "An S3 connection, ideally offsite (for example Cloudflare R2).",
+    "destinationCard": {
+      "title": "Backup destination",
+      "description": "The S3 bucket backups and the archives of deleted environments go to, ideally offsite (for example Cloudflare R2). It has its own keys and is never shown in an environment’s storage.",
+      "keyPrefix": "Key prefix",
+      "keyPrefixDescription": "Optional. A folder of the bucket to keep backups in, such as panel/.",
+      "secretKeyPlaceholderSet": "Leave blank to keep the stored key",
+      "remove": "Remove destination",
+      "removeTitle": "Remove the backup destination?",
+      "removeDescription": "Later backups stay on this server only. Backups already uploaded stay in the bucket.",
+      "saved": "Backup destination saved",
+      "removed": "Backup destination removed"
+    },
     "time": "Time",
     "timeDescription": "Daily, in {zone}.",
     "keepDaily": "Daily backups to keep",
@@ -3519,7 +3531,7 @@
     "runNow": "Back up now",
     "runQueued": "Backup started",
     "notOffsiteTitle": "Backups are not offsite",
-    "notOffsiteDescription": "With no destination, backups stay on this server (the newest 3 are kept). If the server is lost, so are they. Choose an S3 connection.",
+    "notOffsiteDescription": "With no destination, backups stay on this server (the newest 3 are kept). If the server is lost, so are they. Set a backup destination.",
     "secretsKeyTitle": "Keep SECRETS_KEY safe",
     "secretsKeyDescription": "A restore needs this instance's SECRETS_KEY, and the key is not in the backup. Keep a copy offline. Its fingerprint is {fingerprint}.",
     "secretsKeyNoFingerprint": "unknown",
@@ -3556,8 +3568,7 @@
     "acknowledged": "Acknowledged",
     "errors": {
       "backupAlreadyRunning": "A backup is already running.",
-      "backupDestinationNotFound": "That S3 connection no longer exists.",
-      "backupDestinationEnvironmentOwned": "Environment storage can’t be the backup destination. Choose an unassigned connection.",
+      "backupDestinationNotFound": "This archive’s bucket is no longer the backup destination, or its S3 connection no longer exists.",
       "backupScheduleFailed": "The settings were saved, but the schedule could not be updated. It is set again when the Panel restarts."
     },
     "errorCodes": {
