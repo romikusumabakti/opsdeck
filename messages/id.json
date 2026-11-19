@@ -1749,6 +1749,8 @@
     "editorTableMenu": "Tabel",
     "editorImageMenu": "Gambar",
     "editorPlaceholder": "Ketik / untuk perintah",
+    "blockInsert": "Tambah blok di bawah",
+    "blockDrag": "Seret untuk memindahkan",
     "slashMenu": "Perintah",
     "slashEmpty": "Tidak ada perintah yang cocok",
     "slashBulletList": "Daftar berpoin",

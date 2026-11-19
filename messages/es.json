@@ -1749,6 +1749,8 @@
     "editorTableMenu": "Tabla",
     "editorImageMenu": "Imagen",
     "editorPlaceholder": "Escribe / para ver los comandos",
+    "blockInsert": "Añadir un bloque debajo",
+    "blockDrag": "Arrastra para mover",
     "slashMenu": "Comandos",
     "slashEmpty": "Ningún comando coincide",
     "slashBulletList": "Lista con viñetas",

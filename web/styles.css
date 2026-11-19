@@ -253,6 +253,20 @@
   }
 }
 
+/* The markdown editor's "Type / for commands" hint (TipTap Placeholder marks
+   the empty textblock holding the caret with .is-empty + data-placeholder).
+   Shown in an empty document, and on the caret's empty top-level paragraph
+   while the editor has focus — not in list items, table cells or code, and
+   not on a line the caret left behind when focus went elsewhere. */
+.ProseMirror > p.is-editor-empty:first-child::before,
+.ProseMirror-focused > p.is-empty::before {
+  content: attr(data-placeholder);
+  float: inline-start;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground);
+}
+
 /* Indeterminate progress bar: a segment sweeps across the track while a task
    runs and its real completion percentage is unknown. Honest signal of
    activity without faking a percentage. Reduced-motion users get a static

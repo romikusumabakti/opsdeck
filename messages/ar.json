@@ -1749,6 +1749,8 @@
     "editorTableMenu": "جدول",
     "editorImageMenu": "صورة",
     "editorPlaceholder": "اكتب / لعرض الأوامر",
+    "blockInsert": "إضافة كتلة أدناه",
+    "blockDrag": "اسحب للنقل",
     "slashMenu": "الأوامر",
     "slashEmpty": "لا توجد أوامر مطابقة",
     "slashBulletList": "قائمة نقطية",

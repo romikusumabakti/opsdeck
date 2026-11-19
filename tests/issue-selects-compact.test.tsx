@@ -54,7 +54,10 @@ function triggerClass(html: string) {
   const tag =
     html.match(/<[^>]*data-slot="(?:select|combobox)-trigger"[^>]*>/)?.[0] ??
     "";
-  return tag.match(/class="([^"]*)"/)?.[1] ?? "";
+  // React escapes `&` and `>` in attribute values (arbitrary variants).
+  return (tag.match(/class="([^"]*)"/)?.[1] ?? "")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
 }
 
 describe("issue selects compact variant", () => {
@@ -70,6 +73,42 @@ describe("issue selects compact variant", () => {
     }
   });
 
+  it("the cell variant fills its column with an end-aligned chevron shown on row hover/focus", () => {
+    for (const html of [
+      statusHtml("cell"),
+      priorityHtml("cell"),
+      assigneeHtml("cell"),
+    ]) {
+      const cls = triggerClass(html).split(/\s+/);
+      // The ghost look of compact, but the full column width, so every row's
+      // control is as wide as the next one.
+      for (const token of [
+        "h-7",
+        "border-transparent",
+        "bg-transparent",
+        "hover:bg-muted",
+        "w-full",
+        "justify-between",
+      ])
+        expect(cls).toContain(token);
+      expect(cls).not.toContain("w-auto");
+      // The chevron (the trigger's last svg) rests hidden and appears while
+      // the row is hovered or holds focus, or the popup is open.
+      for (const token of [
+        "[&>svg:last-child]:opacity-0",
+        "in-[tr:hover]:[&>svg:last-child]:opacity-100",
+        "in-[tr:focus-within]:[&>svg:last-child]:opacity-100",
+        "data-popup-open:[&>svg:last-child]:opacity-100",
+      ])
+        expect(cls).toContain(token);
+      // The chevron is the trigger's last element child.
+      const chevron = html.match(
+        /data-slot="(?:select|combobox)-trigger"[\s\S]*?<\/button>/
+      )?.[0];
+      expect(chevron?.trim().endsWith("</svg></button>")).toBe(true);
+    }
+  });
+
   it("the default variant keeps the bordered full-width trigger", () => {
     for (const html of [statusHtml(), priorityHtml(), assigneeHtml()]) {
       const cls = triggerClass(html).split(/\s+/);
@@ -79,19 +118,39 @@ describe("issue selects compact variant", () => {
     }
   });
 
-  it("every inline issue select passes variant compact", () => {
+  const inlineUses = (file: string) =>
+    readFileSync(file, "utf8").match(
+      /<(StatusSelect|PrioritySelect|AssigneeSelect)\b[\s\S]*?\n\s*\/>/g
+    ) ?? [];
+
+  it("every inline issue select passes variant compact or cell", () => {
     for (const file of [
       "components/global-issues-client.tsx",
       "web/routes/$locale/_app/-components/issues-client.tsx",
       "components/issues-board.tsx",
     ]) {
-      const uses =
-        readFileSync(file, "utf8").match(
-          /<(StatusSelect|PrioritySelect|AssigneeSelect)\b[\s\S]*?\n\s*\/>/g
-        ) ?? [];
+      const uses = inlineUses(file);
       expect(uses.length, file).toBeGreaterThan(0);
-      for (const use of uses) expect(use, file).toContain('variant="compact"');
+      for (const use of uses)
+        expect(use, file).toMatch(/variant="(compact|cell)"/);
     }
+  });
+
+  it("table rows use the cell variant; cards and the board keep compact", () => {
+    // The project table's three row controls.
+    const project = inlineUses(
+      "web/routes/$locale/_app/-components/issues-client.tsx"
+    );
+    expect(project).toHaveLength(3);
+    for (const use of project) expect(use).toContain('variant="cell"');
+    // The global table's column cells are cell; its mobile cards compact.
+    const global = inlineUses("components/global-issues-client.tsx");
+    expect(global.filter((u) => u.includes('variant="cell"'))).toHaveLength(3);
+    expect(global.filter((u) => u.includes('variant="compact"'))).toHaveLength(
+      3
+    );
+    for (const use of inlineUses("components/issues-board.tsx"))
+      expect(use).toContain('variant="compact"');
   });
 
   it("forms keep the default variant", () => {

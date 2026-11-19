@@ -20,7 +20,15 @@ const lowlight = createLowlight(common);
  * round-trip fidelity test both build from this exact list. Keep it framework-
  * agnostic — it must import cleanly in a plain Node/jsdom test.
  */
-export function buildEditorExtensions(placeholder = "") {
+/**
+ * `placeholder` is the empty document's text; `lineHint` (default: the same)
+ * the one on an empty line of a written document, where the caller's
+ * "Start writing…" wording would be out of place.
+ */
+export function buildEditorExtensions(
+  placeholder = "",
+  lineHint = placeholder
+) {
   return [
     // StarterKit v3 already bundles Link and Underline. Configure Link here
     // instead of re-adding the extension (a duplicate would warn and make the
@@ -56,7 +64,13 @@ export function buildEditorExtensions(placeholder = "") {
     // /api/knowledge/asset/<id> (a stable, auth-gated route), never a blob/
     // base64, so the body stays small and portable.
     Image.configure({ inline: false }),
-    Placeholder.configure({ placeholder }),
+    // The hint goes on the empty line holding the caret anywhere in the
+    // document, not only in an empty document (web/styles.css draws it on a
+    // focused editor's empty paragraph, and always in an empty document).
+    Placeholder.configure({
+      placeholder: ({ editor }) => (editor.isEmpty ? placeholder : lineHint),
+      showOnlyCurrent: true,
+    }),
     // First-party markdown serialize/parse, version-locked to @tiptap/core.
     // gfm enables tables/strikethrough; bare-URL autolink is handled by
     // StarterKit's Link (autolink: true) above, so no extra linkify here.

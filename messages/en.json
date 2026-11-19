@@ -1749,6 +1749,8 @@
     "editorTableMenu": "Table",
     "editorImageMenu": "Image",
     "editorPlaceholder": "Type / for commands",
+    "blockInsert": "Add a block below",
+    "blockDrag": "Drag to move",
     "slashMenu": "Commands",
     "slashEmpty": "No matching commands",
     "slashBulletList": "Bulleted list",

@@ -8,8 +8,10 @@ import {
 } from "lucide-react";
 import { useTranslations } from "use-intl";
 import {
+  CELL_TRIGGER,
   COMPACT_TRIGGER,
   type PickerTrigger,
+  type PickerVariant,
 } from "@/components/compact-trigger";
 import { LabelChips } from "@/components/label-ui";
 import { PersonPicker } from "@/components/person-picker";
@@ -80,10 +82,16 @@ export type BoardIssue = {
 
 export type Swimlane = "none" | "assignee";
 
-export type SelectVariant = "default" | "compact";
+export type SelectVariant = PickerVariant;
+
+const TRIGGER_CLASS: Record<SelectVariant, string> = {
+  default: "h-8 w-full",
+  compact: COMPACT_TRIGGER,
+  cell: CELL_TRIGGER,
+};
 
 function triggerClass(variant: SelectVariant, className?: string) {
-  return cn(variant === "compact" ? COMPACT_TRIGGER : "h-8 w-full", className);
+  return cn(TRIGGER_CLASS[variant], className);
 }
 
 // A caller-drawn trigger (issue property chips/rows): no chevron, no

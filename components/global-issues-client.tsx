@@ -380,7 +380,7 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <StatusSelect
-            variant="compact"
+            variant="cell"
             value={row.original.status}
             onChange={(s) => onStatusChange(row.original.id, s)}
           />
@@ -399,7 +399,7 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <PrioritySelect
-            variant="compact"
+            variant="cell"
             value={row.original.priority}
             onChange={(p) => onPriorityChange(row.original.id, p)}
           />
@@ -418,7 +418,7 @@ export function GlobalIssuesClient({
         ),
         cell: ({ row }) => (
           <AssigneeSelect
-            variant="compact"
+            variant="cell"
             users={assignableIn(users, [row.original.project.id])}
             value={row.original.assignee?.id ?? null}
             onChange={(a) => onAssigneeChange(row.original.id, a)}

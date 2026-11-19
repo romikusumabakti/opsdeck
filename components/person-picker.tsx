@@ -2,8 +2,10 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { useMemo } from "react";
 import { useTranslations } from "use-intl";
 import {
+  CELL_TRIGGER,
   COMPACT_TRIGGER,
   type PickerTrigger,
+  type PickerVariant,
 } from "@/components/compact-trigger";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,7 +65,7 @@ export function PersonPicker({
   onChange: (id: string | null) => void;
   noneLabel?: string;
   placeholder?: string;
-  variant?: "default" | "compact";
+  variant?: PickerVariant;
   id?: string;
   "aria-label"?: string;
   "aria-invalid"?: boolean;
@@ -82,7 +84,8 @@ export function PersonPicker({
     ],
     [people, noneLabel]
   );
-  const compact = variant === "compact";
+  // Both inline looks: ghost button, wide popup.
+  const compact = variant !== "default";
 
   function triggerContent() {
     if (actionLabel !== undefined) return actionLabel;
@@ -138,7 +141,10 @@ export function PersonPicker({
                 actionLabel !== undefined
                   ? className
                   : compact
-                    ? cn(COMPACT_TRIGGER, className)
+                    ? cn(
+                        variant === "cell" ? CELL_TRIGGER : COMPACT_TRIGGER,
+                        className
+                      )
                     : cn("h-8 w-full justify-between font-normal", className)
               }
               id={id}

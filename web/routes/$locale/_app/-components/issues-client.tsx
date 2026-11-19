@@ -558,14 +558,14 @@ export function IssuesClient({
                     </TableCell>
                     <TableCell className="px-1">
                       <StatusSelect
-                        variant="compact"
+                        variant="cell"
                         value={issue.status as Status}
                         onChange={(s) => onStatusChange(issue.id, s)}
                       />
                     </TableCell>
                     <TableCell className="px-1">
                       <PrioritySelect
-                        variant="compact"
+                        variant="cell"
                         value={issue.priority as Priority}
                         onChange={(p) => onPriorityChange(issue.id, p)}
                       />
@@ -579,7 +579,7 @@ export function IssuesClient({
                     </TableCell>
                     <TableCell className="px-1">
                       <AssigneeSelect
-                        variant="compact"
+                        variant="cell"
                         users={users}
                         value={issue.assignee?.id ?? null}
                         onChange={(a) => onAssigneeChange(issue.id, a)}

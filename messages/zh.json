@@ -1749,6 +1749,8 @@
     "editorTableMenu": "表格",
     "editorImageMenu": "图片",
     "editorPlaceholder": "输入 / 查看命令",
+    "blockInsert": "在下方添加块",
+    "blockDrag": "拖动以移动",
     "slashMenu": "命令",
     "slashEmpty": "没有匹配的命令",
     "slashBulletList": "项目符号列表",

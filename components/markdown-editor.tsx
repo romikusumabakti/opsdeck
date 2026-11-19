@@ -14,7 +14,8 @@ import {
  * site.
  *
  * The placeholder defaults to the `/` command hint (callers that pass their
- * own keep the hint in it); `borderless` drops the
+ * own keep the hint in it; an empty line of a written document always shows
+ * the plain hint); `borderless` drops the
  * frame for surfaces that sit directly in a page (issue descriptions).
  */
 export function MarkdownEditor({
@@ -45,6 +46,7 @@ export function MarkdownEditor({
       value={value}
       onChange={onChange}
       placeholder={placeholder ?? t("editorPlaceholder")}
+      lineHint={t("editorPlaceholder")}
       linkableDocs={linkableDocs}
       contentClassName={contentClassName}
       borderless={borderless}
@@ -93,6 +95,10 @@ export function MarkdownEditor({
         taskList: t("editorTaskList"),
         code: t("editorInlineCode"),
         quote: t("editorQuote"),
+      }}
+      blockHandleLabels={{
+        insert: t("blockInsert"),
+        drag: t("blockDrag"),
       }}
       slashLabels={{
         menu: t("slashMenu"),

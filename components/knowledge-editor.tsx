@@ -11,6 +11,10 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
+  BlockHandle,
+  type BlockHandleLabels,
+} from "@/components/editor/block-handle";
+import {
   focusVisibleMenu,
   type ImageAltLabels,
   ImageMenu,
@@ -49,6 +53,7 @@ import {
 import { cn } from "@/lib/utils";
 import { KNOWLEDGE_IMAGE_MAX_BYTES } from "@/lib/validation";
 
+export type { BlockHandleLabels } from "@/components/editor/block-handle";
 export type {
   ImageAltLabels,
   LinkInputLabels,
@@ -88,6 +93,7 @@ export function KnowledgeEditor({
   value,
   onChange,
   placeholder,
+  lineHint,
   linkableDocs = [],
   linkLabels,
   linkInputLabels,
@@ -96,6 +102,7 @@ export function KnowledgeEditor({
   imageAltLabels,
   toolbarLabels,
   slashLabels,
+  blockHandleLabels,
   contentClassName,
   borderless = false,
   onBlur,
@@ -110,8 +117,12 @@ export function KnowledgeEditor({
   imageAltLabels?: ImageAltLabels;
   toolbarLabels?: ToolbarLabels;
   slashLabels?: SlashLabels;
+  blockHandleLabels?: BlockHandleLabels;
   onChange: (markdown: string) => void;
   placeholder?: string;
+  /** The hint on the caret's empty line in a written document (default:
+   *  `placeholder`). */
+  lineHint?: string;
   // Extra classes on the editing surface — merged last, so a min-h/height
   // utility here overrides the default (cn dedupes conflicting classes).
   contentClassName?: string;
@@ -209,7 +220,7 @@ export function KnowledgeEditor({
     // view decoration (in-flight upload widgets) and never touches the
     // markdown contract the test pins.
     extensions: [
-      ...buildEditorExtensions(placeholder ?? ""),
+      ...buildEditorExtensions(placeholder ?? "", lineHint ?? placeholder),
       UploadPlaceholder,
       // The `/` command menu: like UploadPlaceholder, UI only — it adds no
       // node or mark, so the markdown contract is untouched.
@@ -224,7 +235,13 @@ export function KnowledgeEditor({
         "aria-keyshortcuts": MENU_SHORTCUT,
         class: cn(
           "min-h-[24rem]",
-          borderless ? "py-1" : "rounded-md border bg-background px-4 py-3",
+          // The inline-start gutter (ps-11) holds the block handle ("+" and
+          // grip, 44px). It stays inside the surface even when borderless:
+          // hung into the parent's padding it was clipped or drawn outside
+          // the card in the issue page and the New issue dialog.
+          borderless
+            ? "ps-11 py-1"
+            : "rounded-md border bg-background ps-11 pe-4 py-3",
           "text-sm leading-relaxed focus:outline-none",
           // Inline structural styles — no typography plugin in this project.
           "[&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h1]:mb-2",
@@ -463,6 +480,7 @@ export function KnowledgeEditor({
       }}
     >
       <EditorContent editor={editor} />
+      <BlockHandle editor={editor} labels={blockHandleLabels} />
       <SlashMenu
         editor={editor}
         store={slashStore}
