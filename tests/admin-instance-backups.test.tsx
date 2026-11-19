@@ -270,6 +270,33 @@ describe("Admin → Instance → Backups", () => {
     await vi.waitFor(() => expect(api.clearDestination).toHaveBeenCalled());
   });
 
+  it("keeps Save off while the removal runs", async () => {
+    let finish: (value: { success: true }) => void = () => {};
+    api.clearDestination.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    await renderPage(data({ destination: DESTINATION }));
+    const { remove } = messages.instanceBackups.destinationCard;
+    const byText = (label: string) =>
+      [...document.querySelectorAll("button")].findLast(
+        (b) => b.textContent?.trim() === label
+      );
+    await act(async () => byText(remove)?.click());
+    await act(async () => byText(remove)?.click());
+    await vi.waitFor(() => expect(api.clearDestination).toHaveBeenCalled());
+    const save = byId(
+      "backup-destination-bucket"
+    )?.form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(save?.disabled).toBe(true);
+    await act(async () => {
+      byId("backup-destination-bucket")?.form?.requestSubmit();
+    });
+    expect(api.saveDestination).not.toHaveBeenCalled();
+    await act(async () => finish({ success: true }));
+  });
+
   it("offers acknowledge only on an unacknowledged failure", async () => {
     await renderPage(data());
     const rows = container.querySelectorAll("tbody tr");

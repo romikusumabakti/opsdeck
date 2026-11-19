@@ -127,6 +127,8 @@ export function BackupDestinationCard({
   }
 
   async function onSubmit(values: Values) {
+    // A save racing the removal could bring the destination back.
+    if (removing) return;
     try {
       const saved = await saveBackupDestination(body(values));
       form.reset(defaults(saved));
@@ -311,7 +313,7 @@ export function BackupDestinationCard({
             >
               {tCommon("cancel")}
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || removing}>
               {loading && (
                 <Loader2 data-icon="inline-start" className="animate-spin" />
               )}
