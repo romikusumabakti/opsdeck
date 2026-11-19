@@ -67,6 +67,8 @@ export function KeyboardShortcuts({
       title: t("groupEditor"),
       shortcuts: [
         { keys: ["Alt", "F10"], label: t("editorFocusMenu") },
+        // Alt+F10 is taken by GNOME's window manager; this one always works.
+        { keys: [modKey, "Shift", "."], label: t("editorFocusMenu") },
         { keys: ["Esc"], label: t("editorLeaveMenu") },
         { keys: [modKey, "Z"], label: t("editorUndo") },
         { keys: [modKey, "Shift", "Z"], label: t("editorRedo") },
@@ -90,7 +92,7 @@ export function KeyboardShortcuts({
               <ul className="flex flex-col gap-2">
                 {g.shortcuts.map((s) => (
                   <li
-                    key={s.label}
+                    key={`${s.label}-${s.keys.join("+")}`}
                     className="flex items-center justify-between gap-2"
                   >
                     <span className="text-sm">{s.label}</span>

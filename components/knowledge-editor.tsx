@@ -131,8 +131,13 @@ export function KnowledgeEditor({
   // Report a new markdown body upward — only when it differs from the last
   // one, so a transaction that leaves the markdown unchanged (a trailing-node
   // insert, a mark toggled and untoggled) never marks the form dirty.
+  // Stored bodies saved by the older editor can end in "\n\n" after a final
+  // table/image/code block (its TrailingNode paragraph); editorMarkdown no
+  // longer emits that, so ignore a difference made only of trailing newlines
+  // too — otherwise merely opening such a document would mark it dirty.
   const emit = (md: string) => {
-    if (md === lastEmittedRef.current) return;
+    const last = lastEmittedRef.current;
+    if (md === last || md === last.replace(/\n+$/, "")) return;
     lastEmittedRef.current = md;
     onChangeRef.current(md);
   };
@@ -182,7 +187,8 @@ export function KnowledgeEditor({
           contentClassName
         ),
       },
-      // Alt+F10 moves focus into whichever contextual menu is showing; with
+      // Alt+F10 or Ctrl/⌘+Shift+. moves focus into whichever contextual menu
+      // is showing; with
       // none up the key falls through to the browser.
       handleKeyDown: (_view, event) => {
         if (!isMenuShortcut(event)) return false;

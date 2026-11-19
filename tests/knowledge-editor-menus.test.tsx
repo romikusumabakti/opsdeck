@@ -121,6 +121,14 @@ function posOf(editor: Editor, type: string) {
   return at;
 }
 
+// Both bindings that move focus into the showing menu. Alt+F10 alone is not
+// enough: GNOME/Mutter grabs it (toggle-maximized) before the page sees it.
+const MENU_KEYS: [string, KeyboardEventInit][] = [
+  ["Alt+F10", { key: "F10", altKey: true }],
+  ["Ctrl+Shift+.", { key: ">", code: "Period", ctrlKey: true, shiftKey: true }],
+  ["⌘+Shift+.", { key: ">", code: "Period", metaKey: true, shiftKey: true }],
+];
+
 const SELECTION_BUTTONS = [
   "Bold",
   "Italic",
@@ -175,7 +183,9 @@ describe("editor surface", () => {
 
   it("advertises the menu shortcut on the editing surface", async () => {
     const { dom } = await mount({ value: "x" });
-    expect(dom.getAttribute("aria-keyshortcuts")).toBe("Alt+F10");
+    expect(dom.getAttribute("aria-keyshortcuts")).toBe(
+      "Alt+F10 Control+Shift+. Meta+Shift+."
+    );
   });
 });
 
@@ -196,6 +206,35 @@ describe("selection toolbar", () => {
     const { editor } = await mount({ value: "Hello world" });
     await act(async () => {
       editor.chain().focus().setTextSelection(3).run();
+    });
+    await settle();
+    expect(toolbars()).toEqual([]);
+  });
+
+  it("stays hidden when the selection reaches into a code block", async () => {
+    const { editor } = await mount({
+      value: "Before\n\n```\nconst x = 1;\n```\n\nAfter",
+    });
+    const code = posOf(editor, "codeBlock");
+    await act(async () => {
+      // From inside "Before" to inside the code — $from is a paragraph.
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: 3, to: code + 4 })
+        .run();
+    });
+    await settle();
+    expect(toolbars()).toEqual([]);
+  });
+
+  it("stays hidden when the selection spans across a code block", async () => {
+    const { editor } = await mount({
+      value: "Before\n\n```\nconst x = 1;\n```\n\nAfter",
+    });
+    await act(async () => {
+      const end = editor.state.doc.content.size - 2;
+      editor.chain().focus().setTextSelection({ from: 3, to: end }).run();
     });
     await settle();
     expect(toolbars()).toEqual([]);
@@ -297,6 +336,36 @@ describe("selection toolbar", () => {
 });
 
 describe("keyboard reachability", () => {
+  it.each(MENU_KEYS)(
+    "%s moves focus into the selection toolbar inside a list (Tab indents there)",
+    async (_name, init) => {
+      const { editor, dom } = await mount({ value: "- Hello world" });
+      await act(async () => {
+        editor.chain().focus().setTextSelection({ from: 3, to: 8 }).run();
+      });
+      const bar = await menu("Formatting");
+      await key(dom, init);
+      expect(document.activeElement).toBe(button(bar, "Bold"));
+    }
+  );
+
+  it.each([
+    ["Ctrl+. without Shift", { key: ".", code: "Period", ctrlKey: true }],
+    [
+      "Ctrl+Alt+Shift+.",
+      { key: ">", code: "Period", ctrlKey: true, altKey: true, shiftKey: true },
+    ],
+    ["Ctrl+Alt+F10", { key: "F10", altKey: true, ctrlKey: true }],
+  ])("%s does not move focus", async (_name, init) => {
+    const { editor, dom } = await mount({ value: "Hello world" });
+    await act(async () => {
+      editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run();
+    });
+    await menu("Formatting");
+    await key(dom, init);
+    expect(editor.view.hasFocus()).toBe(true);
+  });
+
   it("Alt+F10 moves focus into the menu, arrows move across, Esc returns", async () => {
     const { editor, dom } = await mount({ value: "Hello world" });
     await act(async () => {
@@ -446,12 +515,15 @@ describe("table menu", () => {
     expect(editorMarkdown(editor)).toBe("Intro");
   });
 
-  it("is keyboard reachable with Alt+F10", async () => {
-    const { dom } = await caretInTable();
-    const bar = await menu("Table");
-    await key(dom, { key: "F10", altKey: true });
-    expect(document.activeElement).toBe(button(bar, "Add row"));
-  });
+  it.each(MENU_KEYS)(
+    "is keyboard reachable with %s (Tab is taken by cell navigation)",
+    async (_name, init) => {
+      const { dom } = await caretInTable();
+      const bar = await menu("Table");
+      await key(dom, init);
+      expect(document.activeElement).toBe(button(bar, "Add row"));
+    }
+  );
 });
 
 const IMAGE = "![A diagram](/api/knowledge/asset/abc)";
@@ -509,6 +581,89 @@ describe("image menu", () => {
     expect(editorMarkdown(editor)).toBe(
       "Intro\n\n![Staging network diagram](/api/knowledge/asset/abc)"
     );
+  });
+});
+
+describe("onChange", () => {
+  async function wait(ms: number) {
+    await act(() => new Promise((r) => setTimeout(r, ms)));
+  }
+
+  it("emits the new markdown once after typing, and the original after undo", async () => {
+    const { editor, onChange } = await mount({ value: "Hello world" });
+    await act(async () => {
+      editor.chain().focus().setTextSelection(12).run();
+    });
+    await act(async () => {
+      editor.commands.insertContent("!");
+    });
+    await act(async () => {
+      editor.commands.insertContent("?");
+    });
+    // Debounced (300 ms): two keystrokes, one emit.
+    await wait(400);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith("Hello world!?");
+
+    await act(async () => {
+      editor.commands.undo();
+    });
+    await wait(400);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenLastCalledWith("Hello world");
+  });
+
+  it("flushes a pending change on blur", async () => {
+    const { editor, onChange } = await mount({ value: "Hello world" });
+    await act(async () => {
+      editor.chain().focus().setTextSelection(12).run();
+      editor.commands.insertContent("!");
+    });
+    await act(async () => {
+      editor.commands.blur();
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("Hello world!");
+  });
+
+  it.each([
+    ["an image", "Intro\n\n![a](/x)\n\n"],
+    ["a code block", "Intro\n\n```ts\nx\n```\n\n"],
+  ])(
+    "does not fire for a legacy body ending in %s + blank paragraph",
+    async (_name, value) => {
+      // The previous editor saved TrailingNode's paragraph as a trailing
+      // "\n\n". Opening, selecting and blurring must not make it dirty.
+      const { editor, onChange } = await mount({ value });
+      await act(async () => {
+        editor.chain().focus().setTextSelection({ from: 1, to: 4 }).run();
+      });
+      await menu("Formatting");
+      await act(async () => {
+        editor.commands.blur();
+      });
+      await settle();
+      expect(onChange).not.toHaveBeenCalled();
+    }
+  );
+
+  it("does not fire for a legacy body when an edit is undone in place", async () => {
+    // A doc-changing transaction that nets out (bold on, bold off) re-
+    // serializes without the legacy trailing "\n\n"; that difference alone
+    // is not an edit.
+    const { editor, onChange } = await mount({
+      value: "Intro\n\n![a](/x)\n\n",
+    });
+    await act(async () => {
+      editor.chain().focus().setTextSelection({ from: 1, to: 4 }).run();
+      editor.commands.toggleBold();
+      editor.commands.toggleBold();
+    });
+    await act(async () => {
+      editor.commands.blur();
+    });
+    await settle();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

@@ -73,29 +73,48 @@ export type ToolbarLabels = {
   quote: string;
 };
 
-/** Keyboard shortcut that moves focus from the text into the visible menu
- *  (the WAI-ARIA / office-suite convention for "focus the toolbar"). */
-export const MENU_SHORTCUT = "Alt+F10";
+/** Keyboard shortcuts that move focus from the text into the visible menu,
+ *  in `aria-keyshortcuts` syntax (space-separated alternatives).
+ *  - Alt+F10 is the WAI-ARIA / office-suite convention for "focus the
+ *    toolbar", but GNOME/Mutter binds it (toggle-maximized) by default, so
+ *    on GNOME the page never sees it.
+ *  - Ctrl/⌘+Shift+. is the second binding: not taken by GNOME (wm, shell,
+ *    media keys), KDE, macOS, Firefox or Chrome, and no TipTap extension in
+ *    our set uses it. Either Ctrl or ⌘ works on every platform. */
+export const MENU_SHORTCUT = "Alt+F10 Control+Shift+. Meta+Shift+.";
 
 export function isMenuShortcut(event: KeyboardEvent): boolean {
+  if (event.key === "F10") {
+    return event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+  }
+  // Physical key: with Shift held `key` is ">" on US layouts.
+  const period = event.code === "Period" || event.key === ".";
   return (
-    event.key === "F10" &&
-    event.altKey &&
-    !event.ctrlKey &&
-    !event.metaKey &&
-    !event.shiftKey
+    period &&
+    event.shiftKey &&
+    (event.ctrlKey || event.metaKey) &&
+    !event.altKey
   );
 }
 
 // --- When each menu shows. Pure over the editor state so the three menus can
 // --- never claim the same selection (each predicate excludes the others).
 
-/** A non-empty text selection outside code (marks are meaningless there). */
+/** A non-empty text selection that touches no code block. */
 export function showsSelectionMenu(state: EditorState): boolean {
   const { selection, doc } = state;
   if (!(selection instanceof TextSelection) || selection.empty) return false;
   if (doc.textBetween(selection.from, selection.to).length === 0) return false;
-  return !selection.$from.parent.type.spec.code;
+  // Hidden as soon as any part of the selection is code: marks and block
+  // toggles would mangle or split the code block.
+  let touchesCode = Boolean(
+    selection.$from.parent.type.spec.code || selection.$to.parent.type.spec.code
+  );
+  doc.nodesBetween(selection.from, selection.to, (node) => {
+    if (node.type.spec.code) touchesCode = true;
+    return !touchesCode;
+  });
+  return !touchesCode;
 }
 
 /** The caret (or a cell selection) is inside a table and no text is selected
