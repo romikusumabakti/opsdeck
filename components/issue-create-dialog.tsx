@@ -286,25 +286,31 @@ function IssueCreateForm({
           onChange={setAssigneeId}
         />
         <TypeProperty variant={chip} value={type} onChange={setType} />
-        <LabelsProperty
-          variant={chip}
-          allLabels={labels}
-          value={labelValue}
-          onChange={setLabelIds}
-        />
+        {/* Labels and Parent only when there is something to pick, as in
+            the issue page's sidebar (a picked one is always in its list). */}
+        {labels.length > 0 ? (
+          <LabelsProperty
+            variant={chip}
+            allLabels={labels}
+            value={labelValue}
+            onChange={setLabelIds}
+          />
+        ) : null}
         <EnvironmentProperty
           variant={chip}
           environments={environments}
           value={envValue}
           onChange={setEnvironmentId}
         />
-        <ParentProperty
-          variant={chip}
-          parents={parents}
-          projectKey={projectKey}
-          value={parentValue}
-          onChange={setParentId}
-        />
+        {parents.length > 0 ? (
+          <ParentProperty
+            variant={chip}
+            parents={parents}
+            projectKey={projectKey}
+            value={parentValue}
+            onChange={setParentId}
+          />
+        ) : null}
       </div>
       <div className="flex items-center justify-end gap-4 border-t px-5 py-3">
         <div className="flex items-center gap-2">

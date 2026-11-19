@@ -23,6 +23,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const PROJECT_A = "00000000-0000-4000-8000-00000000000a";
 const PROJECT_B = "00000000-0000-4000-8000-00000000000b";
+const PROJECT_C = "00000000-0000-4000-8000-00000000000c";
 const ENV_A = "00000000-0000-4000-8000-0000000000e1";
 const ENV_B = "00000000-0000-4000-8000-0000000000e2";
 const USER = "00000000-0000-4000-8000-0000000000f1";
@@ -40,6 +41,12 @@ const OPTIONS: Record<string, unknown> = {
     environments: [{ id: ENV_B, name: "Demo" }],
     users: [{ id: USER, name: "Rina Hartono", image: null }],
     labels: [{ id: LABEL, name: "regression", color: "#dc2626" }],
+    parents: [],
+  },
+  [PROJECT_C]: {
+    environments: [{ id: ENV_B, name: "Demo" }],
+    users: [{ id: USER, name: "Rina Hartono", image: null }],
+    labels: [],
     parents: [],
   },
 };
@@ -228,6 +235,13 @@ describe("New issue dialog", () => {
     expect(dialog().textContent).toContain("Create more");
   });
 
+  it("hides the Labels and Parent chips when there is nothing to pick", async () => {
+    await mount({ projectId: PROJECT_C, projectKey: "OPS" });
+    expect(chip("Labels")).toBeNull();
+    expect(chip("Parent")).toBeNull();
+    expect(chip("Status: Open")).not.toBeNull();
+  });
+
   it("shows the Project chip when the caller offers a project choice", async () => {
     await mount({
       projectChoice: {
@@ -372,7 +386,9 @@ describe("New issue dialog", () => {
     expect(chip("Environment")?.spoken).toBe("Environment");
     expect(titleInput().value).toBe("Moves projects");
     expect(chip("Priority: Low")).not.toBeNull();
-    expect(chip("Parent")?.spoken).toBe("Parent");
+    // Project B has no parent candidates: the picked parent is cleared and
+    // the chip goes, as in the issue page's sidebar.
+    expect(chip("Parent")).toBeNull();
     // The assignee is a member of both projects: kept.
     expect(chip("Assignee: Rina Hartono")).not.toBeNull();
 
