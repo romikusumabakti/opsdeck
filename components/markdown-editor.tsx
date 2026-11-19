@@ -22,6 +22,7 @@ export function MarkdownEditor({
   linkableDocs = [],
   contentClassName,
   borderless = false,
+  onBlur,
 }: {
   value: string;
   onChange: (markdown: string) => void;
@@ -29,6 +30,8 @@ export function MarkdownEditor({
   linkableDocs?: LinkableDoc[];
   contentClassName?: string;
   borderless?: boolean;
+  /** Focus left the editor; gets the (flushed) markdown. */
+  onBlur?: (markdown: string) => void;
 }) {
   const t = useTranslations("knowledge");
 
@@ -40,6 +43,7 @@ export function MarkdownEditor({
       linkableDocs={linkableDocs}
       contentClassName={contentClassName}
       borderless={borderless}
+      onBlur={onBlur}
       linkLabels={{
         title: t("linkDocument"),
         search: t("searchPlaceholder"),

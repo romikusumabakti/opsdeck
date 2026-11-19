@@ -71,10 +71,10 @@ function PropertyContent({
     return (
       <>
         {icon}
+        {variant === "row" ? <span className="sr-only">{label}: </span> : null}
         <span className="truncate text-muted-foreground">
           {variant === "chip" ? label : emptyLabel}
         </span>
-        {variant === "row" ? <span className="sr-only">: {label}</span> : null}
       </>
     );
   }
@@ -106,9 +106,10 @@ function PropertyShell({
       data-readonly=""
       className={cn(
         "inline-flex min-w-0 items-center gap-1.5 text-sm",
+        // Sized like the triggers' icons (the Button sizes those).
         variant === "chip"
-          ? "h-6 max-w-60 rounded-[min(var(--radius-md),8px)] border px-2 text-xs"
-          : "h-8 px-2.5"
+          ? "h-6 max-w-60 rounded-[min(var(--radius-md),8px)] border px-2 text-xs [&_svg:not([class*='size-'])]:size-3"
+          : "h-8 px-2.5 [&_svg:not([class*='size-'])]:size-4"
       )}
     >
       {content}

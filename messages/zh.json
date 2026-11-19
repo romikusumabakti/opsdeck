@@ -2113,7 +2113,17 @@
     "testFail": "失败",
     "testNeedsEnv": "将此问题关联到某个环境以记录测试结果。",
     "testRecorded": "已记录测试结果",
-    "testRecordFailed": "记录测试失败"
+    "testRecordFailed": "记录测试失败",
+    "conflictTitle": "已被他人修改",
+    "conflictBody": "你编辑期间有人修改了此问题。你的文本仍在这里；重新加载可查看对方的版本，你的文本会保留在页面上供复制。",
+    "conflictReload": "重新加载",
+    "reloadFailed": "无法加载最新版本",
+    "keptTitle": "你未保存的文本",
+    "keptBody": "这是你在重新加载前输入的内容。请将需要保留的部分复制到问题中。",
+    "keptCopy": "复制{field}",
+    "keptDismiss": "关闭",
+    "saveNotSaved": "未保存",
+    "saveRetry": "重试"
   },
   "projectMembers": {
     "selectUser": "选择用户…",

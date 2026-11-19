@@ -2113,7 +2113,17 @@
     "testFail": "Gagal",
     "testNeedsEnv": "Kaitkan isu ke environment untuk mencatat hasil uji.",
     "testRecorded": "Hasil uji dicatat",
-    "testRecordFailed": "Gagal mencatat uji"
+    "testRecordFailed": "Gagal mencatat uji",
+    "conflictTitle": "Diubah oleh orang lain",
+    "conflictBody": "Seseorang mengubah isu ini saat Anda sedang menyunting. Teks Anda masih ada; muat ulang untuk melihat versi mereka, dan teks Anda tetap ada di halaman untuk disalin.",
+    "conflictReload": "Muat ulang",
+    "reloadFailed": "Gagal memuat versi terbaru",
+    "keptTitle": "Teks Anda yang belum tersimpan",
+    "keptBody": "Ini yang Anda ketik sebelum memuat ulang. Salin bagian yang ingin Anda pertahankan ke isu.",
+    "keptCopy": "Salin {field}",
+    "keptDismiss": "Tutup",
+    "saveNotSaved": "Belum tersimpan",
+    "saveRetry": "Coba lagi"
   },
   "projectMembers": {
     "selectUser": "Pilih pengguna…",

@@ -275,6 +275,8 @@ export function SlashMenu({
   const [emptyDone, setEmptyDone] = useState<number | null>(null);
   const emptyAt =
     session !== null && items.length === 0 ? session.range.from : null;
+  // A match again re-arms the notice for the next miss at the same spot.
+  if (items.length > 0 && emptyDone !== null) setEmptyDone(null);
   const open = session !== null && !(emptyAt !== null && emptyDone === emptyAt);
   useEffect(() => {
     if (emptyAt === null) return;

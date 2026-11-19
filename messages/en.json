@@ -2113,7 +2113,17 @@
     "testFail": "Fail",
     "testNeedsEnv": "Pin this issue to an environment to record test results.",
     "testRecorded": "Test result recorded",
-    "testRecordFailed": "Failed to record test"
+    "testRecordFailed": "Failed to record test",
+    "conflictTitle": "Changed by someone else",
+    "conflictBody": "Someone changed this issue while you were editing. Your text is still here; reload to see their version, and yours stays on the page to copy.",
+    "conflictReload": "Reload",
+    "reloadFailed": "Could not load the latest version",
+    "keptTitle": "Your unsaved text",
+    "keptBody": "This is what you had typed before reloading. Copy what you want to keep into the issue.",
+    "keptCopy": "Copy {field}",
+    "keptDismiss": "Dismiss",
+    "saveNotSaved": "Not saved",
+    "saveRetry": "Retry"
   },
   "projectMembers": {
     "selectUser": "Select a user…",

@@ -269,6 +269,29 @@ describe("slash menu: filtering and keys", () => {
     expect(editorMarkdown(editor)).toContain("/etc/hosts");
   });
 
+  it("shows the no-match notice again after a match at the same spot", async () => {
+    const { editor } = await mount({ value: "" });
+    await type(editor, "/zz");
+    await vi.waitFor(
+      () =>
+        expect(document.body.textContent).not.toContain("No matching commands"),
+      { timeout: 3000 }
+    );
+    // Back to a matching query, then a miss again.
+    await act(async () => {
+      const { state, view } = editor;
+      view.dispatch(
+        state.tr.delete(state.selection.from - 2, state.selection.from)
+      );
+    });
+    await type(editor, "t");
+    await openList();
+    await type(editor, "zz");
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain("No matching commands")
+    );
+  });
+
   it("leaves Ctrl/⌘+Enter to the surrounding form", async () => {
     const { editor, dom } = await mount({ value: "" });
     await type(editor, "/");

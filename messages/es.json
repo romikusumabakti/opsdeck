@@ -2113,7 +2113,17 @@
     "testFail": "Fallida",
     "testNeedsEnv": "Asocia esta incidencia a un entorno para registrar resultados de prueba.",
     "testRecorded": "Resultado de prueba registrado",
-    "testRecordFailed": "No se pudo registrar la prueba"
+    "testRecordFailed": "No se pudo registrar la prueba",
+    "conflictTitle": "Modificado por otra persona",
+    "conflictBody": "Alguien cambió esta incidencia mientras la editabas. Tu texto sigue aquí; recarga para ver su versión, y la tuya seguirá en la página para copiarla.",
+    "conflictReload": "Recargar",
+    "reloadFailed": "No se pudo cargar la última versión",
+    "keptTitle": "Tu texto sin guardar",
+    "keptBody": "Esto es lo que habías escrito antes de recargar. Copia lo que quieras conservar en la incidencia.",
+    "keptCopy": "Copiar {field}",
+    "keptDismiss": "Descartar",
+    "saveNotSaved": "No guardado",
+    "saveRetry": "Reintentar"
   },
   "projectMembers": {
     "selectUser": "Selecciona un usuario…",

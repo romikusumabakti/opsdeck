@@ -1,4 +1,4 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useTranslations } from "use-intl";
@@ -7,11 +7,15 @@ import { PageHeaderSkeleton } from "@/components/skeletons/page-header-skeleton"
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
+import { canProject } from "@/lib/permissions";
 import { listIssueAttachmentsQuery } from "@/web/api/issue-attachments";
 import { getIssueDetailQuery, listIssuesQuery } from "@/web/api/issues";
 import { getJiraLinkQuery } from "@/web/api/jira";
 import { listLabelsQuery } from "@/web/api/labels";
-import { getProjectWithEnvironmentsQuery } from "@/web/api/project-catalog";
+import {
+  getMyProjectAccessQuery,
+  getProjectWithEnvironmentsQuery,
+} from "@/web/api/project-catalog";
 import { listIssueTestRunsQuery } from "@/web/api/test-runs";
 import { listAssignableUsersQuery } from "@/web/api/users";
 import { loaderQuery } from "@/web/query-client";
@@ -48,6 +52,7 @@ export const Route = createFileRoute(
       loaderQuery(queryClient, listIssueAttachmentsQuery(issue.id)),
       loaderQuery(queryClient, listIssueTestRunsQuery(issue.id)),
       loaderQuery(queryClient, getJiraLinkQuery(issue.project.id)),
+      loaderQuery(queryClient, getMyProjectAccessQuery()),
     ]);
   },
   pendingComponent: IssuePending,
@@ -58,9 +63,9 @@ function IssueDetailPage() {
   const { projectKey, number } = Route.useParams();
   const t = useTranslations("issueDetail");
   const tIssues = useTranslations("issues");
-  const issue = useSuspenseQuery(
-    getIssueDetailQuery(projectKey, issueNumber(number) ?? 0)
-  ).data;
+  const queryClient = useQueryClient();
+  const detailQuery = getIssueDetailQuery(projectKey, issueNumber(number) ?? 0);
+  const issue = useSuspenseQuery(detailQuery).data;
   if (!issue) throw notFound();
   const project = useSuspenseQuery(
     getProjectWithEnvironmentsQuery(issue.project.id)
@@ -75,6 +80,11 @@ function IssueDetailPage() {
   ).data;
   const testRuns = useSuspenseQuery(listIssueTestRunsQuery(issue.id)).data;
   const jiraLink = useSuspenseQuery(getJiraLinkQuery(issue.project.id)).data;
+  // Viewers read issues; changing one takes `issue: write` (as the server).
+  const roles = useSuspenseQuery(getMyProjectAccessQuery()).data.roles;
+  const canEdit = canProject(roles[issue.project.id] ?? null, {
+    issue: ["write"],
+  });
   // Only rendered when this specific issue is mirrored — a linked project can
   // still hold issues that were created here and never pushed.
   const jiraUrl =
@@ -129,6 +139,11 @@ function IssueDetailPage() {
         attachments={attachments}
         testRuns={testRuns}
         allLabels={allLabels}
+        canEdit={canEdit}
+        // Always from the server, bypassing the cache's freshness.
+        onReload={() =>
+          queryClient.fetchQuery({ ...detailQuery, staleTime: 0 })
+        }
       />
     </>
   );
@@ -136,37 +151,36 @@ function IssueDetailPage() {
 
 // The detail page has no ancestor `loading.tsx`, so without this one a click
 // from the issue list hangs on the old page until every query resolves.
-// Mirrors `issue-detail-client`: title field, the meta grid, then the long
-// prose blocks (description, comments).
+// Mirrors `issue-detail-client`: title and description in the main column,
+// then comments; the properties sidebar from `lg`.
 function IssuePending() {
   return (
     <>
       <PageHeaderSkeleton />
-      <div className="flex w-full max-w-3xl flex-col gap-6">
-        <Skeleton className="h-11 w-full" />
-
-        {/* Type, status, priority, assignee, environment. */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {Array.from({ length: 5 }, (_, i) => (
-            <div key={`meta-${i}`} className="flex flex-col gap-1.5">
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ))}
+      <div className="grid w-full max-w-6xl grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="flex min-w-0 max-w-3xl flex-col gap-6">
+          <Skeleton className="h-8 w-2/3" />
+          {/* The chip row below lg. */}
+          <div className="flex flex-wrap gap-1.5 lg:hidden">
+            {Array.from({ length: 5 }, (_, i) => (
+              <Skeleton key={`chip-${i}`} className="h-6 w-20" />
+            ))}
+          </div>
+          <Skeleton className="h-32 w-full" />
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-4 w-28" />
+            {Array.from({ length: 2 }, (_, i) => (
+              <div key={`comment-${i}`} className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ))}
+          </div>
         </div>
-
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-4 w-28" />
-          {Array.from({ length: 2 }, (_, i) => (
-            <div key={`comment-${i}`} className="flex flex-col gap-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-12 w-full" />
-            </div>
+        {/* Status, priority, assignee, type, labels, environment. */}
+        <div className="hidden flex-col gap-2 lg:flex">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={`row-${i}`} className="h-8 w-full" />
           ))}
         </div>
       </div>

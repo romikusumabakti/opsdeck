@@ -88,6 +88,7 @@ export function KnowledgeEditor({
   slashLabels,
   contentClassName,
   borderless = false,
+  onBlur,
 }: {
   value: string;
   linkableDocs?: LinkableDoc[];
@@ -106,6 +107,9 @@ export function KnowledgeEditor({
   /** No frame (border, radius, background, inline padding) — for surfaces
    *  that sit directly in a page, like an issue description. */
   borderless?: boolean;
+  /** Focus left the editing surface; gets the markdown as last reported
+   *  through `onChange` (already flushed), for save-on-blur surfaces. */
+  onBlur?: (markdown: string) => void;
 }) {
   // Paste/drop handlers live inside the editor config (set once on mount) but
   // need the latest upload closure — route through a ref reassigned each render.
@@ -131,8 +135,10 @@ export function KnowledgeEditor({
   // The ref write happens in an effect (never during render, per the React
   // rules); events and the debounce timer only read it after effects ran.
   const onChangeRef = useRef(onChange);
+  const onBlurRef = useRef(onBlur);
   useEffect(() => {
     onChangeRef.current = onChange;
+    onBlurRef.current = onBlur;
   });
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -247,6 +253,7 @@ export function KnowledgeEditor({
         debounceRef.current = undefined;
         emit(editorMarkdown(e));
       }
+      onBlurRef.current?.(lastEmittedRef.current);
     },
   });
 
