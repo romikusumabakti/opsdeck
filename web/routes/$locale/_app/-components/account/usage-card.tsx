@@ -7,7 +7,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { getAllowanceQuery } from "@/web/api/assistant";
 import {
   AllowanceBar,
@@ -39,7 +38,7 @@ export function UsageCard() {
         <CardDescription>{t("description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <AllowanceBar allowance={allowance} label={t("title")} />
+        <AllowanceBar allowance={allowance} label={tAssistant("usageHint")} />
         <p className="text-sm">
           {t("summary", { used: percent, left })}
           <span className="text-muted-foreground">
@@ -48,10 +47,7 @@ export function UsageCard() {
           </span>
         </p>
         {reached && (
-          <p
-            role="status"
-            className={cn("text-sm font-medium text-destructive")}
-          >
+          <p role="status" className="text-sm font-medium text-destructive">
             {t("capReached")}
           </p>
         )}

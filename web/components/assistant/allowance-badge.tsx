@@ -68,21 +68,28 @@ export function AllowanceBadge({ allowance }: { allowance: Allowance }) {
   const { reached, percent } = allowanceMeter(allowance);
   const time = new Date(allowance.resetsAt);
   return (
-    <Link
-      href="/account?tab=usage"
-      className="flex w-44 flex-col gap-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      title={t("usageHint")}
-      role={reached ? "status" : undefined}
-    >
-      <AllowanceBar allowance={allowance} label={t("usageHint")} />
-      <p
-        className={cn(
-          "text-xs leading-tight text-muted-foreground",
-          reached && "text-destructive"
-        )}
+    <div className="w-44">
+      <Link
+        href="/account?tab=usage"
+        className="flex flex-col gap-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        title={t("usageHint")}
       >
-        {t("usageUsed", { percent })} · {t("usageResets", { time })}
-      </p>
-    </Link>
+        <AllowanceBar allowance={allowance} label={t("usageHint")} />
+        <p
+          className={cn(
+            "text-xs leading-tight text-muted-foreground",
+            reached && "text-destructive"
+          )}
+        >
+          {t("usageUsed", { percent })} · {t("usageResets", { time })}
+        </p>
+      </Link>
+      {/* Announced at the cap; kept off the link so it stays a link. */}
+      {reached && (
+        <span role="status" className="sr-only">
+          {t("usageCapReached", { time })}
+        </span>
+      )}
+    </div>
   );
 }

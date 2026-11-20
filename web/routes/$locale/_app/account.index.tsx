@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useRouter } from "@/i18n/navigation";
 import { useSession } from "@/lib/auth-client";
 import type { WorkingHours } from "@/lib/user-display";
 import { getAllowanceQuery } from "@/web/api/assistant";
@@ -43,10 +44,10 @@ export const Route = createFileRoute("/$locale/_app/account/")({
         : undefined,
   }),
   loader: async ({ context: { queryClient } }) => {
-    await Promise.all([
-      loaderQuery(queryClient, getAccountQuery()),
-      loaderQuery(queryClient, getAllowanceQuery()),
-    ]);
+    // The allowance only decides whether the Usage tab shows: warm it without
+    // waiting, so a slow or failing call cannot hold up or break the page.
+    void queryClient.prefetchQuery(getAllowanceQuery());
+    await loaderQuery(queryClient, getAccountQuery());
   },
   component: AccountPage,
 });
@@ -56,6 +57,7 @@ function AccountPage() {
   const t = useTranslations("account");
   const tNotif = useTranslations("notifications");
   const tPasskeys = useTranslations("account.passkeys");
+  const router = useRouter();
   const me = useMe();
   const { appTimeZone } = useBootstrap();
   const account = useSuspenseQuery(getAccountQuery()).data;
@@ -64,9 +66,14 @@ function AccountPage() {
   const { data: authSession } = useSession();
 
   // The Usage tab exists only while the Assistant is on for the instance.
-  const assistantEnabled = useQuery(getAllowanceQuery()).data?.enabled ?? false;
-  const defaultTab =
-    tab === "usage" && !assistantEnabled ? "profile" : (tab ?? "profile");
+  const allowance = useQuery(getAllowanceQuery());
+  const assistantEnabled = allowance.data?.enabled ?? false;
+  // ?tab=usage waits for the allowance; once it is known to be off (or failed)
+  // the page shows Profile.
+  const value =
+    tab === "usage" && !allowance.isPending && !assistantEnabled
+      ? "profile"
+      : (tab ?? "profile");
   if (!me) return null;
   const { user } = me;
 
@@ -74,7 +81,15 @@ function AccountPage() {
     <>
       <PageHeader title={t("title")} subtitle={t("subtitle")} />
 
-      <Tabs defaultValue={defaultTab} className="gap-6 max-w-3xl w-full">
+      <Tabs
+        value={value}
+        onValueChange={(next) =>
+          router.replace(
+            next === "profile" ? "/account" : `/account?tab=${next}`
+          )
+        }
+        className="gap-6 max-w-3xl w-full"
+      >
         <TabsList>
           <TabsTrigger value="profile">
             <UserRound className="size-4" />

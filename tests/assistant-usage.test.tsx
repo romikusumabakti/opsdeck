@@ -14,7 +14,10 @@ const messages = applyBranding(enMessages, {
   allowedEmailDomain: "example.com",
 });
 
-const nav = vi.hoisted(() => ({ search: {} as { tab?: string } }));
+const nav = vi.hoisted(() => ({
+  search: {} as { tab?: string },
+  replace: vi.fn(),
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: Record<string, unknown>) => ({
@@ -23,16 +26,20 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 vi.mock("@/i18n/navigation", () => ({
+  useRouter: () => ({ replace: nav.replace }),
   Link: ({ href, children, ...rest }: React.ComponentProps<"a">) => (
     <a href={href} {...rest}>
       {children}
     </a>
   ),
 }));
+const allowanceFetch = vi.hoisted(() => ({
+  current: (() => new Promise(() => {})) as () => Promise<unknown>,
+}));
 vi.mock("@/web/api/assistant", () => ({
   getAllowanceQuery: () => ({
     queryKey: ["assistant", "getAllowance"],
-    queryFn: () => new Promise(() => {}),
+    queryFn: () => allowanceFetch.current(),
   }),
 }));
 vi.mock("@/web/api/profile", () => ({
@@ -98,6 +105,7 @@ beforeEach(() => {
     hasMicrosoftAccount: false,
   });
   nav.search = {};
+  nav.replace.mockReset();
 });
 
 afterEach(() => {
@@ -105,8 +113,12 @@ afterEach(() => {
   container.remove();
 });
 
-async function renderPage(data: object | null) {
+async function renderPage(
+  data: object | null,
+  fetchAllowance?: () => Promise<unknown>
+) {
   if (data) queryClient.setQueryData(["assistant", "getAllowance"], data);
+  allowanceFetch.current = fetchAllowance ?? (() => new Promise(() => {}));
   const Page = (Route as unknown as { options: { component: React.FC } })
     .options.component;
   container = document.createElement("div");
@@ -194,6 +206,50 @@ describe("the Usage tab in Account", () => {
   });
 });
 
+describe("when the allowance can't load", () => {
+  it("Account still renders Profile if the allowance request fails", async () => {
+    await renderPage(null, () => Promise.reject(new Error("boom")));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(usageTab()).toBeUndefined();
+    expect(
+      container.querySelector('[role="tab"][aria-selected="true"]')?.textContent
+    ).toContain(ta.tabs.profile);
+  });
+
+  it("a cold ?tab=usage lands on Usage once the allowance arrives", async () => {
+    nav.search = { tab: "usage" };
+    await renderPage(null, () => Promise.resolve(allowance));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(
+      container.querySelector('[role="tab"][aria-selected="true"]')?.textContent
+    ).toContain(ta.tabs.usage);
+    expect(text()).toContain("40% used today");
+  });
+
+  it("a failed allowance with ?tab=usage falls back to Profile", async () => {
+    nav.search = { tab: "usage" };
+    await renderPage(null, () => Promise.reject(new Error("boom")));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(
+      container.querySelector('[role="tab"][aria-selected="true"]')?.textContent
+    ).toContain(ta.tabs.profile);
+  });
+
+  it("switching tabs puts the tab in the URL with replace", async () => {
+    await renderPage(allowance);
+    await act(async () => {
+      (usageTab() as HTMLElement).click();
+    });
+    expect(nav.replace).toHaveBeenCalledWith("/account?tab=usage");
+  });
+});
+
 describe("links to the Usage tab", () => {
   it("the toolbar badge links to /account?tab=usage", async () => {
     container = document.createElement("div");
@@ -214,6 +270,32 @@ describe("links to the Usage tab", () => {
     const link = container.querySelector("a");
     expect(link?.getAttribute("href")).toBe("/account?tab=usage");
     expect(text()).toContain("85% of today's limit used");
+  });
+
+  it("the badge stays a link at the cap; the cap is announced beside it", async () => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <IntlProvider
+          locale="en"
+          messages={messages}
+          timeZone="Asia/Jakarta"
+          now={new Date("2026-11-16T05:00:00Z")}
+        >
+          <AllowanceBadge
+            allowance={{ ...allowance, usedFraction: 1, capReached: true }}
+          />
+        </IntlProvider>
+      );
+    });
+    const link = container.querySelector("a");
+    expect(link?.getAttribute("role")).toBeNull();
+    expect(link?.querySelector("[role=status]")).toBeNull();
+    expect(container.querySelector("[role=status]")?.textContent).toContain(
+      "reached today's limit"
+    );
   });
 });
 
