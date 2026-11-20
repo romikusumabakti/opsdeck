@@ -88,7 +88,7 @@ const messages = applyBranding(enMessages, {
 
 const ID = "0197f3a0-1b2c-7def-8000-000000000001";
 const KEY_ID = "0197f3a0-1b2c-7def-8000-0000000000cc";
-const PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPanelKey";
+const PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMenaraKey";
 const t = messages.serverAccess;
 const tForm = messages.serverForm;
 const tServers = messages.servers;

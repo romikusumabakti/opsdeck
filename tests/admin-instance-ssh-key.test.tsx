@@ -38,7 +38,7 @@ import {
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
 const t = messages.instanceSshKey;
-const PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPanelKey";
+const PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMenaraKey";
 
 function data(lastJob: Record<string, unknown> | null = null) {
   return {

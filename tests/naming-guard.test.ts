@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 // The product is called Menara in code, tests and docs. This guard fails on
-// any tracked file that still calls it "panel" (any case) or mentions "Acme".
+// any tracked file that still calls it "panel" (any case, plural, or inside a
+// camelCase identifier) or mentions "Acme".
 // UI copy takes the instance name at runtime ({{APP_NAME}}), so it never
 // hard-codes the product either.
 //
@@ -26,6 +27,13 @@ const ALLOWED: Allowed[] = [
   {
     path: ANY,
     construct:
+      /\b(?:LiveRunPanel|DeployLockPanel|ClockStatePanel|ProvisioningPanel(?:View)?|showProvisioningPanel|showPanel|DraftPanel|draftPanel|noTargetsPanel|PanelLeftIcon|panel(?:Drop|Key)Props)\b|\.cm-panels\b/g,
+    reason:
+      "UI component identifiers: the run, deploy-lock, provisioning, clock-state and draft panels, the sidebar toggle icon, CodeMirror panels",
+  },
+  {
+    path: ANY,
+    construct:
       /\b(?:live-run|draft|provisioning|clock-state)-panel\b|data-\[panel-open\]/g,
     reason: "UI component file names and the Base UI panel-open data attribute",
   },
@@ -42,7 +50,8 @@ const ALLOWED: Allowed[] = [
   },
   {
     path: /^lib\/jira\/adf\.ts$|^tests\/jira-adf\.test\.ts$/,
-    construct: /type: "panel"|\bpanel border\b/g,
+    construct:
+      /type: "panel"|\bpanel border\b|\bPanels, expands\b|\bpanelType\b/g,
     reason: "Jira ADF panel node",
   },
   {
@@ -54,7 +63,7 @@ const ALLOWED: Allowed[] = [
   {
     path: /^tests\/(i18n-branding|messages-naming)\.test\.ts$/,
     construct:
-      /\["Acme", "Panel"\]|# in Acme Panel|"Panel" or a localized|no message names the product Panel|"panel" is also the ordinary word|panelWritten|panelRead|no old panel key|\.panel\b|\\bpanel\\b|\\bpanel\\s\+|\bnotify-panel\b/g,
+      /\["Acme", "Panel"\]|# in Acme Panel|"Panel" or a localized|no message names the product Panel|"panel" is also the ordinary word|panelWritten|panelRead|byAutoPanelUser|removeFromPanel(?:Description)?|removedFromPanel|openPanelIssue|no old panel key|\.panel\b|\\bpanel\\b|\\bpanel\\s\+|\bnotify-panel\b/g,
     reason: "sample two-word instance name and the message naming checks",
   },
   {
@@ -74,7 +83,7 @@ const ALLOWED: Allowed[] = [
   },
   {
     path: /^(components\/(file-explorer|live-run-panel|live-run-dialog|code-editor|server-form|ui\/context-menu)\.tsx|web\/components\/assistant\/(assistant-workspace|draft-panel|mention-popover)\.tsx|web\/routes\/\$locale\/_app\/(\$projectKey\.index\.tsx|-components\/(env\/(provisioning-panel|skeletons|settings\/variables-tab|mock-time\/mock-time-(api|legacy))|issues-client|setup\/new-environment-form)\.tsx)|server\/services\/provisioning\.ts|tests\/(assistant-ui\.test\.tsx|provisioning-api\.test\.ts|provisioning-panel\.test\.tsx))$/,
-    construct: /\bpanel\b/g,
+    construct: /\bpanels?\b/g,
     reason:
       "a UI panel (drafts, provisioning, file explorer, ...), not the product",
   },
@@ -84,26 +93,20 @@ const ALLOWED: Allowed[] = [
     reason: "the knowledge page's Referenced by panel",
   },
   {
+    path: /^tests\/assistant-(system-prompt|tool-defs)\.test\.ts$/,
+    construct: /\/\\bPanel\\b\//g,
+    reason: "assertions that the prompt and tool texts never name the product",
+  },
+  {
     path: /^tests\/naming-guard\.test\.ts$/,
-    construct: /\bpanel\b|\bDSS\b/gi,
+    construct: /^.*$/g,
     reason: "this file names the words it forbids",
   },
 ];
 
 function grepTracked(): { path: string; lineNo: string; text: string }[] {
   const result = Bun.spawnSync(
-    [
-      "git",
-      "grep",
-      "-n",
-      "-I",
-      "-P",
-      "(?i:\\bpanel\\b)|\\bDSS\\b",
-      "--",
-      ".",
-      ":!www",
-      ":!bun.lock",
-    ],
+    ["git", "grep", "-n", "-I", "-P", GREP, "--", ".", ":!www", ":!bun.lock"],
     { cwd: new URL("..", import.meta.url).pathname }
   );
   // Exit 1 means no match; anything above is a real failure.
@@ -118,7 +121,13 @@ function grepTracked(): { path: string; lineNo: string; text: string }[] {
     });
 }
 
-const FORBIDDEN = /\bpanel\b|\bDSS\b/i;
+// "panel" as a word in any case (also "panels", PANEL_URL, panel_url), and
+// as a part of a camelCase or PascalCase identifier (showPanel, panelUrl,
+// PanelUrl), plus "Acme".
+const WORD = "(?<![A-Za-z])[Pp][Aa][Nn][Ee][Ll][Ss]?(?![a-z])";
+const CAMEL = "(?<=[A-Za-z\\d])Panels?(?![a-z])|\\b[Pp]anels?(?=[A-Z])";
+const GREP = `${WORD}|${CAMEL}|\\bDSS\\b`;
+const FORBIDDEN = new RegExp(GREP);
 const applicable = (path: string) => ALLOWED.filter((a) => a.path.test(path));
 
 describe("naming guard", () => {
