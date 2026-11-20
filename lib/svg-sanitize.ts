@@ -20,11 +20,14 @@ const DECLARATION = /<!(?:DOCTYPE|ENTITY)/i;
 // Checked on every attribute value (presentation attributes such as fill are
 // CSS too) and on <style> text:
 //   - a reference that leaves the document: url() other than url(#…),
-//     @import, and the CSS functions that take a URL as a plain string;
+//     url('#…') or url("#…") (spaced forms such as `url( #…)` are refused
+//     too), @import, and the CSS functions that take a URL as a plain string;
 //   - old IE script-in-CSS;
 //   - any backslash: a CSS escape (`u\72l(`, `@\69mport`) hides the rest.
+// A file carrying one is refused, not stripped: dropping a fill, a style or a
+// stylesheet would recolour the logo without telling the admin.
 const UNSAFE_VALUE = [
-  /url\(\s*['"]?(?!#)/i,
+  /url\((?!['"]?#)/i,
   /@import/i,
   /expression\(/i,
   /(?:-webkit-)?image-set\(/i,
@@ -41,6 +44,9 @@ type Purifier = {
   parser: DOMParser;
 };
 let purifier: Promise<Purifier> | null = null;
+// Set by the hooks during one (synchronous) sanitize call: the file carries an
+// unsafe value.
+let refused = false;
 
 async function createPurifier(): Promise<Purifier> {
   const { JSDOM } = await import("jsdom");
@@ -51,17 +57,20 @@ async function createPurifier(): Promise<Purifier> {
   purify.addHook("uponSanitizeAttribute", (_node, data) => {
     const name = data.attrName.toLowerCase();
     const value = data.attrValue.trim();
-    if (
+    if (unsafe(value)) {
+      refused = true;
+      data.keepAttr = false;
+    } else if (
       // href and xlink:href (any prefix: the name the parser gave it).
       ((name === "href" || name.endsWith(":href")) && !value.startsWith("#")) ||
-      name.startsWith("on") ||
-      unsafe(value)
+      name.startsWith("on")
     ) {
       data.keepAttr = false;
     }
   });
   purify.addHook("uponSanitizeElement", (node, data) => {
     if (data.tagName === "style" && unsafe(node.textContent ?? "")) {
+      refused = true;
       node.parentNode?.removeChild(node);
     }
   });
@@ -76,11 +85,13 @@ export async function sanitizeSvg(source: string): Promise<SanitizeSvgResult> {
   if (DECLARATION.test(source)) return { ok: false, error: "invalid_svg" };
   purifier ??= createPurifier();
   const { purify, serializer, parser } = await purifier;
+  refused = false;
   const root = purify.sanitize(source, {
     USE_PROFILES: { svg: true, svgFilters: true },
     FORBID_TAGS: ["script", "foreignObject", "image", "a", "iframe"],
     RETURN_DOM_FRAGMENT: true,
   });
+  if (refused) return { ok: false, error: "invalid_svg" };
   const elements = Array.from(root?.childNodes ?? []).filter(
     (node) => node.nodeType === 1
   ) as Element[];

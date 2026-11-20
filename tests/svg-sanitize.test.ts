@@ -53,24 +53,92 @@ describe("sanitizeSvg", () => {
     expect(svg).toMatch(/<\/svg>$/);
   });
 
-  it("keeps url(#gradient) but drops external url() in attributes and style", () => {
+  it("keeps url(#gradient) in attributes and a harmless <style>", () => {
     expect(hostile).toContain('fill="url(#gradient)"');
-    expect(hostile).not.toMatch(/url\(\s*['"]?(?!#)/i);
-    expect(hostile).not.toMatch(/expression\(/i);
-  });
-
-  it("drops CSS escapes and string-URL functions in style attributes and <style>", () => {
-    expect(hostile).not.toContain("\\");
-    expect(hostile).not.toMatch(/image-set\(|cross-fade\(/i);
-    expect(hostile).not.toMatch(/escaped|set\.png|webkit\.png|fade\.png/);
-    // The rects themselves stay; only the unsafe attributes go.
-    expect(hostile).toContain('<rect x="48" y="0" width="8" height="8"/>');
-  });
-
-  it("removes a <style> with @import or an external url()", () => {
-    expect(hostile).not.toMatch(/@import/i);
-    // The harmless stylesheet stays.
     expect(hostile).toContain(".ok { fill: url(#gradient); }");
+  });
+
+  it("keeps quoted in-document references: url('#g') and url(\"#g\")", async () => {
+    const svg = await clean(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><defs><linearGradient id="g"><stop offset="0" stop-color="#2563eb"/></linearGradient></defs><style>.a { fill: url("#g"); }</style><rect class="a" width="4" height="4"/><rect x="4" fill="url('#g')" width="4" height="4"/><rect y="4" style="stroke: url(&quot;#g&quot;)" width="4" height="4"/></svg>`
+    );
+    expect(svg).toContain('.a { fill: url("#g"); }');
+    expect(svg).toContain(`fill="url('#g')"`);
+    expect(svg).toContain('style="stroke: url(&quot;#g&quot;)"');
+  });
+
+  // A value that would leave the document (or hide behind an escape) is not
+  // stripped: stripping a fill, a style or a stylesheet recolours the logo
+  // without telling the admin, so the upload is refused instead.
+  const wrap = (body: string) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">${body}<rect width="8" height="8"/></svg>`;
+  const refused: [string, string][] = [
+    [
+      "@import in <style>",
+      "<style>@import url(https://evil.example.com/x.css);</style>",
+    ],
+    [
+      "external url() in <style>",
+      "<style>rect { fill: url(https://evil.example.com/paint.svg#p); }</style>",
+    ],
+    [
+      "a CSS escape in <style>",
+      '<style>rect{fill:u\\72l(https://evil.example.com/e.svg#p)} @\\69mport "https://evil.example.com/e.css";</style>',
+    ],
+    [
+      "image-set() in <style>",
+      '<style>rect{background:image-set("https://evil.example.com/set.png" 1x)}</style>',
+    ],
+    [
+      "-webkit-image-set() in <style>",
+      '<style>rect{background:-webkit-image-set("https://evil.example.com/w.png" 1x)}</style>',
+    ],
+    [
+      "cross-fade() in <style>",
+      '<style>rect{background:cross-fade(url(#g), "https://evil.example.com/f.png")}</style>',
+    ],
+    [
+      "external url() in a style attribute",
+      '<rect style="fill:url(https://evil.example.com/paint.svg#p)"/>',
+    ],
+    [
+      "a quoted external url() in fill",
+      `<rect fill="url('https://evil.example.com/paint.svg#p')"/>`,
+    ],
+    [
+      "a quoted url() that only ends in a fragment",
+      `<rect fill="url('https://evil.example.com/#x')"/>`,
+    ],
+    ["a spaced, quoted fragment url()", `<rect fill="url( '#x' )"/>`],
+    [
+      "expression() in a style attribute",
+      '<rect style="width: expression(alert(3))"/>',
+    ],
+    [
+      "a CSS escape in a style attribute",
+      '<rect style="fill:u\\72l(https://evil.example.com/e.svg#p)"/>',
+    ],
+    [
+      "a CSS escape in fill",
+      '<rect fill="u\\72l(https://evil.example.com/e.svg#p)"/>',
+    ],
+    [
+      "image-set() in a style attribute",
+      '<rect style="fill:image-set(&quot;https://evil.example.com/s.png&quot; 1x)"/>',
+    ],
+  ];
+  for (const [what, body] of refused) {
+    it(`rejects ${what} instead of stripping it`, async () => {
+      expect(await sanitizeSvg(wrap(body))).toEqual({
+        ok: false,
+        error: "invalid_svg",
+      });
+    });
+  }
+
+  it("still accepts a file after rejecting one (the check is per upload)", async () => {
+    await sanitizeSvg(wrap(refused[0]?.[1] ?? ""));
+    expect((await sanitizeSvg(wrap(""))).ok).toBe(true);
   });
 
   it("rejects a DOCTYPE or ENTITY declaration", async () => {
