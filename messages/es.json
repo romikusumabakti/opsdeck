@@ -994,11 +994,10 @@
       "enabledAs": "Activado, con el inicio de sesión {login}.",
       "adminOnly": "Solo un administrador o infra puede activarlo o desactivarlo.",
       "leftover": "El acceso está desactivado, pero el inicio de sesión {login} sigue en el servidor de base de datos.",
+      "externalNote": "El Panel no administra esta base de datos: el inicio de sesión de solo lectura se crea en ella y se elimina al desactivar esto.",
       "unavailable": {
-        "external": "No disponible para una base de datos externa: el Panel no tiene acceso de administrador a ella.",
         "incomplete": "No disponible hasta que se indiquen el motor y el nombre de la base de datos.",
-        "adminPasswordMissing": "No disponible hasta que se indique la contraseña de administrador de la base de datos en Opciones avanzadas.",
-        "peerAuth": "No disponible para Postgres ejecutado con systemd: el Panel inicia sesión allí con autenticación peer, que no admite un inicio de sesión de solo lectura aparte."
+        "adminPasswordMissing": "No disponible hasta que se indique la contraseña de administrador de la base de datos en Opciones avanzadas."
       },
       "enabled": "El asistente ya puede consultar esta base de datos (solo lectura)",
       "disabled": "El asistente ya no puede consultar esta base de datos",
@@ -1654,7 +1653,7 @@
     "componentNotInSources": "Este servicio no es una fuente de este proyecto. Añádelo primero.",
     "cannotResetOwnTwoFactor": "No puedes restablecer tu propia verificación en dos pasos. Desactívala desde Cuenta > Seguridad.",
     "assistantDbNoDatabase": "Este entorno no tiene base de datos.",
-    "assistantDbUnavailable": "{reason, select, external {El Panel no tiene acceso de administrador a una base de datos externa.} incomplete {Indica primero el motor y el nombre de la base de datos.} adminPasswordMissing {Indica primero la contraseña de administrador de la base de datos.} peerAuth {Postgres ejecutado con systemd no admite un inicio de sesión de solo lectura aparte (autenticación peer).} other {El Panel no puede crear un inicio de sesión de solo lectura para esta base de datos.}}",
+    "assistantDbUnavailable": "{reason, select, incomplete {Indica primero el motor y el nombre de la base de datos.} adminPasswordMissing {Indica primero la contraseña de administrador de la base de datos.} other {El Panel no puede crear un inicio de sesión de solo lectura para esta base de datos.}}",
     "assistantDbProvisionFailed": "El servidor de base de datos rechazó el inicio de sesión de solo lectura: {reason}",
     "assistantDbDropFailed": "El acceso del asistente está desactivado, pero no se pudo eliminar el inicio de sesión {login}: {reason}",
     "assistantDbAccessBlocksRebind": "Desactiva el acceso del asistente a la base de datos antes de mover o quitar esta base de datos.",

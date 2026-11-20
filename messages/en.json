@@ -994,11 +994,10 @@
       "enabledAs": "On, using the login {login}.",
       "adminOnly": "Only an admin or infra can turn this on or off.",
       "leftover": "Access is off, but the login {login} is still on the database server.",
+      "externalNote": "This database isn't managed by the Panel: the read-only login is created on it and dropped when you turn this off.",
       "unavailable": {
-        "external": "Not available for an external database: the Panel has no admin access to it.",
         "incomplete": "Not available until the database's engine and name are set.",
-        "adminPasswordMissing": "Not available until the database's admin password is set under Advanced options.",
-        "peerAuth": "Not available for Postgres run by systemd: the Panel signs in there through peer authentication, which admits no separate read-only login."
+        "adminPasswordMissing": "Not available until the database's admin password is set under Advanced options."
       },
       "enabled": "The Assistant can now query this database (read-only)",
       "disabled": "The Assistant can no longer query this database",
@@ -1654,7 +1653,7 @@
     "componentNotInSources": "This service isn't a source of this project. Add it first.",
     "cannotResetOwnTwoFactor": "You can't reset your own two-factor. Turn it off from Account > Security.",
     "assistantDbNoDatabase": "This environment has no database.",
-    "assistantDbUnavailable": "{reason, select, external {The Panel has no admin access to an external database.} incomplete {Set the database's engine and name first.} adminPasswordMissing {Set the database's admin password first.} peerAuth {Postgres run by systemd admits no separate read-only login (peer authentication).} other {The Panel can't create a read-only login for this database.}}",
+    "assistantDbUnavailable": "{reason, select, incomplete {Set the database's engine and name first.} adminPasswordMissing {Set the database's admin password first.} other {The Panel can't create a read-only login for this database.}}",
     "assistantDbProvisionFailed": "The database server refused the read-only login: {reason}",
     "assistantDbDropFailed": "The Assistant's access is off, but the login {login} could not be removed: {reason}",
     "assistantDbAccessBlocksRebind": "Turn off the Assistant's database access before moving or removing this database.",

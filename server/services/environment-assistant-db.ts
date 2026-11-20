@@ -27,7 +27,9 @@ import { teardownRunningError } from "@/server/services/teardown-runs";
 // dedicated login through the Panel's admin path (lib/assistant-db/provision)
 // before the row says enabled; disabling turns the row off first, so the
 // Assistant stops at once, then drops the login. The login's password never
-// leaves the server: not in the response, the activity, or a log line.
+// leaves the server: not in the response, the activity, or a log line. This
+// holds for external databases and systemd Postgres too: their generated
+// password is stored encrypted like MySQL's and SQL Server's.
 
 /** What the settings tab gets back: never a password. */
 export type AssistantDbAccess = {

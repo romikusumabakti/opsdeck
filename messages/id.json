@@ -994,11 +994,10 @@
       "enabledAs": "Aktif, memakai login {login}.",
       "adminOnly": "Hanya admin atau infra yang bisa mengaktifkan atau menonaktifkannya.",
       "leftover": "Akses sudah nonaktif, tetapi login {login} masih ada di server basis data.",
+      "externalNote": "Database ini tidak dikelola Panel: login read-only dibuat di database ini dan dihapus saat Anda mematikannya.",
       "unavailable": {
-        "external": "Tidak tersedia untuk basis data eksternal: Panel tidak punya akses admin ke sana.",
         "incomplete": "Belum tersedia sampai mesin dan nama basis data diisi.",
-        "adminPasswordMissing": "Belum tersedia sampai kata sandi admin basis data diisi di Opsi lanjutan.",
-        "peerAuth": "Tidak tersedia untuk Postgres yang dijalankan systemd: Panel masuk ke sana lewat autentikasi peer, yang tidak mengizinkan login baca-saja terpisah."
+        "adminPasswordMissing": "Belum tersedia sampai kata sandi admin basis data diisi di Opsi lanjutan."
       },
       "enabled": "Asisten sekarang bisa mengkueri basis data ini (baca-saja)",
       "disabled": "Asisten tidak bisa lagi mengkueri basis data ini",
@@ -1654,7 +1653,7 @@
     "componentNotInSources": "Service ini bukan sumber proyek ini. Tambahkan terlebih dahulu.",
     "cannotResetOwnTwoFactor": "Anda tidak dapat mereset autentikasi dua faktor sendiri. Matikan dari Akun > Keamanan.",
     "assistantDbNoDatabase": "Environment ini tidak punya basis data.",
-    "assistantDbUnavailable": "{reason, select, external {Panel tidak punya akses admin ke basis data eksternal.} incomplete {Isi mesin dan nama basis data terlebih dahulu.} adminPasswordMissing {Isi kata sandi admin basis data terlebih dahulu.} peerAuth {Postgres yang dijalankan systemd tidak mengizinkan login baca-saja terpisah (autentikasi peer).} other {Panel tidak bisa membuat login baca-saja untuk basis data ini.}}",
+    "assistantDbUnavailable": "{reason, select, incomplete {Isi mesin dan nama basis data terlebih dahulu.} adminPasswordMissing {Isi kata sandi admin basis data terlebih dahulu.} other {Panel tidak bisa membuat login baca-saja untuk basis data ini.}}",
     "assistantDbProvisionFailed": "Server basis data menolak login baca-saja: {reason}",
     "assistantDbDropFailed": "Akses Asisten sudah nonaktif, tetapi login {login} tidak bisa dihapus: {reason}",
     "assistantDbAccessBlocksRebind": "Nonaktifkan akses basis data Asisten sebelum memindahkan atau menghapus basis data ini.",

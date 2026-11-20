@@ -72,6 +72,21 @@ describe("assistant database messages", () => {
     });
   }
 
+  for (const locale of locales) {
+    it(`${locale} has the external note and no external or peerAuth reasons`, () => {
+      const m = messages(locale);
+      const own = leaves(m.environmentSettings?.assistantDb);
+      expect(String(own.get("externalNote")).trim()).not.toBe("");
+      expect(own.has("unavailable.external")).toBe(false);
+      expect(own.has("unavailable.peerAuth")).toBe(false);
+      const select = String(m.actionErrors?.assistantDbUnavailable);
+      for (const branch of ["incomplete", "adminPasswordMissing", "other"]) {
+        expect(select, branch).toContain(`${branch} {`);
+      }
+      expect(select).not.toMatch(/\b(external|peerAuth) \{/);
+    });
+  }
+
   it("the warning names real participant data and the renamed-view gap", () => {
     const warning = String(
       leaves(messages("en").environmentSettings?.assistantDb).get("warning")
@@ -96,6 +111,8 @@ describe("assistant database messages", () => {
       "utf8"
     );
     expect(tab).toContain('t("warning")');
+    expect(tab).toContain('service.dbKind === "external"');
+    expect(tab).toContain('t("externalNote")');
     expect(tab).toContain("unavailable.$" + "{reason}");
     expect(tab).toContain("disabled={!canManageServers || blocked || busy}");
     expect(

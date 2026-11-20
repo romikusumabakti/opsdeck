@@ -26,7 +26,9 @@ import type { SettingsEnvironment } from "./settings-form";
  * Saves on its own, outside the Database form: switching it creates or
  * drops the dedicated read-only login on the database server. Only admin
  * and infra (org server:manage) may switch it; a database the Panel can't
- * administer shows the switch off and disabled with the reason.
+ * provision (engine, name or admin password missing) shows the switch off
+ * and disabled with the reason. An external database, which the Panel
+ * doesn't manage, carries a note either way.
  */
 export function AssistantDbAccess({
   environment,
@@ -90,6 +92,7 @@ export function AssistantDbAccess({
           />
           <Label htmlFor="env-assistant-db">{t("toggle")}</Label>
         </div>
+        {service.dbKind === "external" && <Hint>{t("externalNote")}</Hint>}
         {enabled && service.assistantDbLogin && (
           <Hint>{t("enabledAs", { login: service.assistantDbLogin })}</Hint>
         )}

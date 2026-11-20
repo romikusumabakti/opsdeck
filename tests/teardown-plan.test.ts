@@ -415,6 +415,42 @@ describe("planTeardown", () => {
     );
   });
 
+  it("an external environment's plan is unchanged", () => {
+    const result = planTeardown(
+      env({
+        targets: [{ serverId: S1, deployDir: "/deployments/dms" }],
+        dbServices: [
+          {
+            id: "svc-ext",
+            dbType: "postgres",
+            dbKind: "external",
+            assistantDbLogin: "menara_ro_dms",
+          },
+        ],
+      })
+    );
+    const order = ("steps" in result ? result.steps : []).map((s) => s.kind);
+    expect(order).toContain("archive_database");
+    expect(order).toContain("drop_assistant_db_login");
+    expect(order.indexOf("drop_assistant_db_login")).toBe(
+      order.indexOf("archive_database") + 1
+    );
+    const mssql = planTeardown(
+      env({
+        targets: [{ serverId: S1, deployDir: "/deployments/dms" }],
+        dbServices: [
+          {
+            id: "svc-ext-ms",
+            dbType: "mssql",
+            dbKind: "external",
+            assistantDbLogin: "menara_ro_dms",
+          },
+        ],
+      })
+    );
+    expect(mssql).toEqual({ refusal: "databaseBackupUnsupported" });
+  });
+
   it("removes only the Cloudflare objects whose ids are set", () => {
     const domain = {
       kind: "tunnel" as const,

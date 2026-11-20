@@ -994,11 +994,10 @@
       "enabledAs": "已开启，使用登录名 {login}。",
       "adminOnly": "只有管理员或运维可以开启或关闭此项。",
       "leftover": "访问已关闭，但登录名 {login} 仍留在数据库服务器上。",
+      "externalNote": "此数据库不由面板管理：只读登录名会创建在该数据库上，并在你关闭此项时删除。",
       "unavailable": {
-        "external": "外部数据库不可用：面板没有它的管理员权限。",
         "incomplete": "需先设置数据库引擎和名称。",
-        "adminPasswordMissing": "需先在高级选项中设置数据库管理员密码。",
-        "peerAuth": "不适用于由 systemd 运行的 Postgres：面板在那里通过 peer 认证登录，不允许单独的只读登录名。"
+        "adminPasswordMissing": "需先在高级选项中设置数据库管理员密码。"
       },
       "enabled": "助手现在可以查询此数据库（只读）",
       "disabled": "助手不再能查询此数据库",
@@ -1654,7 +1653,7 @@
     "componentNotInSources": "该服务不是此项目的来源。请先添加它。",
     "cannotResetOwnTwoFactor": "不能重置自己的双重验证。请在“账户 > 安全”中关闭。",
     "assistantDbNoDatabase": "此环境没有数据库。",
-    "assistantDbUnavailable": "{reason, select, external {面板没有外部数据库的管理员权限。} incomplete {请先设置数据库引擎和名称。} adminPasswordMissing {请先设置数据库管理员密码。} peerAuth {由 systemd 运行的 Postgres 不允许单独的只读登录名（peer 认证）。} other {面板无法为此数据库创建只读登录名。}}",
+    "assistantDbUnavailable": "{reason, select, incomplete {请先设置数据库引擎和名称。} adminPasswordMissing {请先设置数据库管理员密码。} other {面板无法为此数据库创建只读登录名。}}",
     "assistantDbProvisionFailed": "数据库服务器拒绝了只读登录名：{reason}",
     "assistantDbDropFailed": "助手的访问已关闭，但无法删除登录名 {login}：{reason}",
     "assistantDbAccessBlocksRebind": "移动或移除此数据库前，请先关闭助手的数据库访问。",

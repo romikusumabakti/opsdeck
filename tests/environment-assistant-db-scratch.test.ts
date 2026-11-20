@@ -85,6 +85,11 @@ const SVC_MY = "00000000-0000-7000-8000-00000000d0f2";
 const ENV_MS = "00000000-0000-7000-8000-00000000d0e5";
 const SVC_MS = "00000000-0000-7000-8000-00000000d0f5";
 // Fictional credentials.
+const ENV_XMS = "00000000-0000-7000-8000-00000000d0e6";
+const SVC_XMS = "00000000-0000-7000-8000-00000000d0f6";
+const ENV_SD = "00000000-0000-7000-8000-00000000d0e7";
+const SVC_SD = "00000000-0000-7000-8000-00000000d0f7";
+
 const ADMIN_DB_PW = "fictional-root-Pw-81";
 const SSH_PW = "fictional-ssh-Pw-82";
 
@@ -180,7 +185,9 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
       (${ENV_MY}, ${PROJECT}, 'Kestrel UAT', 'uat'),
       (${ENV_EXT}, ${PROJECT}, 'Kestrel Ext', 'ext'),
       (${ENV_NODB}, ${PROJECT}, 'Kestrel Bare', 'bare'),
-      (${ENV_MS}, ${PROJECT}, 'Kestrel SQL', 'sql')`;
+      (${ENV_MS}, ${PROJECT}, 'Kestrel SQL', 'sql'),
+      (${ENV_XMS}, ${PROJECT}, 'Kestrel External SQL', 'xsql'),
+      (${ENV_SD}, ${PROJECT}, 'Kestrel Systemd', 'sd')`;
     await sql`insert into environment_services
       (id, environment_id, role, server_id, service_type, service_name,
        db_type, db_name, db_user, db_password, db_backup_path, db_kind) values
@@ -191,8 +198,20 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
       (gen_random_uuid(), ${ENV_EXT}, 'db', ${SERVER}, 'systemd', 'postgresql',
        'postgres', null, null, null, '/backups', 'external'),
       (${SVC_MS}, ${ENV_MS}, 'db', ${SERVER}, 'docker', 'kestrel-sql-db',
-       'mssql', 'kestrel_sql', null, ${encryptSecret(ADMIN_DB_PW)}, '/backups', null)`;
-    for (const env of [ENV_PG, ENV_MY, ENV_EXT, ENV_NODB, ENV_MS]) {
+       'mssql', 'kestrel_sql', null, ${encryptSecret(ADMIN_DB_PW)}, '/backups', null),
+      (${SVC_XMS}, ${ENV_XMS}, 'db', ${SERVER}, 'docker', 'ext-sql-db',
+       'mssql', 'ext_sql', null, ${encryptSecret(ADMIN_DB_PW)}, '/backups', 'external'),
+      (${SVC_SD}, ${ENV_SD}, 'db', ${SERVER}, 'systemd', 'postgresql',
+       'postgres', 'sd_app', null, null, '/backups', null)`;
+    for (const env of [
+      ENV_PG,
+      ENV_MY,
+      ENV_EXT,
+      ENV_NODB,
+      ENV_MS,
+      ENV_XMS,
+      ENV_SD,
+    ]) {
       await sql`insert into environment_services
         (environment_id, role, server_id, service_type, service_name) values
         (${env}, 'backend', ${SERVER}, 'docker', ${`backend-${env.slice(-2)}`})`;
@@ -350,6 +369,43 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
       login: "menara_ro_kestrel_qa",
       database: "kestrel_qa",
     });
+  });
+
+  it("enables an external mssql database and records the activity", async () => {
+    const res = await post(ENV_XMS, true);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({
+      enabled: true,
+      login: "menara_ro_ext_sql",
+      enabledAt: expect.any(String),
+    });
+    const stored = await row(SVC_XMS);
+    expect(stored).toMatchObject({
+      assistant_db_enabled: true,
+      assistant_db_login: "menara_ro_ext_sql",
+    });
+    const password = decryptSecret(stored?.assistant_db_password as string);
+    expect(text).not.toContain(password);
+    const entries = (await activity()).filter((a) => a.entity_id === ENV_XMS);
+    expect(entries.map((a) => a.data)).toEqual([
+      { environment: "Kestrel · External SQL", enabled: "true" },
+    ]);
+    expect(JSON.stringify(entries)).not.toContain(password);
+    // Off again: later tests count the environments that record a login.
+    expect((await post(ENV_XMS, false)).status).toBe(200);
+  });
+
+  it("enables systemd postgres and stores its password encrypted", async () => {
+    const res = await post(ENV_SD, true);
+    expect(res.status).toBe(200);
+    const stored = await row(SVC_SD);
+    expect(stored?.assistant_db_enabled).toBe(true);
+    expect(stored?.assistant_db_password).toMatch(/^enc:/);
+    const password = decryptSecret(stored?.assistant_db_password as string);
+    expect(password).toMatch(/^[A-Za-z0-9]{32}$/);
+    expect(await res.clone().text()).not.toContain(password);
+    expect((await post(ENV_SD, false)).status).toBe(200);
   });
 
   it("enables mysql for infra: the generated password is stored encrypted and never sent back or logged", async () => {
@@ -711,5 +767,48 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
       "Assistant database login menara_ro_kestrel_sql dropped"
     );
     expect(ssh.calls.at(-1)?.stdin).toContain("DROP LOGIN");
+  });
+
+  it("drop_assistant_db_login drops an external mssql login", async () => {
+    const { dropAssistantDbLogin } = await import(
+      "@/lib/teardown/assistant-db"
+    );
+    expect((await post(ENV_XMS, true)).status).toBe(200);
+    ssh.calls = [];
+    const ctx = { environmentId: ENV_XMS, secrets: [] as string[] };
+    expect(await dropAssistantDbLogin(ctx, { serviceId: SVC_XMS })).toBe(
+      "Assistant database login menara_ro_ext_sql dropped"
+    );
+    expect(ssh.calls.at(-1)?.stdin).toContain("DROP LOGIN");
+    expect(await row(SVC_XMS)).toMatchObject({
+      assistant_db_enabled: false,
+      assistant_db_login: null,
+    });
+  });
+
+  it("a stopped external mssql container fails redacted with access already off", async () => {
+    const { dropAssistantDbLogin } = await import(
+      "@/lib/teardown/assistant-db"
+    );
+    await post(ENV_XMS, true);
+    ssh.results = [
+      {
+        code: 1,
+        stdout: "",
+        stderr: `Error response from daemon: container ext-sql-db is not running (${ADMIN_DB_PW})`,
+      },
+    ];
+    const ctx = { environmentId: ENV_XMS, secrets: [] as string[] };
+    const failed = await dropAssistantDbLogin(ctx, {
+      serviceId: SVC_XMS,
+    }).catch((e: unknown) => e);
+    expect(failed).toMatchObject({ code: "serverCommandFailed" });
+    const message = (failed as Error).message;
+    expect(message).toContain("ext-sql-db is not running");
+    expect(message).not.toContain(ADMIN_DB_PW);
+    expect(await row(SVC_XMS)).toMatchObject({
+      assistant_db_enabled: false,
+      assistant_db_login: "menara_ro_ext_sql",
+    });
   });
 });
