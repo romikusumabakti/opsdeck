@@ -1,24 +1,33 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { UIMessage } from "ai";
 import * as React from "react";
+import type { AssistantPart } from "@/lib/assistant/turn-parts";
 import {
   type Conversation,
   type ConversationMessage,
-  getAllowanceQuery,
   getConversationQuery,
 } from "@/web/api/assistant";
-import { MessageView } from "./message-view";
+import { MessageView, type ShownMessage } from "./message-view";
 import { isNearBottom } from "./stick-to-bottom";
 import { refreshTitleAfterFirstAnswer } from "./title-refresh";
-import { useMessageStream } from "./use-message-stream";
+import { useAnswerStream } from "./use-answer-stream";
 
 const isPending = (m: ConversationMessage) =>
   m.role === "assistant" && (m.status === "queued" || m.status === "streaming");
+
+const ASSISTANT_PART_TYPES = new Set(["step-start", "text", "dynamic-tool"]);
+
+/** The parts an answer is made of (a live message carries no others). */
+const isAssistantPart = (
+  part: UIMessage["parts"][number]
+): part is UIMessage["parts"][number] & AssistantPart =>
+  ASSISTANT_PART_TYPES.has(part.type);
 
 /**
  * The question read project branches: a pinned project still there, or an
  * automatic question (it reads the branches of the projects it opens).
  */
-function isProjectBranches(question: ConversationMessage | undefined) {
+function isProjectBranches(question: ShownMessage | undefined) {
   const context = question?.context;
   return (
     context?.kind === "auto" ||
@@ -33,20 +42,7 @@ export function pendingAnswer(
   return conversation?.messages.findLast(isPending) ?? null;
 }
 
-/**
- * The messages of one conversation in their own scroll area. The unfinished
- * answer follows its SSE stream; once it ends the conversation (sources,
- * final status) and the allowance are refetched. A chat's first answer done
- * also gets an auto title, written after the stream closed: the chat list
- * is read again until it shows (`refreshTitleAfterFirstAnswer`).
- */
-export function ChatThread({
-  conversationId,
-  onRetry,
-  retryDisabled,
-  onEditLast,
-  editDisabled,
-}: {
+type ThreadProps = {
   conversationId: string;
   /** Asks the last answer again (offered on that answer only). */
   onRetry?: () => void;
@@ -54,33 +50,74 @@ export function ChatThread({
   /** Resends the last question with new text (offered on it only). */
   onEditLast?: (text: string) => Promise<void>;
   editDisabled?: boolean;
-}) {
+};
+
+/** The text a message shows so far, to follow it while it grows. */
+function shownLength(message: ShownMessage | undefined): number {
+  if (!message?.parts) return message?.content.length ?? 0;
+  let length = message.parts.length;
+  for (const part of message.parts) {
+    if (part.type === "text") length += part.text.length;
+  }
+  return length;
+}
+
+/**
+ * The messages of one conversation in their own scroll area, once it is
+ * read. The unfinished answer is followed over its stream
+ * (`useAnswerStream`) and shown from the live parts; once it ends the
+ * conversation (sources, final status) and the allowance are refetched. A
+ * chat's first answer done also gets an auto title, written after the
+ * stream closed: the chat list is read again until it shows
+ * (`refreshTitleAfterFirstAnswer`).
+ */
+export function ChatThread(props: ThreadProps) {
+  const conversation = useQuery(
+    getConversationQuery(props.conversationId)
+  ).data;
+  if (!conversation) return <div className="min-h-0 flex-1" />;
+  return <LoadedThread {...props} conversation={conversation} />;
+}
+
+function LoadedThread({
+  conversationId,
+  conversation,
+  onRetry,
+  retryDisabled,
+  onEditLast,
+  editDisabled,
+}: ThreadProps & { conversation: Conversation }) {
   const queryClient = useQueryClient();
-  const conversation = useQuery(getConversationQuery(conversationId)).data;
   const pending = pendingAnswer(conversation);
   const conversationRef = React.useRef(conversation);
   React.useEffect(() => {
     conversationRef.current = conversation;
   });
 
-  const snapshot = useMessageStream(pending?.id ?? null, (status) => {
-    queryClient.invalidateQueries({
-      queryKey: getConversationQuery(conversationId).queryKey,
-    });
-    queryClient.invalidateQueries({ queryKey: getAllowanceQuery().queryKey });
-    const read = conversationRef.current;
-    if (
-      status === "done" &&
-      read &&
-      !read.temporary &&
-      read.messages.filter((m) => m.role === "user").length === 1
-    ) {
-      refreshTitleAfterFirstAnswer(queryClient, conversationId, read.title);
+  const { live } = useAnswerStream(
+    conversationId,
+    pending?.id ?? null,
+    (status) => {
+      const read = conversationRef.current;
+      if (
+        status === "done" &&
+        !read.temporary &&
+        read.messages.filter((m) => m.role === "user").length === 1
+      ) {
+        refreshTitleAfterFirstAnswer(queryClient, conversationId, read.title);
+      }
     }
-  });
+  );
+  const liveParts = live?.parts.filter(isAssistantPart);
 
-  const messages = (conversation?.messages ?? []).map((m) =>
-    snapshot && m.id === pending?.id ? { ...m, ...snapshot } : m
+  const messages: ShownMessage[] = conversation.messages.map((m) =>
+    liveParts && m.id === pending?.id
+      ? {
+          ...m,
+          parts: liveParts,
+          status: m.status === "queued" ? ("streaming" as const) : m.status,
+        }
+      : m
   );
 
   // Follow new content only while the reader is at the end; scrolling up to
@@ -90,7 +127,7 @@ export function ChatThread({
   const stuck = React.useRef(true);
   const last = messages.at(-1);
   const lastQuestionId = messages.findLast((m) => m.role === "user")?.id;
-  const contentKey = `${messages.length}:${last?.status}:${last?.content.length ?? 0}`;
+  const contentKey = `${messages.length}:${last?.status}:${shownLength(last)}`;
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new question is the trigger
   React.useLayoutEffect(() => {
     stuck.current = true;

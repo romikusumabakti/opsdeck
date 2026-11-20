@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { readdirSync, readFileSync } from "node:fs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { UIMessageChunk } from "ai";
 import type * as React from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -38,12 +39,26 @@ const nav = vi.hoisted(() => ({ pathname: "/" }));
 const conversationFetch = vi.hoisted(
   () => new Map<string, () => Promise<unknown>>()
 );
+// A test's own allowance read; default: never settles.
+const allowanceFetch = vi.hoisted(() => ({
+  current: null as (() => Promise<unknown>) | null,
+}));
+// The chat transport: each reconnect gets a test's stream, or null (a 204).
+const transport = vi.hoisted(() => ({
+  reconnect:
+    vi.fn<
+      (options: {
+        chatId: string;
+        abortSignal?: AbortSignal;
+      }) => Promise<ReadableStream<unknown> | null>
+    >(),
+}));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/web/api/assistant", () => ({
   getAllowanceQuery: () => ({
     queryKey: ["assistant", "getAllowance"],
-    queryFn: () => new Promise(() => {}),
+    queryFn: () => allowanceFetch.current?.() ?? new Promise(() => {}),
   }),
   getConversationQuery: (id: string) => ({
     queryKey: ["assistant", "getConversation", [id]],
@@ -63,8 +78,20 @@ vi.mock("@/web/api/assistant", () => ({
     queryKey: ["assistant", "listIssueAttachments", [key]],
     queryFn: () => new Promise(() => {}),
   }),
-  messageStreamUrl: (id: string) => `/api/assistant/stream?messageId=${id}`,
+  answerStreamUrl: (id: string) =>
+    `/api/assistant/answer-stream?conversationId=${id}`,
   ...api,
+}));
+vi.mock("@/web/api/assistant-transport", () => ({
+  AssistantChatTransport: class {
+    readonly resumeStreamIsReplay = true;
+    reconnectToStream(options: { chatId: string; abortSignal?: AbortSignal }) {
+      return transport.reconnect(options);
+    }
+    sendMessages(options: { chatId: string; abortSignal?: AbortSignal }) {
+      return transport.reconnect(options);
+    }
+  },
 }));
 vi.mock("@/i18n/navigation", () => ({
   usePathname: () => nav.pathname,
@@ -159,38 +186,58 @@ function seedCatalog() {
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-// --- a controllable EventSource ---------------------------------------------
+// --- a controllable answer stream ------------------------------------------
 
-class FakeEventSource {
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static readonly CLOSED = 2;
-  static instances: FakeEventSource[] = [];
-  readonly url: string;
-  readyState = FakeEventSource.OPEN;
-  closed = false;
-  onerror: (() => void) | null = null;
-  private listeners = new Map<string, ((event: MessageEvent) => void)[]>();
-
-  constructor(url: string) {
-    this.url = url;
-    FakeEventSource.instances.push(this);
-  }
-  addEventListener(type: string, listener: (event: MessageEvent) => void) {
-    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-  }
-  close() {
-    this.closed = true;
-    this.readyState = FakeEventSource.CLOSED;
-  }
-  emit(type: string, data: unknown) {
-    this.emitRaw(type, JSON.stringify(data));
-  }
-  emitRaw(type: string, data: string) {
-    const event = new MessageEvent(type, { data });
-    for (const listener of this.listeners.get(type) ?? []) listener(event);
+/** Lets the chat process what was pushed (its jobs run on promises). */
+async function flushStream() {
+  for (let i = 0; i < 5; i++) {
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
   }
 }
+
+/** Lets React Query deliver what changed (it notifies on a timeout). */
+const queryTick = () =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+/** A UI message stream the test writes chunks to, frame by frame. */
+function answerStream() {
+  let controller: ReadableStreamDefaultController<UIMessageChunk> | undefined;
+  const stream = new ReadableStream<UIMessageChunk>({
+    start(c) {
+      controller = c;
+    },
+  });
+  return {
+    stream,
+    push: (...chunks: UIMessageChunk[]) =>
+      act(async () => {
+        for (const chunk of chunks) controller?.enqueue(chunk);
+        await flushStream();
+      }),
+    close: () =>
+      act(async () => {
+        controller?.close();
+        await flushStream();
+      }),
+  };
+}
+
+/** The next reconnect gets a new stream (returned), later ones a 204. */
+function nextStream() {
+  const s = answerStream();
+  transport.reconnect.mockResolvedValueOnce(s.stream);
+  return s;
+}
+
+const finishChunk = (
+  status: "done" | "failed",
+  errorCode: string | null = null
+): UIMessageChunk => ({
+  type: "finish",
+  messageMetadata: { status, errorCode },
+});
 
 // --- rendering ---------------------------------------------------------------
 
@@ -211,10 +258,11 @@ beforeEach(() => {
   // The owner `useDraftUser` makes the signed-in user; a Composer rendered
   // alone has no workspace to do it.
   composerDrafts.forUser("user-1");
-  FakeEventSource.instances = [];
-  vi.stubGlobal("EventSource", FakeEventSource);
   for (const fn of Object.values(api)) fn.mockReset();
+  transport.reconnect.mockReset();
+  transport.reconnect.mockResolvedValue(null);
   conversationFetch.clear();
+  allowanceFetch.current = null;
 });
 
 afterEach(() => {
@@ -922,66 +970,272 @@ describe("answer stream", () => {
   });
   const key = ["assistant", "getConversation", ["c1"]];
 
-  it("closes the EventSource on a terminal snapshot and refetches", async () => {
+  const allowanceKey = ["assistant", "getAllowance"];
+  const start: UIMessageChunk[] = [
+    { type: "start", messageId: "m2" },
+    { type: "start-step" },
+    { type: "text-start", id: "t1" },
+  ];
+  const step = { type: "step-start" } as const;
+  const doneText = (value: string) =>
+    ({ type: "text", text: value, state: "done" }) as const;
+  const listIssues = {
+    type: "dynamic-tool",
+    toolName: "list_issues",
+    toolCallId: "c1",
+    state: "output-available",
+    input: { query: "today" },
+    output: { ok: true, meta: {} },
+  } as const;
+  const withAnswer = (
+    status: string,
+    fields: { content?: string; parts?: unknown[] | null }
+  ) => ({
+    ...conversation(status),
+    messages: conversation(status).messages.map((m) =>
+      m.id === "m2" ? { ...m, ...fields } : m
+    ),
+  });
+  const answerMarkdown = () =>
+    [...container.querySelectorAll("[data-answer-markdown]")].filter(
+      (el) => !el.closest("[data-step-text]")
+    );
+
+  it("follows a pending answer over the transport and refetches when it finishes", async () => {
     queryClient.setQueryData(key, conversation("queued"));
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const live = nextStream();
     await render(<ChatThread conversationId="c1" />);
-    const [source] = FakeEventSource.instances;
-    expect(source?.url).toBe("/api/assistant/stream?messageId=m2");
+    expect(transport.reconnect).toHaveBeenCalledTimes(1);
+    expect(transport.reconnect.mock.calls[0]?.[0].chatId).toBe("c1");
 
-    await act(async () =>
-      source?.emit("snapshot", {
-        content: "Iuran dihitung dari **gaji pokok**.",
-        status: "streaming",
-        errorCode: null,
-        toolCalls: [],
-      })
-    );
-    expect(source?.closed).toBe(false);
+    await live.push(...start, {
+      type: "text-delta",
+      id: "t1",
+      delta: "Iuran dihitung dari **gaji pokok**.",
+    });
     expect(container.querySelector("strong")?.textContent).toBe("gaji pokok");
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: key });
 
+    await live.push(
+      { type: "text-end", id: "t1" },
+      { type: "finish-step" },
+      finishChunk("done")
+    );
+    await live.close();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: allowanceKey });
+    expect(transport.reconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders text deltas before the turn ends", async () => {
+    queryClient.setQueryData(key, conversation("streaming"));
+    const live = nextStream();
+    await render(<ChatThread conversationId="c1" />);
+    await live.push(...start, { type: "text-delta", id: "t1", delta: "Hel" });
+    expect(answerMarkdown()[0]?.textContent).toContain("Hel");
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+  });
+
+  it("turns a step's text muted when a tool call arrives, never removing it", async () => {
+    queryClient.setQueryData(key, conversation("streaming"));
+    const live = nextStream();
+    await render(<ChatThread conversationId="c1" />);
+    await live.push(...start, {
+      type: "text-delta",
+      id: "t1",
+      delta: "Checking issues.",
+    });
+    expect(answerMarkdown()[0]?.textContent).toContain("Checking issues.");
+    expect(container.querySelector("[data-step-text]")).toBeNull();
+
+    // Every frame from here on still shows the text.
+    const frames: boolean[] = [];
+    const observer = new MutationObserver(() =>
+      frames.push(text().includes("Checking issues."))
+    );
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    await live.push({ type: "text-end", id: "t1" });
+    await live.push({
+      type: "tool-input-available",
+      toolCallId: "c1",
+      toolName: "list_issues",
+      input: { query: "today" },
+      dynamic: true,
+    });
+    await flushStream();
+    observer.disconnect();
+    expect(frames.length).toBeGreaterThan(0);
+    expect(frames.every(Boolean)).toBe(true);
+
+    const stepText = container.querySelector("[data-step-text]");
+    expect(stepText?.textContent).toContain("Checking issues.");
+    expect(stepText?.className).toContain("text-muted-foreground");
+    expect(answerMarkdown()).toHaveLength(0);
+    const chip = container.querySelector("[data-tool-chip]");
+    expect(chip?.textContent).toBe(`${t.toolLabels.list_issues} · today`);
+  });
+
+  it("collapses the tool groups once the answer finished, and expands on click", async () => {
+    queryClient.setQueryData(key, conversation("streaming"));
+    const live = nextStream();
+    await render(<ChatThread conversationId="c1" />);
+    await live.push(
+      ...start,
+      { type: "text-delta", id: "t1", delta: "Checking issues." },
+      { type: "text-end", id: "t1" },
+      {
+        type: "tool-input-available",
+        toolCallId: "c1",
+        toolName: "list_issues",
+        input: { query: "today" },
+        dynamic: true,
+      },
+      {
+        type: "tool-output-available",
+        toolCallId: "c1",
+        output: { ok: true, meta: {} },
+        dynamic: true,
+      },
+      { type: "finish-step" },
+      { type: "start-step" },
+      { type: "text-start", id: "t2" },
+      { type: "text-delta", id: "t2", delta: "Three issues." }
+    );
+    const trigger = () =>
+      [...container.querySelectorAll("button")].find((b) =>
+        b.textContent?.startsWith("1 step")
+      );
+    // Streaming: open, the answer below it.
+    expect(trigger()?.getAttribute("aria-expanded")).toBe("true");
+    expect(answerMarkdown()[0]?.textContent).toContain("Three issues.");
+
+    // The stored, finished answer folds its steps.
     await act(async () =>
-      source?.emit("snapshot", {
-        content: "Iuran dihitung dari gaji pokok.",
-        status: "done",
-        errorCode: null,
-        toolCalls: [],
+      queryClient.setQueryData(
+        key,
+        withAnswer("done", {
+          content: "Three issues.",
+          parts: [
+            step,
+            doneText("Checking issues."),
+            listIssues,
+            step,
+            doneText("Three issues."),
+          ],
+        })
+      )
+    );
+    await queryTick();
+    expect(trigger()?.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger()?.textContent).toContain(t.showSteps);
+    expect(container.querySelector("[data-step-text]")).toBeNull();
+    expect(answerMarkdown()[0]?.textContent).toContain("Three issues.");
+
+    await act(async () => trigger()?.click());
+    expect(trigger()?.getAttribute("aria-expanded")).toBe("true");
+    expect(trigger()?.textContent).toContain(t.hideSteps);
+    expect(container.querySelector("[data-step-text]")?.textContent).toContain(
+      "Checking issues."
+    );
+  });
+
+  it("renders an old answer without parts from content", async () => {
+    queryClient.setQueryData(
+      key,
+      withAnswer("done", { content: "Iuran dari **gaji**.", parts: null })
+    );
+    await render(<ChatThread conversationId="c1" />);
+    expect(container.querySelector("strong")?.textContent).toBe("gaji");
+    expect(container.querySelector("[data-answer-steps]")).toBeNull();
+  });
+
+  it("a 204 shows the stored message", async () => {
+    queryClient.setQueryData(
+      key,
+      withAnswer("done", {
+        content: "Three issues.",
+        parts: [
+          step,
+          doneText("Checking issues."),
+          listIssues,
+          step,
+          doneText("Three issues."),
+        ],
       })
     );
-    expect(source?.closed).toBe(true);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
-    expect(FakeEventSource.instances).toHaveLength(1);
+    await render(<ChatThread conversationId="c1" />);
+    await act(flushStream);
+    // The mount's resume: nothing runs.
+    expect(transport.reconnect).toHaveBeenCalledTimes(1);
+    expect(answerMarkdown()[0]?.textContent).toContain("Three issues.");
+    expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(text()).not.toContain(t.streaming);
+    expect(container.querySelector(".animate-spin")).toBeNull();
   });
 
-  it("closes on a malformed frame and refetches", async () => {
-    queryClient.setQueryData(key, conversation("streaming"));
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-    await render(<ChatThread conversationId="c1" />);
-    const [source] = FakeEventSource.instances;
-    await act(async () => source?.emitRaw("snapshot", "{not json"));
-    expect(source?.closed).toBe(true);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+  it("a pending answer whose stream ended early refetches every 5 s until it is terminal", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      queryClient.setQueryData(key, conversation("streaming"));
+      const reads = [
+        conversation("streaming"),
+        conversation("streaming"),
+        withAnswer("done", { content: "Selesai.", parts: null }),
+      ];
+      let read = 0;
+      const fetches = vi.fn(async () => reads[Math.min(read++, 2)]);
+      conversationFetch.set("c1", fetches);
+      const live = nextStream();
+      await render(<ChatThread conversationId="c1" />);
+      await live.push(...start, { type: "text-delta", id: "t1", delta: "Se" });
+      // Cut without a finish (a proxy, a lost stream): read once at once.
+      await live.close();
+      await act(flushStream);
+      expect(fetches).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4_999);
+      });
+      expect(fetches).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(fetches).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(fetches).toHaveBeenCalledTimes(3);
+      await queryTick();
+      expect(text()).toContain("Selesai.");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(fetches).toHaveBeenCalledTimes(3);
+      // The stream was not opened again for the same answer.
+      expect(transport.reconnect).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("closes on not-found and on unmount", async () => {
+  it("stops following on unmount", async () => {
     queryClient.setQueryData(key, conversation("streaming"));
+    const live = nextStream();
     await render(<ChatThread conversationId="c1" />);
-    const [first] = FakeEventSource.instances;
-    await act(async () => first?.emit("not-found", { id: "m2" }));
-    expect(first?.closed).toBe(true);
-
+    await live.push(...start);
+    const signal = transport.reconnect.mock.calls[0]?.[0].abortSignal;
+    expect(signal?.aborted).toBe(false);
     act(() => root.unmount());
-    queryClient.setQueryData(key, conversation("streaming"));
-    await render(<ChatThread conversationId="c1" />);
-    const second = FakeEventSource.instances.at(-1);
-    expect(second?.closed).toBe(false);
-    act(() => root.unmount());
-    expect(second?.closed).toBe(true);
+    expect(signal?.aborted).toBe(true);
     // afterEach unmounts again.
     root = createRoot(container);
   });
 
-  it("opens no stream for a finished answer and words a failure", async () => {
+  it("words a failed answer", async () => {
     queryClient.setQueryData(key, {
       ...conversation("failed"),
       messages: conversation("failed").messages.map((m) =>
@@ -989,7 +1243,6 @@ describe("answer stream", () => {
       ),
     });
     await render(<ChatThread conversationId="c1" />);
-    expect(FakeEventSource.instances).toHaveLength(0);
     expect(text()).toContain(messages.assistantErrors.creditExhausted);
   });
 
@@ -1209,19 +1462,28 @@ describe("answer stream", () => {
 
   it("does not pull a reader who scrolled up back down on new answer text", async () => {
     queryClient.setQueryData(key, conversation("streaming"));
+    const live = nextStream();
     await render(<ChatThread conversationId="c1" />);
     const el = scroller();
     await scrollUp(el);
-    const [source] = FakeEventSource.instances;
-    await act(async () =>
-      source?.emit("snapshot", {
-        content: "Lebih banyak teks",
-        status: "streaming",
-        errorCode: null,
-        toolCalls: [],
-      })
-    );
+    await live.push(...start, {
+      type: "text-delta",
+      id: "t1",
+      delta: "Lebih banyak teks",
+    });
+    expect(text()).toContain("Lebih banyak teks");
     expect(el.scrollTop).toBe(100);
+  });
+
+  it("follows new answer text while at the bottom", async () => {
+    queryClient.setQueryData(key, conversation("streaming"));
+    const live = nextStream();
+    await render(<ChatThread conversationId="c1" />);
+    const el = scroller();
+    el.scrollTop = 600;
+    await act(async () => el.dispatchEvent(new Event("scroll")));
+    await live.push(...start, { type: "text-delta", id: "t1", delta: "Teks" });
+    expect(el.scrollTop).toBe(1000);
   });
 
   it("follows late content growth while at the bottom", async () => {
@@ -1256,16 +1518,19 @@ describe("answer stream", () => {
       pinned: [],
       recent: [{ id: "c1", title, updatedAt: "2026-11-16T01:00:00Z" }],
     });
-    const finish = async (status = "done") => {
-      const [source] = FakeEventSource.instances;
-      await act(async () =>
-        source?.emit("snapshot", {
-          content: "Jawaban",
-          status,
-          errorCode: null,
-          toolCalls: [],
-        })
+    // The answer streams over the stream the render opened, then finishes.
+    let live = answerStream();
+    const follow = () => {
+      live = nextStream();
+    };
+    const finish = async (status: "done" | "failed" = "done") => {
+      await live.push(
+        ...start,
+        { type: "text-delta", id: "t1", delta: "Jawaban" },
+        { type: "text-end", id: "t1" },
+        finishChunk(status)
       );
+      await live.close();
     };
     // The list "refetch" of the test: each read returns the next title.
     const serveTitles = (titles: string[]) => {
@@ -1299,6 +1564,7 @@ describe("answer stream", () => {
       queryClient.setQueryData(key, conversation("streaming"));
       queryClient.setQueryData(listKey, listed("Iuran"));
       const spy = serveTitles(["Iuran", "Iuran", "Cara hitung iuran"]);
+      follow();
       await render(<ChatThread conversationId="c1" />);
       await finish();
       expect(listReads(spy)).toBe(0);
@@ -1315,6 +1581,7 @@ describe("answer stream", () => {
     it("gives up after the last delay when no title comes", async () => {
       queryClient.setQueryData(key, conversation("streaming"));
       const spy = serveTitles(["Iuran"]);
+      follow();
       await render(<ChatThread conversationId="c1" />);
       await finish();
       await act(async () => {
@@ -1345,10 +1612,10 @@ describe("answer stream", () => {
         },
       ];
       for (const c of cases) {
-        FakeEventSource.instances = [];
+        follow();
         queryClient.setQueryData(key, c.data);
         await render(<ChatThread conversationId="c1" />);
-        await finish(c.status);
+        await finish(c.status as "done" | "failed");
         act(() => root.unmount());
       }
       await act(async () => {
@@ -2942,6 +3209,172 @@ describe("context picker", () => {
     await act(async () => release());
     await settle();
     expect(retry()?.disabled).toBe(false);
+  });
+
+  describe("following answers", () => {
+    const conversationKey = ["assistant", "getConversation", [CONV_ID]];
+    const chunks = (messageId: string, delta: string): UIMessageChunk[] => [
+      { type: "start", messageId },
+      { type: "start-step" },
+      { type: "text-start", id: "t1" },
+      { type: "text-delta", id: "t1", delta },
+    ];
+    const chat = (messages: unknown[]) => ({
+      id: CONV_ID,
+      title: "Iuran",
+      drafts: [],
+      messages,
+    });
+    const question = () => userMessage("u1", contextOf("user", null, null));
+
+    it("a turn capped mid-way shows the cap alert and caps the composer", async () => {
+      const live = nextStream();
+      allowanceFetch.current = async () => ({
+        enabled: true,
+        usedFraction: 1,
+        capReached: true,
+        resetsAt: "2026-11-16T17:00:00.000Z",
+      });
+      conversationFetch.set(CONV_ID, async () =>
+        chat([
+          question(),
+          {
+            ...answer,
+            status: "failed",
+            errorCode: "assistant.daily_cap_reached",
+            content: "Sebagian",
+          },
+        ])
+      );
+      await renderWorkspace({ conversationId: CONV_ID }, [
+        question(),
+        { ...answer, status: "streaming", content: "" },
+      ]);
+      expect(button(t.stop)).toBeDefined(); // running
+      await live.push(
+        ...chunks("a1", "Sebagian"),
+        { type: "text-end", id: "t1" },
+        finishChunk("failed", "assistant.daily_cap_reached")
+      );
+      await live.close();
+      await settle();
+      expect(
+        container.querySelector('[data-slot="alert"]')?.textContent
+      ).toMatch(/reached today's limit\. It resets at (12:00|00:00)/);
+      // The composer says so too, and takes no question.
+      expect(button(t.send)?.disabled).toBe(true);
+      expect(button(t.stop)).toBeUndefined();
+    });
+
+    it("Stop calls stop-answer and stops following", async () => {
+      const live = nextStream();
+      api.stopAnswer.mockResolvedValue({ id: "a1" });
+      conversationFetch.set(CONV_ID, async () =>
+        chat([
+          question(),
+          {
+            ...answer,
+            status: "failed",
+            errorCode: "assistant.stopped",
+            content: "Sebagian",
+          },
+        ])
+      );
+      await renderWorkspace({ conversationId: CONV_ID }, [
+        question(),
+        { ...answer, status: "streaming", content: "" },
+      ]);
+      await live.push(...chunks("a1", "Sebagian"));
+      expect(text()).toContain("Sebagian");
+      const signal = transport.reconnect.mock.calls[0]?.[0].abortSignal;
+      expect(signal?.aborted).toBe(false);
+      await act(async () => button(t.stop)?.click());
+      await settle();
+      expect(api.stopAnswer).toHaveBeenCalledWith(CONV_ID);
+      expect(signal?.aborted).toBe(true);
+      expect(text()).toContain("Sebagian");
+      expect(text()).toContain(messages.assistantErrors.stopped);
+      expect(transport.reconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it("retry and edit follow the new answer's stream once", async () => {
+      let stored = chat([question(), answer]);
+      conversationFetch.set(CONV_ID, async () => stored);
+      await renderWorkspace({ conversationId: CONV_ID }, stored.messages);
+      await settle();
+      // The mount's resume: a 204, nothing runs.
+      expect(transport.reconnect).toHaveBeenCalledTimes(1);
+
+      api.retryAnswer.mockResolvedValue({ assistantMessageId: "a2" });
+      const retried = nextStream();
+      stored = chat([
+        question(),
+        { ...answer, id: "a2", status: "queued", content: "" },
+      ]);
+      await act(async () =>
+        [...document.querySelectorAll("button")]
+          .find((b) => b.getAttribute("aria-label") === t.retry)
+          ?.click()
+      );
+      await settle();
+      expect(api.retryAnswer).toHaveBeenCalledWith(CONV_ID);
+      expect(transport.reconnect).toHaveBeenCalledTimes(2);
+      await retried.push(...chunks("a2", "Jawaban baru"));
+      expect(text()).toContain("Jawaban baru");
+      // Read again while it runs: still followed once.
+      await act(async () => {
+        void queryClient.invalidateQueries({ queryKey: conversationKey });
+      });
+      await settle();
+      expect(transport.reconnect).toHaveBeenCalledTimes(2);
+      stored = chat([
+        question(),
+        { ...answer, id: "a2", content: "Jawaban baru" },
+      ]);
+      await retried.push({ type: "text-end", id: "t1" }, finishChunk("done"));
+      await retried.close();
+      await settle();
+
+      api.editLastQuestion.mockResolvedValue({
+        userMessageId: "u1",
+        assistantMessageId: "a3",
+      });
+      const edited = nextStream();
+      await act(async () =>
+        [...document.querySelectorAll("button")]
+          .find((b) => b.getAttribute("aria-label") === t.editQuestion)
+          ?.click()
+      );
+      const field = container.querySelector<HTMLTextAreaElement>(
+        `textarea[aria-label="${t.editQuestion}"]`
+      );
+      if (!field) throw new Error("no edit field");
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set?.call(field, "Q lagi");
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      stored = chat([
+        { ...question(), content: "Q lagi" },
+        { ...answer, id: "a3", status: "queued", content: "" },
+      ]);
+      await act(async () =>
+        [
+          ...container.querySelectorAll<HTMLButtonElement>(
+            "[data-edit-question] button"
+          ),
+        ]
+          .find((b) => b.textContent?.trim() === t.send)
+          ?.click()
+      );
+      await settle();
+      expect(api.editLastQuestion).toHaveBeenCalled();
+      expect(transport.reconnect).toHaveBeenCalledTimes(3);
+      await edited.push(...chunks("a3", "Jawaban ketiga"));
+      expect(text()).toContain("Jawaban ketiga");
+    });
   });
 
   it("reports the selected conversation for the URL", async () => {

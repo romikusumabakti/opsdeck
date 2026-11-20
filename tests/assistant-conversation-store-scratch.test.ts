@@ -254,14 +254,6 @@ describe.skipIf(!enabled)(
       const second = c1 === "busy" ? c2 : c1;
       if (typeof second === "string") throw new Error("expected one turn");
 
-      // A user message's stream lookup finds nothing; an answer's finds the chat.
-      expect(
-        await store.findAssistantMessageConversation(first.userMessageId)
-      ).toBeNull();
-      expect(
-        await store.findAssistantMessageConversation(second.assistantMessageId)
-      ).toMatchObject({ id: conversationId, userId: user.id });
-
       await d.insert(schema.assistantToolCalls).values({
         messageId: first.assistantMessageId,
         tool: "read_file",
@@ -435,13 +427,9 @@ describe.skipIf(!enabled)(
       ).toBe("context_gone");
       await client`update assistant_messages set status = 'queued' where id = ${second.assistantMessageId}`;
 
-      expect(await store.readStreamSnapshot(first.assistantMessageId)).toEqual({
-        content: "Di IuranService.",
+      expect(await store.readAnswerStatus(first.assistantMessageId)).toEqual({
         status: "done",
         errorCode: null,
-        toolCalls: [
-          { tool: "read_file", meta: { paths: ["backend/Iuran.java"] } },
-        ],
       });
 
       // Only a queued answer is failed by a lost enqueue.
@@ -454,18 +442,18 @@ describe.skipIf(!enabled)(
         "assistant.unavailable"
       );
       expect(
-        await store.readStreamSnapshot(first.assistantMessageId)
+        await store.readAnswerStatus(first.assistantMessageId)
       ).toMatchObject({
         status: "done",
         errorCode: null,
       });
       expect(
-        await store.readStreamSnapshot(second.assistantMessageId)
+        await store.readAnswerStatus(second.assistantMessageId)
       ).toMatchObject({
         status: "failed",
         errorCode: "assistant.unavailable",
       });
-      expect(await store.readStreamSnapshot(conversationId)).toBeNull();
+      expect(await store.readAnswerStatus(conversationId)).toBeNull();
     });
 
     it("renames a chat and deletes it with its rows, keeping usage and other chats", async () => {

@@ -564,9 +564,13 @@ describe("lookups by client-supplied id check the caller first", () => {
     expect(deletion.indexOf("ownConversation(")).toBeLessThan(
       deletion.indexOf("deleteConversationRows(")
     );
-    expect(body(source, "authorizeMessageStream")).toMatch(
-      /requireOwnConversation\(/
-    );
+    // The live answer opens only for the chat's owner.
+    expect(
+      body(
+        readFileSync("server/services/assistant-stream.ts", "utf8"),
+        "openAnswerStream"
+      )
+    ).toMatch(/ownConversation\(/);
     expect(body(source, "listConversations")).toMatch(
       /requireAssistantGate\(\)[\s\S]*listConversationsOf\(session\.user\.id[,)]/
     );

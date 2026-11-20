@@ -474,30 +474,6 @@ async function deleteRowsIf(
   });
 }
 
-/** The conversation an assistant message belongs to. */
-export async function findAssistantMessageConversation(
-  messageId: string
-): Promise<ConversationOwner | null> {
-  const [row] = await db
-    .select({
-      id: assistantConversations.id,
-      userId: assistantConversations.userId,
-    })
-    .from(assistantMessages)
-    .innerJoin(
-      assistantConversations,
-      eq(assistantConversations.id, assistantMessages.conversationId)
-    )
-    .where(
-      and(
-        eq(assistantMessages.id, messageId),
-        eq(assistantMessages.role, "assistant")
-      )
-    )
-    .limit(1);
-  return row ?? null;
-}
-
 export type ToolCallMeta = { tool: string; meta: Record<string, unknown> };
 
 export type ConversationMessage = {
@@ -1018,31 +994,6 @@ export async function stopPendingAnswer(
     )
     .returning({ id: assistantMessages.id });
   return stopped?.id ?? null;
-}
-
-export type StreamSnapshot = {
-  content: string;
-  status: MessageStatus;
-  errorCode: string | null;
-  toolCalls: ToolCallMeta[];
-};
-
-/** What the stream of one assistant message shows; null once it is gone. */
-export async function readStreamSnapshot(
-  messageId: string
-): Promise<StreamSnapshot | null> {
-  const [message] = await db
-    .select({
-      content: assistantMessages.content,
-      status: assistantMessages.status,
-      errorCode: assistantMessages.errorCode,
-    })
-    .from(assistantMessages)
-    .where(eq(assistantMessages.id, messageId))
-    .limit(1);
-  if (!message) return null;
-  const calls = await toolCallsByMessage([messageId]);
-  return { ...message, toolCalls: calls.get(messageId) ?? [] };
 }
 
 export type AnswerState = {

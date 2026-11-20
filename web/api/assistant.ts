@@ -245,9 +245,12 @@ export async function createJiraIssue(
   );
 }
 
-/** The URL of an assistant message's SSE stream, for an EventSource. */
-export function messageStreamUrl(messageId: string): string {
-  return `/api/assistant/stream?messageId=${encodeURIComponent(messageId)}`;
+/**
+ * The URL of a chat's live answer as an AI SDK UI message stream (a 204
+ * when none is running), for the chat transport.
+ */
+export function answerStreamUrl(conversationId: string): string {
+  return `/api/assistant/answer-stream?conversationId=${encodeURIComponent(conversationId)}`;
 }
 
 export type Allowance = Awaited<ReturnType<typeof getAllowance>>;

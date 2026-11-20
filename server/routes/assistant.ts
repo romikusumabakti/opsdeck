@@ -1,11 +1,9 @@
 import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
-import { readStreamSnapshot } from "@/lib/assistant/conversation-store";
 import { uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
-  authorizeMessageStream,
   conversationIdInputSchema,
   createConversation,
   createConversationInputSchema,
@@ -40,17 +38,8 @@ import {
   uploadFile,
   uploadGate,
 } from "@/server/services/assistant-files";
-import {
-  openAnswerStream,
-  STREAM_MAX_DURATION_MS,
-} from "@/server/services/assistant-stream";
-import { eventStream, pollSnapshots, sendEvent } from "@/server/sse";
+import { openAnswerStream } from "@/server/services/assistant-stream";
 import { json, query } from "@/server/validation";
-
-// The stream polls Postgres, where the worker writes the answer as it streams
-// (lib/assistant/turn-store.ts). Capped like the run streams: EventSource
-// reconnects, which also frees sockets held by vanished tabs.
-const STREAM_POLL_INTERVAL_MS = 500;
 
 /** The assistant's chats. Each service function authorizes the caller. */
 export const assistantRouter = sessionRouter()
@@ -171,31 +160,4 @@ export const assistantRouter = sessionRouter()
         "x-accel-buffering": "no",
       },
     });
-  })
-  /**
-   * One assistant message as SSE: a `snapshot` event (content, status,
-   * errorCode, toolCalls) on every change, ending once it is done or failed.
-   */
-  .get("/stream", query(z.object({ messageId: uuidSchema })), async (c) => {
-    const { messageId } = c.req.valid("query");
-    // Before the stream opens: once it has, the status is 200 for good.
-    await authorizeMessageStream(messageId);
-    return eventStream(c, (stream) =>
-      pollSnapshots(stream, {
-        intervalMs: STREAM_POLL_INTERVAL_MS,
-        maxDurationMs: STREAM_MAX_DURATION_MS,
-        logLabel: "assistant stream snapshot",
-        read: async () => {
-          const snapshot = await readStreamSnapshot(messageId);
-          if (!snapshot) {
-            await sendEvent(stream, "not-found", { id: messageId });
-            return undefined;
-          }
-          return {
-            snapshot,
-            done: snapshot.status === "done" || snapshot.status === "failed",
-          };
-        },
-      })
-    );
   });

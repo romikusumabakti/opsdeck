@@ -25,6 +25,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { TooltipHint } from "@/components/ui/tooltip";
+import type { AssistantPart } from "@/lib/assistant/turn-parts";
 import { qualifiedEnvName } from "@/lib/nav-path";
 import { cn, formatBytes } from "@/lib/utils";
 import {
@@ -33,6 +34,8 @@ import {
   type MessageContext,
 } from "@/web/api/assistant";
 import { listProjectsQuery } from "@/web/api/project-catalog";
+import { layoutAnswer } from "./answer-layout";
+import { AnswerSteps } from "./answer-steps";
 import { shouldSend } from "./composer-keys";
 import { useAssistantErrorText } from "./error-text";
 import { MessageSources } from "./message-sources";
@@ -168,6 +171,10 @@ function AnswerMarkdown({
   );
 }
 
+const renderStepText = (text: string) => (
+  <AnswerMarkdown content={text} streaming={false} />
+);
+
 /**
  * What a question was asked about, under its bubble: the project, or the
  * environment with its project's name (when the caller still sees that
@@ -289,6 +296,14 @@ function QuestionEditor({
 }
 
 /**
+ * A message as the thread shows it: as read, or, for the answer that is
+ * streaming, with its live parts.
+ */
+export type ShownMessage = Omit<ConversationMessage, "parts"> & {
+  parts: AssistantPart[] | null;
+};
+
+/**
  * One message of the thread: the user's question, with what it asked about
  * and its attachments, or the assistant's answer.
  */
@@ -301,7 +316,7 @@ export function MessageView({
   onEdit,
   editDisabled = false,
 }: {
-  message: ConversationMessage;
+  message: ShownMessage;
   /** An answer to a question about project branches (not an environment). */
   projectBranches?: boolean;
   /** The thread's last message: its actions stay visible. */
@@ -408,11 +423,20 @@ export function MessageView({
   }
 
   const pending = message.status === "queued" || message.status === "streaming";
+  // An answer with parts shows its steps, then its last step's text; one
+  // from before parts, its content.
+  const layout = message.parts ? layoutAnswer(message.parts, !pending) : null;
+  const answer = layout ? layout.answer : message.content;
   return (
     <div className="group/message flex flex-col gap-2" aria-busy={pending}>
-      {message.content && (
-        <AnswerMarkdown content={message.content} streaming={pending} />
+      {layout && (
+        <AnswerSteps
+          steps={layout.steps}
+          collapsed={layout.collapsed}
+          renderText={renderStepText}
+        />
       )}
+      {answer && <AnswerMarkdown content={answer} streaming={pending} />}
       {pending && (
         <span className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />

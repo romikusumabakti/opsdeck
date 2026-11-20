@@ -21,7 +21,6 @@ import {
   deleteConversationRows,
   editLastQuestion,
   failQueuedMessage,
-  findAssistantMessageConversation,
   findConversation,
   findEnvironment,
   findProject,
@@ -559,15 +558,6 @@ export async function stopAnswer(
 ): Promise<{ id: string | null }> {
   const { conversation } = await ownConversation(conversationId);
   return { id: await stopPendingAnswer(conversation.id) };
-}
-
-/** Authorizes the stream of an assistant message before it opens. */
-export async function authorizeMessageStream(messageId: string): Promise<void> {
-  await requireOwnConversation(async () =>
-    uuidSchema.safeParse(messageId).success
-      ? findAssistantMessageConversation(messageId)
-      : null
-  );
 }
 
 export type Allowance = {

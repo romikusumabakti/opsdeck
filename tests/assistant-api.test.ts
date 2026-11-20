@@ -363,12 +363,6 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
     },
     findConversation: async (id: string) =>
       owner(store.conversations.find((c) => c.id === id)),
-    findAssistantMessageConversation: async (messageId: string) => {
-      const m = store.messages.find(
-        (x) => x.id === messageId && x.role === "assistant"
-      );
-      return owner(store.conversations.find((c) => c.id === m?.conversationId));
-    },
     loadConversationDetail: async (id: string) => {
       const c = store.conversations.find((x) => x.id === id);
       if (!c) return null;
@@ -546,17 +540,6 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
         (x) => x.id === id && x.role === "assistant"
       );
       return m ? { status: m.status, errorCode: m.errorCode } : null;
-    },
-    readStreamSnapshot: async (id: string) => {
-      const m = store.messages.find((x) => x.id === id);
-      return m
-        ? {
-            content: m.content,
-            status: m.status,
-            errorCode: m.errorCode,
-            toolCalls: callsOf(id),
-          }
-        : null;
     },
   };
 });
@@ -1261,24 +1244,27 @@ describe("conversation ownership", () => {
     as(OTHER);
     const theirs = await newConversation();
     await send(theirs);
-    const answerId = store.messages[1]?.id;
     for (const user of [QA, ADMIN]) {
       as(user, user === ADMIN ? "admin" : "qa");
       expect(
         (await get(`/get-conversation?conversationId=${theirs}`)).status
       ).toBe(404);
       expect((await send(theirs)).status).toBe(404);
-      expect((await get(`/stream?messageId=${answerId}`)).status).toBe(404);
+      expect(
+        (await get(`/answer-stream?conversationId=${theirs}`)).status
+      ).toBe(404);
     }
     expect(queue.enqueue).toHaveBeenCalledTimes(1);
   });
 
-  it("an unknown conversation or message is 404", async () => {
+  it("an unknown conversation is 404", async () => {
     expect(
       (await get(`/get-conversation?conversationId=${UNKNOWN_ID}`)).status
     ).toBe(404);
     expect((await send(UNKNOWN_ID)).status).toBe(404);
-    expect((await get(`/stream?messageId=${UNKNOWN_ID}`)).status).toBe(404);
+    expect(
+      (await get(`/answer-stream?conversationId=${UNKNOWN_ID}`)).status
+    ).toBe(404);
   });
 
   it("a Stage 2 conversation stays readable, and answerable elsewhere, after its project is lost", async () => {
@@ -1306,13 +1292,6 @@ describe("conversation ownership", () => {
       ).status
     ).toBe(404);
     expect((await send(id, "Di Kestrel?")).status).toBe(200);
-  });
-
-  it("the stream of a user message is 404 (only answers stream)", async () => {
-    const id = await newConversation();
-    await send(id);
-    const question = store.messages.find((m) => m.role === "user");
-    expect((await get(`/stream?messageId=${question?.id}`)).status).toBe(404);
   });
 
   it("an engineer who is not a member of another project cannot list its attachments", async () => {
@@ -1790,28 +1769,6 @@ describe("rename and delete a chat", () => {
       (await post("/delete-conversation", { conversationId: id })).status
     ).toBe(200);
     expect(store.messages).toEqual([]);
-  });
-});
-
-describe("stream", () => {
-  it("sends snapshots until the answer is done", async () => {
-    const id = await newConversation();
-    await send(id);
-    const answer = store.messages[1]!;
-    Object.assign(answer, { status: "done", content: "Iuran dihitung di X." });
-    const res = await get(`/stream?messageId=${answer.id}`);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toContain("text/event-stream");
-    const text = await res.text();
-    expect(text).toContain("event: snapshot");
-    expect(text).toContain(
-      JSON.stringify({
-        content: "Iuran dihitung di X.",
-        status: "done",
-        errorCode: null,
-        toolCalls: [],
-      })
-    );
   });
 });
 
