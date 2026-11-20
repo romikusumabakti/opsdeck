@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import {
   Bot,
+  ChartNoAxesColumn,
   FileText,
   MessageCircleDashed,
   MoreHorizontal,
@@ -19,12 +20,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TooltipHint } from "@/components/ui/tooltip";
 import { useModKey } from "@/hooks/use-is-mac";
+import { Link } from "@/i18n/navigation";
 import type { AttachmentRef } from "@/lib/assistant/attachment-refs";
 import type { QuestionContextInput } from "@/lib/assistant/context";
 import { cn } from "@/lib/utils";
@@ -409,6 +412,8 @@ export function AssistantWorkspace({
   const chatOpen = selectedId !== null && !foreign;
   // Nothing asked yet: a new chat, or one whose first send failed.
   const emptyChat = !chatOpen || (loaded && conversation.messages.length === 0);
+  const draftBlocked =
+    busy || capped || !canDraftFrom(conversation) || drafts.generating !== null;
   const toolbar = (
     <div className="mx-auto flex h-8 w-full max-w-3xl shrink-0 items-center justify-end gap-2">
       {chatOpen && conversation?.temporary && (
@@ -446,39 +451,47 @@ export function AssistantWorkspace({
           {t("drafts", { count: draftCount })}
         </Button>
       )}
-      {chatOpen && (
-        <DropdownMenu>
-          <TooltipHint label={t("moreActions")}>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("moreActions")}
-                  disabled={
-                    busy ||
-                    capped ||
-                    !canDraftFrom(conversation) ||
-                    drafts.generating !== null
-                  }
-                />
-              }
-            >
-              <MoreHorizontal />
-            </DropdownMenuTrigger>
-          </TooltipHint>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => newDraft("brd")}>
-              <FileText />
-              {t("newDraftBrd")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => newDraft("jira")}>
-              <Ticket />
-              {t("newDraftIssue")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+      <DropdownMenu>
+        <TooltipHint label={t("moreActions")}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("moreActions")}
+              />
+            }
+          >
+            <MoreHorizontal />
+          </DropdownMenuTrigger>
+        </TooltipHint>
+        <DropdownMenuContent align="end">
+          {chatOpen && (
+            <>
+              <DropdownMenuItem
+                disabled={draftBlocked}
+                onClick={() => newDraft("brd")}
+              >
+                <FileText />
+                {t("newDraftBrd")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={draftBlocked}
+                onClick={() => newDraft("jira")}
+              >
+                <Ticket />
+                {t("newDraftIssue")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {/* Reachable at the cap too, when it matters most. */}
+          <DropdownMenuItem render={<Link href="/account?tab=usage" />}>
+            <ChartNoAxesColumn />
+            {t("usageMenu")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 

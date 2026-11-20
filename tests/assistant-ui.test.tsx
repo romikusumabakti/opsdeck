@@ -1826,7 +1826,7 @@ describe("drafts panel in the workspace", () => {
 
   it("has no drafts toggle until a conversation is selected", async () => {
     await renderWorkspace();
-    expect(button(t.moreActions)).toBeUndefined();
+    expect(menuItem(t.newDraftBrd)).toBeUndefined();
     expect(toggle(0)).toBeUndefined();
     expect(panel()).toBeNull();
   });
@@ -2668,7 +2668,7 @@ describe("context picker", () => {
     await settle();
     expect(api.deleteConversation).toHaveBeenCalledWith(CONV_ID);
     expect(onConversationChange).toHaveBeenLastCalledWith(null);
-    expect(button(t.moreActions)).toBeUndefined();
+    expect(menuItem(t.newDraftBrd)).toBeUndefined();
     expect(text()).toContain(t.greeting);
     expect(
       queryClient.getQueryData(["assistant", "getConversation", [CONV_ID]])
@@ -2756,6 +2756,41 @@ describe("context picker", () => {
     expect(showMeter({ ...base, usedFraction: 0.79 })).toBe(false);
     expect(showMeter({ ...base, usedFraction: 0.8 })).toBe(true);
     expect(showMeter({ ...base, enabled: false, usedFraction: 1 })).toBe(false);
+  });
+
+  it("the More menu links to the Usage tab, with no draft items before a chat is open", async () => {
+    await renderWorkspace();
+    await act(async () => button(t.moreActions)?.click());
+    await settle();
+    expect(menuItem(t.newDraftBrd)).toBeUndefined();
+    expect(menuItem(t.usageMenu)?.getAttribute("href")).toBe(
+      "/account?tab=usage"
+    );
+  });
+
+  it("at the cap the More menu still links to Usage while New draft is disabled", async () => {
+    await renderWorkspace({ conversationId: CONV_ID }, [
+      userMessage("u1", contextOf("user", null, null)),
+      answer,
+    ]);
+    await act(async () => {
+      queryClient.setQueryData(["assistant", "getAllowance"], {
+        enabled: true,
+        usedFraction: 1,
+        capReached: true,
+        resetsAt: "2026-11-16T17:00:00.000Z",
+        readsImages: true,
+      });
+    });
+    await act(async () => button(t.moreActions)?.click());
+    await settle();
+    expect(menuItem(t.newDraftBrd)?.getAttribute("aria-disabled")).toBe("true");
+    expect(menuItem(t.usageMenu)?.getAttribute("href")).toBe(
+      "/account?tab=usage"
+    );
+    expect(menuItem(t.usageMenu)?.getAttribute("aria-disabled")).not.toBe(
+      "true"
+    );
   });
 
   it("the Drafts toggle shows only when the chat has drafts; New draft lives in the More menu", async () => {
@@ -2905,7 +2940,7 @@ describe("context picker", () => {
     await renderWorkspace({ conversationId: missing, onConversationChange });
     await settle();
     expect(onConversationChange).toHaveBeenLastCalledWith(null);
-    expect(button(t.moreActions)).toBeUndefined();
+    expect(menuItem(t.newDraftBrd)).toBeUndefined();
   });
 
   it("does not show an old draft error again after the panel is reopened", async () => {

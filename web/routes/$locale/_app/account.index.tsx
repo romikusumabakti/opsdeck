@@ -1,6 +1,12 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { KeyRound, Loader2, Monitor, UserRound } from "lucide-react";
+import {
+  ChartNoAxesColumn,
+  KeyRound,
+  Loader2,
+  Monitor,
+  UserRound,
+} from "lucide-react";
 import { useTranslations } from "use-intl";
 import { NotificationsToggle } from "@/components/notifications-toggle";
 import { PageHeader } from "@/components/page-header";
@@ -14,6 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSession } from "@/lib/auth-client";
 import type { WorkingHours } from "@/lib/user-display";
+import { getAllowanceQuery } from "@/web/api/assistant";
 import { getAccountQuery } from "@/web/api/profile";
 import { useBootstrap, useMe } from "@/web/api/session";
 import { loaderQuery } from "@/web/query-client";
@@ -22,18 +29,24 @@ import { PasskeysList } from "./-components/account/passkeys-list";
 import { ProfileForm } from "./-components/account/profile-form";
 import { SessionsList } from "./-components/account/sessions-list";
 import { TwoFactorCard } from "./-components/account/two-factor-card";
+import { UsageCard } from "./-components/account/usage-card";
 
-type AccountTab = "profile" | "security" | "sessions";
+type AccountTab = "profile" | "security" | "sessions" | "usage";
 
 export const Route = createFileRoute("/$locale/_app/account/")({
   validateSearch: (search: Record<string, unknown>): { tab?: AccountTab } => ({
     tab:
-      search.tab === "security" || search.tab === "sessions"
+      search.tab === "security" ||
+      search.tab === "sessions" ||
+      search.tab === "usage"
         ? search.tab
         : undefined,
   }),
   loader: async ({ context: { queryClient } }) => {
-    await loaderQuery(queryClient, getAccountQuery());
+    await Promise.all([
+      loaderQuery(queryClient, getAccountQuery()),
+      loaderQuery(queryClient, getAllowanceQuery()),
+    ]);
   },
   component: AccountPage,
 });
@@ -50,7 +63,10 @@ function AccountPage() {
   // better-auth's, and it changes when the password change revokes the others.
   const { data: authSession } = useSession();
 
-  const defaultTab = tab ?? "profile";
+  // The Usage tab exists only while the Assistant is on for the instance.
+  const assistantEnabled = useQuery(getAllowanceQuery()).data?.enabled ?? false;
+  const defaultTab =
+    tab === "usage" && !assistantEnabled ? "profile" : (tab ?? "profile");
   if (!me) return null;
   const { user } = me;
 
@@ -72,6 +88,12 @@ function AccountPage() {
             <Monitor className="size-4" />
             {t("tabs.sessions")}
           </TabsTrigger>
+          {assistantEnabled && (
+            <TabsTrigger value="usage">
+              <ChartNoAxesColumn className="size-4" />
+              {t("tabs.usage")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="flex flex-col gap-6">
@@ -149,6 +171,12 @@ function AccountPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {assistantEnabled && (
+          <TabsContent value="usage">
+            <UsageCard />
+          </TabsContent>
+        )}
       </Tabs>
     </>
   );

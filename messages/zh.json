@@ -1026,7 +1026,8 @@
     "tabs": {
       "profile": "个人资料",
       "security": "安全",
-      "sessions": "会话"
+      "sessions": "会话",
+      "usage": "用量"
     },
     "profile": {
       "title": "个人资料",
@@ -1099,6 +1100,13 @@
       "backupCodesHint": "请将这些备用码保存在安全的地方。手机丢失时每个备用码可使用一次，且之后不会再显示。",
       "copyBackupCodes": "复制备用码",
       "done": "我已保存"
+    },
+    "usage": {
+      "title": "助手",
+      "description": "你每天可使用助手的额度。",
+      "summary": "今日已用 {used}% · 剩余 {left}%",
+      "capReached": "你已达到今日额度。新问题将暂停，直到额度重置。",
+      "note": "额度按每人每天计算，由管理员设定。"
     }
   },
   "servers": {
@@ -4010,6 +4018,7 @@
     "usageResets": "{time, time, short} 重置",
     "usageCapReached": "你已达到今天的使用上限，将于 {time, time, short} 重置。",
     "usageHint": "你今天的助手使用情况。",
+    "usageMenu": "用量",
     "notEnabledTitle": "助手尚未启用",
     "chats": "聊天",
     "newChat": "新聊天",

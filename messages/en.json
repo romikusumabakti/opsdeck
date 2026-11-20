@@ -1026,7 +1026,8 @@
     "tabs": {
       "profile": "Profile",
       "security": "Security",
-      "sessions": "Sessions"
+      "sessions": "Sessions",
+      "usage": "Usage"
     },
     "profile": {
       "title": "Profile",
@@ -1099,6 +1100,13 @@
       "backupCodesHint": "Save these backup codes somewhere safe. Each one works once if you lose your phone, and they won't be shown again.",
       "copyBackupCodes": "Copy backup codes",
       "done": "I've saved them"
+    },
+    "usage": {
+      "title": "Assistant",
+      "description": "Your daily allowance for the assistant.",
+      "summary": "{used}% used today · {left}% left",
+      "capReached": "You've reached today's limit. New questions are paused until it resets.",
+      "note": "The limit is per person per day and is set by an admin."
     }
   },
   "servers": {
@@ -4010,6 +4018,7 @@
     "usageResets": "Resets {time, time, short}",
     "usageCapReached": "You've reached today's limit. It resets at {time, time, short}.",
     "usageHint": "Your assistant usage for today.",
+    "usageMenu": "Usage",
     "notEnabledTitle": "The assistant is not on",
     "chats": "Chats",
     "newChat": "New chat",

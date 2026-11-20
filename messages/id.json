@@ -1026,7 +1026,8 @@
     "tabs": {
       "profile": "Profil",
       "security": "Keamanan",
-      "sessions": "Sesi"
+      "sessions": "Sesi",
+      "usage": "Penggunaan"
     },
     "profile": {
       "title": "Profil",
@@ -1099,6 +1100,13 @@
       "backupCodesHint": "Simpan kode cadangan ini di tempat aman. Setiap kode hanya berlaku sekali jika ponsel Anda hilang, dan tidak akan ditampilkan lagi.",
       "copyBackupCodes": "Salin kode cadangan",
       "done": "Sudah saya simpan"
+    },
+    "usage": {
+      "title": "Asisten",
+      "description": "Jatah harian Anda untuk asisten.",
+      "summary": "{used}% terpakai hari ini · {left}% tersisa",
+      "capReached": "Anda telah mencapai batas hari ini. Pertanyaan baru dijeda sampai batas direset.",
+      "note": "Batas berlaku per orang per hari dan ditetapkan oleh admin."
     }
   },
   "servers": {
@@ -4010,6 +4018,7 @@
     "usageResets": "Direset {time, time, short}",
     "usageCapReached": "Batas hari ini sudah tercapai. Direset pukul {time, time, short}.",
     "usageHint": "Pemakaian asisten Anda hari ini.",
+    "usageMenu": "Penggunaan",
     "notEnabledTitle": "Asisten belum aktif",
     "chats": "Chat",
     "newChat": "Chat baru",

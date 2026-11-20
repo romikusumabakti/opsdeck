@@ -1026,7 +1026,8 @@
     "tabs": {
       "profile": "Perfil",
       "security": "Seguridad",
-      "sessions": "Sesiones"
+      "sessions": "Sesiones",
+      "usage": "Uso"
     },
     "profile": {
       "title": "Perfil",
@@ -1099,6 +1100,13 @@
       "backupCodesHint": "Guarda estos códigos de respaldo en un lugar seguro. Cada uno sirve una sola vez si pierdes el teléfono y no volverán a mostrarse.",
       "copyBackupCodes": "Copiar códigos de respaldo",
       "done": "Ya los guardé"
+    },
+    "usage": {
+      "title": "Asistente",
+      "description": "Tu cuota diaria del asistente.",
+      "summary": "{used}% usado hoy · {left}% restante",
+      "capReached": "Has alcanzado el límite de hoy. Las preguntas nuevas están en pausa hasta que se restablezca.",
+      "note": "El límite es por persona y por día, y lo define un administrador."
     }
   },
   "servers": {
@@ -4010,6 +4018,7 @@
     "usageResets": "Se restablece a las {time, time, short}",
     "usageCapReached": "Has alcanzado el límite de hoy. Se restablece a las {time, time, short}.",
     "usageHint": "Tu uso del asistente hoy.",
+    "usageMenu": "Uso",
     "notEnabledTitle": "El asistente no está activado",
     "chats": "Chats",
     "newChat": "Nuevo chat",
