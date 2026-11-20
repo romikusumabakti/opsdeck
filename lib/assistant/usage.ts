@@ -3,55 +3,20 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { assistantUsage } from "@/lib/db/schema";
 import { pgErrorCode } from "@/lib/domains/errors";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { APP_TIMEZONE, zonedDayStart, zonedToday } from "@/lib/timezone";
 import { costUsd, type TokenUsage } from "./pricing";
 import type { Prices } from "./providers";
 
 /** The quota day (YYYY-MM-DD) `now` falls on in APP_TIMEZONE. */
 export function quotaDay(now: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const part = (type: string) => parts.find((p) => p.type === type)?.value;
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
-/** How far APP_TIMEZONE's wall clock is ahead of UTC at `at`, in ms. */
-function zoneOffsetMs(at: Date): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: APP_TIMEZONE,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(at);
-  const part = (type: string) =>
-    Number(parts.find((p) => p.type === type)?.value);
-  const wall = Date.UTC(
-    part("year"),
-    part("month") - 1,
-    part("day"),
-    part("hour"),
-    part("minute"),
-    part("second")
-  );
-  return wall - Math.floor(at.getTime() / 1000) * 1000;
+  return zonedToday(now, APP_TIMEZONE);
 }
 
 /** When the quota day `now` falls on ends: the next APP_TIMEZONE midnight. */
 export function quotaDayResetsAt(now: Date = new Date()): Date {
   const [year, month, day] = quotaDay(now).split("-").map(Number);
-  const midnightAsUtc = Date.UTC(year ?? 0, (month ?? 1) - 1, (day ?? 1) + 1);
-  // The offset at that instant, corrected once for a DST change on the way.
-  let at = midnightAsUtc - zoneOffsetMs(new Date(midnightAsUtc));
-  at = midnightAsUtc - zoneOffsetMs(new Date(at));
-  return new Date(at);
+  const next = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, (day ?? 1) + 1));
+  return zonedDayStart(next.toISOString().slice(0, 10), APP_TIMEZONE);
 }
 
 /**
