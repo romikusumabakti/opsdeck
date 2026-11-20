@@ -37,10 +37,12 @@ export const STREAM_GRACE_MS = 5000;
 export const RESUME_TIMEOUT_MS = 3000;
 const KEEPALIVE = ": waiting\n\n";
 /**
- * A finish chunk's frame. Unambiguous in the SSE text: inside a JSON string
- * (a text delta) the quotes are escaped.
+ * A finish chunk's frame, at the start of a frame (a resume may deliver the
+ * backlog as one string of frames). Only the chunk itself starts with its
+ * type: a tool input naming a finish sits inside another frame, and inside
+ * a JSON string the quotes are escaped.
  */
-const FINISH_MARK = '"type":"finish"';
+const FINISH_FRAME = /(?:^|\n)data: \{"type":"finish"[,}]/;
 
 export type AnswerStreamDeps = {
   resume?: typeof resumeTurnStream;
@@ -199,7 +201,7 @@ function followAnswer(
             return true;
           }
           if (done) return finished;
-          if (value.includes(FINISH_MARK)) finished = true;
+          if (FINISH_FRAME.test(value)) finished = true;
           send(value);
         }
       };

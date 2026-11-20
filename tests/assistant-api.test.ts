@@ -2124,6 +2124,37 @@ describe("openAnswerStream", () => {
     await reader.cancel();
   });
 
+  it("only a finish frame counts as the finish, not a tool input naming one", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    Object.assign(answer, { status: "streaming" });
+    const tool =
+      'data: {"type":"tool-input-available","toolCallId":"c","toolName":"search_code","input":{"query":"{\\"type\\":\\"finish\\"}","type":"finish"},"dynamic":true}\n\n';
+    const stream = await openAnswerStream(id, {
+      resume: vi.fn(async () => closedStream([tool])),
+    });
+    Object.assign(answer, { status: "done", errorCode: null });
+    const text = await textOf(stream);
+    expect(text.startsWith(tool)).toBe(true);
+    expect(lastFrame(text)).toEqual({
+      type: "finish",
+      messageMetadata: { status: "done", errorCode: null },
+    });
+  });
+
+  it("a backlog delivered as one string with its finish gets no second finish", async () => {
+    const id = await newConversation();
+    await send(id);
+    Object.assign(store.messages[1]!, { status: "streaming" });
+    const finish =
+      'data: {"type":"finish","messageMetadata":{"status":"done","errorCode":null}}\n\n';
+    const stream = await openAnswerStream(id, {
+      resume: vi.fn(async () => closedStream([TEXT + finish])),
+    });
+    expect(await textOf(stream)).toBe(TEXT + finish);
+  });
+
   it("keeps a queued answer's wait alive, then gives up after waitMs", async () => {
     const id = await newConversation();
     await send(id);

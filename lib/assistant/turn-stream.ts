@@ -54,15 +54,22 @@ export function loggingPublisher(
  * The library's subscriber over an ioredis client (the shape of its own
  * ioredis adapter: one "message" listener dispatching by channel), except
  * that UNSUBSCRIBE failures are logged and resolve: the library unsubscribes
- * at every stream's end in chains it never handles. SUBSCRIBE still rejects,
- * where the library awaits it.
+ * at every stream's end in chains it never handles. A callback that throws
+ * or rejects is logged. SUBSCRIBE still rejects, where the library awaits it.
  */
 export function loggingSubscriber(
   client: Pick<IORedis, "on" | "removeListener" | "subscribe" | "unsubscribe">
 ): Subscriber {
   const handlers = new Map<string, (message: string) => void>();
+  // The library's callbacks run in an ioredis event: a throw or a rejection
+  // there would be unhandled.
   const dispatch = (channel: string, message: string) => {
-    handlers.get(channel)?.(message);
+    try {
+      const handled: unknown = handlers.get(channel)?.(message);
+      if (handled instanceof Promise) handled.catch(logged("message"));
+    } catch (error) {
+      logged("message")(error);
+    }
   };
   return {
     connect: async () => {},
@@ -95,16 +102,49 @@ export function turnStreamContext(): ResumableStreamContext {
 }
 
 /**
+ * `stream`, closed (the error logged) instead of erroring: the library reads
+ * the stream it publishes in a promise chain it never handles, where an
+ * error would be an unhandled rejection. Followers of a stream cut short
+ * read the row for its end.
+ */
+function closedOnError(
+  messageId: string,
+  stream: ReadableStream<string>
+): ReadableStream<string> {
+  const reader = stream.getReader();
+  return new ReadableStream<string>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) controller.close();
+        else controller.enqueue(value);
+      } catch (error) {
+        console.error(
+          `[assistant] the stream of ${messageId} failed; closed early`,
+          error
+        );
+        controller.close();
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+  });
+}
+
+/**
  * Publishes one turn's UI message chunks as SSE text under `messageId`, and
- * drains it (the worker has no HTTP reader). Resolves once the chunks end;
- * a rejection is the caller's to log.
+ * drains it (the worker has no HTTP reader). Resolves once the chunks end
+ * (or fail to serialize: the stream then ends early); a rejection is the
+ * caller's to log.
  */
 export async function publishTurnStream(
   messageId: string,
   chunks: ReadableStream<UIMessageChunk>,
   streams: ResumableStreamContext = turnStreamContext()
 ): Promise<void> {
-  const sse = chunks.pipeThrough(new JsonToSseTransformStream());
+  const sse = closedOnError(
+    messageId,
+    chunks.pipeThrough(new JsonToSseTransformStream())
+  );
   const published = await streams.createNewResumableStream(
     messageId,
     () => sse

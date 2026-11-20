@@ -252,6 +252,59 @@ describe("turn stream", () => {
     error.mockRestore();
   });
 
+  it("a chunk that fails to serialize ends the stream instead of rejecting unhandled", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const streams = memoryRedis();
+      const id = crypto.randomUUID();
+      const producer = channel();
+      producer.write(delta(1));
+      // JSON.stringify throws on a BigInt.
+      producer.write({
+        type: "data-x",
+        data: 1n,
+      } as unknown as UIMessageChunk);
+      producer.write(delta(2));
+      await publishTurnStream(id, producer.stream, streams);
+      await until(async () => (await hasTurnStream(id, streams)) === "DONE");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(
+        error.mock.calls.some((args) => String(args[0]).includes(id))
+      ).toBe(true);
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      error.mockRestore();
+    }
+  });
+
+  it("a subscriber callback that throws or rejects is logged, never unhandled", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const client = ioredisLike();
+      const subscriber = loggingSubscriber(client.subscriber);
+      await subscriber.subscribe("a", () => {
+        throw new Error("boom");
+      });
+      await subscriber.subscribe("b", (() =>
+        Promise.reject(new Error("late boom"))) as unknown as (
+        message: string
+      ) => void);
+      await client.publisher.publish("a", "to a");
+      await client.publisher.publish("b", "to b");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledTimes(2);
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      error.mockRestore();
+    }
+  });
+
   it("Valkey errors at a stream's end and on reads never reject unhandled", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
