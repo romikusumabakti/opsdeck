@@ -25,6 +25,16 @@ import {
   searchKnowledgeTool,
 } from "./tools/context";
 import {
+  DATA_INPUTS,
+  type DataToolName,
+  type DataTurn,
+  dataDefinitions,
+  dataToolOffered,
+  isDataTool,
+  runDataTool,
+} from "./tools/data";
+import { unknownProjectError } from "./tools/data-shared";
+import {
   DATABASE_INPUTS,
   type DatabaseToolName,
   databaseDefinitions,
@@ -32,16 +42,6 @@ import {
   isDatabaseTool,
   runDatabaseTool,
 } from "./tools/database";
-import {
-  isPanelTool,
-  PANEL_INPUTS,
-  type PanelToolName,
-  type PanelTurn,
-  panelDefinitions,
-  panelToolOffered,
-  runPanelTool,
-  unknownProjectError,
-} from "./tools/panel";
 import { readUploadTool } from "./tools/uploads";
 import { MAX_UPLOAD_TEXT_CHARS } from "./upload-types";
 import type { AssistantViewer } from "./viewer";
@@ -106,7 +106,7 @@ const DEFINITIONS = {
   },
   get_issue: {
     description:
-      "Get a Jira issue mirrored in the Panel for a project the user can see: title, status, type, description, comments (latest 100) and the attachment list (names, types, sizes only). Unknown or invisible keys return not found.",
+      "Get a Jira issue mirrored in Menara for a project the user can see: title, status, type, description, comments (latest 100) and the attachment list (names, types, sizes only). Unknown or invisible keys return not found.",
     inputSchema: z.strictObject({
       key: str('Jira issue key, e.g. "KST-123".'),
     }),
@@ -125,7 +125,7 @@ const DEFINITIONS = {
   },
   search_knowledge: {
     description:
-      "Full-text search of the Panel knowledge base (documents the user can read). Returns up to 20 hits with slug, title and a snippet.",
+      "Full-text search of the Menara knowledge base (documents the user can read). Returns up to 20 hits with slug, title and a snippet.",
     inputSchema: z.strictObject({
       query: str("Search terms; supports quoted phrases, OR and -exclusion."),
     }),
@@ -266,14 +266,14 @@ export function buildTools(
   } = {}
 ): ToolSet {
   const execute = options.execute ?? executeTool;
-  // The Panel tools follow the context's own tools, so a pinned context's
-  // Stage 2 tools come first and unchanged; which Panel tools appear depends
+  // The data tools follow the context's own tools, so a pinned context's
+  // Stage 2 tools come first and unchanged; which data tools appear depends
   // only on the user's org role (stable across their turns, prompt cache).
   // The database tools come last, for engineer, infra and admin only.
   const entries = [
     ...Object.entries(ctx.mode === "auto" ? AUTO_DEFINITIONS : DEFINITIONS),
     ...Object.entries(UPLOAD_DEFINITIONS),
-    ...panelDefinitions(ctx.viewer),
+    ...dataDefinitions(ctx.viewer),
     ...databaseDefinitions(ctx.viewer),
   ] as Array<
     [ToolName, { description: string; inputSchema: FlexibleSchema<unknown> }]
@@ -385,7 +385,7 @@ const AUTO_INPUTS = {
 
 export type ToolName =
   | keyof typeof AUTO_INPUTS
-  | PanelToolName
+  | DataToolName
   | DatabaseToolName;
 
 /** A project as list_projects returns it. */
@@ -399,8 +399,8 @@ export type ListedProject = {
 
 type BaseToolContext = {
   viewer: AssistantViewer;
-  /** The turn's Panel state (tools/panel#createPanelTurn). */
-  panel: PanelTurn;
+  /** The turn's data state (tools/data#createDataTurn). */
+  data: DataTurn;
   /** Jira attachments the user ticked on the message being answered. */
   attachments: AttachmentRef[];
   /** Files uploaded with the chat's questions so far (read_upload). */
@@ -433,7 +433,7 @@ const inputsOf = (ctx: ToolContext) =>
 function isToolName(
   name: string,
   inputs: Partial<Record<ToolName, z.ZodType>>
-): name is Exclude<ToolName, PanelToolName | DatabaseToolName> {
+): name is Exclude<ToolName, DataToolName | DatabaseToolName> {
   return Object.hasOwn(inputs, name);
 }
 
@@ -445,7 +445,7 @@ export async function executeTool(
   input: unknown,
   ctx: ToolContext
 ): Promise<ToolResult<unknown>> {
-  if (isPanelTool(name)) return executePanelTool(name, input, ctx);
+  if (isDataTool(name)) return executeDataTool(name, input, ctx);
   if (isDatabaseTool(name)) return executeDatabaseTool(name, input, ctx);
   const inputs = inputsOf(ctx);
   if (!isToolName(name, inputs)) {
@@ -469,16 +469,16 @@ export async function executeTool(
   }
 }
 
-/** A Panel tool: only those offered to the viewer (tools/panel) run. */
-async function executePanelTool(
-  name: PanelToolName,
+/** A data tool: only those offered to the viewer (tools/data) run. */
+async function executeDataTool(
+  name: DataToolName,
   input: unknown,
   ctx: ToolContext
 ): Promise<ToolResult<unknown>> {
-  if (!panelToolOffered(ctx.viewer, name)) {
+  if (!dataToolOffered(ctx.viewer, name)) {
     return { ok: false, error: `unknown tool: ${name}`, meta: {} };
   }
-  const parsed = (PANEL_INPUTS[name] as z.ZodType).safeParse(input);
+  const parsed = (DATA_INPUTS[name] as z.ZodType).safeParse(input);
   if (!parsed.success) {
     return {
       ok: false,
@@ -487,9 +487,9 @@ async function executePanelTool(
     };
   }
   try {
-    return await runPanelTool(name, parsed.data, {
+    return await runDataTool(name, parsed.data, {
       viewer: ctx.viewer,
-      panel: ctx.panel,
+      data: ctx.data,
       mode: ctx.mode,
     });
   } catch (error) {
@@ -518,7 +518,7 @@ async function executeDatabaseTool(
   try {
     return await runDatabaseTool(name, parsed.data, {
       viewer: ctx.viewer,
-      panel: ctx.panel,
+      data: ctx.data,
       mode: ctx.mode,
     });
   } catch (error) {
@@ -592,7 +592,7 @@ async function runProjectCode(
 }
 
 async function run(
-  name: Exclude<ToolName, PanelToolName | DatabaseToolName>,
+  name: Exclude<ToolName, DataToolName | DatabaseToolName>,
   data: unknown,
   ctx: ToolContext
 ): Promise<ToolResult<unknown>> {

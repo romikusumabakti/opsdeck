@@ -20,11 +20,11 @@ import { redactSecretLines } from "../secret-filter";
 import type { AssistantViewer } from "../viewer";
 import type { ToolMeta, ToolResult } from "./code";
 import {
+  type DataContext,
   environmentByRef,
   envRef,
-  type PanelContext,
   unknownEnvironment,
-} from "./panel";
+} from "./data-shared";
 
 // The Assistant's read-only database tools (Stage 9 spec F.3): list_tables
 // and query_database on an environment an admin/infra enabled
@@ -181,7 +181,7 @@ type Resolved =
  * the engineer role on its project, and access enabled.
  */
 async function resolve(
-  ctx: PanelContext,
+  ctx: DataContext,
   given: string,
   deps: DatabaseDeps
 ): Promise<Resolved> {
@@ -230,7 +230,7 @@ const SCHEMA_SQL: Record<AssistantDbLogin["engine"], string> = {
 type ListedTable = { name: string; columns: string[] };
 
 async function listTablesTool(
-  ctx: PanelContext,
+  ctx: DataContext,
   given: string,
   deps: DatabaseDeps
 ): Promise<ToolResult<unknown>> {
@@ -314,7 +314,7 @@ function cutCell(cell: Cell): { cell: Cell; cut: boolean; redacted: boolean } {
 }
 
 async function queryDatabaseTool(
-  ctx: PanelContext,
+  ctx: DataContext,
   input: { environment: string; sql: string },
   deps: DatabaseDeps
 ): Promise<ToolResult<unknown>> {
@@ -440,7 +440,7 @@ async function queryDatabaseTool(
 export async function runDatabaseTool(
   name: DatabaseToolName,
   input: unknown,
-  ctx: PanelContext,
+  ctx: DataContext,
   deps: DatabaseDeps = DATABASE_DEPS
 ): Promise<ToolResult<unknown>> {
   switch (name) {

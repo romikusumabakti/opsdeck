@@ -179,7 +179,8 @@ describe("only known sites read the environment slug", () => {
   const SLUG_READ =
     /environments\.slug|\benvSlug\b|resolvePlaceholders|\b(?:env|environment|stored|current|e)\.slug\b|\.environment\.slug\b|\bslug:\s*true\b/;
   const ALLOWED: Record<string, string> = {
-    "lib/assistant/tools/panel.ts": "KEY/slug references in answers (links)",
+    "lib/assistant/tools/data-shared.ts":
+      "KEY/slug references in answers (links)",
     "lib/canonical-path.ts": "the URL casing and the old-slug redirect path",
     "lib/db/schema.ts": "the column and the template placeholder's doc",
     "lib/environment-slug.ts": "the resolver and aliases",

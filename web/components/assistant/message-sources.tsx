@@ -17,32 +17,31 @@ const strings = (value: unknown): string[] =>
     : [];
 
 /**
- * The Panel tools listed under "Panel data", with their labels' keys. The
- * Panel issue tools are left out: their keys are listed under Issues.
+ * The data tools listed under "Panel data". The Menara issue tools are left
+ * out: their keys are listed under Issues.
  */
-const PANEL_READ_LABELS = {
-  list_environments: "panelListEnvironments",
-  get_environment_status: "panelGetEnvironmentStatus",
-  list_deploys: "panelListDeploys",
-  get_deploy: "panelGetDeploy",
-  get_service_logs: "panelGetServiceLogs",
-  list_builds: "panelListBuilds",
-  list_people: "panelListPeople",
-  list_servers: "panelListServers",
-  get_server: "panelGetServer",
-  recent_activity: "panelRecentActivity",
-  list_tables: "panelListTables",
-  query_database: "panelQueryDatabase",
-} as const;
-type PanelReadTool = keyof typeof PANEL_READ_LABELS;
+export const DATA_READ_TOOLS: ReadonlySet<string> = new Set([
+  "list_environments",
+  "get_environment_status",
+  "list_deploys",
+  "get_deploy",
+  "get_service_logs",
+  "list_builds",
+  "list_people",
+  "list_servers",
+  "get_server",
+  "recent_activity",
+  "list_tables",
+  "query_database",
+]);
 
-const isPanelReadTool = (tool: string): tool is PanelReadTool =>
-  Object.hasOwn(PANEL_READ_LABELS, tool);
+/** The message key of a tool's label (`assistant.toolLabels.<tool>`). */
+export const toolLabelKey = (tool: string): string => `toolLabels.${tool}`;
 
 /**
  * What an answer read, from its tool calls' result metadata: files (a read
  * range where there is one, else the path a search hit), Jira issues,
- * knowledge documents, the Panel data (each tool once per environment or
+ * knowledge documents, the data tools (each tool once per environment or
  * project it read) and how many files the secret filter withheld. A read of
  * an automatic answer names its project (`KEY path`): paths are relative to
  * the project, so two projects may share one.
@@ -52,13 +51,10 @@ export function summarizeReads(toolCalls: ToolCall[]) {
   const paths = new Set<string>();
   const issueKeys = new Set<string>();
   const docSlugs = new Set<string>();
-  const panel = new Map<
-    string,
-    { tool: PanelReadTool; subject: string | null }
-  >();
+  const panel = new Map<string, { tool: string; subject: string | null }>();
   let withheld = 0;
   for (const { tool, meta } of toolCalls) {
-    if (isPanelReadTool(tool)) {
+    if (DATA_READ_TOOLS.has(tool)) {
       const subject =
         typeof meta.environment === "string"
           ? meta.environment
@@ -207,8 +203,8 @@ export function MessageSources({
           label={t("panelRead")}
           items={reads.panel.map(({ tool, subject }) =>
             subject
-              ? `${t(PANEL_READ_LABELS[tool])} · ${subject}`
-              : t(PANEL_READ_LABELS[tool])
+              ? `${t(toolLabelKey(tool))} · ${subject}`
+              : t(toolLabelKey(tool))
           )}
         />
         {reads.withheld > 0 && (

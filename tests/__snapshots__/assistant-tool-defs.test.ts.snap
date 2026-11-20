@@ -3,7 +3,7 @@
 exports[`buildTools > sends the Stage 2 tool set and schemas in a pinned context 1`] = `
 {
   "get_issue": {
-    "description": "Get a Jira issue mirrored in the Panel for a project the user can see: title, status, type, description, comments (latest 100) and the attachment list (names, types, sizes only). Unknown or invisible keys return not found.",
+    "description": "Get a Jira issue mirrored in Menara for a project the user can see: title, status, type, description, comments (latest 100) and the attachment list (names, types, sizes only). Unknown or invisible keys return not found.",
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
@@ -150,7 +150,7 @@ exports[`buildTools > sends the Stage 2 tool set and schemas in a pinned context
     },
   },
   "search_knowledge": {
-    "description": "Full-text search of the Panel knowledge base (documents the user can read). Returns up to 20 hits with slug, title and a snippet.",
+    "description": "Full-text search of the Menara knowledge base (documents the user can read). Returns up to 20 hits with slug, title and a snippet.",
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,

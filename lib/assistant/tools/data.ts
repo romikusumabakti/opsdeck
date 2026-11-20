@@ -35,11 +35,26 @@ import { redactPii } from "../pii-filter";
 import { REDACTED_LINE, redactSecretLines } from "../secret-filter";
 import type { AssistantViewer, ProjectEntry } from "../viewer";
 import type { ToolMeta, ToolResult } from "./code";
-import { capBytes } from "./context";
+import {
+  clamp,
+  compact,
+  type DataContext,
+  environmentByRef,
+  envRef,
+  fail,
+  iso,
+  mapLimit,
+  ok,
+  projectByKey,
+  safeText,
+  unknownEnvironment,
+  unknownProjectError,
+  withWithheld,
+} from "./data-shared";
 
 /**
- * Panel tools: read-only views of Panel data (environments, live status,
- * deploys, builds, Panel issues, people, servers, activity). Each one calls
+ * Data tools: read-only views of Menara data (environments, live status,
+ * deploys, builds, Menara issues, people, servers, activity). Each one calls
  * the page's own service core (the xxxFor functions) with the viewer's
  * AccessScope, so the assistant sees exactly what the pages show that user.
  * Results are compact: nulls dropped, lists capped, free text redacted with
@@ -51,7 +66,7 @@ export const STATUS_PROBES_PER_TURN = 10;
 /** A probe that has not answered by then reports every service unknown. */
 export const STATUS_PROBE_TIMEOUT_MS = 30_000;
 /** Most deploys, builds and issue hits one call returns. */
-export const PANEL_LIST_LIMIT = 20;
+export const DATA_LIST_LIMIT = 20;
 export const DEFAULT_LIST_LIMIT = 10;
 export const MAX_ENVIRONMENTS = 100;
 /** Environments whose deploy state list_environments reads at once. */
@@ -70,10 +85,9 @@ export const MAX_LOG_SINCE_SECONDS = 7 * 24 * 3600;
 export const MAX_ISSUE_DESCRIPTION_BYTES = 16 * 1024;
 export const MAX_ISSUE_COMMENTS = 50;
 export const MAX_ISSUE_COMMENT_BYTES = 4 * 1024;
-const MAX_SHORT_TEXT = 200;
 
 /** The service cores the tools read through (tests replace them). */
-export type PanelCores = {
+export type DataCores = {
   listEnvironments: typeof listEnvironmentsFor;
   getEnvironmentRunning: typeof getEnvironmentRunningFor;
   getServiceStatuses: typeof getAllServiceStatusesFor;
@@ -105,7 +119,7 @@ async function ownerNames(ids: string[]): Promise<Map<string, string>> {
   return new Map(rows.map((u) => [u.id, callName(u)]));
 }
 
-export const PANEL_CORES: PanelCores = {
+export const DATA_CORES: DataCores = {
   listEnvironments: listEnvironmentsFor,
   getEnvironmentRunning: getEnvironmentRunningFor,
   getServiceStatuses: getAllServiceStatusesFor,
@@ -144,21 +158,21 @@ export type EnvironmentStatus = {
 };
 
 /**
- * The Panel state of one turn: the viewer's projects and environments
+ * The data state of one turn: the viewer's projects and environments
  * (loaded once) and the live status probes (memoised per environment, at
  * most STATUS_PROBES_PER_TURN distinct environments).
  */
-export type PanelTurn = {
-  cores: PanelCores;
+export type DataTurn = {
+  cores: DataCores;
   projects: () => Promise<ProjectEntry[]>;
   environments: () => Promise<EnvironmentListItem[]>;
   probe: (environment: EnvironmentListItem) => Promise<ServiceStatus[] | null>;
 };
 
-export type PanelTurnOptions = {
+export type DataTurnOptions = {
   /** The viewer's visible projects. */
   projects: () => Promise<ProjectEntry[]>;
-  cores?: Partial<PanelCores>;
+  cores?: Partial<DataCores>;
   probeTimeoutMs?: number;
 };
 
@@ -186,11 +200,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]).finally(() => clearTimeout(timer));
 }
 
-export function createPanelTurn(
+export function createDataTurn(
   viewer: AssistantViewer,
-  options: PanelTurnOptions
-): PanelTurn {
-  const cores = { ...PANEL_CORES, ...options.cores };
+  options: DataTurnOptions
+): DataTurn {
+  const cores = { ...DATA_CORES, ...options.cores };
   const timeoutMs = options.probeTimeoutMs ?? STATUS_PROBE_TIMEOUT_MS;
   const probes = new Map<string, Promise<ServiceStatus[]>>();
   const unknown = (env: EnvironmentListItem): ServiceStatus[] =>
@@ -243,7 +257,7 @@ const environmentArg = str(
 /** Tools every viewer gets, in order. */
 const ALWAYS = {
   list_environments: {
-    description: `List the Panel environments the user can see (at most ${MAX_ENVIRONMENTS}): reference ("PROJECTKEY/slug"), name, kind, URL, owner. With a project, each environment also has its last deploy (status, time, tag) and whether deploys are locked; without one these are left out, so pass a project or use get_environment_status. Database data only; use get_environment_status for live service state and running versions.`,
+    description: `List the Menara environments the user can see (at most ${MAX_ENVIRONMENTS}): reference ("PROJECTKEY/slug"), name, kind, URL, owner. With a project, each environment also has its last deploy (status, time, tag) and whether deploys are locked; without one these are left out, so pass a project or use get_environment_status. Database data only; use get_environment_status for live service state and running versions.`,
     inputSchema: z.strictObject({
       project: nullable(
         z.string(),
@@ -252,7 +266,7 @@ const ALWAYS = {
     }),
   },
   get_environment_status: {
-    description: `Live state of one environment, as its dashboard shows it: each service running/stopped/not-found/unknown (live check), the version each component runs, an active deploy lock, and the last backup, restore and mock-time runs. At most ${STATUS_PROBES_PER_TURN} environments are checked live per answer; beyond that "checked" is false (reason "limit"). "unknown" means the check failed; an empty services list means no services are registered for the environment in the Panel, so nothing could be checked live.`,
+    description: `Live state of one environment, as its dashboard shows it: each service running/stopped/not-found/unknown (live check), the version each component runs, an active deploy lock, and the last backup, restore and mock-time runs. At most ${STATUS_PROBES_PER_TURN} environments are checked live per answer; beyond that "checked" is false (reason "limit"). "unknown" means the check failed; an empty services list means no services are registered for the environment in Menara, so nothing could be checked live.`,
     inputSchema: z.strictObject({ environment: environmentArg }),
   },
   get_service_logs: {
@@ -273,12 +287,12 @@ const ALWAYS = {
     }),
   },
   list_deploys: {
-    description: `Deploy history of one environment, newest first, up to ${PANEL_LIST_LIMIT} (as many as the Deploys page keeps): component, tag, status, trigger, who, when, duration, branch and commit; plus each component's current and previous tag.`,
+    description: `Deploy history of one environment, newest first, up to ${DATA_LIST_LIMIT} (as many as the Deploys page keeps): component, tag, status, trigger, who, when, duration, branch and commit; plus each component's current and previous tag.`,
     inputSchema: z.strictObject({
       environment: environmentArg,
       limit: nullable(
         z.number(),
-        `How many deploys (whole number, at most ${PANEL_LIST_LIMIT}). Default ${DEFAULT_LIST_LIMIT}.`
+        `How many deploys (whole number, at most ${DATA_LIST_LIMIT}). Default ${DEFAULT_LIST_LIMIT}.`
       ),
     }),
   },
@@ -287,30 +301,30 @@ const ALWAYS = {
     inputSchema: z.strictObject({ id: str("Deploy id from list_deploys.") }),
   },
   list_builds: {
-    description: `Recent CI builds of a project's deployed components and branches, newest first (at most ${PANEL_LIST_LIMIT}): component, branch, tag, commit, who pushed, commit message.`,
+    description: `Recent CI builds of a project's deployed components and branches, newest first (at most ${DATA_LIST_LIMIT}): component, branch, tag, commit, who pushed, commit message.`,
     inputSchema: z.strictObject({
       project: str('Project key, e.g. "ACME".'),
       limit: nullable(
         z.number(),
-        `How many builds (whole number, at most ${PANEL_LIST_LIMIT}). Default ${DEFAULT_LIST_LIMIT}.`
+        `How many builds (whole number, at most ${DATA_LIST_LIMIT}). Default ${DEFAULT_LIST_LIMIT}.`
       ),
     }),
   },
   search_panel_issues: {
-    description: `Search the Panel's own issues (any status) by text over title, description and key (e.g. "ACME-12"). At most ${PANEL_LIST_LIMIT} hits, most recently updated first.`,
+    description: `Search the Menara issues (any status) by text over title, description and key (e.g. "ACME-12"). At most ${DATA_LIST_LIMIT} hits, most recently updated first.`,
     inputSchema: z.strictObject({
       query: str("Search text."),
       project: nullable(z.string(), "Only this project key; null for all."),
     }),
   },
   get_panel_issue: {
-    description: `One Panel issue by key ("ACME-12"): status, type, priority, assignee, labels, parent and children, description and the latest ${MAX_ISSUE_COMMENTS} comments. For Jira issues use get_issue.`,
+    description: `One Menara issue by key ("ACME-12"): status, type, priority, assignee, labels, parent and children, description and the latest ${MAX_ISSUE_COMMENTS} comments. For Jira issues use get_issue.`,
     inputSchema: z.strictObject({
-      key: str('Panel issue key, e.g. "ACME-12".'),
+      key: str('Menara issue key, e.g. "ACME-12".'),
     }),
   },
   list_people: {
-    description: `People in the Panel as the People page shows them (at most ${MAX_PEOPLE}): name, what they like to be called, email, title, job role and the projects they can see.`,
+    description: `People in Menara as the People page shows them (at most ${MAX_PEOPLE}): name, what they like to be called, email, title, job role and the projects they can see.`,
     inputSchema: z.strictObject({
       project: nullable(
         z.string(),
@@ -323,7 +337,7 @@ const ALWAYS = {
 /** Tools behind an org permission, as the matching page. */
 const GATED = {
   list_servers: {
-    description: `List the servers the Panel manages (at most ${MAX_SERVERS}): name, host, placement. No credentials.`,
+    description: `List the servers Menara manages (at most ${MAX_SERVERS}): name, host, placement. No credentials.`,
     // Written out: zod emits no `required` for an empty object, and strict
     // tools expect the (empty) list.
     inputSchema: jsonSchema<Record<string, never>>({
@@ -341,7 +355,7 @@ const GATED = {
     perms: { server: ["read"] },
   },
   recent_activity: {
-    description: `The Panel's activity log, newest first (at most ${ACTIVITY_LIMIT}): action, who, when and its details.`,
+    description: `The Menara activity log, newest first (at most ${ACTIVITY_LIMIT}): action, who, when and its details.`,
     inputSchema: z.strictObject({
       limit: nullable(
         z.number(),
@@ -359,19 +373,19 @@ const GATED = {
   }
 >;
 
-type PanelDefinition = {
+type DataDefinition = {
   description: string;
   inputSchema: FlexibleSchema<unknown>;
 };
 
-export type PanelToolName = keyof typeof ALWAYS | keyof typeof GATED;
+export type DataToolName = keyof typeof ALWAYS | keyof typeof GATED;
 
-export const PANEL_TOOL_NAMES = [
+export const DATA_TOOL_NAMES = [
   ...Object.keys(ALWAYS),
   ...Object.keys(GATED),
-] as PanelToolName[];
+] as DataToolName[];
 
-export function isPanelTool(name: string): name is PanelToolName {
+export function isDataTool(name: string): name is DataToolName {
   return Object.hasOwn(ALWAYS, name) || Object.hasOwn(GATED, name);
 }
 
@@ -386,25 +400,25 @@ function orgAllows(scope: OrgScope, perms: OrgPermissions): boolean {
   }
 }
 
-/** The Panel tools offered to this viewer, with what the model sees. */
-export function panelDefinitions(
+/** The data tools offered to this viewer, with what the model sees. */
+export function dataDefinitions(
   viewer: AssistantViewer
-): Array<[PanelToolName, PanelDefinition]> {
+): Array<[DataToolName, DataDefinition]> {
   const gated = Object.entries(GATED)
     .filter(([, d]) => orgAllows(viewer.scope, d.perms))
-    .map(([name, d]): [PanelToolName, PanelDefinition] => [
-      name as PanelToolName,
+    .map(([name, d]): [DataToolName, DataDefinition] => [
+      name as DataToolName,
       { description: d.description, inputSchema: d.inputSchema },
     ]);
   return [
-    ...(Object.entries(ALWAYS) as Array<[PanelToolName, PanelDefinition]>),
+    ...(Object.entries(ALWAYS) as Array<[DataToolName, DataDefinition]>),
     ...gated,
   ];
 }
 
-export function panelToolOffered(
+export function dataToolOffered(
   viewer: AssistantViewer,
-  name: PanelToolName
+  name: DataToolName
 ): boolean {
   if (Object.hasOwn(ALWAYS, name)) return true;
   const gated = GATED[name as keyof typeof GATED];
@@ -414,7 +428,7 @@ export function panelToolOffered(
 const limit = z.number().nullish();
 
 /** Validation, independent of the schemas the model sees. */
-export const PANEL_INPUTS = {
+export const DATA_INPUTS = {
   list_environments: z.strictObject({ project: z.string().nullish() }),
   get_environment_status: z.strictObject({ environment: z.string() }),
   list_deploys: z.strictObject({ environment: z.string(), limit }),
@@ -435,128 +449,15 @@ export const PANEL_INPUTS = {
   list_servers: empty,
   get_server: z.strictObject({ server: z.string() }),
   recent_activity: z.strictObject({ limit }),
-} as const satisfies Record<PanelToolName, z.ZodType>;
+} as const satisfies Record<DataToolName, z.ZodType>;
 
 // --- helpers ----------------------------------------------------------------
 
-function fail(error: string, meta: ToolMeta = {}): ToolResult<never> {
-  return { ok: false, error, meta };
-}
-
-function ok<T>(data: T, meta: ToolMeta = {}): ToolResult<T> {
-  return { ok: true, data, meta };
-}
-
-/** Drops null, undefined and empty-array fields. */
-function compact<T extends Record<string, unknown>>(value: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      ([, v]) =>
-        v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0)
-    )
-  ) as Partial<T>;
-}
-
-function iso(value: Date | string | null | undefined): string | null {
-  if (!value) return null;
-  const date = typeof value === "string" ? new Date(value) : value;
-  return Number.isNaN(date.getTime())
-    ? null
-    : date.toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-
-function clamp(
-  value: number | null | undefined,
-  fallback: number,
-  max: number
-) {
-  const n =
-    typeof value === "number" && Number.isFinite(value)
-      ? Math.trunc(value)
-      : fallback;
-  return Math.min(Math.max(1, n), max);
-}
-
 const short = (sha: string | null | undefined) => sha?.slice(0, 10) ?? null;
-
-/** Free text through the secret filter, cut to `maxBytes`. */
-function safeText(
-  text: string | null | undefined,
-  maxBytes = MAX_SHORT_TEXT
-): { text: string | null; redacted: number } {
-  if (!text) return { text: null, redacted: 0 };
-  const redacted = redactSecretLines(text);
-  const cut = capBytes(redacted.text, maxBytes);
-  return {
-    text: cut.truncated ? `${cut.text}…` : cut.text,
-    redacted: redacted.redacted,
-  };
-}
 
 const isRefusal = (error: unknown) =>
   error instanceof HTTPException &&
   (error.status === 404 || error.status === 403);
-
-function withWithheld(meta: ToolMeta, withheld: number): ToolMeta {
-  return withheld > 0 ? { ...meta, withheld } : meta;
-}
-
-export type PanelContext = {
-  viewer: AssistantViewer;
-  panel: PanelTurn;
-  mode: "auto" | "pinned";
-};
-
-/** The same refusal as the code tools: an invisible project is unknown. */
-export function unknownProjectError(
-  key: string,
-  mode: "auto" | "pinned"
-): string {
-  return mode === "auto"
-    ? `Unknown project ${key}. Call list_projects.`
-    : `Unknown project ${key}. Call list_environments.`;
-}
-
-export const unknownEnvironment = (ref: string) =>
-  `Unknown environment ${ref}. Call list_environments.`;
-
-async function projectByKey(
-  ctx: PanelContext,
-  given: string
-): Promise<ProjectEntry | string> {
-  // Keys are stored uppercase; the model may echo one loosely.
-  const key = given.trim().toUpperCase();
-  const project = (await ctx.panel.projects()).find((p) => p.key === key);
-  return project ?? key;
-}
-
-export const envRef = (env: EnvironmentListItem) => `${env.key}/${env.slug}`;
-
-export async function environmentByRef(
-  ctx: PanelContext,
-  given: string
-): Promise<EnvironmentListItem | null> {
-  const needle = given.trim();
-  const envs = await ctx.panel.environments();
-  const byId = envs.find((e) => e.id === needle);
-  if (byId) return byId;
-  const slash = needle.indexOf("/");
-  if (slash < 0) return null;
-  const key = needle.slice(0, slash).trim().toUpperCase();
-  const slug = needle
-    .slice(slash + 1)
-    .trim()
-    .toLowerCase();
-  const current = envs.find((e) => e.key === key && e.slug === slug);
-  if (current) return current;
-  // An old slug (renamed since), e.g. from an earlier turn of the chat; only
-  // ever one of the environments the viewer sees.
-  const projectId = envs.find((e) => e.key === key)?.projectId;
-  const resolved = projectId
-    ? await ctx.panel.cores.resolveEnvironmentSlug(projectId, slug)
-    : null;
-  return envs.find((e) => e.id === resolved?.environment.id) ?? null;
-}
 
 const envMeta = (env: EnvironmentListItem): ToolMeta => ({
   project: env.key,
@@ -566,10 +467,10 @@ const envMeta = (env: EnvironmentListItem): ToolMeta => ({
 // --- tools ------------------------------------------------------------------
 
 async function listEnvironmentsTool(
-  ctx: PanelContext,
+  ctx: DataContext,
   project: string | null | undefined
 ) {
-  let envs = await ctx.panel.environments();
+  let envs = await ctx.data.environments();
   let meta: ToolMeta = {};
   let oneProject = false;
   if (project) {
@@ -585,10 +486,10 @@ async function listEnvironmentsTool(
     (a, b) => a.key.localeCompare(b.key) || a.name.localeCompare(b.name)
   );
   const shown = sorted.slice(0, MAX_ENVIRONMENTS);
-  const owners = await ctx.panel.cores.ownerNames([
+  const owners = await ctx.data.cores.ownerNames([
     ...new Set(shown.flatMap((e) => (e.ownerId ? [e.ownerId] : []))),
   ]);
-  const projects = (await ctx.panel.projects())
+  const projects = (await ctx.data.projects())
     .filter((p) => shown.some((e) => e.projectId === p.id))
     .map((p) => ({ key: p.key, name: p.name }));
   // One project's environments are few: each gets its last deploy and lock
@@ -618,28 +519,9 @@ async function listEnvironmentsTool(
   );
 }
 
-async function mapLimit<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i] as T);
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, worker)
-  );
-  return results;
-}
-
 /** An environment's newest deploy (any component) and its deploy lock. */
 async function environmentDeployState(
-  ctx: PanelContext,
+  ctx: DataContext,
   env: EnvironmentListItem
 ): Promise<{
   lastDeploy?: Record<string, unknown>;
@@ -648,8 +530,8 @@ async function environmentDeployState(
   const { scope } = ctx.viewer;
   try {
     const [targets, lock] = await Promise.all([
-      ctx.panel.cores.listDeployTargets(scope, env.id),
-      ctx.panel.cores.getDeployLockState(scope, env.id),
+      ctx.data.cores.listDeployTargets(scope, env.id),
+      ctx.data.cores.getDeployLockState(scope, env.id),
     ]);
     const last = targets
       .flatMap((t) => t.recentDeployments)
@@ -678,17 +560,17 @@ async function environmentDeployState(
   }
 }
 
-async function environmentStatusTool(ctx: PanelContext, given: string) {
+async function environmentStatusTool(ctx: DataContext, given: string) {
   const env = await environmentByRef(ctx, given);
   if (!env) return fail(unknownEnvironment(given.trim()));
   const meta = envMeta(env);
   const { scope } = ctx.viewer;
   try {
     const [services, running, lock, kpis] = await Promise.all([
-      ctx.panel.probe(env),
-      ctx.panel.cores.getEnvironmentRunning(scope, env.id),
-      ctx.panel.cores.getDeployLockState(scope, env.id),
-      ctx.panel.cores.getEnvironmentKpis(scope, env.id),
+      ctx.data.probe(env),
+      ctx.data.cores.getEnvironmentRunning(scope, env.id),
+      ctx.data.cores.getDeployLockState(scope, env.id),
+      ctx.data.cores.getEnvironmentKpis(scope, env.id),
     ]);
     const lastRun = (entry: KpiEntry) =>
       entry ? { at: iso(entry.runAt), status: entry.status } : undefined;
@@ -734,17 +616,17 @@ async function environmentStatusTool(ctx: PanelContext, given: string) {
 }
 
 async function listDeploysTool(
-  ctx: PanelContext,
+  ctx: DataContext,
   given: string,
   rawLimit: number | null | undefined
 ) {
   const env = await environmentByRef(ctx, given);
   if (!env) return fail(unknownEnvironment(given.trim()));
   const meta = envMeta(env);
-  const count = clamp(rawLimit, DEFAULT_LIST_LIMIT, PANEL_LIST_LIMIT);
-  let targets: Awaited<ReturnType<PanelCores["listDeployTargets"]>>;
+  const count = clamp(rawLimit, DEFAULT_LIST_LIMIT, DATA_LIST_LIMIT);
+  let targets: Awaited<ReturnType<DataCores["listDeployTargets"]>>;
   try {
-    targets = await ctx.panel.cores.listDeployTargets(ctx.viewer.scope, env.id);
+    targets = await ctx.data.cores.listDeployTargets(ctx.viewer.scope, env.id);
   } catch (error) {
     if (isRefusal(error)) return fail(unknownEnvironment(given.trim()));
     throw error;
@@ -779,7 +661,7 @@ async function listDeploysTool(
 }
 
 type DeployEntry = Awaited<
-  ReturnType<PanelCores["listDeployTargets"]>
+  ReturnType<DataCores["listDeployTargets"]>
 >[number]["recentDeployments"][number];
 
 function deploySummary(component: string, d: DeployEntry) {
@@ -872,8 +754,8 @@ export function serviceLogTail(
 }
 
 async function getServiceLogsTool(
-  ctx: PanelContext,
-  input: z.infer<typeof PANEL_INPUTS.get_service_logs>
+  ctx: DataContext,
+  input: z.infer<typeof DATA_INPUTS.get_service_logs>
 ) {
   const env = await environmentByRef(ctx, input.environment);
   if (!env) return fail(unknownEnvironment(input.environment.trim()));
@@ -904,9 +786,9 @@ async function getServiceLogsTool(
     DEFAULT_SERVICE_LOG_LINES,
     SERVICE_LOG_LINES
   );
-  let result: Awaited<ReturnType<PanelCores["getServiceLogs"]>>;
+  let result: Awaited<ReturnType<DataCores["getServiceLogs"]>>;
   try {
-    result = await ctx.panel.cores.getServiceLogs(
+    result = await ctx.data.cores.getServiceLogs(
       ctx.viewer.scope,
       env.id,
       role,
@@ -947,22 +829,22 @@ async function getServiceLogsTool(
   );
 }
 
-async function getDeployTool(ctx: PanelContext, rawId: string) {
+async function getDeployTool(ctx: DataContext, rawId: string) {
   const id = rawId.trim();
   const { scope } = ctx.viewer;
-  let deploy: Awaited<ReturnType<PanelCores["getDeployment"]>>;
+  let deploy: Awaited<ReturnType<DataCores["getDeployment"]>>;
   try {
-    deploy = await ctx.panel.cores.getDeployment(scope, id);
+    deploy = await ctx.data.cores.getDeployment(scope, id);
   } catch (error) {
     if (isRefusal(error)) return fail(`Unknown deploy ${id}.`);
     throw error;
   }
-  const env = (await ctx.panel.environments()).find(
+  const env = (await ctx.data.environments()).find(
     (e) => e.id === deploy.environmentId
   );
   const meta: ToolMeta = env ? envMeta(env) : {};
   const run = deploy.runId
-    ? await ctx.panel.cores.getRunSnapshot(scope, deploy.runId)
+    ? await ctx.data.cores.getRunSnapshot(scope, deploy.runId)
     : null;
   const tail = run ? deployLogTail(run.output) : null;
   const error = safeText(run?.errorMessage, 2048);
@@ -981,7 +863,7 @@ async function getDeployTool(ctx: PanelContext, rawId: string) {
 }
 
 async function listBuildsTool(
-  ctx: PanelContext,
+  ctx: DataContext,
   given: string,
   rawLimit: number | null | undefined
 ) {
@@ -990,12 +872,12 @@ async function listBuildsTool(
     return fail(unknownProjectError(found, ctx.mode), { project: found });
   }
   const meta: ToolMeta = { project: found.key };
-  let builds: Awaited<ReturnType<PanelCores["listProjectBuilds"]>>;
+  let builds: Awaited<ReturnType<DataCores["listProjectBuilds"]>>;
   try {
-    builds = await ctx.panel.cores.listProjectBuilds(
+    builds = await ctx.data.cores.listProjectBuilds(
       ctx.viewer.scope,
       found.id,
-      clamp(rawLimit, DEFAULT_LIST_LIMIT, PANEL_LIST_LIMIT)
+      clamp(rawLimit, DEFAULT_LIST_LIMIT, DATA_LIST_LIMIT)
     );
   } catch (error) {
     if (isRefusal(error)) {
@@ -1004,7 +886,7 @@ async function listBuildsTool(
     throw error;
   }
   let withheld = 0;
-  const data = builds.slice(0, PANEL_LIST_LIMIT).map((b) => {
+  const data = builds.slice(0, DATA_LIST_LIMIT).map((b) => {
     const message = safeText(b.commitMessage, 160);
     withheld += message.redacted;
     return compact({
@@ -1021,7 +903,7 @@ async function listBuildsTool(
 }
 
 async function searchIssuesTool(
-  ctx: PanelContext,
+  ctx: DataContext,
   query: string,
   project: string | null | undefined
 ) {
@@ -1036,16 +918,16 @@ async function searchIssuesTool(
     projectId = found.id;
     meta = { project: found.key };
   }
-  const page = await ctx.panel.cores.listIssues(ctx.viewer.scope, {
+  const page = await ctx.data.cores.listIssues(ctx.viewer.scope, {
     q: query.trim(),
     status: "all",
     ...(projectId ? { projectId } : {}),
     sort: "updatedAt",
     desc: true,
-    limit: PANEL_LIST_LIMIT,
+    limit: DATA_LIST_LIMIT,
   });
   let withheld = 0;
-  const issues = page.rows.slice(0, PANEL_LIST_LIMIT).map((i) => {
+  const issues = page.rows.slice(0, DATA_LIST_LIMIT).map((i) => {
     const title = safeText(i.title);
     withheld += title.redacted;
     return compact({
@@ -1070,12 +952,12 @@ async function searchIssuesTool(
 
 const PANEL_ISSUE_KEY = /^([A-Z][A-Z0-9_]*)-([1-9][0-9]{0,8})$/;
 
-async function getPanelIssueTool(ctx: PanelContext, rawKey: string) {
+async function getPanelIssueTool(ctx: DataContext, rawKey: string) {
   const key = rawKey.trim().toUpperCase();
   const match = PANEL_ISSUE_KEY.exec(key);
-  const notFound = fail(`Panel issue ${rawKey.trim()} not found.`);
+  const notFound = fail(`Menara issue ${rawKey.trim()} not found.`);
   if (!match?.[1] || !match[2]) return notFound;
-  const issue = await ctx.panel.cores.getIssueDetail(
+  const issue = await ctx.data.cores.getIssueDetail(
     ctx.viewer.scope,
     match[1],
     Number(match[2])
@@ -1134,7 +1016,7 @@ async function getPanelIssueTool(ctx: PanelContext, rawKey: string) {
 }
 
 async function listPeopleTool(
-  ctx: PanelContext,
+  ctx: DataContext,
   project: string | null | undefined
 ) {
   let projectId: string | undefined;
@@ -1147,9 +1029,9 @@ async function listPeopleTool(
     projectId = found.id;
     meta = { project: found.key };
   }
-  let people: Awaited<ReturnType<PanelCores["listPeople"]>>;
+  let people: Awaited<ReturnType<DataCores["listPeople"]>>;
   try {
-    people = await ctx.panel.cores.listPeople(ctx.viewer.scope, projectId);
+    people = await ctx.data.cores.listPeople(ctx.viewer.scope, projectId);
   } catch (error) {
     if (isRefusal(error) && meta.project) {
       return fail(unknownProjectError(meta.project, ctx.mode), meta);
@@ -1157,7 +1039,7 @@ async function listPeopleTool(
     throw error;
   }
   const keyOf = new Map(
-    (await ctx.panel.projects()).map((p) => [p.id, p.key] as const)
+    (await ctx.data.projects()).map((p) => [p.id, p.key] as const)
   );
   const shown = people.slice(0, MAX_PEOPLE);
   return ok(
@@ -1182,8 +1064,8 @@ async function listPeopleTool(
   );
 }
 
-async function listServersTool(ctx: PanelContext) {
-  const servers = await ctx.panel.cores.getServers(ctx.viewer.scope);
+async function listServersTool(ctx: DataContext) {
+  const servers = await ctx.data.cores.getServers(ctx.viewer.scope);
   const shown = servers.slice(0, MAX_SERVERS);
   return ok(
     compact({
@@ -1201,8 +1083,8 @@ async function listServersTool(ctx: PanelContext) {
   );
 }
 
-async function getServerTool(ctx: PanelContext, given: string) {
-  const server = await ctx.panel.cores.getServer(ctx.viewer.scope, given);
+async function getServerTool(ctx: DataContext, given: string) {
+  const server = await ctx.data.cores.getServer(ctx.viewer.scope, given);
   if (!server)
     return fail(`Unknown server ${given.trim()}. Call list_servers.`);
   const gib = (bytes: number) => Math.round((bytes / 1024 ** 3) * 10) / 10;
@@ -1227,10 +1109,10 @@ async function getServerTool(ctx: PanelContext, given: string) {
 }
 
 async function recentActivityTool(
-  ctx: PanelContext,
+  ctx: DataContext,
   rawLimit: number | null | undefined
 ) {
-  const rows = await ctx.panel.cores.listActivity(
+  const rows = await ctx.data.cores.listActivity(
     ctx.viewer.scope,
     clamp(rawLimit, DEFAULT_ACTIVITY_LIMIT, ACTIVITY_LIMIT)
   );
@@ -1257,58 +1139,58 @@ async function recentActivityTool(
   return ok({ entries }, withWithheld({}, withheld));
 }
 
-/** Runs a validated Panel tool call for one viewer. */
-export async function runPanelTool(
-  name: PanelToolName,
+/** Runs a validated data tool call for one viewer. */
+export async function runDataTool(
+  name: DataToolName,
   data: unknown,
-  ctx: PanelContext
+  ctx: DataContext
 ): Promise<ToolResult<unknown>> {
   switch (name) {
     case "list_environments": {
-      const i = data as z.infer<typeof PANEL_INPUTS.list_environments>;
+      const i = data as z.infer<typeof DATA_INPUTS.list_environments>;
       return listEnvironmentsTool(ctx, i.project);
     }
     case "get_environment_status": {
-      const i = data as z.infer<typeof PANEL_INPUTS.get_environment_status>;
+      const i = data as z.infer<typeof DATA_INPUTS.get_environment_status>;
       return environmentStatusTool(ctx, i.environment);
     }
     case "list_deploys": {
-      const i = data as z.infer<typeof PANEL_INPUTS.list_deploys>;
+      const i = data as z.infer<typeof DATA_INPUTS.list_deploys>;
       return listDeploysTool(ctx, i.environment, i.limit);
     }
     case "get_service_logs":
       return getServiceLogsTool(
         ctx,
-        data as z.infer<typeof PANEL_INPUTS.get_service_logs>
+        data as z.infer<typeof DATA_INPUTS.get_service_logs>
       );
     case "get_deploy": {
-      const i = data as z.infer<typeof PANEL_INPUTS.get_deploy>;
+      const i = data as z.infer<typeof DATA_INPUTS.get_deploy>;
       return getDeployTool(ctx, i.id);
     }
     case "list_builds": {
-      const i = data as z.infer<typeof PANEL_INPUTS.list_builds>;
+      const i = data as z.infer<typeof DATA_INPUTS.list_builds>;
       return listBuildsTool(ctx, i.project, i.limit);
     }
     case "search_panel_issues": {
-      const i = data as z.infer<typeof PANEL_INPUTS.search_panel_issues>;
+      const i = data as z.infer<typeof DATA_INPUTS.search_panel_issues>;
       return searchIssuesTool(ctx, i.query, i.project);
     }
     case "get_panel_issue": {
-      const i = data as z.infer<typeof PANEL_INPUTS.get_panel_issue>;
+      const i = data as z.infer<typeof DATA_INPUTS.get_panel_issue>;
       return getPanelIssueTool(ctx, i.key);
     }
     case "list_people": {
-      const i = data as z.infer<typeof PANEL_INPUTS.list_people>;
+      const i = data as z.infer<typeof DATA_INPUTS.list_people>;
       return listPeopleTool(ctx, i.project);
     }
     case "list_servers":
       return listServersTool(ctx);
     case "get_server": {
-      const i = data as z.infer<typeof PANEL_INPUTS.get_server>;
+      const i = data as z.infer<typeof DATA_INPUTS.get_server>;
       return getServerTool(ctx, i.server);
     }
     case "recent_activity": {
-      const i = data as z.infer<typeof PANEL_INPUTS.recent_activity>;
+      const i = data as z.infer<typeof DATA_INPUTS.recent_activity>;
       return recentActivityTool(ctx, i.limit);
     }
   }

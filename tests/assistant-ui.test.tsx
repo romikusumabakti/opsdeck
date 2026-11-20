@@ -8,6 +8,8 @@ import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyBranding } from "@/i18n/branding";
 import { locales } from "@/i18n/locales";
+import { TOOL_NAMES } from "@/lib/assistant/tool-defs";
+import { DATA_TOOL_NAMES } from "@/lib/assistant/tools/data";
 import { ME_QUERY_KEY } from "@/web/query-client";
 import enMessages from "../messages/en.json";
 
@@ -876,10 +878,12 @@ describe("sources", () => {
     await render(<MessageSources sources={null} toolCalls={calls} />);
     await act(async () => button(t.sources)?.click());
     expect(text()).toContain(t.panelRead);
-    expect(text()).toContain(`${t.panelGetEnvironmentStatus} · DEMO/dev`);
-    expect(text()).toContain(`${t.panelListEnvironments} · DEMO`);
-    expect(text()).toContain(t.panelListServers);
-    expect(text()).toContain(`${t.panelGetServiceLogs} · DEMO/dev`);
+    expect(text()).toContain(
+      `${t.toolLabels.get_environment_status} · DEMO/dev`
+    );
+    expect(text()).toContain(`${t.toolLabels.list_environments} · DEMO`);
+    expect(text()).toContain(t.toolLabels.list_servers);
+    expect(text()).toContain(`${t.toolLabels.get_service_logs} · DEMO/dev`);
     expect(text()).toContain("DEMO-1");
   });
 });
@@ -4085,13 +4089,39 @@ describe("assistant messages", () => {
       expect(Object.keys(m.assistantErrors).sort()).toEqual(
         Object.keys(en.assistantErrors).sort()
       );
+      // toolLabels is a nested object, checked by its own test.
       for (const value of Object.values(m.assistant)) {
+        if (typeof value !== "string") continue;
         expect(value.trim().length).toBeGreaterThan(0);
       }
       expect(m.breadcrumbs.assistant?.length).toBeGreaterThan(0);
       expect(m.nav.assistant?.length).toBeGreaterThan(0);
     });
   }
+
+  it("has a tool label for every offered tool in every locale", () => {
+    const names = new Set([
+      ...TOOL_NAMES,
+      "list_projects",
+      "read_upload",
+      ...DATA_TOOL_NAMES,
+      "list_tables",
+      "query_database",
+      "list_issues",
+      "get_overview",
+    ]);
+    for (const locale of locales) {
+      const { toolLabels } = load(locale).assistant as unknown as {
+        toolLabels: Record<string, string>;
+      };
+      for (const name of names) {
+        expect(
+          toolLabels[name]?.trim().length,
+          `${locale} ${name}`
+        ).toBeGreaterThan(0);
+      }
+    }
+  });
 
   it("every key the components use exists", () => {
     const dir = "web/components/assistant";

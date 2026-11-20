@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { REDACTED_LINE } from "@/lib/assistant/secret-filter";
 import { executeTool, type ToolContext } from "@/lib/assistant/tool-defs";
 import {
-  createPanelTurn,
+  createDataTurn,
+  type DataCores,
   DEPLOY_LOG_LINES,
-  type PanelCores,
   STATUS_PROBES_PER_TURN,
-} from "@/lib/assistant/tools/panel";
+} from "@/lib/assistant/tools/data";
 import type { AssistantViewer, ProjectEntry } from "@/lib/assistant/viewer";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 
@@ -70,7 +70,7 @@ function env(
   } as EnvironmentListItem;
 }
 
-type Fakes = { [K in keyof PanelCores]: ReturnType<typeof vi.fn> };
+type Fakes = { [K in keyof DataCores]: ReturnType<typeof vi.fn> };
 
 function fakeCores(envs: EnvironmentListItem[]): Fakes {
   return {
@@ -111,9 +111,9 @@ function contextFor(
   mode: "auto" | "pinned" = "auto",
   probeTimeoutMs?: number
 ): ToolContext {
-  const panel = createPanelTurn(viewer, {
+  const data = createDataTurn(viewer, {
     projects: async () => PROJECTS,
-    cores: cores as unknown as PanelCores,
+    cores: cores as unknown as DataCores,
     probeTimeoutMs,
   });
   const base = {
@@ -121,7 +121,7 @@ function contextFor(
     attachments: [],
     uploads: [],
     nativeFiles: true,
-    panel,
+    data,
   };
   return mode === "auto"
     ? {
@@ -990,7 +990,7 @@ describe("builds, issues and people", () => {
     for (const key of ["SECRET-1", "not a key"]) {
       expect(await executeTool("get_panel_issue", { key }, ctx)).toEqual({
         ok: false,
-        error: `Panel issue ${key} not found.`,
+        error: `Menara issue ${key} not found.`,
         meta: {},
       });
     }

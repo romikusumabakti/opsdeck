@@ -1510,7 +1510,7 @@ describe("runTurn", () => {
       deps(model, {
         executeTool: undefined,
         probeTimeoutMs: 20,
-        panelCores: {
+        dataCores: {
           listEnvironments: async () => envs,
           getServiceStatuses,
           getEnvironmentRunning: async () => ({ items: [] }),

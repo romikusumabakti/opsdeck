@@ -27,12 +27,15 @@ vi.mock("@/lib/assistant/tools/context", () => ({
 const { buildTools, executeTool, toolModelOutput, TOOL_NAMES } = await import(
   "@/lib/assistant/tool-defs"
 );
-const { createPanelTurn, PANEL_TOOL_NAMES } = await import(
-  "@/lib/assistant/tools/panel"
+const { createDataTurn, DATA_TOOL_NAMES } = await import(
+  "@/lib/assistant/tools/data"
+);
+const { unknownProjectError } = await import(
+  "@/lib/assistant/tools/data-shared"
 );
 const { asSchema } = await import("ai");
 const panelFor = (v: AssistantViewer) =>
-  createPanelTurn(v, { projects: async () => [], cores: {} });
+  createDataTurn(v, { projects: async () => [], cores: {} });
 
 const viewer: AssistantViewer = {
   userId: "u",
@@ -52,7 +55,7 @@ const ctx = {
   snaps: [],
   viewer,
   attachments: ticked,
-  panel: panelFor(viewer),
+  data: panelFor(viewer),
   uploads: [],
   nativeFiles: true,
 };
@@ -82,14 +85,14 @@ const autoCtx = {
   mode: "auto" as const,
   viewer,
   attachments: ticked,
-  panel: panelFor(viewer),
+  data: panelFor(viewer),
   uploads: [],
   nativeFiles: true,
   snapshotsFor,
   listProjects,
 };
-const adminCtx = { ...ctx, viewer: admin, panel: panelFor(admin) };
-const adminAutoCtx = { ...autoCtx, viewer: admin, panel: panelFor(admin) };
+const adminCtx = { ...ctx, viewer: admin, data: panelFor(admin) };
+const adminAutoCtx = { ...autoCtx, viewer: admin, data: panelFor(admin) };
 const STAGE2_TOOLS = [
   "list_files",
   "search_code",
@@ -157,6 +160,29 @@ const wireOf = async (tools: ReturnType<typeof buildTools>) =>
   );
 
 describe("buildTools", () => {
+  it("no tool description or error template names the Panel", () => {
+    for (const mode of [adminCtx, adminAutoCtx]) {
+      for (const [name, tool] of Object.entries(buildTools(mode, noRecord))) {
+        expect(tool.description, name).not.toMatch(/\bPanel\b/);
+      }
+    }
+    expect(unknownProjectError("X", "auto")).not.toMatch(/Panel/);
+    expect(unknownProjectError("X", "pinned")).not.toMatch(/Panel/);
+  });
+
+  it("describes the product as Menara", () => {
+    const tools = buildTools(adminCtx, noRecord);
+    for (const name of [
+      "list_environments",
+      "list_people",
+      "list_servers",
+      "recent_activity",
+      "search_knowledge",
+    ]) {
+      expect(tools[name]?.description, name).toContain("Menara");
+    }
+  });
+
   it("sends the Stage 2 tool set and schemas in a pinned context", async () => {
     // The Stage 2 tools come first and unchanged; the Panel tools follow.
     const wire = await wireOf(buildTools(ctx, noRecord));
@@ -169,26 +195,26 @@ describe("buildTools", () => {
   it("offers the Panel tools in both modes, gated ones by the page's org permission", () => {
     const panelNames = (c: Parameters<typeof buildTools>[0]) =>
       Object.keys(buildTools(c, noRecord)).filter((n) =>
-        (PANEL_TOOL_NAMES as string[]).includes(n)
+        (DATA_TOOL_NAMES as string[]).includes(n)
       );
     for (const mode of [ctx, autoCtx]) {
       // qa, ba and pm: no Servers page, no Activity page.
       for (const role of ["qa", "ba", "pm"] as const) {
         const v = viewerAs(role);
         expect(
-          panelNames({ ...mode, viewer: v, panel: panelFor(v) }),
+          panelNames({ ...mode, viewer: v, data: panelFor(v) }),
           role
         ).toEqual(ALWAYS_PANEL_TOOLS);
       }
       // engineer: the Servers page (engineer grant), no Activity page.
       const engineer = viewerAs("engineer");
       expect(
-        panelNames({ ...mode, viewer: engineer, panel: panelFor(engineer) })
+        panelNames({ ...mode, viewer: engineer, data: panelFor(engineer) })
       ).toEqual([...ALWAYS_PANEL_TOOLS, "list_servers", "get_server"]);
       for (const role of ["admin", "infra", "observer"] as const) {
         const v = viewerAs(role);
         expect(
-          panelNames({ ...mode, viewer: v, panel: panelFor(v) }),
+          panelNames({ ...mode, viewer: v, data: panelFor(v) }),
           role
         ).toEqual([
           ...ALWAYS_PANEL_TOOLS,

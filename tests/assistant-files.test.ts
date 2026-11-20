@@ -521,7 +521,7 @@ function toolContext(
     mode: "pinned" as const,
     snaps: [],
     viewer: {} as never,
-    panel: {} as never,
+    data: {} as never,
     attachments: [],
     uploads,
     nativeFiles,

@@ -52,7 +52,7 @@ import {
   type ToolExecutor,
 } from "./tool-defs";
 import type { SnapshotRef } from "./tools/code";
-import { createPanelTurn, type PanelCores } from "./tools/panel";
+import { createDataTurn, type DataCores } from "./tools/data";
 import {
   claimMessage,
   finishMessage,
@@ -121,7 +121,7 @@ export type RunTurnDeps = {
   spentToday?: (userId: string, now: Date) => Promise<number>;
   executeTool?: ToolExecutor;
   /** Replaces the Panel tools' service cores (tests). */
-  panelCores?: Partial<PanelCores>;
+  dataCores?: Partial<DataCores>;
   /** The Panel status probe's wall-clock bound (tests). */
   probeTimeoutMs?: number;
   /** The auto title, asked for after a done answer (lib/assistant/title.ts). */
@@ -870,18 +870,18 @@ async function runClaimedTurn(
   const attachments: AttachmentRef[] = parseAttachmentRefs(turn.attachmentIds);
   // The Panel tools read the viewer's projects: an automatic question has
   // them already; a pinned one loads them only if a Panel tool asks.
-  const panel = createPanelTurn(viewer, {
+  const data = createDataTurn(viewer, {
     projects:
       resolved.question.kind === "auto"
         ? async () => resolved.projects
         : async () => visibleProjects(viewer, await sourceDeps.loadProjects()),
-    cores: deps.panelCores,
+    cores: deps.dataCores,
     probeTimeoutMs: deps.probeTimeoutMs,
   });
   const shared = {
     viewer,
     attachments,
-    panel,
+    data,
     uploads: turn.uploads,
     nativeFiles: readsFilesNatively(runtime.provider),
   };

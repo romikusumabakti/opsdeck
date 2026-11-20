@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { luhnValid, redactPii } from "@/lib/assistant/pii-filter";
-import { serviceLogTail } from "@/lib/assistant/tools/panel";
+import { serviceLogTail } from "@/lib/assistant/tools/data";
 
 // Personal identifiers in service logs are replaced before the model sees
 // them (Stage 9 spec anti-goal); what a log needs to be read survives.

@@ -4,8 +4,8 @@ import { callName } from "@/lib/user-display";
 import { MENARA_VERSION, parseVersion } from "@/lib/version";
 import type { StoredQuestionContext } from "./context";
 import type { AssistantSource } from "./sources";
+import { STATUS_PROBES_PER_TURN } from "./tools/data";
 import { MAX_QUERY_ROWS } from "./tools/database";
-import { STATUS_PROBES_PER_TURN } from "./tools/panel";
 
 /**
  * A component as the turn found it: the resolved source with `commitSha` set

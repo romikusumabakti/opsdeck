@@ -4,12 +4,12 @@ import type { AccessScope } from "@/lib/access-scope";
 import { REDACTED_LINE } from "@/lib/assistant/secret-filter";
 import { executeTool, type ToolContext } from "@/lib/assistant/tool-defs";
 import {
-  createPanelTurn,
+  createDataTurn,
+  type DataCores,
   MAX_SERVICE_LOG_BYTES,
-  type PanelCores,
   parseLogSince,
   SERVICE_LOG_LINES,
-} from "@/lib/assistant/tools/panel";
+} from "@/lib/assistant/tools/data";
 import type { AssistantViewer, ProjectEntry } from "@/lib/assistant/viewer";
 import type { EnvironmentListItem } from "@/lib/db/schema";
 
@@ -187,13 +187,13 @@ function toolContext(getServiceLogs: ReturnType<typeof vi.fn>): ToolContext {
     listEnvironments: async () => [environment],
     resolveEnvironmentSlug: async () => null,
     getServiceLogs,
-  } as unknown as PanelCores;
+  } as unknown as DataCores;
   return {
     viewer,
     attachments: [],
     uploads: [],
     nativeFiles: true,
-    panel: createPanelTurn(viewer, { projects: async () => PROJECTS, cores }),
+    data: createDataTurn(viewer, { projects: async () => PROJECTS, cores }),
     mode: "auto",
     snapshotsFor: async () => ({ error: "unknown_project" }) as const,
     listProjects: async () => [],

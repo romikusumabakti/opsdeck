@@ -46,7 +46,7 @@ vi.mock("@/lib/environments", async (importOriginal) => ({
 }));
 
 const { buildTools, executeTool } = await import("@/lib/assistant/tool-defs");
-const { createPanelTurn } = await import("@/lib/assistant/tools/panel");
+const { createDataTurn } = await import("@/lib/assistant/tools/data");
 const { AssistantDbQueryError } = await import("@/lib/assistant-db/query");
 const { MASK } = await import("@/lib/assistant-db/mask");
 const { MAX_QUERY_ROWS, MAX_CELL_CHARS } = await import(
@@ -95,7 +95,7 @@ function ctxFor(viewer: AssistantViewer, envs: EnvironmentListItem[] = [ENV]) {
     attachments: [],
     uploads: [],
     nativeFiles: true,
-    panel: createPanelTurn(viewer, {
+    data: createDataTurn(viewer, {
       projects: async () => [],
       cores: {
         listEnvironments: vi.fn(async () => envs),

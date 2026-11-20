@@ -46,8 +46,10 @@ describe("assistant database query messages", () => {
       }
       // Every outcome and refusal reason reads differently.
       expect(seen.size).toBe(CASES.length);
-      for (const key of ["panelListTables", "panelQueryDatabase"]) {
-        const label = m.assistant?.[key];
+      for (const key of ["list_tables", "query_database"]) {
+        const label = (m.assistant?.toolLabels as Record<string, string>)?.[
+          key
+        ];
         expect(typeof label, key).toBe("string");
         expect(String(label).trim(), key).not.toBe("");
       }
@@ -69,7 +71,7 @@ describe("assistant database query messages", () => {
       "web/components/assistant/message-sources.tsx",
       "utf8"
     );
-    expect(view).toContain('list_tables: "panelListTables"');
-    expect(view).toContain('query_database: "panelQueryDatabase"');
+    expect(view).toContain('"list_tables"');
+    expect(view).toContain('"query_database"');
   });
 });
