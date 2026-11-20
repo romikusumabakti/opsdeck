@@ -134,23 +134,27 @@ test("a tool turn streams its preamble, shows the tool step, then the answer col
   await page.getByPlaceholder(ASK).fill("please use a tool");
   await page.getByRole("button", { name: "Send" }).click();
 
-  // The preamble and the tool's chip (toolLabels.list_issues) show first.
-  await expect(page.getByText("Checking the issues.")).toBeVisible({
-    timeout: 30_000,
-  });
-  await expect(page.locator("[data-tool-chip]")).toContainText("Issues");
+  // The stub holds the final text back, so the interim step is observable:
+  // its muted text and the tool's chip (toolLabels.list_issues).
+  await expect(
+    page.locator("[data-step-text]").getByText("Checking the issues.")
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("[data-tool-chip]")).toHaveText("Issues");
   await expect(page.getByText("No issues match.")).toBeVisible({
     timeout: 30_000,
   });
   await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible();
 
   // Finished: the steps fold away, and the toggle brings them back.
-  const toggle = page.locator("[data-answer-steps] button").first();
+  const toggle = page.getByRole("button", { name: /^1 step/ });
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByText("Checking the issues.")).toBeHidden();
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByText("Checking the issues.")).toBeVisible();
+  await expect(
+    page.locator("[data-step-text]").getByText("Checking the issues.")
+  ).toBeVisible();
+  await expect(page.locator("[data-tool-chip]")).toHaveText("Issues");
 });
 
 // A mention in the middle of the text pins its project as the question's

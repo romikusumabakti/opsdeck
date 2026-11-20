@@ -40,6 +40,9 @@ type Part = { type?: string; text?: string };
 type ChatMessage = { role?: string; content?: string | Part[] | null };
 
 const TOOL_PREAMBLE = ["Checking", " the", " issues."];
+// Held before the final text of a tool turn, so a spec can reliably observe
+// the interim step (it folds away once the answer finishes).
+const TOOL_FINAL_DELAY_MS = 1500;
 const TOOL_FINAL = ["No", " issues", " match."];
 // list_issues' strict schema: every field is present and nullable.
 const LIST_ISSUES_ARGS = JSON.stringify({
@@ -142,51 +145,62 @@ export async function startAssistantStub(): Promise<AssistantStub> {
       });
       res.write(chunk({ role: "assistant", content: "" }));
       let index = 0;
-      const timer = setInterval(
-        () => {
-          const word = words[index++];
-          if (word !== undefined) {
-            res.write(chunk({ content: word }));
-            return;
-          }
-          clearInterval(timer);
-          if (callsTool) {
-            res.write(
-              chunk({
-                tool_calls: [
-                  {
-                    index: 0,
-                    id: "call_stub_1",
-                    type: "function",
-                    function: {
-                      name: "list_issues",
-                      arguments: LIST_ISSUES_ARGS,
+      let timer: ReturnType<typeof setInterval> | undefined;
+      const start = () => {
+        timer = setInterval(
+          () => {
+            const word = words[index++];
+            if (word !== undefined) {
+              res.write(chunk({ content: word }));
+              return;
+            }
+            clearInterval(timer);
+            if (callsTool) {
+              res.write(
+                chunk({
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: "call_stub_1",
+                      type: "function",
+                      function: {
+                        name: "list_issues",
+                        arguments: LIST_ISSUES_ARGS,
+                      },
                     },
-                  },
-                ],
-              })
+                  ],
+                })
+              );
+            }
+            res.write(chunk({}, callsTool ? "tool_calls" : "stop"));
+            res.write(
+              `data: ${JSON.stringify({
+                id: "chatcmpl-stub",
+                object: "chat.completion.chunk",
+                created: 0,
+                model: body.model ?? "stub-model",
+                choices: [],
+                usage: {
+                  prompt_tokens: 100,
+                  completion_tokens: 20,
+                  total_tokens: 120,
+                },
+              })}\n\n`
             );
-          }
-          res.write(chunk({}, callsTool ? "tool_calls" : "stop"));
-          res.write(
-            `data: ${JSON.stringify({
-              id: "chatcmpl-stub",
-              object: "chat.completion.chunk",
-              created: 0,
-              model: body.model ?? "stub-model",
-              choices: [],
-              usage: {
-                prompt_tokens: 100,
-                completion_tokens: 20,
-                total_tokens: 120,
-              },
-            })}\n\n`
-          );
-          res.end("data: [DONE]\n\n");
-        },
-        slow ? STEP_MS : 20
-      );
-      res.on("close", () => clearInterval(timer));
+            res.end("data: [DONE]\n\n");
+          },
+          slow ? STEP_MS : 20
+        );
+      };
+      const hold =
+        hasToolResult && question.includes("use a tool")
+          ? setTimeout(start, TOOL_FINAL_DELAY_MS)
+          : undefined;
+      if (!hold) start();
+      res.on("close", () => {
+        clearTimeout(hold);
+        clearInterval(timer);
+      });
     });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
