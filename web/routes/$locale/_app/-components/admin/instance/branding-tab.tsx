@@ -108,14 +108,26 @@ export function BrandingTab() {
   const saving = form.formState.isSubmitting;
   useUnsavedChanges(form.formState.isDirty && !saving);
 
+  /**
+   * After a write that succeeded: shows it everywhere. A refresh that fails
+   * says so on its own; the write itself stands.
+   */
   async function refreshAfterWrite(saved: BrandingData) {
     queryClient.setQueryData(getBrandingQuery().queryKey, saved);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: bootstrapQuery().queryKey }),
-      queryClient.invalidateQueries(getBrandingQuery()),
-    ]);
-    // The $locale loader brands the messages with the instance name.
-    await router.invalidate();
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: bootstrapQuery().queryKey }),
+        queryClient.invalidateQueries(getBrandingQuery()),
+      ]);
+      // The $locale loader brands the messages with the instance name.
+      await router.invalidate();
+    } catch (error) {
+      // A 401 is already sending the user to sign in.
+      if (!(error instanceof ApiError && error.status === 401)) {
+        toast.error(t("refreshFailed"));
+      }
+      return;
+    }
     // Without an accent of their own the admin wears the instance's.
     if (me && !me.user.accentColor) {
       const bootstrap = queryClient.getQueryData(bootstrapQuery().queryKey);
@@ -290,6 +302,7 @@ function LogoField({
   hint?: string | null;
   /** Set while this slot can't take a logo, with the reason. */
   disabledHint?: string | null;
+  /** The refresh after a write; it reports its own failure, never rejects. */
   onWritten: (saved: BrandingData) => Promise<void>;
 }) {
   const t = useTranslations("instance.branding");
@@ -308,15 +321,21 @@ function LogoField({
   ) {
     setBusy(kind);
     setError(null);
+    let saved: BrandingData;
     try {
-      const saved = await request();
-      toast.success(t(kind === "upload" ? "logoUploaded" : "logoRemoved"));
-      await onWritten(saved);
+      saved = await request();
     } catch (caught) {
+      setBusy(null);
       // A 401 is already sending the user to sign in.
       if (caught instanceof ApiError && caught.status === 401) return;
       if (kind === "upload") setError(logoErrorCode(caught));
       else reportError(caught);
+      return;
+    }
+    toast.success(t(kind === "upload" ? "logoUploaded" : "logoRemoved"));
+    // Reports its own failure: never the upload's error.
+    try {
+      await onWritten(saved);
     } finally {
       setBusy(null);
     }

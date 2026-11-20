@@ -3644,6 +3644,7 @@
       "saved": "品牌已保存",
       "logoUploaded": "标志已上传",
       "logoRemoved": "标志已移除",
+      "refreshFailed": "已保存，但此页面未能刷新。请重新加载以查看更改。",
       "error": {
         "too_large": "文件过大：SVG 不超过 100 KB，PNG 或 WebP 不超过 512 KB。",
         "unsupported_type": "请使用 SVG、PNG 或 WebP 图片。",

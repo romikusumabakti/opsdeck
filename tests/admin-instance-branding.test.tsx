@@ -14,7 +14,8 @@ const api = vi.hoisted(() => ({
 }));
 const router = vi.hoisted(() => ({ invalidate: vi.fn(async () => {}) }));
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 vi.mock("@/hooks/use-unsaved-changes", () => ({ useUnsavedChanges: () => {} }));
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -248,6 +249,34 @@ describe("Admin → Instance → Branding", () => {
     );
     // An upload never submits the text fields.
     expect(api.save).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed refresh after an upload apart from the upload", async () => {
+    api.upload.mockResolvedValueOnce(settings({ logo: LIGHT }));
+    router.invalidate.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await render(settings());
+    await pick("light", new File(["<svg/>"], "logo.svg"));
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(t.refreshFailed)
+    );
+    // The upload itself went through: its toast, and no upload error.
+    expect(toast.success).toHaveBeenCalledWith(t.logoUploaded);
+    expect(logoField("light")?.textContent).not.toContain(t.error.failed);
+    expect(byId("brand-logo-light")?.disabled).toBe(false);
+  });
+
+  it("reports a failed refresh after a save", async () => {
+    api.save.mockResolvedValue(settings({ name: "Acme Ops" }));
+    router.invalidate.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await render(settings());
+    await type(byId("brand-name"), "Acme Ops");
+    await act(async () => {
+      byId("brand-name")?.form?.requestSubmit();
+    });
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(t.refreshFailed)
+    );
+    expect(toast.success).toHaveBeenCalledWith(t.saved);
   });
 
   it("removes the dark logo", async () => {

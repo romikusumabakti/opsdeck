@@ -3644,6 +3644,7 @@
       "saved": "Marca guardada",
       "logoUploaded": "Logotipo subido",
       "logoRemoved": "Logotipo quitado",
+      "refreshFailed": "Guardado, pero esta página no se pudo actualizar. Recárgala para ver el cambio.",
       "error": {
         "too_large": "El archivo es demasiado grande: SVG hasta 100 KB, PNG o WebP hasta 512 KB.",
         "unsupported_type": "Usa una imagen SVG, PNG o WebP.",

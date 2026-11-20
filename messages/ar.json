@@ -3644,6 +3644,7 @@
       "saved": "تم حفظ الهوية",
       "logoUploaded": "تم رفع الشعار",
       "logoRemoved": "تمت إزالة الشعار",
+      "refreshFailed": "تم الحفظ، لكن تعذّر تحديث هذه الصفحة. أعد تحميلها لرؤية التغيير.",
       "error": {
         "too_large": "الملف كبير جدًا: SVG حتى 100 KB، وPNG أو WebP حتى 512 KB.",
         "unsupported_type": "استخدم صورة SVG أو PNG أو WebP.",

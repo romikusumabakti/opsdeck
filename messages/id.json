@@ -3644,6 +3644,7 @@
       "saved": "Branding disimpan",
       "logoUploaded": "Logo diunggah",
       "logoRemoved": "Logo dihapus",
+      "refreshFailed": "Tersimpan, tetapi halaman ini gagal dimuat ulang. Muat ulang untuk melihat perubahannya.",
       "error": {
         "too_large": "Berkas terlalu besar: SVG maks. 100 KB, PNG atau WebP maks. 512 KB.",
         "unsupported_type": "Gunakan gambar SVG, PNG, atau WebP.",

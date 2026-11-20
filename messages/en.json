@@ -3644,6 +3644,7 @@
       "saved": "Branding saved",
       "logoUploaded": "Logo uploaded",
       "logoRemoved": "Logo removed",
+      "refreshFailed": "Saved, but this page could not refresh. Reload it to see the change.",
       "error": {
         "too_large": "The file is too large: SVG up to 100 KB, PNG or WebP up to 512 KB.",
         "unsupported_type": "Use an SVG, PNG or WebP image.",
