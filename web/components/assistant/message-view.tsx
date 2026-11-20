@@ -433,6 +433,7 @@ export function MessageView({
         <AnswerSteps
           steps={layout.steps}
           collapsed={layout.collapsed}
+          pending={pending}
           renderText={renderStepText}
         />
       )}

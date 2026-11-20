@@ -9,7 +9,12 @@ import {
 import { type AnswerStep, type ToolPart, toolSubject } from "./answer-layout";
 import { toolLabelKey } from "./message-sources";
 
-function ToolChip({ tool }: { tool: ToolPart }) {
+/**
+ * One tool call. Its spinner turns only while the answer runs (`pending`):
+ * an answer that ended with the call unfinished (stopped, interrupted)
+ * shows it as failed.
+ */
+function ToolChip({ tool, pending }: { tool: ToolPart; pending: boolean }) {
   const t = useTranslations("assistant");
   const input =
     typeof tool.input === "object" && tool.input !== null
@@ -17,15 +22,17 @@ function ToolChip({ tool }: { tool: ToolPart }) {
       : {};
   const subject = toolSubject(input);
   const label = t(toolLabelKey(tool.toolName));
-  const running =
+  const unfinished =
     tool.state === "input-streaming" || tool.state === "input-available";
+  const running = unfinished && pending;
+  const failed = tool.state === "output-error" || (unfinished && !pending);
   return (
     <li
       data-tool-chip={tool.state}
       className="flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs text-muted-foreground"
     >
       {running && <Loader2 className="size-3 animate-spin" aria-hidden />}
-      {tool.state === "output-error" && (
+      {failed && (
         <TriangleAlert className="size-3 text-destructive" aria-hidden />
       )}
       <span className="truncate">
@@ -39,15 +46,18 @@ function ToolChip({ tool }: { tool: ToolPart }) {
  * The steps an answer took before it: each step's text, muted, then a chip
  * per tool it called. A collapsible group, open while the answer streams
  * and folded once `collapsed` (a finished answer); the reader can open it
- * again. `renderText` renders a step's text (markdown).
+ * again. `renderText` renders a step's text (markdown). `pending`: the
+ * answer still runs (its unfinished tool calls spin).
  */
 export function AnswerSteps({
   steps,
   collapsed,
+  pending,
   renderText,
 }: {
   steps: AnswerStep[];
   collapsed: boolean;
+  pending: boolean;
   renderText: (text: string) => React.ReactNode;
 }) {
   const t = useTranslations("assistant");
@@ -89,7 +99,11 @@ export function AnswerSteps({
             {step.tools.length > 0 && (
               <ul className="flex flex-wrap gap-1.5">
                 {step.tools.map((tool) => (
-                  <ToolChip key={tool.toolCallId} tool={tool} />
+                  <ToolChip
+                    key={tool.toolCallId}
+                    tool={tool}
+                    pending={pending}
+                  />
                 ))}
               </ul>
             )}

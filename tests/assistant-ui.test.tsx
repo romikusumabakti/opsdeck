@@ -1330,6 +1330,63 @@ describe("answer stream", () => {
     }
   });
 
+  it("an interrupted answer's unfinished tool shows as stopped, not spinning", async () => {
+    const parts = [
+      step,
+      { type: "text", text: "Checking issues.", state: "streaming" },
+      {
+        type: "dynamic-tool",
+        toolName: "list_issues",
+        toolCallId: "c1",
+        state: "input-available",
+        input: { query: "today" },
+      },
+    ];
+    queryClient.setQueryData(key, {
+      ...conversation("failed"),
+      messages: conversation("failed").messages.map((m) =>
+        m.id === "m2"
+          ? {
+              ...m,
+              errorCode: "assistant.interrupted",
+              content: "Checking issues.",
+              parts,
+            }
+          : m
+      ),
+    });
+    await render(<ChatThread conversationId="c1" />);
+    const chip = container.querySelector("[data-tool-chip]");
+    expect(chip?.textContent).toBe(`${t.toolLabels.list_issues} · today`);
+    expect(container.querySelector(".animate-spin")).toBeNull();
+    expect(chip?.querySelector("svg.text-destructive")).not.toBeNull();
+    expect(container.querySelector("[data-step-text]")?.textContent).toContain(
+      "Checking issues."
+    );
+  });
+
+  it("a running answer's unfinished tool spins", async () => {
+    queryClient.setQueryData(
+      key,
+      withAnswer("streaming", {
+        content: "",
+        parts: [
+          step,
+          {
+            type: "dynamic-tool",
+            toolName: "list_issues",
+            toolCallId: "c1",
+            state: "input-available",
+            input: { query: "today" },
+          },
+        ],
+      })
+    );
+    await render(<ChatThread conversationId="c1" />);
+    const chip = container.querySelector("[data-tool-chip]");
+    expect(chip?.querySelector(".animate-spin")).not.toBeNull();
+  });
+
   it("stops following on unmount", async () => {
     queryClient.setQueryData(key, conversation("streaming"));
     const live = nextStream();
