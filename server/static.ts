@@ -62,9 +62,14 @@ function escapeHtml(value: string): string {
  */
 export function brandShell(html: string, b: InstanceBranding): string {
   const icon = brandIcon(b);
+  // Function replacers only: a replacement string would expand `$&`, `$'`
+  // and the like in the admin-set name.
   return html
-    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(b.name)}</title>`)
-    .replace(/<html\b/, `<html data-accent="${escapeHtml(b.accent)}"`)
+    .replace(
+      /<title>[^<]*<\/title>/,
+      () => `<title>${escapeHtml(b.name)}</title>`
+    )
+    .replace(/<html\b/, () => `<html data-accent="${escapeHtml(b.accent)}"`)
     .replace(
       /<link rel="icon"[^>]*?(\s*\/?>)/,
       (_, end: string) =>

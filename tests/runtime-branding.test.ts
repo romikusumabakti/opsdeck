@@ -283,5 +283,15 @@ describe("runtime instance branding", () => {
     expect(await shell()).toContain(
       "<title>&lt;/title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;</title>"
     );
+    // `$` sequences are text, never replacement patterns that copy the shell.
+    const name = "Ops $& $' $` $1 $<x> $$ x";
+    await saveBranding({ name });
+    const html = await shell();
+    expect(html).toBe(
+      INDEX_HTML.replace("<html", '<html data-accent="neutral"').replace(
+        "<title>Menara</title>",
+        () => "<title>Ops $&amp; $&#39; $` $1 $&lt;x&gt; $$ x</title>"
+      )
+    );
   });
 });

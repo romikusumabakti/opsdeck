@@ -15,10 +15,13 @@ export type Branding = {
 
 export function applyBranding<T>(value: T, branding: Branding): T {
   if (typeof value === "string") {
+    // Function replacers: a replacement string would expand `$&`, `$'` and
+    // the like in the admin-set values.
+    const company = branding.companyName ?? branding.appName;
     return value
-      .replaceAll("{{APP_NAME}}", branding.appName)
-      .replaceAll("{{COMPANY_NAME}}", branding.companyName ?? branding.appName)
-      .replaceAll("{{EMAIL_DOMAIN}}", branding.allowedEmailDomain) as T;
+      .replaceAll("{{APP_NAME}}", () => branding.appName)
+      .replaceAll("{{COMPANY_NAME}}", () => company)
+      .replaceAll("{{EMAIL_DOMAIN}}", () => branding.allowedEmailDomain) as T;
   }
   if (Array.isArray(value)) {
     return value.map((item) => applyBranding(item, branding)) as T;

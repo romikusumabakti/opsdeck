@@ -115,7 +115,10 @@ function SignedInShell({
   return (
     // One run stream for the whole shell — the header indicator and the
     // sidebar History badge both read it.
-    <AccentProvider initial={effectiveAccent(user, bootstrap.accent)}>
+    <AccentProvider
+      initial={effectiveAccent(user, bootstrap.accent)}
+      icon={bootstrap.icon}
+    >
       <MotifProvider
         initial={effectiveMotifPreference(user)}
         today={todayMotif}

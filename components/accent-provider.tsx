@@ -1,9 +1,8 @@
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { useOptimisticPreference } from "@/hooks/use-optimistic-preference";
-import type { AccentColor } from "@/lib/accents";
+import type { AccentColor, BootstrapIcon } from "@/lib/accents";
 import { setAccentColor } from "@/web/api/profile";
-import { useBootstrap } from "@/web/api/session";
 import { applyDocumentAccent } from "@/web/document-locale";
 
 type AccentContextValue = {
@@ -20,9 +19,12 @@ const AccentContext = React.createContext<AccentContextValue | null>(null);
  */
 export function AccentProvider({
   initial,
+  icon,
   children,
 }: {
   initial: AccentColor;
+  /** The instance favicon (bootstrap `icon`), repainted with the accent. */
+  icon: BootstrapIcon;
   children: React.ReactNode;
 }) {
   const t = useTranslations("accentSwitcher");
@@ -31,7 +33,6 @@ export function AccentProvider({
     save: setAccentColor,
     failedMessage: t("saveFailed"),
   });
-  const { icon } = useBootstrap();
   // Paints the shown accent: on mount, on a pick, and on a rollback.
   React.useEffect(() => {
     applyDocumentAccent(accent, icon);

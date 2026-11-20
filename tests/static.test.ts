@@ -206,6 +206,16 @@ describe("brandShell", () => {
     );
   });
 
+  it("never expands $ replacement patterns in the name", () => {
+    const html = brandShell(
+      INDEX_HTML,
+      branding({ name: "Ops $& $' $` $1 $$ x" })
+    );
+    expect(html).toContain("<title>Ops $&amp; $&#39; $` $1 $$ x</title>");
+    expect(html.match(/<title>/g)).toHaveLength(1);
+    expect(html.match(/<html/g)).toHaveLength(1);
+  });
+
   it("HTML-escapes the app name", () => {
     expect(
       brandShell(
