@@ -1091,6 +1091,33 @@ describe("answer stream", () => {
     expect(scroll).not.toBeNull();
   });
 
+  it("draws exactly one border around a table, with no sidebar frame", async () => {
+    queryClient.setQueryData(
+      key,
+      answer(
+        "Ringkasan:\n\n| Env | Versi |\n| --- | --- |\n| Dev 1 | 1.4.0 |\n\nSelesai."
+      )
+    );
+    await render(<ChatThread conversationId="c1" />);
+    const table = container.querySelector("table") as HTMLElement;
+    const root = container.querySelector("[data-answer-markdown]");
+    expect(table).not.toBeNull();
+    expect(root).not.toBeNull();
+    expect(table.className).not.toMatch(/\bborder\b/);
+    const chain: HTMLElement[] = [];
+    for (
+      let el = table.parentElement;
+      el && el !== root;
+      el = el.parentElement
+    ) {
+      chain.push(el);
+    }
+    const bordered = chain.filter((el) => /\bborder\b/.test(el.className));
+    expect(bordered).toHaveLength(1);
+    expect(bordered[0]?.hasAttribute("data-answer-table")).toBe(true);
+    expect(chain.some((el) => el.className.includes("sidebar"))).toBe(false);
+  });
+
   it("renders incomplete markdown mid-stream without throwing", async () => {
     queryClient.setQueryData(
       key,

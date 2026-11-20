@@ -37,7 +37,7 @@ import { shouldSend } from "./composer-keys";
 import { useAssistantErrorText } from "./error-text";
 import { MessageSources } from "./message-sources";
 
-type StyledTag = "table" | "thead" | "th" | "td" | "h1" | "h2" | "h3";
+type StyledTag = "thead" | "th" | "td" | "h1" | "h2" | "h3";
 type StyledProps = { className?: string } & ExtraProps;
 
 /** Streamdown's own renderer for `tag`, with `extra` merged over its classes. */
@@ -51,14 +51,21 @@ function Restyled({
 }
 
 /**
- * How an answer's elements render: Streamdown's components (tables in a
- * scrolling frame, code blocks with a copy button) at the chat's size, a
+ * How an answer's elements render: Streamdown's components (code blocks with
+ * a copy button) at the chat's size, our own single-border table wrapper, a
  * semantic <strong>, and two safety overrides. Images are never loaded (an injected
  * `![](https://…?d=<data>)` would leak data without a click; only the alt
  * text stays), and links open in a new tab without access to this page.
  */
 const ANSWER_COMPONENTS: Components = {
-  table: (props) => <Restyled tag="table" extra="text-sm" {...props} />,
+  table: ({ node: _node, className, ...props }) => (
+    <div
+      data-answer-table=""
+      className="my-4 overflow-x-auto rounded-lg border"
+    >
+      <table className={cn("w-full text-sm", className)} {...props} />
+    </div>
+  ),
   thead: (props) => <Restyled tag="thead" extra="bg-muted" {...props} />,
   th: (props) => <Restyled tag="th" extra="px-3 py-2" {...props} />,
   td: (props) => <Restyled tag="td" extra="px-3 py-2" {...props} />,
