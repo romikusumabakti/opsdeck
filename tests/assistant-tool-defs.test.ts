@@ -25,9 +25,13 @@ vi.mock("@/lib/assistant/tools/context", () => ({
   readKnowledgeTool: vi.fn(record("readKnowledgeTool")),
 }));
 
-const { buildTools, executeTool, toolModelOutput, TOOL_NAMES } = await import(
-  "@/lib/assistant/tool-defs"
-);
+const {
+  buildTools,
+  countSchemaParams,
+  executeTool,
+  toolModelOutput,
+  TOOL_NAMES,
+} = await import("@/lib/assistant/tool-defs");
 const { createDataTurn, DATA_TOOL_NAMES } = await import(
   "@/lib/assistant/tools/data"
 );
@@ -35,6 +39,7 @@ const { unknownProjectError } = await import(
   "@/lib/assistant/tools/data-shared"
 );
 const { asSchema } = await import("ai");
+const { strictBudgetFor } = await import("@/lib/assistant/providers");
 const panelFor = (v: AssistantViewer) =>
   createDataTurn(v, { projects: async () => [], cores: {} });
 
@@ -177,14 +182,63 @@ describe("buildTools", () => {
     expect(names.filter((name) => /panel/.test(name))).toEqual([]);
   });
 
-  it("still marks at most 20 tools strict for an admin on anthropic", () => {
+  it("keeps the strict tools within Anthropic's three budgets for an admin", async () => {
+    const budget = strictBudgetFor("anthropic");
     for (const context of [adminCtx, adminAutoCtx]) {
-      const tools = buildTools(context, noRecord, { strictToolLimit: 20 });
-      const strict = Object.values(tools).filter(
-        (t) => (t as { strict?: boolean }).strict === true
+      const tools = buildTools(context, noRecord, { strictBudget: budget });
+      let strictCount = 0;
+      let unions = 0;
+      let optionals = 0;
+      for (const [name, tool] of Object.entries(tools)) {
+        if ((tool as { strict?: boolean }).strict !== true) continue;
+        strictCount++;
+        const counts = countSchemaParams(
+          await asSchema(tool.inputSchema).jsonSchema
+        );
+        unions += counts.unions;
+        optionals += counts.optionals;
+        expect(name).not.toBe("list_issues");
+      }
+      expect(strictCount).toBeLessThanOrEqual(20);
+      expect(unions).toBeLessThanOrEqual(16);
+      expect(optionals).toBeLessThanOrEqual(24);
+      // list_issues alone has more union parameters than the budget, so it
+      // is always the non-strict one; the choice is deterministic.
+      expect((tools.list_issues as { strict?: boolean }).strict).toBe(false);
+      const again = buildTools(context, noRecord, { strictBudget: budget });
+      expect(
+        Object.entries(again).map(([n, t]) => [
+          n,
+          (t as { strict?: boolean }).strict,
+        ])
+      ).toEqual(
+        Object.entries(tools).map(([n, t]) => [
+          n,
+          (t as { strict?: boolean }).strict,
+        ])
       );
-      expect(strict.length).toBeLessThanOrEqual(20);
     }
+  });
+
+  it("counts union-typed and optional parameters of a JSON schema", () => {
+    expect(
+      countSchemaParams({
+        type: "object",
+        properties: {
+          a: { type: "string" },
+          b: { anyOf: [{ type: "string" }, { type: "null" }] },
+          c: { type: ["number", "null"] },
+          d: {
+            type: "object",
+            properties: {
+              e: { anyOf: [{ type: "string" }, { type: "null" }] },
+            },
+            required: ["e"],
+          },
+        },
+        required: ["a", "b", "d"],
+      })
+    ).toEqual({ unions: 3, optionals: 1 });
   });
 
   it("describes the product as Menara", () => {

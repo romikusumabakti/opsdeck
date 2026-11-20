@@ -154,7 +154,31 @@ export function cacheControlFor(
  * tools (23). The maximum number of strict tools supported is 20.").
  */
 export function strictToolLimitFor(provider: Provider): number | null {
-  return provider === "anthropic" ? 20 : null;
+  return provider === "anthropic" ? STRICT_TOOL_LIMIT : null;
+}
+
+/** Anthropic's structured-outputs limits across all strict schemas of a request. */
+export const STRICT_TOOL_LIMIT = 20;
+/** Parameters whose type is a union (a nullable field is `anyOf [T, null]`). */
+export const STRICT_UNION_PARAM_LIMIT = 16;
+/** Parameters not listed in `required`. */
+export const STRICT_OPTIONAL_PARAM_LIMIT = 24;
+
+export type StrictBudget = {
+  tools: number;
+  unionParams: number;
+  optionalParams: number;
+};
+
+/** The strict-schema budgets of one request, or null when the provider sets none. */
+export function strictBudgetFor(provider: Provider): StrictBudget | null {
+  return provider === "anthropic"
+    ? {
+        tools: STRICT_TOOL_LIMIT,
+        unionParams: STRICT_UNION_PARAM_LIMIT,
+        optionalParams: STRICT_OPTIONAL_PARAM_LIMIT,
+      }
+    : null;
 }
 
 /**

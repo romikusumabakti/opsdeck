@@ -3,7 +3,7 @@ import { type FlexibleSchema, jsonSchema, type ToolSet, tool } from "ai";
 import { z } from "zod";
 import type { AttachmentRef } from "./attachment-refs";
 import type { UploadRef } from "./file-store";
-import type { ProviderOptions } from "./providers";
+import type { ProviderOptions, StrictBudget } from "./providers";
 import {
   listFiles,
   MAX_LIST_PATHS,
@@ -266,8 +266,8 @@ export function buildTools(
   options: {
     execute?: ToolExecutor;
     lastToolProviderOptions?: ProviderOptions;
-    /** The provider's cap on strict tools per request (strictToolLimitFor). */
-    strictToolLimit?: number | null;
+    /** The provider's strict-schema budgets per request (strictBudgetFor). */
+    strictBudget?: StrictBudget | null;
   } = {}
 ): ToolSet {
   const execute = options.execute ?? executeTool;
@@ -283,7 +283,7 @@ export function buildTools(
   ] as Array<
     [ToolName, { description: string; inputSchema: FlexibleSchema<unknown> }]
   >;
-  const strict = strictTools(entries, options.strictToolLimit ?? null);
+  const strict = strictTools(entries, options.strictBudget ?? null);
   return Object.fromEntries(
     entries.map(([name, definition], index) => [
       name,
@@ -324,25 +324,88 @@ function takesInput(schema: FlexibleSchema<unknown>): boolean {
   return true;
 }
 
+type SchemaCounts = { unions: number; optionals: number };
+
+/**
+ * The union-typed and optional parameters of a JSON schema, nested objects
+ * included. A field that is `anyOf`/`oneOf` or has a type array (nullable)
+ * is a union; one missing from `required` is optional.
+ */
+export function countSchemaParams(schema: unknown): SchemaCounts {
+  const counts: SchemaCounts = { unions: 0, optionals: 0 };
+  const walk = (node: unknown) => {
+    if (!node || typeof node !== "object") return;
+    const n = node as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+      items?: unknown;
+      anyOf?: unknown[];
+      oneOf?: unknown[];
+    };
+    for (const [name, prop] of Object.entries(n.properties ?? {})) {
+      const p = (prop ?? {}) as {
+        anyOf?: unknown;
+        oneOf?: unknown;
+        type?: unknown;
+      };
+      if (p.anyOf || p.oneOf || Array.isArray(p.type)) counts.unions++;
+      if (!n.required?.includes(name)) counts.optionals++;
+      walk(prop);
+    }
+    walk(n.items);
+    for (const variant of [...(n.anyOf ?? []), ...(n.oneOf ?? [])]) {
+      walk(variant);
+    }
+  };
+  walk(schema);
+  return counts;
+}
+
+function jsonSchemaOf(schema: FlexibleSchema<unknown>): unknown {
+  if (schema instanceof z.ZodType) {
+    return z.toJSONSchema(schema, { io: "input", unrepresentable: "any" });
+  }
+  return (schema as { jsonSchema?: unknown }).jsonSchema;
+}
+
 /**
  * The tools marked strict: those that take input, the database tools first
- * (their SQL argument matters most), then in offered order, up to the
- * provider's limit. Every input is validated again by executeTool, so a tool
- * past the limit loses only the provider-side schema guarantee. Depends only
- * on the offered set, so it is as stable as the tools for the prompt cache.
+ * (their SQL argument matters most), then in offered order, greedily within
+ * the provider's budgets (tool count, union-typed and optional parameters
+ * across all strict schemas). A tool that would overflow a budget stays
+ * non-strict; every input is validated again by executeTool, so it loses only
+ * the provider-side schema guarantee. Depends only on the offered set, so it
+ * is as stable as the tools for the prompt cache.
  */
 function strictTools(
   entries: Array<[ToolName, { inputSchema: FlexibleSchema<unknown> }]>,
-  limit: number | null
+  budget: StrictBudget | null
 ): Set<ToolName> {
-  const withInput = entries
-    .filter(([, definition]) => takesInput(definition.inputSchema))
-    .map(([name]) => name);
+  const withInput = entries.filter(([, definition]) =>
+    takesInput(definition.inputSchema)
+  );
   const ordered = [
-    ...withInput.filter(isDatabaseTool),
-    ...withInput.filter((name) => !isDatabaseTool(name)),
+    ...withInput.filter(([name]) => isDatabaseTool(name)),
+    ...withInput.filter(([name]) => !isDatabaseTool(name)),
   ];
-  return new Set(limit === null ? ordered : ordered.slice(0, limit));
+  if (budget === null) return new Set(ordered.map(([name]) => name));
+  const strict = new Set<ToolName>();
+  let unions = 0;
+  let optionals = 0;
+  for (const [name, definition] of ordered) {
+    const counts = countSchemaParams(jsonSchemaOf(definition.inputSchema));
+    if (
+      strict.size >= budget.tools ||
+      unions + counts.unions > budget.unionParams ||
+      optionals + counts.optionals > budget.optionalParams
+    ) {
+      continue;
+    }
+    strict.add(name);
+    unions += counts.unions;
+    optionals += counts.optionals;
+  }
+  return strict;
 }
 
 const line = z.number().int().min(1).nullish();

@@ -10,6 +10,7 @@ import {
   type Prices,
   probeOptionsFor,
   providerOptionsFor,
+  strictBudgetFor,
   strictToolLimitFor,
   suggestedModels,
   titleModelFor,
@@ -394,5 +395,17 @@ describe("titleModelFor", () => {
         baseUrl: "https://llm.example.invalid/v1",
       })
     ).toEqual({ modelId: "local-model", prices: PRICES });
+  });
+});
+
+describe("strictBudgetFor", () => {
+  it("sets Anthropic's three structured-output budgets and no others", () => {
+    expect(strictBudgetFor("anthropic")).toEqual({
+      tools: 20,
+      unionParams: 16,
+      optionalParams: 24,
+    });
+    expect(strictBudgetFor("openai")).toBeNull();
+    expect(strictBudgetFor("google")).toBeNull();
   });
 });

@@ -26,7 +26,7 @@ import {
   type ProviderOptions,
   providerOptionsFor,
   readsFilesNatively,
-  strictToolLimitFor,
+  strictBudgetFor,
 } from "./providers";
 import {
   ensureSnapshot as defaultEnsureSnapshot,
@@ -937,7 +937,7 @@ async function runClaimedTurn(
     {
       execute: deps.executeTool,
       lastToolProviderOptions: cache,
-      strictToolLimit: strictToolLimitFor(runtime.provider),
+      strictBudget: strictBudgetFor(runtime.provider),
     }
   );
   const toolsChars = JSON.stringify(
