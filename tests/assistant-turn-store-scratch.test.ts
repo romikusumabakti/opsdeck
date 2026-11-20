@@ -92,6 +92,66 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     psql("postgres", ["-c", `DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`]);
   });
 
+  it("loads the user's title and timezone, falling back to APP_TIMEZONE", async () => {
+    const d = drizzle({ client });
+    const store = await import("@/lib/assistant/turn-store");
+    const { APP_TIMEZONE } = await import("@/lib/timezone");
+    const cases = [
+      { n: 1, title: null, timezone: null, expected: APP_TIMEZONE },
+      { n: 2, title: "QA Lead", timezone: "Mars/Base", expected: APP_TIMEZONE },
+      {
+        n: 3,
+        title: "Business Analyst",
+        timezone: "Asia/Makassar",
+        expected: "Asia/Makassar",
+      },
+    ];
+    for (const c of cases) {
+      const user = one(
+        await d
+          .insert(schema.users)
+          .values({
+            id: `00000000-0000-7000-8000-00000000c00${c.n}`,
+            name: `User ${c.n}`,
+            email: `tz${c.n}@example.com`,
+            role: "qa",
+            title: c.title,
+            timezone: c.timezone,
+          })
+          .returning()
+      );
+      const conversation = one(
+        await d
+          .insert(schema.assistantConversations)
+          .values({ userId: user.id })
+          .returning()
+      );
+      await d.insert(schema.assistantMessages).values({
+        conversationId: conversation.id,
+        role: "user",
+        status: "done",
+        content: "Q",
+      });
+      const answer = one(
+        await d
+          .insert(schema.assistantMessages)
+          .values({
+            conversationId: conversation.id,
+            role: "assistant",
+            status: "queued",
+            content: "",
+          })
+          .returning()
+      );
+      expect(await store.loadTurn(answer.id), `case ${c.n}`).toMatchObject({
+        userTitle: c.title,
+        timeZone: c.expected,
+      });
+      await client`delete from assistant_conversations where id = ${conversation.id}`;
+      await client`delete from users where id = ${user.id}`;
+    }
+  });
+
   it("loads a turn, moves it through its statuses and meters usage", async () => {
     const d = drizzle({ client });
     const store = await import("@/lib/assistant/turn-store");

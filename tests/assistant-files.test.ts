@@ -700,6 +700,8 @@ describe("the question lists its uploads", () => {
         userId: QA,
         userName: "Widya",
         preferredName: null,
+        userTitle: null,
+        timeZone: "Asia/Jakarta",
         context: { kind: "auto" },
         history: [
           {

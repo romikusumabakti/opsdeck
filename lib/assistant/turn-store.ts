@@ -7,6 +7,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { pgErrorCode } from "@/lib/domains/errors";
+import { effectiveTimeZone } from "@/lib/timezone";
 import { contextFromRow, type StoredQuestionContext } from "./context";
 import {
   type UploadRef,
@@ -45,6 +46,13 @@ export type TurnContext = {
   userName: string;
   /** What the user asked to be called, or null (buildSystemPrompt). */
   preferredName: string | null;
+  /** The user's job title, or null (buildSystemPrompt). */
+  userTitle: string | null;
+  /**
+   * The zone the user reads dates in: their own when set and valid, else
+   * APP_TIMEZONE (effectiveTimeZone). "Today" and shown times use it.
+   */
+  timeZone: string;
   /**
    * The context of the question this turn answers, from its user message
    * as stored: not yet checked against the user's current access (runTurn
@@ -74,6 +82,8 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
       userId: assistantConversations.userId,
       userName: users.name,
       preferredName: users.preferredName,
+      userTitle: users.title,
+      timezone: users.timezone,
     })
     .from(assistantMessages)
     .innerJoin(
@@ -123,6 +133,8 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
     userId: row.userId,
     userName: row.userName,
     preferredName: row.preferredName,
+    userTitle: row.userTitle,
+    timeZone: effectiveTimeZone(row),
     context: lastUser ? contextFromRow(lastUser) : { kind: "auto" },
     history: earlier.map((m) => ({
       role: m.role,

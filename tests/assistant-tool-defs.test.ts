@@ -27,6 +27,7 @@ vi.mock("@/lib/assistant/tools/context", () => ({
 
 const {
   buildTools,
+  capabilityGaps,
   countSchemaParams,
   executeTool,
   toolModelOutput,
@@ -754,5 +755,43 @@ describe("executeTool in a pinned context", () => {
     );
     expect(result.ok).toBe(false);
     expect(calls).toEqual([]);
+  });
+});
+
+describe("capabilityGaps", () => {
+  it("names exactly the tool groups buildTools leaves out", () => {
+    const roles = [
+      "admin",
+      "infra",
+      "engineer",
+      "qa",
+      "ba",
+      "pm",
+      "staff",
+      "observer",
+    ] as const;
+    for (const role of roles) {
+      const v: AssistantViewer = {
+        ...viewerAs(role),
+        projectIds: role === "staff" ? [] : ["p"],
+      };
+      const tools = Object.keys(
+        buildTools({ ...ctx, viewer: v, data: panelFor(v) }, async () => {})
+      );
+      const expected = [
+        ...(role === "staff" ? ["projects"] : []),
+        ...(tools.includes("query_database") ? [] : ["database"]),
+        ...(tools.includes("list_servers") ? [] : ["servers"]),
+        ...(tools.includes("recent_activity") ? [] : ["activity"]),
+      ];
+      expect(capabilityGaps(v), role).toEqual(expected);
+    }
+    expect(capabilityGaps(viewerAs("qa"))).toEqual([
+      "projects",
+      "database",
+      "servers",
+      "activity",
+    ]);
+    expect(capabilityGaps({ ...admin, projectIds: "all" })).toEqual([]);
   });
 });

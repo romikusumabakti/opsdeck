@@ -254,6 +254,26 @@ export function toolModelOutput(
   return { type: "text", value: JSON.stringify(result.data) };
 }
 
+/** A group of tools a viewer may not be offered (named in the prompt). */
+export type CapabilityGap = "projects" | "database" | "servers" | "activity";
+
+/**
+ * What buildTools leaves out for this viewer, so the prompt can say what
+ * not to offer: no visible project (the code, environment, deploy and issue
+ * tools then read nothing), no database tools, no servers, no activity log.
+ * Depends only on the viewer, like the tool list itself (prompt cache).
+ */
+export function capabilityGaps(viewer: AssistantViewer): CapabilityGap[] {
+  const gaps: CapabilityGap[] = [];
+  if (viewer.projectIds !== "all" && viewer.projectIds.length === 0) {
+    gaps.push("projects");
+  }
+  if (!databaseToolsOffered(viewer)) gaps.push("database");
+  if (!dataToolOffered(viewer, "list_servers")) gaps.push("servers");
+  if (!dataToolOffered(viewer, "recent_activity")) gaps.push("activity");
+  return gaps;
+}
+
 /**
  * The tools for one turn. Each call runs through `execute` (executeTool by
  * default) and is then passed to `record` for the audit trail; a failing

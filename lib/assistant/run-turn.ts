@@ -14,7 +14,6 @@ import {
   type ToolSet,
   UnsupportedFunctionalityError,
 } from "ai";
-import { APP_TIMEZONE } from "@/lib/timezone";
 import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import { type AssistantRuntime, loadAssistantRuntime } from "./client";
 import type { UploadSummary } from "./file-store";
@@ -48,6 +47,7 @@ import {
 import { generateConversationTitle } from "./title";
 import {
   buildTools,
+  capabilityGaps,
   type ListedProject,
   type ToolContext,
   type ToolExecutor,
@@ -121,9 +121,9 @@ export type RunTurnDeps = {
   /** The user's spend on the current quota day (USD). */
   spentToday?: (userId: string, now: Date) => Promise<number>;
   executeTool?: ToolExecutor;
-  /** Replaces the Panel tools' service cores (tests). */
+  /** Replaces the data tools' service cores (tests). */
   dataCores?: Partial<DataCores>;
-  /** The Panel status probe's wall-clock bound (tests). */
+  /** The data tools' status probe wall-clock bound (tests). */
   probeTimeoutMs?: number;
   /** The auto title, asked for after a done answer (lib/assistant/title.ts). */
   generateTitle?: (conversationId: string) => Promise<unknown>;
@@ -863,22 +863,28 @@ async function runClaimedTurn(
         userName: turn.userName,
         preferredName: turn.preferredName,
         orgContext: runtime.orgContext,
+        role: viewer.orgRole,
+        title: turn.userTitle,
+        timeZone: turn.timeZone,
+        lacking: capabilityGaps(viewer),
       }),
       ...(cache ? { providerOptions: cache } : {}),
     },
-    { role: "system", content: buildVolatileSystemNote(now()) },
+    {
+      role: "system",
+      content: buildVolatileSystemNote(now(), turn.timeZone),
+    },
   ];
   const attachments: AttachmentRef[] = parseAttachmentRefs(turn.attachmentIds);
-  // The Panel tools read the viewer's projects: an automatic question has
-  // them already; a pinned one loads them only if a Panel tool asks.
+  // The data tools read the viewer's projects: an automatic question has
+  // them already; a pinned one loads them only if a data tool asks.
   const data = createDataTurn(viewer, {
     projects:
       resolved.question.kind === "auto"
         ? async () => resolved.projects
         : async () => visibleProjects(viewer, await sourceDeps.loadProjects()),
     cores: deps.dataCores,
-    // Until the turn carries the user's zone.
-    timeZone: APP_TIMEZONE,
+    timeZone: turn.timeZone,
     probeTimeoutMs: deps.probeTimeoutMs,
   });
   const shared = {
@@ -972,7 +978,10 @@ async function runClaimedTurn(
     instructions,
     messages: buildHistory(
       turn,
-      buildSourceNote({ source: resolved.question, sources: resolved.prompt })
+      buildSourceNote(
+        { source: resolved.question, sources: resolved.prompt },
+        turn.timeZone
+      )
     ),
     tools,
     toolChoice: "auto",

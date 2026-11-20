@@ -382,6 +382,8 @@ function baseTurn(): TurnContext {
     userId: USER_ID,
     userName: "Widya",
     preferredName: null,
+    userTitle: null,
+    timeZone: "Asia/Jakarta",
     context: envContext("Dev 1", "env-1"),
     history: [
       {
@@ -1301,6 +1303,29 @@ describe("runTurn", () => {
     expect(state.message.status).toBe("done");
   });
 
+  it("passes the user's role, title, timezone and gaps into the cached system message", async () => {
+    state.turn = {
+      ...baseTurn(),
+      userTitle: "QA Lead",
+      timeZone: "Asia/Makassar",
+    };
+    const { model, calls } = mockModel([{ text: ["ok"], finish: "stop" }]);
+    await runTurn(MESSAGE_ID, deps(model));
+    const [cached, volatile] = calls[0]?.prompt ?? [];
+    expect(cached?.role).toBe("system");
+    const text = String(cached?.content);
+    expect(text).toContain("Asia/Makassar");
+    expect(text).toContain("QA Lead");
+    expect(text).toContain("tests the systems");
+    // A qa viewer has no database tools, servers or activity log.
+    expect(text).toContain("no database tools");
+    expect(text).toContain("no server access");
+    expect(text).toContain("no activity log access");
+    expect(text).not.toContain("no project data");
+    expect(volatile?.role).toBe("system");
+    expect(String(volatile?.content)).toContain("(Asia/Makassar)");
+  });
+
   it("keeps the cached system message identical whatever the question's source", async () => {
     const cachedOf = async (turn: TurnContext) => {
       state.turn = turn;
@@ -2092,23 +2117,33 @@ describe("buildSystemPrompt", () => {
       userName: "Widya",
       preferredName: null,
       orgContext,
+      role: "engineer",
+      title: null,
+      timeZone: "Asia/Jakarta",
+      lacking: [],
     });
 
   type NoteSources = Parameters<typeof buildSourceNote>[0]["sources"];
-  const environmentNote = (sources: NoteSources) =>
-    buildSourceNote({
-      source: {
-        kind: "environment",
-        environmentName: "Dev 1",
-        projectName: "Kestrel Membership",
+  const environmentNote = (sources: NoteSources, timeZone = "Asia/Jakarta") =>
+    buildSourceNote(
+      {
+        source: {
+          kind: "environment",
+          environmentName: "Dev 1",
+          projectName: "Kestrel Membership",
+        },
+        sources,
       },
-      sources,
-    });
+      timeZone
+    );
   const projectNote = (sources: NoteSources) =>
-    buildSourceNote({
-      source: { kind: "project", projectName: "Kestrel Membership" },
-      sources,
-    });
+    buildSourceNote(
+      {
+        source: { kind: "project", projectName: "Kestrel Membership" },
+        sources,
+      },
+      "Asia/Jakarta"
+    );
 
   const GENERIC =
     "an internal operations portal of a company that builds and runs pension-fund (DPLK/DPPK) systems";
@@ -2231,13 +2266,22 @@ describe("buildSystemPrompt", () => {
     expect(text).toContain("**/*Iuran*.java");
     expect(text).toContain("never list `**/*` across the whole repository");
     expect(text).toContain("read only the line ranges you need");
-    expect(text).toContain("stop exploring once the answer is supported");
+    expect(text).not.toContain("stop exploring");
     expect(text).toContain("A withheld file exists; it is not missing.");
   });
 
   it("keeps only the date in the volatile system message", () => {
-    expect(buildVolatileSystemNote(new Date("2026-11-16T05:00:00.000Z"))).toBe(
-      "Today's date is 2026-11-16 (Asia/Jakarta)."
+    expect(
+      buildVolatileSystemNote(
+        new Date("2026-11-16T05:00:00.000Z"),
+        "Asia/Jakarta"
+      )
+    ).toBe("Today's date is 2026-11-16 (Asia/Jakarta).");
+  });
+
+  it("shows deployed-at times in the user's timezone", () => {
+    expect(environmentNote([SOURCE], "Asia/Makassar")).toContain(
+      "deployed at 2026-11-15 11:00 (Asia/Makassar)"
     );
   });
 
