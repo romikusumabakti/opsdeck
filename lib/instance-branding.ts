@@ -19,11 +19,14 @@ export type InstanceBranding = {
 };
 
 export const BRANDING_TTL_MS = 30_000;
+/** How long a failed load is served from the fallback before retrying. */
+const BRANDING_RETRY_MS = 5_000;
 
 type Theme = "light" | "dark";
 
 let cached: { value: InstanceBranding; at: number } | null = null;
 let inflight: Promise<InstanceBranding> | null = null;
+let generation = 0;
 let primedName: string | null = null;
 const logoBytes = new Map<
   Theme,
@@ -81,21 +84,32 @@ async function load(): Promise<InstanceBranding> {
  */
 export async function getBranding(): Promise<InstanceBranding> {
   if (cached && Date.now() - cached.at < BRANDING_TTL_MS) return cached.value;
-  if (!inflight) {
-    inflight = load()
-      .then((value) => {
-        cached = { value, at: Date.now() };
-        return value;
-      })
-      .catch((error) => {
-        console.error("Failed to load the instance branding:", error);
-        return cached?.value ?? envDefaults();
-      })
-      .finally(() => {
-        inflight = null;
-      });
-  }
-  return inflight;
+  if (inflight) return inflight;
+  // invalidateBranding() bumps the generation; a load that started before it
+  // must neither fill the cache nor clear a newer load's in-flight slot.
+  const started = generation;
+  const promise: Promise<InstanceBranding> = load()
+    .then((value) => {
+      if (started === generation) cached = { value, at: Date.now() };
+      return value;
+    })
+    .catch((error) => {
+      console.error("Failed to load the instance branding:", error);
+      const value = cached?.value ?? envDefaults();
+      // Negative cache: retry after BRANDING_RETRY_MS, not on every call.
+      if (started === generation) {
+        cached = {
+          value,
+          at: Date.now() - BRANDING_TTL_MS + BRANDING_RETRY_MS,
+        };
+      }
+      return value;
+    })
+    .finally(() => {
+      if (inflight === promise) inflight = null;
+    });
+  inflight = promise;
+  return promise;
 }
 
 export async function getBrandLogoBytes(
@@ -120,6 +134,7 @@ export async function getBrandLogoBytes(
 
 /** Call after a branding write so this process reads it at once. */
 export function invalidateBranding(): void {
+  generation += 1;
   cached = null;
   inflight = null;
   logoBytes.clear();

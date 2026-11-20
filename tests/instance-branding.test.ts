@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   logos: [] as Record<string, unknown>[],
   selects: 0,
   fail: false,
+  gate: null as Promise<void> | null,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -16,8 +17,10 @@ vi.mock("@/lib/db", () => ({
           where: () => ({
             limit: async () => {
               state.selects += 1;
+              const snapshot = state.row;
+              if (state.gate) await state.gate;
               if (state.fail) throw new Error("db down");
-              return [state.row];
+              return [snapshot];
             },
           }),
         });
@@ -46,6 +49,7 @@ describe("instance branding cache", () => {
     state.row = { ...empty };
     state.selects = 0;
     state.fail = false;
+    state.gate = null;
     invalidateBranding();
   });
   afterEach(() => {
@@ -120,6 +124,39 @@ describe("instance branding cache", () => {
     process.env.APP_NAME = "Env Ops";
     state.fail = true;
     expect((await getBranding()).name).toBe("Env Ops");
+  });
+
+  it("an invalidation during a slow load is not undone by that load", async () => {
+    state.row = { ...empty, name: "Old Ops" };
+    let release = () => {};
+    state.gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow = getBranding();
+    await vi.advanceTimersByTimeAsync(0);
+    // An admin write lands and invalidates while the old load is pending.
+    state.row = { ...empty, name: "New Ops" };
+    state.gate = null;
+    invalidateBranding();
+    const fresh = await getBranding();
+    expect(fresh.name).toBe("New Ops");
+    release();
+    await slow;
+    // The stale load neither refilled the cache nor cleared state.
+    const before = state.selects;
+    expect((await getBranding()).name).toBe("New Ops");
+    expect(state.selects).toBe(before);
+  });
+
+  it("does not re-query on every call while the database is down", async () => {
+    state.fail = true;
+    await getBranding();
+    await getBranding();
+    await getBranding();
+    expect(state.selects).toBe(1);
+    vi.advanceTimersByTime(5_001);
+    await getBranding();
+    expect(state.selects).toBe(2);
   });
 
   it("bootBrandName falls back to APP_NAME before priming", () => {
