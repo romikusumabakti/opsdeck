@@ -105,7 +105,6 @@ function fakeCores(envs: EnvironmentListItem[]): Fakes {
     resolveEnvironmentSlug: vi.fn(async () => null),
     ownerNames: vi.fn(async () => new Map()),
     listLabels: vi.fn(async () => []),
-    listMilestones: vi.fn(async () => []),
   };
 }
 

@@ -126,32 +126,6 @@ async function resolveLabels(
   return { value: ids };
 }
 
-async function resolveMilestone(
-  ctx: DataContext,
-  raw: string,
-  projectId: string | undefined
-): Promise<Resolved<string>> {
-  const projects = await ctx.data.projects();
-  const scoped = projectId
-    ? projects.filter((p) => p.id === projectId)
-    : projects;
-  const wanted = raw.trim().toLowerCase();
-  const found = (
-    await ctx.data.cores.listMilestones(scoped.map((p) => p.id))
-  ).filter((m) => m.name.toLowerCase() === wanted);
-  const [only, ...rest] = found;
-  if (!only) return { error: `No milestone named "${raw.trim()}".` };
-  if (rest.length === 0) return { value: only.id };
-  const keyOf = new Map(projects.map((p) => [p.id, p.key] as const));
-  const candidates = found
-    .slice(0, MAX_CANDIDATES)
-    .map((m) => `${keyOf.get(m.projectId) ?? "?"}: ${m.name}`)
-    .join(", ");
-  return {
-    error: `Several milestones are named "${raw.trim()}" (${candidates}). Pass project to pick one.`,
-  };
-}
-
 const SORTS = {
   updated: "updatedAt",
   created: "createdAt",
@@ -209,15 +183,6 @@ export async function listIssuesTool(
       return fail(unknownEnvironment(input.environment.trim()), meta);
     }
     query.environmentId = environment.id;
-  }
-  if (input.milestone?.trim()) {
-    const milestone = await resolveMilestone(
-      ctx,
-      input.milestone,
-      query.projectId
-    );
-    if ("error" in milestone) return fail(milestone.error, meta);
-    query.milestoneId = milestone.value;
   }
 
   const bounds = [

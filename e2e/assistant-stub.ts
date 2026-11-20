@@ -55,7 +55,6 @@ const LIST_ISSUES_ARGS = JSON.stringify({
   reporter: null,
   labels: null,
   environment: null,
-  milestone: null,
   created_from: null,
   created_to: null,
   updated_from: null,

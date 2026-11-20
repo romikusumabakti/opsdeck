@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { REDACTED_LINE } from "@/lib/assistant/secret-filter";
 import { executeTool, type ToolContext } from "@/lib/assistant/tool-defs";
-import { createDataTurn, type DataCores } from "@/lib/assistant/tools/data";
+import {
+  createDataTurn,
+  DATA_INPUTS,
+  type DataCores,
+} from "@/lib/assistant/tools/data";
 import {
   type DataContext,
   personMatchesQuery,
@@ -33,7 +37,6 @@ const KMEM_ID = "01900000-0000-7000-8000-000000000002";
 const ENV_ID = "01900000-0000-7000-8000-000000001001";
 const WULAN_ID = "01900000-0000-7000-8000-00000000a001";
 const LABEL_ID = "01900000-0000-7000-8000-00000000b001";
-const MILESTONE_ID = "01900000-0000-7000-8000-00000000c001";
 
 const viewer: AssistantViewer = {
   userId: "u1",
@@ -96,9 +99,6 @@ function fakeCores(): Fakes {
     getIssueDetail: vi.fn(async () => null),
     listPeople: vi.fn(async () => PEOPLE),
     listLabels: vi.fn(async () => [{ id: LABEL_ID, name: "Bug" }]),
-    listMilestones: vi.fn(async () => [
-      { id: MILESTONE_ID, projectId: ACME_ID, name: "Sprint 3" },
-    ]),
     resolveEnvironmentSlug: vi.fn(async () => null),
   } as unknown as Fakes;
 }
@@ -125,7 +125,6 @@ const NO_FILTERS: ListIssuesInput = {
   reporter: null,
   labels: null,
   environment: null,
-  milestone: null,
   created_from: null,
   created_to: null,
   updated_from: null,
@@ -205,12 +204,6 @@ describe("list_issues", () => {
     ["reporter me", { reporter: "me" }, { createdById: "u1" }],
     ["labels", { labels: ["bug"] }, { labelIds: [LABEL_ID] }],
     ["environment", { environment: "ACME/uat" }, { environmentId: ENV_ID }],
-    ["milestone", { milestone: "sprint 3" }, { milestoneId: MILESTONE_ID }],
-    [
-      "milestone in a project",
-      { milestone: "Sprint 3", project: "acme" },
-      { milestoneId: MILESTONE_ID, projectId: ACME_ID },
-    ],
     [
       "sort",
       { sort: "created", order: "asc" },
@@ -307,6 +300,12 @@ describe("list_issues", () => {
     expect(!result.ok && result.error).toContain("Andika Putra");
   });
 
+  it("takes no milestone filter (milestones were removed)", () => {
+    expect(Object.keys(DATA_INPUTS.list_issues.shape)).not.toContain(
+      "milestone"
+    );
+  });
+
   it("names what it could not resolve", async () => {
     const ctx = contextFor(fakeCores());
     const fails = async (over: Partial<ListIssuesInput>) => {
@@ -317,9 +316,6 @@ describe("list_issues", () => {
       'No person matches "Nobody".'
     );
     expect(await fails({ labels: ["Nope"] })).toBe('No label named "Nope".');
-    expect(await fails({ milestone: "Sprint 9" })).toBe(
-      'No milestone named "Sprint 9".'
-    );
     expect(await fails({ environment: "ACME/none" })).toContain(
       "Unknown environment ACME/none"
     );

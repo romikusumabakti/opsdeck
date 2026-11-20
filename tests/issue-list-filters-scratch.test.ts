@@ -6,7 +6,7 @@ import type { AccessScope } from "@/lib/access-scope";
 import * as schema from "@/lib/db/schema";
 
 // The assistant's issue filters (IssueQuery: statuses, types, priorities,
-// unassigned, reporter, environment, milestone, any-of labels, half-open date
+// unassigned, reporter, environment, any-of labels, half-open date
 // bounds) against a real Postgres through listAllIssuesFor. Same setup as
 // issue-writes-scratch.test.ts: the local menara-postgres container, a
 // scratch database migrated with `menara migrate` and dropped afterwards; no
@@ -63,7 +63,6 @@ describe.skipIf(!enabled)("issue list filters on Postgres", () => {
     acme: "",
     globex: "",
     env: "",
-    milestone: "",
     bug: "",
     ui: "",
     perf: "",
@@ -164,12 +163,6 @@ describe.skipIf(!enabled)("issue list filters on Postgres", () => {
         .values({ projectId: ids.acme, name: "UAT", slug: "uat" })
         .returning()
     ).id;
-    ids.milestone = one(
-      await d
-        .insert(schema.milestones)
-        .values({ projectId: ids.acme, name: "Sprint 3" })
-        .returning()
-    ).id;
     const label = async (name: string) =>
       one(await d.insert(schema.labels).values({ name }).returning()).id;
     ids.bug = await label("scratch-bug");
@@ -181,7 +174,6 @@ describe.skipIf(!enabled)("issue list filters on Postgres", () => {
       type: "bug",
       priority: "urgent",
       environmentId: ids.env,
-      milestoneId: ids.milestone,
       createdById: WULAN,
     });
     const b = await seed("b-progress-task-low", {
@@ -225,7 +217,7 @@ describe.skipIf(!enabled)("issue list filters on Postgres", () => {
     psql("postgres", ["-c", `DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`]);
   });
 
-  it("filters by statuses, types, priorities, reporter, environment, milestone, labels any-of", async () => {
+  it("filters by statuses, types, priorities, reporter, environment, labels any-of", async () => {
     expect(
       (await titles({ statuses: ["open", "in_progress"] })).titles
     ).toEqual(["a-open-bug-urgent", "b-progress-task-low", "e-other-project"]);
@@ -249,9 +241,6 @@ describe.skipIf(!enabled)("issue list filters on Postgres", () => {
       "a-open-bug-urgent",
     ]);
     expect((await titles({ environmentId: ids.env })).titles).toEqual([
-      "a-open-bug-urgent",
-    ]);
-    expect((await titles({ milestoneId: ids.milestone })).titles).toEqual([
       "a-open-bug-urgent",
     ]);
     // Any of the labels, and an issue with two matching labels counts once.

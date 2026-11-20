@@ -419,7 +419,6 @@ export type IssueQuery = {
   unassigned?: boolean;
   createdById?: string;
   environmentId?: string;
-  milestoneId?: string;
   /** Issues carrying any of these labels. */
   labelIds?: string[];
   /** Created at or after / before (exclusive). */
@@ -553,9 +552,6 @@ export async function listAllIssuesFor(
   }
   if (isUuid(query.environmentId)) {
     conditions.push(eq(issues.environmentId, query.environmentId));
-  }
-  if (isUuid(query.milestoneId)) {
-    conditions.push(eq(issues.milestoneId, query.milestoneId));
   }
   if (query.createdFrom) {
     conditions.push(gte(issues.createdAt, query.createdFrom));

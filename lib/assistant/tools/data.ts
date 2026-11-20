@@ -1,11 +1,10 @@
 import { stripVTControlCharacters } from "node:util";
 import { type FlexibleSchema, jsonSchema } from "ai";
-import { inArray } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { type OrgScope, requireOrgPermissionIn } from "@/lib/access-scope";
 import { db } from "@/lib/db";
-import { type EnvironmentListItem, labels, milestones } from "@/lib/db/schema";
+import { type EnvironmentListItem, labels } from "@/lib/db/schema";
 import { resolveEnvironmentBySlug } from "@/lib/environment-slug";
 import { listPeopleFor } from "@/lib/people/queries";
 import type { OrgPermissions } from "@/lib/permissions";
@@ -131,10 +130,6 @@ export type DataCores = {
   ownerNames: (ids: string[]) => Promise<Map<string, string>>;
   /** Every workspace label (they belong to no project). */
   listLabels: () => Promise<{ id: string; name: string }[]>;
-  /** The milestones of the given (already visible) projects. */
-  listMilestones: (
-    projectIds: string[]
-  ) => Promise<{ id: string; projectId: string; name: string }[]>;
 };
 
 async function ownerNames(ids: string[]): Promise<Map<string, string>> {
@@ -148,18 +143,6 @@ async function ownerNames(ids: string[]): Promise<Map<string, string>> {
 
 async function listLabels() {
   return db.select({ id: labels.id, name: labels.name }).from(labels);
-}
-
-async function listMilestones(projectIds: string[]) {
-  if (projectIds.length === 0) return [];
-  return db
-    .select({
-      id: milestones.id,
-      projectId: milestones.projectId,
-      name: milestones.name,
-    })
-    .from(milestones)
-    .where(inArray(milestones.projectId, projectIds));
 }
 
 export const DATA_CORES: DataCores = {
@@ -184,7 +167,6 @@ export const DATA_CORES: DataCores = {
   resolveEnvironmentSlug: resolveEnvironmentBySlug,
   ownerNames,
   listLabels,
-  listMilestones,
 };
 
 type ServiceStatus = { role: string; state: string; error?: string };
@@ -401,10 +383,6 @@ const ALWAYS = {
         z.string(),
         'Environment as "PROJECTKEY/slug" or its id; null for any.'
       ),
-      milestone: nullable(
-        z.string(),
-        "Milestone name (within project when given); null for any."
-      ),
       created_from: nullable(z.string(), "Created on or after this date."),
       created_to: nullable(z.string(), "Created on or before this date."),
       updated_from: nullable(z.string(), "Updated on or after this date."),
@@ -567,7 +545,6 @@ export const DATA_INPUTS = {
     reporter: z.string().nullish(),
     labels: z.array(z.string()).nullish(),
     environment: z.string().nullish(),
-    milestone: z.string().nullish(),
     created_from: z.string().nullish(),
     created_to: z.string().nullish(),
     updated_from: z.string().nullish(),
