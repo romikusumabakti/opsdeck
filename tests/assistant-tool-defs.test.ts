@@ -40,7 +40,12 @@ const { unknownProjectError } = await import(
   "@/lib/assistant/tools/data-shared"
 );
 const { asSchema } = await import("ai");
-const { strictBudgetFor } = await import("@/lib/assistant/providers");
+const { PROVIDERS, strictBudgetFor } = await import(
+  "@/lib/assistant/providers"
+);
+/** The strict-schema budgets of the provider that sets them. */
+const STRICT_BUDGET =
+  PROVIDERS.map(strictBudgetFor).find((budget) => budget !== null) ?? null;
 const panelFor = (v: AssistantViewer) =>
   createDataTurn(v, { projects: async () => [], cores: {} });
 
@@ -184,8 +189,8 @@ describe("buildTools", () => {
     expect(names.filter((name) => /panel/.test(name))).toEqual([]);
   });
 
-  it("keeps the strict tools within Anthropic's three budgets for an admin", async () => {
-    const budget = strictBudgetFor("anthropic");
+  it("keeps the strict tools within the provider's three strict budgets for an admin", async () => {
+    const budget = STRICT_BUDGET;
     for (const context of [adminCtx, adminAutoCtx]) {
       const tools = buildTools(context, noRecord, { strictBudget: budget });
       let strictCount = 0;
@@ -305,7 +310,7 @@ describe("buildTools", () => {
       const tools = buildTools(
         { ...autoCtx, viewer: v, data: panelFor(v) },
         noRecord,
-        { strictBudget: strictBudgetFor("anthropic") }
+        { strictBudget: STRICT_BUDGET }
       );
       expect(tools.get_overview, role).toBeDefined();
       expect((tools.get_overview as { strict?: boolean }).strict, role).toBe(

@@ -46,7 +46,12 @@ vi.mock("@/lib/environments", async (importOriginal) => ({
 }));
 
 const { buildTools, executeTool } = await import("@/lib/assistant/tool-defs");
-const { strictBudgetFor } = await import("@/lib/assistant/providers");
+const { PROVIDERS, strictBudgetFor } = await import(
+  "@/lib/assistant/providers"
+);
+/** The strict-schema budgets of the provider that sets them. */
+const STRICT_BUDGET =
+  PROVIDERS.map(strictBudgetFor).find((budget) => budget !== null) ?? null;
 const { createDataTurn } = await import("@/lib/assistant/tools/data");
 const { AssistantDbQueryError } = await import("@/lib/assistant-db/query");
 const { MASK } = await import("@/lib/assistant-db/mask");
@@ -437,7 +442,7 @@ describe("strict tools", () => {
   // admin in the automatic context is offered more than 20.
   const strictOf = (limit: number | null) => {
     const tools = buildTools(ctxFor(viewerAs("admin")), async () => {}, {
-      strictBudget: limit === null ? null : strictBudgetFor("anthropic"),
+      strictBudget: limit === null ? null : STRICT_BUDGET,
     }) as Record<string, { strict?: boolean }>;
     return {
       total: Object.keys(tools).length,
