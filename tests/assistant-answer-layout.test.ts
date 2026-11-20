@@ -99,15 +99,15 @@ describe("toolSubject", () => {
     expect(
       toolSubject({
         query: "q",
-        key: "KST-1",
+        key: "TKT-1",
         project: "HMEM",
         environment: "HMEM/dev",
       })
     ).toBe("HMEM/dev");
-    expect(toolSubject({ query: "q", key: "KST-1", project: "HMEM" })).toBe(
+    expect(toolSubject({ query: "q", key: "TKT-1", project: "HMEM" })).toBe(
       "HMEM"
     );
-    expect(toolSubject({ query: "q", key: "KST-1" })).toBe("KST-1");
+    expect(toolSubject({ query: "q", key: "TKT-1" })).toBe("TKT-1");
     expect(toolSubject({ query: "q", limit: 5 })).toBe("q");
     expect(toolSubject({ limit: 5 })).toBeNull();
     expect(toolSubject({ environment: "", project: "HMEM" })).toBe("HMEM");

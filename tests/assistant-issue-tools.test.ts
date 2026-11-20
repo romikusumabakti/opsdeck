@@ -33,7 +33,7 @@ vi.mock("@/lib/assistant/tools/context", async (importOriginal) => ({
 vi.mock("@/lib/jira/sync", () => ({ resolveLink: vi.fn(async () => null) }));
 
 const ACME_ID = "01900000-0000-7000-8000-000000000001";
-const KMEM_ID = "01900000-0000-7000-8000-000000000002";
+const BETA_ID = "01900000-0000-7000-8000-000000000002";
 const ENV_ID = "01900000-0000-7000-8000-000000001001";
 const WULAN_ID = "01900000-0000-7000-8000-00000000a001";
 const LABEL_ID = "01900000-0000-7000-8000-00000000b001";
@@ -41,18 +41,18 @@ const LABEL_ID = "01900000-0000-7000-8000-00000000b001";
 const viewer: AssistantViewer = {
   userId: "u1",
   orgRole: "engineer",
-  projectIds: [ACME_ID, KMEM_ID],
+  projectIds: [ACME_ID, BETA_ID],
   canManageKnowledge: false,
   scope: {
     userId: "u1",
     orgRole: "engineer",
-    projectRoles: { [ACME_ID]: "engineer", [KMEM_ID]: "engineer" },
+    projectRoles: { [ACME_ID]: "engineer", [BETA_ID]: "engineer" },
     seesAllProjects: false,
   },
 };
 const PROJECTS: ProjectEntry[] = [
   { id: ACME_ID, key: "ACME", name: "Acme", group: null, description: null },
-  { id: KMEM_ID, key: "KMEM", name: "Kmem", group: null, description: null },
+  { id: BETA_ID, key: "BETA", name: "Beta", group: null, description: null },
 ];
 const person = (id: string, name: string, email: string) => ({
   id,
@@ -177,14 +177,14 @@ describe("list_issues", () => {
   it("shows the Jira key of a mirrored issue and redacts titles", async () => {
     const cores = fakeCores();
     cores.listIssues.mockResolvedValue({
-      rows: [issueRow({ jiraKey: "KST-7", title: "password=hunter2" })],
+      rows: [issueRow({ jiraKey: "TKT-7", title: "password=hunter2" })],
       total: 1,
     });
     const result = await listIssuesTool(contextFor(cores), NO_FILTERS);
     expect(result).toMatchObject({
       ok: true,
       data: {
-        issues: [{ key: "ACME-12", jiraKey: "KST-7", title: REDACTED_LINE }],
+        issues: [{ key: "ACME-12", jiraKey: "TKT-7", title: REDACTED_LINE }],
       },
       meta: { withheld: 1 },
     });
@@ -377,7 +377,7 @@ describe("get_issue", () => {
   const detail = (over: Record<string, unknown> = {}) => ({
     id: "row-45",
     number: 45,
-    jiraKey: "KST-7",
+    jiraKey: "TKT-7",
     title: "Login fails",
     status: "open",
     type: "bug",
@@ -386,7 +386,7 @@ describe("get_issue", () => {
     description: "Steps:\npassword=hunter2\nthen it fails",
     createdAt: new Date("2026-11-01T00:00:00Z"),
     updatedAt: new Date("2026-11-02T00:00:00Z"),
-    project: { id: KMEM_ID, name: "Kmem", key: "KMEM" },
+    project: { id: BETA_ID, name: "Beta", key: "BETA" },
     environment: null,
     assignee: null,
     createdBy: { id: "u3", name: "Wati", image: null },
@@ -397,7 +397,7 @@ describe("get_issue", () => {
     ...over,
   });
   const mirrored = (over: Record<string, unknown> = {}) => ({
-    issue: { id: "row-45", projectId: KMEM_ID, number: 45, jiraKey: "KST-7" },
+    issue: { id: "row-45", projectId: BETA_ID, number: 45, jiraKey: "TKT-7" },
     link: null,
     ...over,
   });
@@ -406,7 +406,7 @@ describe("get_issue", () => {
     const cores = fakeCores();
     cores.getIssueDetail.mockImplementation(
       async (_scope: unknown, key: string, number: number) =>
-        key === "KMEM" && number === 45 ? detail() : null
+        key === "BETA" && number === 45 ? detail() : null
     );
     const ctx = contextFor(cores);
     jira.attachments.mockResolvedValue({
@@ -416,34 +416,34 @@ describe("get_issue", () => {
       error: null,
     });
     jira.visible.mockImplementation(async (_v: unknown, key: string) =>
-      key === "KST-7" ? mirrored() : null
+      key === "TKT-7" ? mirrored() : null
     );
 
-    const byMenara = await getIssueTool(ctx, " kmem-45 ", null);
-    expect(cores.getIssueDetail).toHaveBeenCalledWith(viewer.scope, "KMEM", 45);
+    const byMenara = await getIssueTool(ctx, " beta-45 ", null);
+    expect(cores.getIssueDetail).toHaveBeenCalledWith(viewer.scope, "BETA", 45);
     expect(byMenara).toMatchObject({
       ok: true,
       data: {
-        key: "KMEM-45",
-        jiraKey: "KST-7",
-        project: "KMEM",
+        key: "BETA-45",
+        jiraKey: "TKT-7",
+        project: "BETA",
         labels: ["auth"],
         description: `Steps:\n${REDACTED_LINE}\nthen it fails`,
         attachments: [{ id: "900" }],
       },
-      meta: { project: "KMEM", issueKeys: ["KMEM-45"], withheld: 1 },
+      meta: { project: "BETA", issueKeys: ["BETA-45"], withheld: 1 },
     });
     expect(byMenara.ok && "otherMatch" in byMenara.data).toBe(false);
 
-    const byJira = await getIssueTool(ctx, "KST-7", null);
+    const byJira = await getIssueTool(ctx, "TKT-7", null);
     expect(byJira).toMatchObject({
       ok: true,
-      data: { key: "KMEM-45", jiraKey: "KST-7" },
+      data: { key: "BETA-45", jiraKey: "TKT-7" },
     });
     // Resolved through the visible Jira row's project and number.
     expect(cores.getIssueDetail).toHaveBeenLastCalledWith(
       viewer.scope,
-      "KMEM",
+      "BETA",
       45
     );
   });
@@ -451,7 +451,7 @@ describe("get_issue", () => {
   it("a Menara-only issue has no attachments", async () => {
     const cores = fakeCores();
     cores.getIssueDetail.mockResolvedValue(detail({ jiraKey: null }));
-    const result = await getIssueTool(contextFor(cores), "KMEM-45", null);
+    const result = await getIssueTool(contextFor(cores), "BETA-45", null);
     expect(result.ok && "attachments" in result.data).toBe(false);
     expect(jira.attachments).not.toHaveBeenCalled();
   });
@@ -467,14 +467,14 @@ describe("get_issue", () => {
               jiraKey: null,
               project: { id: ACME_ID, name: "Acme", key: "ACME" },
             })
-          : key === "KMEM" && number === 45
+          : key === "BETA" && number === 45
             ? detail({ id: "row-b", jiraKey: "ACME-1" })
             : null
     );
     jira.visible.mockResolvedValue({
       issue: {
         id: "row-b",
-        projectId: KMEM_ID,
+        projectId: BETA_ID,
         number: 45,
         jiraKey: "ACME-1",
       },
@@ -487,12 +487,12 @@ describe("get_issue", () => {
       data: {
         key: "ACME-1",
         otherMatch:
-          'Jira issue ACME-1 is Menara issue KMEM-45; call get_issue with source "jira" to read it.',
+          'Jira issue ACME-1 is Menara issue BETA-45; call get_issue with source "jira" to read it.',
       },
     });
     expect(await getIssueTool(ctx, "ACME-1", "jira")).toMatchObject({
       ok: true,
-      data: { key: "KMEM-45" },
+      data: { key: "BETA-45" },
     });
     expect(await getIssueTool(ctx, "ACME-1", "menara")).toMatchObject({
       ok: true,
