@@ -34,6 +34,20 @@ vi.mock("@/lib/db", () => ({
   ),
 }));
 
+// The refusal messages are translated, and the translator brands them: fixed
+// branding, so only the service's own queries reach the stub above.
+vi.mock("@/lib/instance-branding", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getBranding: async () => ({
+    name: "Menara",
+    company: null,
+    accent: "neutral",
+    logo: null,
+    logoDark: null,
+    version: "0",
+  }),
+}));
+
 const svc = await import("@/server/services/project-groups");
 
 beforeEach(() => {
