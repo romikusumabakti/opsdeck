@@ -830,7 +830,7 @@
     "detectedNone": "لم يُعثر على خدمات compose",
     "pipelineGenerated": "يولّد {{APP_NAME}} خط البناء الخاص به",
     "pipelineCustom": "يُبنى بملف .woodpecker.yaml الخاص به",
-    "pipelineNotNotifying": "ملف .woodpecker.yaml الخاص به لا يُبلغ {{APP_NAME}}، لذا لن تُنشر عمليات البناء. أضف خطوة notify-panel موقّعة بسر المستودع <code>menara_notify</code> (انظر docs/deploy.md).",
+    "pipelineNotNotifying": "ملف .woodpecker.yaml الخاص به لا يُبلغ {{APP_NAME}}، لذا لن تُنشر عمليات البناء. أضف خطوة notify-menara موقّعة بسر المستودع <code>menara_notify</code> (انظر docs/deploy.md).",
     "needsDatabase": "يحتاج إلى قاعدة بيانات",
     "needsDatabaseHint": "قاعدة بيانات مشتركة على مضيف قواعد البيانات في الخادم، وإلا فحاوية قاعدة بيانات.",
     "setInAdvanced": "يُضبط ضمن الخيارات المتقدمة.",

@@ -549,7 +549,7 @@ describe("dns_record", () => {
     [
       "someone else's app covers it",
       [{ id: "x", name: "HRIS (manual)", domain: HOST_A }],
-      `Access app HRIS (manual) covers ${HOST_A} instead of the Panel's`,
+      `Access app HRIS (manual) covers ${HOST_A} instead of Menara's`,
     ],
     [
       "our app lost the policy",

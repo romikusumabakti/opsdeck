@@ -381,7 +381,7 @@ function ChangeRow({ change }: { change: EnvFilePreviewChange }) {
           {change.reserved && (
             <Badge variant="destructive">{t("reserved")}</Badge>
           )}
-          {change.panelWritten && (
+          {change.menaraWritten && (
             <Badge variant="secondary">{t("appWritten")}</Badge>
           )}
         </div>
@@ -401,7 +401,7 @@ function ChangeRow({ change }: { change: EnvFilePreviewChange }) {
       <TableCell className="max-w-56 align-top">
         {change.status === "removed" ? (
           <ChangeValue change={change} value={undefined} absent />
-        ) : change.panelWritten && change.after === undefined ? (
+        ) : change.menaraWritten && change.after === undefined ? (
           <span className="text-sm italic text-muted-foreground">
             {t("setAtDeploy")}
           </span>

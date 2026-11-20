@@ -8,7 +8,11 @@ import { branchSchema, bundleImageSchema } from "@/lib/deploy/validation";
 // edit them) and are escaped for Woodpecker, not for the shell.
 
 // Names the generator gives its own steps; a check must not take one.
-export const GENERATED_STEP_NAMES = ["build", "notify-panel"] as const;
+export const GENERATED_STEP_NAMES = ["build", "notify-menara"] as const;
+
+// The notify step's name before the rename. Pipelines already committed to
+// customer repos still carry it, so a check must not take it either.
+export const LEGACY_GENERATED_STEP_NAMES = ["notify-panel"] as const;
 
 // One path segment: no leading `-` (it would read as an option to `cp`), and
 // not `.` or `..` (`..` escapes the workspace or the bundle dir).
@@ -37,7 +41,13 @@ const stepName = z
     "Step name must be lowercase letters, digits or '-'"
   )
   .refine(
-    (name) => !(GENERATED_STEP_NAMES as readonly string[]).includes(name),
+    (name) =>
+      !(
+        [
+          ...GENERATED_STEP_NAMES,
+          ...LEGACY_GENERATED_STEP_NAMES,
+        ] as readonly string[]
+      ).includes(name),
     "Step name is reserved for a generated step"
   );
 

@@ -147,7 +147,7 @@ type Change = {
   name: string;
   status: string;
   masked: boolean;
-  panelWritten: boolean;
+  menaraWritten: boolean;
   reserved: boolean;
   before?: string;
   after?: string;
@@ -248,7 +248,7 @@ describe("permissions", () => {
 });
 
 describe("the per-dir diff", () => {
-  it("compares semantically and flags masked, panelWritten and reserved keys", async () => {
+  it("compares semantically and flags masked, menaraWritten and reserved keys", async () => {
     const res = await app.request(url);
     const raw = await res.clone().text();
     const body = (await res.json()) as { dirs: PreviewDir[] };
@@ -265,7 +265,7 @@ describe("the per-dir diff", () => {
         name: "COMPOSE_FILE",
         status: "removed",
         masked: false,
-        panelWritten: false,
+        menaraWritten: false,
         reserved: true,
         before: "compose.yaml:compose.extra.yaml",
       },
@@ -273,7 +273,7 @@ describe("the per-dir diff", () => {
         name: "COMPOSE_PROFILES",
         status: "removed",
         masked: false,
-        panelWritten: false,
+        menaraWritten: false,
         reserved: false,
         before: "worker",
       },
@@ -281,7 +281,7 @@ describe("the per-dir diff", () => {
         name: "COMPOSE_PROJECT_NAME",
         status: "removed",
         masked: false,
-        panelWritten: false,
+        menaraWritten: false,
         reserved: true,
         before: "kestrel",
       },
@@ -289,14 +289,14 @@ describe("the per-dir diff", () => {
         name: "DB_PASSWORD",
         status: "changed",
         masked: true,
-        panelWritten: false,
+        menaraWritten: false,
         reserved: false,
       },
       {
         name: "DOCKER_REGISTRY",
         status: "changed",
         masked: false,
-        panelWritten: true,
+        menaraWritten: true,
         reserved: false,
         before: "registry.old.example.test",
         after: REGISTRY,
@@ -305,14 +305,14 @@ describe("the per-dir diff", () => {
         name: "LEGACY_API_KEY",
         status: "removed",
         masked: true,
-        panelWritten: false,
+        menaraWritten: false,
         reserved: false,
       },
       {
         name: "LOG_LEVEL",
         status: "removed",
         masked: false,
-        panelWritten: false,
+        menaraWritten: false,
         reserved: false,
         before: "info",
       },
@@ -320,7 +320,7 @@ describe("the per-dir diff", () => {
         name: "NEW_FLAG",
         status: "added",
         masked: false,
-        panelWritten: false,
+        menaraWritten: false,
         reserved: false,
         after: "on",
       },
@@ -328,7 +328,7 @@ describe("the per-dir diff", () => {
         name: "SMTP_TOKEN",
         status: "added",
         masked: true,
-        panelWritten: false,
+        menaraWritten: false,
         reserved: false,
       },
     ]);
@@ -353,7 +353,7 @@ describe("the per-dir diff", () => {
       name: "IMAGE_TAG",
       status: "added",
       masked: false,
-      panelWritten: true,
+      menaraWritten: true,
       reserved: false,
     });
   });
@@ -393,7 +393,7 @@ describe("the per-dir diff", () => {
       name: "IMAGE_TAG",
       status: "changed",
       masked: false,
-      panelWritten: true,
+      menaraWritten: true,
       reserved: false,
       before: "not a tag",
     });
@@ -416,7 +416,7 @@ describe("the per-dir diff", () => {
       name: "COMPOSE_FILE",
       status: "added",
       masked: false,
-      panelWritten: true,
+      menaraWritten: true,
       reserved: false,
       after: "compose.yaml:compose.menara.yaml",
     });

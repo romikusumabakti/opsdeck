@@ -151,7 +151,7 @@ export function DeleteEnvironmentCard({
     void queryClient.invalidateQueries({ queryKey });
   }
 
-  async function onRemoveFromPanel() {
+  async function onRemoveFromApp() {
     setPending(true);
     setError(null);
     let closed = false;
@@ -255,7 +255,7 @@ export function DeleteEnvironmentCard({
                     variant="outline"
                     className="w-fit"
                     disabled={!nameMatches || pending}
-                    onClick={() => void onRemoveFromPanel()}
+                    onClick={() => void onRemoveFromApp()}
                   >
                     {t("removeFromApp")}
                   </Button>

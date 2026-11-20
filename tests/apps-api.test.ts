@@ -831,7 +831,7 @@ describe("POST /api/service-catalog (register services)", () => {
     expect(res.status).toBe(409);
     // The losing request has already replaced the Woodpecker secret.
     expect((await res.json()).error).toBe(
-      "A service was registered meanwhile. Woodpecker may now hold a notify secret the Panel does not know: rotate the notify secret of hris on its service page."
+      "A service was registered meanwhile. Woodpecker may now hold a notify secret Menara does not know: rotate the notify secret of hris on its service page."
     );
   });
 
@@ -976,7 +976,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     const res = await send("POST", PATH);
     expect(res.status).toBe(502);
     expect((await res.json()).error).toBe(
-      "Woodpecker secret not updated; Panel secret unchanged"
+      "Woodpecker secret not updated; Menara secret unchanged"
     );
     expect(state.calls).not.toContain("panel-secret");
     expect(at(state.components).notifySecret).toBe(before);
@@ -987,7 +987,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     const res = await send("POST", PATH);
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe(
-      "Woodpecker has the new secret but the Panel does not — rotate again"
+      "Woodpecker has the new secret but Menara does not — rotate again"
     );
   });
 

@@ -53,7 +53,7 @@ type Params<K extends ProvisioningStepSpec["kind"]> = Extract<
   { kind: K }
 >["params"];
 
-const panelTag = (environmentId: string) => `menara:${environmentId}`;
+const menaraTag = (environmentId: string) => `menara:${environmentId}`;
 
 async function loadAccount(ctx: CloudflareStepContext) {
   const account = await loadCloudflareAccount();
@@ -81,7 +81,7 @@ function isOwnRecord(
     record.content.toLowerCase() ===
       `${tunnelId}.cfargotunnel.com`.toLowerCase() &&
     record.proxied === true &&
-    record.comment === panelTag(environmentId)
+    record.comment === menaraTag(environmentId)
   );
 }
 
@@ -157,7 +157,7 @@ const hasPolicy = (app: AccessApp, policyId: string) =>
 /**
  * Protects the hostname with a self-hosted Access app bound to the policy.
  * The first Cloudflare step of a binding with a policy, so it checks the DNS
- * record before creating anything. A Panel-tagged app is reused only when it
+ * record before creating anything. A Menara-tagged app is reused only when it
  * carries the planned policy.
  */
 export async function accessApp(
@@ -179,7 +179,7 @@ export async function accessApp(
     params.hostname,
     tunnel.tunnelId
   );
-  const name = panelTag(ctx.environmentId);
+  const name = menaraTag(ctx.environmentId);
   const existing = await findAccessAppByDomain(creds, params.hostname);
   if (existing && existing.name !== name) {
     throw new StepFailed(
@@ -219,10 +219,10 @@ async function requireAccessApp(
   }
   if (!binding.accessPolicyId) return;
   const app = await findAccessAppByDomain(creds, hostname);
-  if (!app || app.name !== panelTag(ctx.environmentId)) {
+  if (!app || app.name !== menaraTag(ctx.environmentId)) {
     throw new StepFailed(
       app
-        ? `Access app ${app.name} covers ${hostname} instead of the Panel's`
+        ? `Access app ${app.name} covers ${hostname} instead of Menara's`
         : `No Access app protects ${hostname}; retry the Access app step`
     );
   }
@@ -257,7 +257,7 @@ export async function dnsRecord(
       zoneId,
       params.hostname,
       tunnel.tunnelId,
-      panelTag(ctx.environmentId)
+      menaraTag(ctx.environmentId)
     ));
   await setDomainDnsRecordId(ctx.environmentId, record.id);
   return existing

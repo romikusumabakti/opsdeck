@@ -830,7 +830,7 @@
     "detectedNone": "未找到 compose 服务",
     "pipelineGenerated": "由 {{APP_NAME}} 生成流水线",
     "pipelineCustom": "使用其自有的 .woodpecker.yaml 构建",
-    "pipelineNotNotifying": "它的 .woodpecker.yaml 不会通知 {{APP_NAME}}，因此其构建不会被部署。请添加一个用仓库机密 <code>menara_notify</code> 签名的 notify-panel 步骤（见 docs/deploy.md）。",
+    "pipelineNotNotifying": "它的 .woodpecker.yaml 不会通知 {{APP_NAME}}，因此其构建不会被部署。请添加一个用仓库机密 <code>menara_notify</code> 签名的 notify-menara 步骤（见 docs/deploy.md）。",
     "needsDatabase": "需要数据库",
     "needsDatabaseHint": "服务器数据库主机上的共享数据库，否则使用数据库容器。",
     "setInAdvanced": "在高级选项中设置。",

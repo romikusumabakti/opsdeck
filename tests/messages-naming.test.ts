@@ -62,8 +62,9 @@ function formatWith(message: string, locale: string): unknown {
   return format.format(values as never);
 }
 
-// The step name `notify-panel` is renamed with the code (Task 6), not here.
-const withoutStepName = (s: string) => s.replaceAll("notify-panel", "");
+// The step name `notify-panel` is still named, as the accepted old name.
+const withoutStepName = (s: string) =>
+  s.replaceAll("notify-menara", "").replaceAll("notify-panel", "");
 
 // es: "panel" is also the ordinary word for a dashboard (ours and
 // Cloudflare's), not the product.
@@ -201,12 +202,12 @@ describe("messages name the product by the instance name", () => {
     expect(hits).toEqual([]);
   });
 
-  it("keeps the notify-panel step name (renamed with the code, not here)", () => {
+  it("names the notify-menara step", () => {
     for (const locale of locales) {
       expect(
         flat[locale]?.get("newEnvironment.pipelineNotNotifying"),
         locale
-      ).toContain("notify-panel");
+      ).toContain("notify-menara");
     }
   });
 

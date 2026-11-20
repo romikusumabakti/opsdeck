@@ -76,7 +76,7 @@ const SPEC = buildSpecSchema.parse({
 });
 const GENERATED = generateWoodpeckerPipeline("hris", SPEC, {
   registry: "registry.example.com",
-  panelUrl: "https://panel.example.com",
+  menaraUrl: "https://panel.example.com",
 });
 
 const COMPONENT = {
@@ -273,7 +273,7 @@ describe("generated registration checks", () => {
     mocks.readRepoFile.mockResolvedValue(
       generateWoodpeckerPipeline("other", SPEC, {
         registry: "registry.example.com",
-        panelUrl: "https://panel.example.com",
+        menaraUrl: "https://panel.example.com",
       })
     );
     await expect(registerServices(SERVICES)).rejects.toMatchObject({

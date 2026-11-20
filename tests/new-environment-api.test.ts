@@ -141,7 +141,7 @@ const detection = vi.hoisted(() => ({
   dockerfiles: ["Dockerfile"],
   pipeline: { kind: "none" } as
     | { kind: "none" }
-    | { kind: "custom"; notifiesPanel: boolean },
+    | { kind: "custom"; notifiesMenara: boolean },
   entryService: "web",
   entryContainerPort: 80,
   issues: [] as string[],

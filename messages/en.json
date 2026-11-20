@@ -830,7 +830,7 @@
     "detectedNone": "No compose services found",
     "pipelineGenerated": "{{APP_NAME}} generates its pipeline",
     "pipelineCustom": "builds with its own .woodpecker.yaml",
-    "pipelineNotNotifying": "Its .woodpecker.yaml does not notify {{APP_NAME}}, so its builds will not deploy. Add a notify-panel step signed with the repo secret <code>menara_notify</code> (see docs/deploy.md).",
+    "pipelineNotNotifying": "Its .woodpecker.yaml does not notify {{APP_NAME}}, so its builds will not deploy. Add a notify-menara step signed with the repo secret <code>menara_notify</code> (see docs/deploy.md).",
     "needsDatabase": "Needs a database",
     "needsDatabaseHint": "A shared database on the server's database host, else a database container.",
     "setInAdvanced": "Set under Advanced options.",

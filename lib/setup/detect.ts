@@ -4,7 +4,7 @@ import {
   buildImageSchema,
   buildSpecSchema,
 } from "@/lib/ci/build-spec";
-import { PANEL_PIPELINE_MARKER } from "@/lib/ci/pipeline";
+import { PIPELINE_MARKER } from "@/lib/ci/pipeline";
 import { bundleImageFor } from "@/lib/ci/registration";
 
 /**
@@ -25,8 +25,8 @@ export type DetectedService = {
 
 export type RepoPipeline =
   | { kind: "none" }
-  | { kind: "panel"; componentKey: string }
-  | { kind: "custom"; notifiesPanel: boolean };
+  | { kind: "menara"; componentKey: string }
+  | { kind: "custom"; notifiesMenara: boolean };
 
 export type RepoDetectionIssue =
   | "no_compose"
@@ -153,9 +153,12 @@ function detectPipeline(
     ) ?? files.find((f) => f.path.startsWith(".woodpecker/"));
   if (!file) return { kind: "none" };
   const content = file.content ?? "";
-  const key = PANEL_PIPELINE_MARKER.exec(content)?.[1];
-  if (key) return { kind: "panel", componentKey: key };
-  return { kind: "custom", notifiesPanel: content.includes("menara_notify") };
+  const key = PIPELINE_MARKER.exec(content)?.[1];
+  if (key) return { kind: "menara", componentKey: key };
+  return {
+    kind: "custom",
+    notifiesMenara: content.includes("menara_notify"),
+  };
 }
 
 const COMPOSE_OVERRIDE_NAMES = [

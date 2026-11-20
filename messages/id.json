@@ -830,7 +830,7 @@
     "detectedNone": "Tidak ada service compose yang ditemukan",
     "pipelineGenerated": "pipeline-nya dibuat oleh {{APP_NAME}}",
     "pipelineCustom": "build dengan .woodpecker.yaml miliknya sendiri",
-    "pipelineNotNotifying": ".woodpecker.yaml-nya tidak memberi tahu {{APP_NAME}}, sehingga build-nya tidak akan di-deploy. Tambahkan step notify-panel yang ditandatangani dengan secret repo <code>menara_notify</code> (lihat docs/deploy.md).",
+    "pipelineNotNotifying": ".woodpecker.yaml-nya tidak memberi tahu {{APP_NAME}}, sehingga build-nya tidak akan di-deploy. Tambahkan step notify-menara yang ditandatangani dengan secret repo <code>menara_notify</code> (lihat docs/deploy.md).",
     "needsDatabase": "Butuh database",
     "needsDatabaseHint": "Database bersama di host database server, atau container database bila tidak ada.",
     "setInAdvanced": "Diatur di Opsi lanjutan.",

@@ -158,7 +158,7 @@ export type EnvFileChange = {
   /** Values left out: a stored non-plain variable, or a live-only key that looks secret. */
   masked: boolean;
   /** Written by the Panel itself: `DOCKER_REGISTRY`, tag variables, `COMPOSE_FILE`. */
-  panelWritten: boolean;
+  menaraWritten: boolean;
   /** A live `COMPOSE_*`/`DOCKER_*`/`BUILDKIT_*` key the managed file drops. */
   reserved: boolean;
   /** The live value (unmasked only). */
@@ -219,12 +219,12 @@ export function diffEnvFile({
       continue;
     }
     const inManaged = pending || managed.has(name);
-    const panelWritten =
+    const menaraWritten =
       name === "DOCKER_REGISTRY" ||
       tagNames.includes(name) ||
       (name === "COMPOSE_FILE" && inManaged);
     const kind = kinds.get(name);
-    const masked = panelWritten
+    const masked = menaraWritten
       ? false
       : kind !== undefined
         ? kind !== "plain"
@@ -234,7 +234,7 @@ export function diffEnvFile({
       status:
         before === undefined ? "added" : inManaged ? "changed" : "removed",
       masked,
-      panelWritten,
+      menaraWritten,
       reserved: !inManaged && isReservedVariableName(name),
     };
     if (!masked && before !== undefined) change.before = before;

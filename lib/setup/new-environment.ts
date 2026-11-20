@@ -382,10 +382,10 @@ export function resolveNewEnvironment(
       return;
     }
     const pipeline = repo.detection.pipeline;
-    // A Panel-generated file left behind names its component; keeping that
+    // A Menara-generated file left behind names its component; keeping that
     // key lets the registration recommit the file (another key is refused).
     const componentKey =
-      pipeline.kind === "panel" && !takenComponents.has(pipeline.componentKey)
+      pipeline.kind === "menara" && !takenComponents.has(pipeline.componentKey)
         ? pipeline.componentKey
         : uniqueKey(repoKey(pickedRepo.repoFullName), takenComponents);
     takenComponents.add(componentKey);
@@ -399,7 +399,7 @@ export function resolveNewEnvironment(
       chosen?.mode ?? (pipeline.kind === "custom" ? "custom" : "generated");
     let buildSpec: BuildSpec | null = null;
     if (mode === "custom") {
-      if (pipeline.kind === "custom" && !pipeline.notifiesPanel) {
+      if (pipeline.kind === "custom" && !pipeline.notifiesMenara) {
         warnings.push({ field, code: "pipelineNotNotifying" });
       } else if (pipeline.kind !== "custom") {
         // Chosen custom, but nothing in the repository builds it yet.
@@ -415,7 +415,7 @@ export function resolveNewEnvironment(
         });
       }
     } else {
-      // No pipeline file, or a Panel-generated one left behind: generate.
+      // No pipeline file, or a Menara-generated one left behind: generate.
       buildSpec = suggestedBuildSpec(
         repo.detection,
         componentKey,
