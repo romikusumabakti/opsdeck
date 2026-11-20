@@ -251,7 +251,7 @@ export function JiraDraftForm({
               href={`/${savedProject.key}/issues/${draft.issueNumber}`}
               className="inline-flex items-center gap-1 text-primary underline underline-offset-4"
             >
-              {t("openPanelIssue")}
+              {t("openAppIssue")}
               <ExternalLink className="size-3.5" />
             </Link>
           )}

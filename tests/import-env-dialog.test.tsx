@@ -4,8 +4,9 @@ import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyBranding } from "@/i18n/branding";
 import type { ImportRow } from "@/lib/variables/import-rows";
-import messages from "../messages/en.json";
+import enMessages from "../messages/en.json";
 
 // "Import .env" in Environment settings → Variables: the Paste, Upload and
 // From server sources, the review table and its default selection, the save,
@@ -41,6 +42,12 @@ import type { ProjectRole } from "@/lib/permissions";
 import { ApiError } from "@/web/api/client";
 import { ImportEnvDialog } from "../web/routes/$locale/_app/-components/env/variables/import-env-dialog";
 import { VariablesClient } from "../web/routes/$locale/_app/-components/env/variables/variables-client";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

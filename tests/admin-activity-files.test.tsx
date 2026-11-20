@@ -4,7 +4,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { describe, expect, it, vi } from "vitest";
-import messages from "../messages/en.json";
+import { applyBranding } from "@/i18n/branding";
+import enMessages from "../messages/en.json";
 
 vi.mock("@/web/api/activity", () => ({
   listActivityQuery: () => ({
@@ -14,6 +15,12 @@ vi.mock("@/web/api/activity", () => ({
 }));
 
 import { Route } from "../web/routes/$locale/_app/admin.activity";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -268,12 +275,12 @@ describe("activity page managed .env events", () => {
       row("3", "variables.envFileManagedOn", { environment: "Kestrel UAT" }),
     ]);
     expect(text).toContain(
-      "Rina let the Panel write the .env of Kestrel Dev after confirming 3 previewed changes"
+      "Rina let Menara write the .env of Kestrel Dev after confirming 3 previewed changes"
     );
     expect(text).toContain(
-      "Rina let the Panel write the .env of Kestrel QA with no previewed changes"
+      "Rina let Menara write the .env of Kestrel QA with no previewed changes"
     );
-    expect(text).toContain("Rina let the Panel write the .env of Kestrel UAT");
+    expect(text).toContain("Rina let Menara write the .env of Kestrel UAT");
     expect(text).not.toContain("Kestrel UAT after");
     expect(text).not.toContain("Kestrel UAT with");
   });

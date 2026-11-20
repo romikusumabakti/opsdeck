@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import messages from "../messages/en.json";
+import enMessages from "../messages/en.json";
 
 const PROJECT = "0197f3a0-1b2c-7def-8000-0123456789f1";
 const ENV = "0197f3a0-1b2c-7def-8000-0123456789e1";
@@ -108,6 +108,7 @@ vi.mock(
 );
 
 import { ProjectRoleProvider } from "@/components/project-role";
+import { applyBranding } from "@/i18n/branding";
 import { environmentUpdateSchema } from "@/lib/validation";
 import {
   environmentPayload,
@@ -117,6 +118,12 @@ import {
   EnvironmentSettingsTabs,
   settingsSearch,
 } from "../web/routes/$locale/_app/-components/env/settings/settings-tabs";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 type Props = React.ComponentProps<typeof EnvironmentSettingsTabs>;
 const ENGINEER = "engineer" as const;

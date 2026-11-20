@@ -5,7 +5,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import messages from "../messages/en.json";
+import enMessages from "../messages/en.json";
 
 const PROJECT = "0197f3a0-1b2c-7def-8000-0123456789f1";
 const SERVER = "0197f3a0-1b2c-7def-8000-0123456789c1";
@@ -89,6 +89,7 @@ vi.mock("@/web/api/project-sources", () => ({
   }),
 }));
 
+import { applyBranding } from "@/i18n/branding";
 import { SETUP_PERMISSIONS } from "@/lib/permissions";
 import {
   NewEnvironmentForm,
@@ -96,6 +97,12 @@ import {
   type NewEnvironmentService,
 } from "../web/routes/$locale/_app/-components/setup/new-environment-form";
 import { Route } from "../web/routes/$locale/_app/$projectKey.environments.new";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 const services: NewEnvironmentService[] = [
   {

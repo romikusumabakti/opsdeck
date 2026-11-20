@@ -382,7 +382,7 @@ function ChangeRow({ change }: { change: EnvFilePreviewChange }) {
             <Badge variant="destructive">{t("reserved")}</Badge>
           )}
           {change.panelWritten && (
-            <Badge variant="secondary">{t("panelWritten")}</Badge>
+            <Badge variant="secondary">{t("appWritten")}</Badge>
           )}
         </div>
       </TableCell>

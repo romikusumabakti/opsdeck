@@ -3,7 +3,8 @@ import { renderToString } from "react-dom/server";
 import { IntlProvider } from "use-intl";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectRoleProvider } from "@/components/project-role";
-import messages from "../messages/en.json";
+import { applyBranding } from "@/i18n/branding";
+import enMessages from "../messages/en.json";
 
 vi.mock("@/i18n/navigation", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -28,6 +29,12 @@ vi.mock(
 );
 
 import { DeploysClient } from "../web/routes/$locale/_app/-components/env/deploys/deploys-client";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 const SETTINGS = "/KMEM/demo-cloud/settings?tab=source";
 const ADD = "/KMEM/demo-cloud/settings?tab=source&add=target";

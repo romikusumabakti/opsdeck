@@ -233,7 +233,7 @@ function RunActorCell({ run }: { run: RunWithUser }) {
       return (
         <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
           <Zap className="size-3.5 shrink-0" aria-hidden />
-          {t.rich("byAutoPanelUser", {
+          {t.rich("byAutoAppUser", {
             name: actor.name,
             user: () => <UserName user={run.autoUser} avatar />,
           })}

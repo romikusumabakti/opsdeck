@@ -176,7 +176,7 @@ export function DeleteEnvironmentCard({
       setPending(false);
     }
     onOpenChange(false);
-    toast.success(t("removedFromPanel", { name: environment.name }));
+    toast.success(t("removedFromApp", { name: environment.name }));
     router.push(`/${projectKey}`);
   }
 
@@ -248,7 +248,7 @@ export function DeleteEnvironmentCard({
               {isAdmin && (
                 <AdvancedOptions>
                   <p className="text-sm text-muted-foreground">
-                    {t("removeFromPanelDescription")}
+                    {t("removeFromAppDescription")}
                   </p>
                   <Button
                     type="button"
@@ -257,7 +257,7 @@ export function DeleteEnvironmentCard({
                     disabled={!nameMatches || pending}
                     onClick={() => void onRemoveFromPanel()}
                   >
-                    {t("removeFromPanel")}
+                    {t("removeFromApp")}
                   </Button>
                 </AdvancedOptions>
               )}

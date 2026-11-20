@@ -5,8 +5,9 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyBranding } from "@/i18n/branding";
 import { locales } from "@/i18n/locales";
-import messages from "../messages/en.json";
+import enMessages from "../messages/en.json";
 
 // Deleting an environment from Settings → Danger zone (a teardown, or
 // "Remove from Panel only" for admins), and the banner the environment pages
@@ -56,6 +57,12 @@ import { ENV_ARCHIVE_RETENTION_DAYS } from "@/lib/teardown/retention";
 import { ApiError } from "@/web/api/client";
 import { DeleteEnvironmentCard } from "../web/routes/$locale/_app/-components/env/delete-environment-card";
 import { TeardownBanner } from "../web/routes/$locale/_app/-components/env/teardown-banner";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -194,7 +201,7 @@ describe("Delete environment dialog", () => {
     await openDialog();
     await act(async () => button(messages.setup.advancedOptions)?.click());
     await type("#delete-environment-confirm", "Dev 1");
-    await act(async () => button(t.removeFromPanel)?.click());
+    await act(async () => button(t.removeFromApp)?.click());
     expect(body()).toContain(tt.errors.teardownRunning);
     expect(api.push).not.toHaveBeenCalled();
   });
@@ -202,19 +209,19 @@ describe("Delete environment dialog", () => {
   it("offers Remove from Panel only to admins alone, under Advanced options", async () => {
     await openDialog();
     expect(body()).not.toContain(messages.setup.advancedOptions);
-    expect(body()).not.toContain(t.removeFromPanel);
+    expect(body()).not.toContain(t.removeFromApp);
     act(() => root.unmount());
     container.remove();
 
     api.orgRole = "admin";
     api.deleteEnvironment.mockResolvedValue({ success: true });
     await openDialog();
-    expect(button(t.removeFromPanel)).toBeUndefined();
+    expect(button(t.removeFromApp)).toBeUndefined();
     await act(async () => button(messages.setup.advancedOptions)?.click());
-    expect(body()).toContain(t.removeFromPanelDescription);
-    expect(button(t.removeFromPanel)?.disabled).toBe(true);
+    expect(body()).toContain(t.removeFromAppDescription);
+    expect(button(t.removeFromApp)?.disabled).toBe(true);
     await type("#delete-environment-confirm", "Dev 1");
-    await act(async () => button(t.removeFromPanel)?.click());
+    await act(async () => button(t.removeFromApp)?.click());
     expect(api.deleteEnvironment).toHaveBeenCalledWith(ENV);
     expect(api.startTeardown).not.toHaveBeenCalled();
     expect(api.push).toHaveBeenCalledWith("/HRIS");

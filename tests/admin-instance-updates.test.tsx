@@ -4,9 +4,10 @@ import { act, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { applyBranding } from "@/i18n/branding";
 import { UPDATE_STATUS_CODES } from "@/lib/updates/request";
 import ar from "../messages/ar.json";
-import messages from "../messages/en.json";
+import enMessages from "../messages/en.json";
 import es from "../messages/es.json";
 import id from "../messages/id.json";
 import zh from "../messages/zh.json";
@@ -35,6 +36,12 @@ vi.mock("@/web/api/instance", () => ({
 }));
 
 import { UpdatesTab } from "../web/routes/$locale/_app/-components/admin/instance/updates-tab";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

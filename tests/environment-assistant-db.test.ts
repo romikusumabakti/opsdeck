@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { IntlMessageFormat } from "intl-messageformat";
 import { describe, expect, it } from "vitest";
+import { applyBranding } from "@/i18n/branding";
 import { locales } from "@/i18n/locales";
 
 // The Assistant database toggle's wiring that has no runtime of its own to
@@ -53,7 +54,14 @@ describe("assistant database messages", () => {
         expect(typeof value, key).toBe("string");
         expect(String(value).trim(), key).not.toBe("");
         // Parses as ICU in that locale.
-        new IntlMessageFormat(String(value), locale);
+        new IntlMessageFormat(
+          applyBranding(String(value), {
+            appName: "Menara",
+            companyName: null,
+            allowedEmailDomain: "example.com",
+          }),
+          locale
+        );
       }
       for (const token of ["{actor}", "{environment}", "{enabled, select"]) {
         expect(m.activity?.environmentAssistantDbAccess, token).toContain(

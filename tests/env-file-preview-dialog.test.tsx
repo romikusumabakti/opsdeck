@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import messages from "../messages/en.json";
+import enMessages from "../messages/en.json";
 
 // The managed .env switch in Source & Deploy: turning it on previews the
 // .env the next deploy would write and asks for a confirm when anything
@@ -38,11 +38,18 @@ vi.mock("@/web/api/variables", () => ({
 
 import { DialogProvider } from "@/components/dialog-provider";
 import { ProjectRoleProvider } from "@/components/project-role";
+import { applyBranding } from "@/i18n/branding";
 import type { ProjectRole } from "@/lib/permissions";
 import { ApiError } from "@/web/api/client";
 import type { EnvFilePreview } from "@/web/api/variables";
 import { EnvFileManagedSwitch } from "../web/routes/$locale/_app/-components/env/settings/env-file-managed-switch";
 import { VariablesClient } from "../web/routes/$locale/_app/-components/env/variables/variables-client";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

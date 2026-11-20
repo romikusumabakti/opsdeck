@@ -673,7 +673,7 @@ describe("Create Jira ticket", () => {
     expect(text()).toContain("Created as KST-9.");
     expect(
       container.querySelector('a[href="/HMEM/issues/42"]')?.textContent
-    ).toContain(t.openPanelIssue);
+    ).toContain(t.openAppIssue);
     expect(button(t.createJira)).toBeUndefined();
   });
 });
@@ -926,7 +926,7 @@ describe("sources", () => {
     expect(summarizeReads(calls).withheld).toBe(2);
     await render(<MessageSources sources={null} toolCalls={calls} />);
     await act(async () => button(t.sources)?.click());
-    expect(text()).toContain(t.panelRead);
+    expect(text()).toContain(t.appData);
     expect(text()).toContain(
       `${t.toolLabels.get_environment_status} · DEMO/dev`
     );

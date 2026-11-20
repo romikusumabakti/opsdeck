@@ -200,7 +200,7 @@ export function MessageSources({
         <ReadList label={t("issuesRead")} items={reads.issueKeys} />
         <ReadList label={t("docsRead")} items={reads.docSlugs} />
         <ReadList
-          label={t("panelRead")}
+          label={t("appData")}
           items={reads.panel.map(({ tool, subject }) =>
             subject
               ? `${t(toolLabelKey(tool))} · ${subject}`

@@ -4,7 +4,8 @@ import { act, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import messages from "../messages/en.json";
+import { applyBranding } from "@/i18n/branding";
+import enMessages from "../messages/en.json";
 
 const api = vi.hoisted(() => ({
   moveToKey: vi.fn(),
@@ -74,6 +75,12 @@ vi.mock("@/web/api/instance", () => ({
 import { ServerForm } from "../components/server-form";
 import { ServerAccessCard } from "../web/routes/$locale/_app/-components/servers/server-access-card";
 import { ServersClient } from "../web/routes/$locale/_app/-components/servers/servers-client";
+
+const messages = applyBranding(enMessages, {
+  appName: "Menara",
+  companyName: null,
+  allowedEmailDomain: "example.com",
+});
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
