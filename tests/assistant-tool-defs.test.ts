@@ -186,7 +186,7 @@ describe("buildTools", () => {
     const names = Object.keys(buildTools(adminCtx, noRecord));
     expect(names).toContain("list_issues");
     expect(names).toContain("get_issue");
-    expect(names.filter((name) => /panel/.test(name))).toEqual([]);
+    expect(names.filter((name) => /menara/.test(name))).toEqual([]);
   });
 
   it("keeps the strict tools within the provider's three strict budgets for an admin", async () => {

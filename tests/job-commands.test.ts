@@ -178,8 +178,8 @@ describe("posixDirname", () => {
     expect(posixDirname("heron2.mdf")).toBe("/");
   });
 
-  it("keeps POSIX semantics regardless of the panel's platform", () => {
-    // node:path would split on `\` when the panel runs on Windows; these paths
+  it("keeps POSIX semantics regardless of Menara's platform", () => {
+    // node:path would split on `\` when Menara runs on Windows; these paths
     // live on the remote Linux host, so a backslash is an ordinary character.
     expect(posixDirname("C:\\data\\heron2.mdf")).toBe("/");
   });
@@ -199,7 +199,7 @@ describe("dbBackupExtensionPattern", () => {
   });
 
   it("matches the optional gzip suffix for the SQL-script engines", () => {
-    // pg_dump and mysqldump both write a plain script the panel may gzip, so
+    // pg_dump and mysqldump both write a plain script Menara may gzip, so
     // the two share a pattern — and share the restore-side suffix sniffing.
     const pattern = dbBackupExtensionPattern("postgres");
     expect(dbBackupExtensionPattern("mysql")).toBe(pattern);

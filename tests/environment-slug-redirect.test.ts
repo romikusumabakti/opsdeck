@@ -43,7 +43,7 @@ beforeEach(() => {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(
         String(input instanceof Request ? input.url : input),
-        "http://panel.test"
+        "http://app.test"
       );
       if (url.pathname.endsWith("/environments/resolve")) {
         const key = `${url.searchParams.get("projectKey")}/${url.searchParams.get("envSlug")}`;

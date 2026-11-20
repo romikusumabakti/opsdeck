@@ -37,7 +37,7 @@ const connection = (id: string, name: string) => ({
   hasToken: true,
   createdAt: new Date("2026-01-01"),
   updatedAt: new Date("2026-01-01"),
-  webhookUrl: `https://panel.test/api/jira/webhook/secret-${id}`,
+  webhookUrl: `https://app.test/api/jira/webhook/secret-${id}`,
 });
 
 async function render(connections: ReturnType<typeof connection>[]) {

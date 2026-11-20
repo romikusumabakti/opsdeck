@@ -72,10 +72,10 @@ const messages = applyBranding(enMessages, {
 const DESTINATION = {
   endpoint: "https://objects.example.test",
   region: "auto",
-  bucket: "fictional-panel-backups",
+  bucket: "fictional-menara-backups",
   accessKeyId: "AKFICTIONALMENARA",
   forcePathStyle: true,
-  keyPrefix: "panel/" as string | null,
+  keyPrefix: "acme/" as string | null,
   secretSet: true,
 };
 
@@ -209,7 +209,7 @@ describe("Admin → Instance → Backups", () => {
       DESTINATION.endpoint
     );
     expect(byId("backup-destination-bucket")?.value).toBe(DESTINATION.bucket);
-    expect(byId("backup-destination-keyPrefix")?.value).toBe("panel/");
+    expect(byId("backup-destination-keyPrefix")?.value).toBe("acme/");
     const secret = byId("backup-destination-secretKey");
     expect(secret?.value).toBe("");
     expect(secret?.placeholder).toBe(t.destinationCard.secretKeyPlaceholderSet);
@@ -228,7 +228,7 @@ describe("Admin → Instance → Backups", () => {
         region: "auto",
         bucket: "fictional-other-bucket",
         accessKeyId: DESTINATION.accessKeyId,
-        keyPrefix: "panel/",
+        keyPrefix: "acme/",
         forcePathStyle: true,
       })
     );
@@ -240,7 +240,7 @@ describe("Admin → Instance → Backups", () => {
       byId("backup-destination-endpoint"),
       "https://objects.example.test"
     );
-    await type(byId("backup-destination-bucket"), "fictional-panel-backups");
+    await type(byId("backup-destination-bucket"), "fictional-menara-backups");
     await type(byId("backup-destination-accessKeyId"), "AKFICTIONALMENARA");
     await act(async () => {
       byId("backup-destination-bucket")?.form?.requestSubmit();

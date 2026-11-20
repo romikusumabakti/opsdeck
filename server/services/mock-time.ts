@@ -380,7 +380,7 @@ function parseIsoDurationMs(duration: string): number | null {
   return sign === "-" ? -ms : ms;
 }
 
-// Best-effort drift threshold: a remote clock that disagrees with the panel's
+// Best-effort drift threshold: a remote clock that disagrees with Menara's
 // wall clock by more than this is assumed to have been previously mocked.
 // Legitimate NTP-synced hosts should drift by milliseconds; 5 minutes is well
 // above that.
@@ -433,8 +433,8 @@ export async function advanceClockLegacy(
     };
   }
   // Anchor on the backend server's *current* clock so an advance applied to an
-  // already-mocked time shifts from there, not from the panel's wall clock.
-  // Falls back to panel time if the read fails — surface as audit failure.
+  // already-mocked time shifts from there, not from Menara's wall clock.
+  // Falls back to Menara time if the read fails — surface as audit failure.
   let baseMs: number;
   try {
     const stdout = await executeRemoteCommand(

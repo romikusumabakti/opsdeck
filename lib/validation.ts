@@ -874,7 +874,7 @@ export const tunnelUpdateSchema = tunnelInputSchema.partial();
 // Cloudflare's free Universal SSL certificate covers `*.zone` and nothing
 // deeper, so `app.team.example.com` would be served a certificate that does not
 // match it. A multi-level name needs paid Advanced Certificate Manager, so the
-// panel refuses one rather than publishing a hostname that fails TLS.
+// Menara refuses one rather than publishing a hostname that fails TLS.
 export const subdomainLabelSchema = z
   .string()
   .trim()

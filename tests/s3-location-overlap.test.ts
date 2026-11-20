@@ -50,7 +50,7 @@ describe("sameS3Bucket", () => {
 });
 
 describe("locationsOverlap", () => {
-  const destination = { ...BASE, keyPrefix: "panel/" };
+  const destination = { ...BASE, keyPrefix: "acme/" };
 
   it.each([
     ["a trailing dot", "https://objects.example.test."],
@@ -76,7 +76,7 @@ describe("locationsOverlap", () => {
     ]) {
       expect(
         locationsOverlap(
-          { endpoint, bucket: "menara-dumps", keyPrefix: "panel/2026/" },
+          { endpoint, bucket: "menara-dumps", keyPrefix: "acme/2026/" },
           destination
         )
       ).toBe(true);
@@ -92,7 +92,7 @@ describe("locationsOverlap", () => {
   it("compares bucket names and prefixes in their stored form", () => {
     expect(
       locationsOverlap(
-        { ...BASE, bucket: " Menara-Dumps ", keyPrefix: "/panel" },
+        { ...BASE, bucket: " Menara-Dumps ", keyPrefix: "/acme" },
         destination
       )
     ).toBe(true);
@@ -113,7 +113,7 @@ describe("locationsOverlap", () => {
     ).toBe(false);
     // A sibling prefix sharing the first letters is not inside.
     expect(
-      locationsOverlap({ ...BASE, keyPrefix: "panel-old/" }, destination)
+      locationsOverlap({ ...BASE, keyPrefix: "acme-old/" }, destination)
     ).toBe(false);
   });
 });

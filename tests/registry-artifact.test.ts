@@ -22,7 +22,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "192.168.10.113:5000");
   vi.stubEnv("DEPLOY_REGISTRY_SCHEME", "http");
-  vi.stubEnv("DEPLOY_REGISTRY_USERNAME", "panel");
+  vi.stubEnv("DEPLOY_REGISTRY_USERNAME", "ci-user");
   vi.stubEnv("DEPLOY_REGISTRY_PASSWORD", PASSWORD);
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
@@ -49,7 +49,7 @@ describe("openArtifactLayer", () => {
     );
     expect(manifestInit.headers.Accept.startsWith(DOCKER)).toBe(true);
     expect(manifestInit.headers.Authorization).toBe(
-      `Basic ${Buffer.from(`panel:${PASSWORD}`).toString("base64")}`
+      `Basic ${Buffer.from(`ci-user:${PASSWORD}`).toString("base64")}`
     );
     const [blobUrl, blobInit] = fetchMock.mock.calls[1] ?? [];
     expect(blobUrl).toBe(
@@ -154,7 +154,7 @@ describe("openArtifactLayer", () => {
     expect(err.message).toMatch(/authentication/);
     expect(err.message).not.toContain(PASSWORD);
     expect(err.message).not.toContain(
-      Buffer.from(`panel:${PASSWORD}`).toString("base64")
+      Buffer.from(`ci-user:${PASSWORD}`).toString("base64")
     );
   });
 

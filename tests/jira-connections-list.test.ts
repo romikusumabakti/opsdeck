@@ -28,7 +28,7 @@ const { getJiraConnections } = await import("@/server/services/jira");
 
 describe("getJiraConnections", () => {
   beforeEach(() => {
-    vi.stubEnv("BETTER_AUTH_URL", "https://panel.test");
+    vi.stubEnv("BETTER_AUTH_URL", "https://app.test");
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -36,9 +36,7 @@ describe("getJiraConnections", () => {
 
   it("lists each connection with its webhook URL and no secrets", async () => {
     const [first] = await getJiraConnections();
-    expect(first?.webhookUrl).toBe(
-      "https://panel.test/api/jira/webhook/s3cret"
-    );
+    expect(first?.webhookUrl).toBe("https://app.test/api/jira/webhook/s3cret");
     expect(first && "webhookSecret" in first).toBe(false);
     expect(first && "apiToken" in first).toBe(false);
   });

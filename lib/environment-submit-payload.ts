@@ -1,6 +1,6 @@
 import { databaseBindingPayload } from "@/lib/environment-database-binding";
 
-// Engines the panel logs into over TCP, so they need a user + password. Postgres
+// Engines Menara logs into over TCP, so they need a user + password. Postgres
 // instead authenticates as its own OS user inside the container/unit.
 const TCP_AUTH_DB_TYPES = new Set(["mssql", "mysql"]);
 

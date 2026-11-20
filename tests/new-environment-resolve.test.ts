@@ -74,10 +74,10 @@ function context(
     ],
     repos: [
       {
-        repoFullName: "acme/panel-canary",
+        repoFullName: "acme/canary-a",
         ciConnectionId: CI,
         detection: detection(),
-        component: known("panel-canary"),
+        component: known("canary-a"),
       },
     ],
     services: [],
@@ -90,7 +90,7 @@ function context(
     defaultAccessPolicyId: "policy-internal",
     zones: [{ id: ZONE, name: "example.net" }],
     existingDbNames: [],
-    takenComponentKeys: ["panel-canary"],
+    takenComponentKeys: ["canary-a"],
     ...overrides,
   };
 }
@@ -105,7 +105,7 @@ function input(
     repos: [
       {
         ciConnectionId: CI,
-        repoFullName: "acme/panel-canary",
+        repoFullName: "acme/canary-a",
         branch: "main",
       },
     ],
@@ -119,7 +119,7 @@ const freshRepo = (pipeline: RepoDetection["pipeline"] = { kind: "none" }) =>
   context({
     repos: [
       {
-        repoFullName: "acme/panel-canary-2",
+        repoFullName: "acme/canary-b",
         ciConnectionId: CI,
         detection: detection({ pipeline }),
         component: null,
@@ -131,7 +131,7 @@ const freshInput = input({
   repos: [
     {
       ciConnectionId: CI,
-      repoFullName: "acme/panel-canary-2",
+      repoFullName: "acme/canary-b",
       branch: "develop",
     },
   ],
@@ -142,7 +142,7 @@ const source: CopySourceLike = {
   serverId: SERVER,
   targets: [
     {
-      componentKey: "panel-canary",
+      componentKey: "canary-a",
       sourceBranch: "release",
       autoDeploy: false,
       services: ["api", "web"],
@@ -373,7 +373,7 @@ describe("resolveNewEnvironment", () => {
     expect(plan.issues).toEqual([]);
     expect(plan.registrations).toEqual([]);
     expect(plan.setup.targets.map((t) => t.componentKey)).toEqual([
-      "panel-canary",
+      "canary-a",
       "other",
     ]);
   });
@@ -381,9 +381,7 @@ describe("resolveNewEnvironment", () => {
   it("does not register a known repo", () => {
     const plan = resolveNewEnvironment(input(), context());
     expect(plan.registrations).toEqual([]);
-    expect(plan.setup.targets.map((t) => t.componentKey)).toEqual([
-      "panel-canary",
-    ]);
+    expect(plan.setup.targets.map((t) => t.componentKey)).toEqual(["canary-a"]);
   });
 
   describe("registers an unknown repo", () => {
@@ -392,15 +390,15 @@ describe("resolveNewEnvironment", () => {
       expect(plan.registrations).toHaveLength(1);
       const [reg] = plan.registrations;
       expect(reg).toMatchObject({
-        repoFullName: "acme/panel-canary-2",
+        repoFullName: "acme/canary-b",
         ciConnectionId: CI,
-        componentKey: "panel-canary-2",
+        componentKey: "canary-b",
         pipelineMode: "generated",
       });
       expect(reg?.buildSpec?.branches).toEqual(["develop"]);
       expect(reg?.buildSpec?.images.map((i) => i.name)).toEqual([
-        "panel-canary-2",
-        "panel-canary-2-api",
+        "canary-b",
+        "canary-b-api",
       ]);
       expect(plan.setup.targets[0]?.sourceBranch).toBe("develop");
       expect(plan.issues).toEqual([]);
@@ -492,7 +490,7 @@ describe("resolveNewEnvironment", () => {
       const generated = resolveNewEnvironment(
         choose([
           {
-            repoFullName: "acme/panel-canary-2",
+            repoFullName: "acme/canary-b",
             mode: "generated",
             buildSpec: spec,
           },
@@ -505,7 +503,7 @@ describe("resolveNewEnvironment", () => {
       });
       expect(generated.warnings).toEqual([]);
       const custom = resolveNewEnvironment(
-        choose([{ repoFullName: "acme/panel-canary-2", mode: "custom" }]),
+        choose([{ repoFullName: "acme/canary-b", mode: "custom" }]),
         freshRepo()
       );
       expect(custom.registrations[0]).toMatchObject({
@@ -518,7 +516,7 @@ describe("resolveNewEnvironment", () => {
         { field: "repos.0", code: "pipelineFileMissing" },
       ]);
       const withFile = resolveNewEnvironment(
-        choose([{ repoFullName: "acme/panel-canary-2", mode: "custom" }]),
+        choose([{ repoFullName: "acme/canary-b", mode: "custom" }]),
         freshRepo({ kind: "custom", notifiesMenara: true })
       );
       expect(withFile.warnings).toEqual([]);
@@ -532,7 +530,7 @@ describe("resolveNewEnvironment", () => {
       const plan = resolveNewEnvironment(
         choose([
           {
-            repoFullName: "acme/panel-canary-2",
+            repoFullName: "acme/canary-b",
             mode: "generated",
             buildSpec: spec,
           },
@@ -547,7 +545,7 @@ describe("resolveNewEnvironment", () => {
       const plan = resolveNewEnvironment(
         choose([
           {
-            repoFullName: "acme/panel-canary-2",
+            repoFullName: "acme/canary-b",
             mode: "generated",
             buildSpec: { ...spec, branches: ["main"] },
           },
@@ -566,7 +564,7 @@ describe("resolveNewEnvironment", () => {
           advanced: {
             pipelines: [
               {
-                repoFullName: "acme/panel-canary",
+                repoFullName: "acme/canary-a",
                 mode: "generated",
               },
             ],
@@ -583,7 +581,7 @@ describe("resolveNewEnvironment", () => {
         newEnvironmentInputSchema.safeParse(
           choose([
             {
-              repoFullName: "acme/panel-canary-2",
+              repoFullName: "acme/canary-b",
               mode: "generated",
               buildSpec: { ...spec, images: [] },
             },
@@ -597,12 +595,12 @@ describe("resolveNewEnvironment", () => {
     expect(
       resolveNewEnvironment(freshInput, freshRepo()).registrations[0]
         ?.componentKey
-    ).toBe("panel-canary-2");
+    ).toBe("canary-b");
     const taken = resolveNewEnvironment(freshInput, {
       ...freshRepo(),
-      takenComponentKeys: ["panel-canary-2"],
+      takenComponentKeys: ["canary-b"],
     });
-    expect(taken.registrations[0]?.componentKey).toBe("panel-canary-2-2");
+    expect(taken.registrations[0]?.componentKey).toBe("canary-b-2");
   });
 
   describe("database default", () => {
@@ -828,7 +826,7 @@ describe("resolveNewEnvironment", () => {
     expect(plan.setup.copyFromEnvironmentId).toBe(SOURCE_ENV);
     expect(plan.setup.targets).toEqual([
       {
-        componentKey: "panel-canary",
+        componentKey: "canary-a",
         sourceBranch: "release",
         autoDeploy: true,
         deployDir: "/deployments/cnry-canary-2",
@@ -858,10 +856,10 @@ describe("resolveNewEnvironment", () => {
       context({
         repos: [],
         services: [
-          { componentKey: "panel-canary", detection: detection() },
+          { componentKey: "canary-a", detection: detection() },
           { componentKey: "ledger-api", detection: null },
         ],
-        takenComponentKeys: ["panel-canary", "ledger-api"],
+        takenComponentKeys: ["canary-a", "ledger-api"],
         ...over,
       });
 
@@ -871,7 +869,7 @@ describe("resolveNewEnvironment", () => {
           repos: [],
           services: [
             { componentKey: "ledger-api", branch: "kestrel/dev" },
-            { componentKey: "panel-canary", branch: "main" },
+            { componentKey: "canary-a", branch: "main" },
           ],
         }),
         twoServices()
@@ -882,13 +880,13 @@ describe("resolveNewEnvironment", () => {
         plan.setup.targets.map((t) => [t.componentKey, t.sourceBranch])
       ).toEqual([
         ["ledger-api", "kestrel/dev"],
-        ["panel-canary", "main"],
+        ["canary-a", "main"],
       ]);
       // Services of different repositories never share a dir by default:
       // each deploy copies its bundle (compose file included) into the dir.
       expect(plan.setup.targets.map((t) => t.deployDir)).toEqual([
         "/deployments/cnry-canary-2",
-        "/deployments/cnry-canary-2-panel-canary",
+        "/deployments/cnry-canary-2-canary-a",
       ]);
       expect(plan.setup).not.toHaveProperty("appId");
     });
@@ -901,19 +899,19 @@ describe("resolveNewEnvironment", () => {
           services: [
             { componentKey: "ledger-api", branch: "main" },
             { componentKey: "ledger-web", branch: "main" },
-            { componentKey: "panel-canary", branch: "main" },
+            { componentKey: "canary-a", branch: "main" },
           ],
         }),
         twoServices({
           services: [
             { componentKey: "ledger-api", detection: null },
             { componentKey: "ledger-web", detection: null },
-            { componentKey: "panel-canary", detection: detection() },
+            { componentKey: "canary-a", detection: detection() },
           ],
           repoOf: {
             "ledger-api": repo,
             "ledger-web": repo,
-            "panel-canary": "ci:acme/panel-canary",
+            "canary-a": "ci:acme/canary-a",
           },
         })
       );
@@ -923,7 +921,7 @@ describe("resolveNewEnvironment", () => {
       ).toEqual([
         ["ledger-api", "/deployments/cnry-canary-2"],
         ["ledger-web", "/deployments/cnry-canary-2"],
-        ["panel-canary", "/deployments/cnry-canary-2-panel-canary"],
+        ["canary-a", "/deployments/cnry-canary-2-canary-a"],
       ]);
     });
 
@@ -1027,7 +1025,7 @@ describe("resolveNewEnvironment", () => {
             ...input().repos,
             {
               ciConnectionId: CI,
-              repoFullName: "acme/panel-canary-2",
+              repoFullName: "acme/canary-b",
               branch: "main",
             },
           ],
@@ -1036,7 +1034,7 @@ describe("resolveNewEnvironment", () => {
           repos: [
             ...context().repos,
             {
-              repoFullName: "acme/panel-canary-2",
+              repoFullName: "acme/canary-b",
               ciConnectionId: CI,
               detection: detection(),
               component: null,
@@ -1046,7 +1044,7 @@ describe("resolveNewEnvironment", () => {
       );
       expect(plan.setup.targets.map((t) => t.deployDir)).toEqual([
         "/deployments/cnry-canary-2",
-        "/deployments/cnry-canary-2-panel-canary-2",
+        "/deployments/cnry-canary-2-canary-b",
       ]);
     });
 
@@ -1054,8 +1052,8 @@ describe("resolveNewEnvironment", () => {
       const plan = resolveNewEnvironment(
         input({
           services: [
-            { componentKey: "panel-canary", branch: "main" },
-            { componentKey: "panel-canary", branch: "dev" },
+            { componentKey: "canary-a", branch: "main" },
+            { componentKey: "canary-a", branch: "dev" },
             { componentKey: "no-such-service", branch: "main" },
           ],
         }),
@@ -1067,7 +1065,7 @@ describe("resolveNewEnvironment", () => {
         { field: "repos.0", code: "duplicate" },
       ]);
       expect(plan.setup.targets.map((t) => t.componentKey)).toEqual([
-        "panel-canary",
+        "canary-a",
       ]);
     });
 
@@ -1099,7 +1097,7 @@ describe("resolveNewEnvironment", () => {
             hasValue: true,
             copyable: true,
             value: "s",
-            definedBy: ["billing-web", "panel-canary"],
+            definedBy: ["billing-web", "canary-a"],
           },
         ],
       };
@@ -1108,7 +1106,7 @@ describe("resolveNewEnvironment", () => {
           repos: [],
           copyFromEnvironmentId: SOURCE_ENV,
           services: [
-            { componentKey: "panel-canary", branch: "main" },
+            { componentKey: "canary-a", branch: "main" },
             { componentKey: "ledger-api", branch: "main" },
           ],
         }),
@@ -1118,7 +1116,7 @@ describe("resolveNewEnvironment", () => {
       // The shared service keeps the source's target settings; the other is new.
       expect(plan.setup.targets).toEqual([
         expect.objectContaining({
-          componentKey: "panel-canary",
+          componentKey: "canary-a",
           sourceBranch: "main",
           tagVariable: "APP_TAG",
           healthTimeoutSeconds: 300,
@@ -1165,7 +1163,7 @@ describe("resolveNewEnvironment", () => {
       domain: { kind: "external", hostname: "canary.example.com" },
       targets: [
         {
-          componentKey: "panel-canary",
+          componentKey: "canary-a",
           sourceBranch: "feature",
           autoDeploy: false,
           deployDir: "/srv/canary",

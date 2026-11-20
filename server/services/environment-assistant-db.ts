@@ -108,7 +108,7 @@ async function enable(
   if (reason) return refuse(409, "assistantDbUnavailable", { reason });
   // The row lock serializes toggles of one environment for the whole run.
   // The environment's shared lock, held until commit, keeps a teardown start
-  // or a panel-only delete (both exclusive) from passing a login being made;
+  // or a Menara-only delete (both exclusive) from passing a login being made;
   // under it, a teardown already under way refuses before any SSH.
   const result = await db.transaction(async (tx) => {
     if (await tearingDownIn(tx, environmentId)) {

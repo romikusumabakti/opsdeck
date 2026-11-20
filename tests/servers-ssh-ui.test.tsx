@@ -270,7 +270,7 @@ describe("servers list", () => {
         can={engineer}
         servers={[
           server({ id: normal, name: "a-normal" }),
-          server({ id: infra, name: "b-panel", infraOnly: true }),
+          server({ id: infra, name: "b-infra", infraOnly: true }),
         ]}
       />
     );

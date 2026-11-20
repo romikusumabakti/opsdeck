@@ -84,7 +84,7 @@ function connection(id: string, isBackupDestination: boolean) {
     environmentId: null,
     endpoint: "https://s3.example.com",
     region: "us-east-1",
-    bucket: isBackupDestination ? "panel-backups" : "assets",
+    bucket: isBackupDestination ? "acme-backups" : "assets",
     keyPrefix: null,
     accessKeyId: "AKIA",
     forcePathStyle: true,

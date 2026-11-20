@@ -108,14 +108,14 @@ describe("validateEnv", () => {
   });
 
   it("rejects registry credentials set without their pair", () => {
-    setEnv({ ...validCore(), DEPLOY_REGISTRY_USERNAME: "panel" });
+    setEnv({ ...validCore(), DEPLOY_REGISTRY_USERNAME: "ci-user" });
     expect(() => validateEnv()).toThrow(/DEPLOY_REGISTRY_PASSWORD/);
   });
 
   it("accepts a registry credential pair and rejects a bad scheme", () => {
     setEnv({
       ...validCore(),
-      DEPLOY_REGISTRY_USERNAME: "panel",
+      DEPLOY_REGISTRY_USERNAME: "ci-user",
       DEPLOY_REGISTRY_PASSWORD: "pw",
       DEPLOY_REGISTRY_SCHEME: "http",
     });

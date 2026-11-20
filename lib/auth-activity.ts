@@ -115,7 +115,7 @@ function userRow(
   };
 }
 
-// First hop of x-forwarded-for, then cf-connecting-ip (the panel sits behind
+// First hop of x-forwarded-for, then cf-connecting-ip (Menara sits behind
 // a Cloudflare tunnel).
 export function clientIpFrom(headers: Headers | undefined): string | null {
   const forwarded = headers?.get("x-forwarded-for")?.split(",")[0]?.trim();

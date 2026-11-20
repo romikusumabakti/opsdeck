@@ -137,7 +137,7 @@ export const UPDATE_STATUS_CODES = [
   // failed with these when it stopped before anything changed
   "interrupted",
   "updaterError",
-  // failed: the restore ran but the panel is not healthy on its version;
+  // failed: the restore ran but Menara is not healthy on its version;
   // `safetyBackup` undoes it
   "restoreFailed",
   // failed: needs an operator

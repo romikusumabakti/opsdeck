@@ -25,11 +25,11 @@ export type ZoneOption = { id: string; name: string };
 type Mode = { type: "create" } | { type: "edit"; tunnel: Serialized<Tunnel> };
 
 /**
- * Register an EXISTING tunnel with the panel.
+ * Register an EXISTING tunnel with Menara.
  *
  * Deliberately not a "create tunnel" form. Creating one needs the account-wide
  * origin certificate, which authorises publishing hostnames anywhere in the
- * zone — a far broader credential than the zone-scoped DNS token this panel
+ * zone — a far broader credential than the zone-scoped DNS token this Menara
  * stores, and one the runbook shreds after every use. Creating tunnels stays a
  * manual, audited step; this form only records where an existing one lives.
  */

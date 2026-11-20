@@ -241,7 +241,7 @@ export async function dropDatabase(
   if (!environment) throw new Error("Environment not found");
   await requireUnconfined(environment, orgGrantRole(session));
 
-  // Guard the environment's configured database — dropping it would break the panel
+  // Guard the environment's configured database — dropping it would break Menara
   // and every other operation that targets it. The worker re-checks too.
   if (database === dbConfig(environment).dbName) {
     throw new Error("Cannot drop the environment's configured database");
@@ -289,7 +289,7 @@ export async function renameDatabase(
   await requireUnconfined(environment, orgGrantRole(session));
 
   // Guard the environment's configured database — renaming it would orphan the
-  // panel's configured dbName. The worker re-checks too.
+  // Menara's configured dbName. The worker re-checks too.
   if (from === dbConfig(environment).dbName) {
     throw new Error("Cannot rename the environment's configured database");
   }

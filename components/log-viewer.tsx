@@ -66,7 +66,7 @@ type StreamState = "idle" | "connecting" | "live" | "paused" | "error";
 
 // Ring-buffer cap: more than 5000 rendered lines is rare for spot-checking
 // and cheap to render with CSS `contain` + plain block layout. Going higher
-// would push us toward virtualization, which is overkill for an ops panel.
+// would push us toward virtualization, which is overkill for Menara.
 const MAX_ENTRIES = 5000;
 // Anchor tolerance: scroll positions within this many pixels of the bottom
 // count as "at bottom" for sticky-tail purposes. Accounts for sub-pixel

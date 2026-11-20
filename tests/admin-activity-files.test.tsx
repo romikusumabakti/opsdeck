@@ -355,7 +355,7 @@ describe("activity page backup destination events", () => {
       row("1", "instance.backupDestinationChanged", {
         state: "set",
         endpoint: "https://objects.example.test",
-        bucket: "fictional-panel-backups",
+        bucket: "fictional-menara-backups",
       }),
       row("2", "instance.backupDestinationChanged", {
         state: "cleared",
@@ -364,7 +364,7 @@ describe("activity page backup destination events", () => {
       }),
     ]);
     expect(text).toContain(
-      "Rina set the backup destination to fictional-panel-backups at https://objects.example.test"
+      "Rina set the backup destination to fictional-menara-backups at https://objects.example.test"
     );
     expect(text).toContain(
       "Rina removed the backup destination; backups stay on this server"

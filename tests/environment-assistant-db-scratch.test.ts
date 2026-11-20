@@ -632,7 +632,7 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
     }
   });
 
-  it("a panel-only delete waits for an enable in flight, then refuses its login", async () => {
+  it("a Menara-only delete waits for an enable in flight, then refuses its login", async () => {
     let release = () => {};
     ssh.gate = new Promise<void>((resolve) => {
       release = resolve;

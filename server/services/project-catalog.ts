@@ -361,7 +361,7 @@ async function recordDefaultServerChange(
  * database login, the delete is refused (409 `projectHasAssistantDbLogins`)
  * for everyone: the cascade would leave the login on the database server
  * with nothing tracking it. Turning the access off drops it first. The
- * delete holds every environment's lock exclusively (as a panel-only
+ * delete holds every environment's lock exclusively (as a Menara-only
  * environment delete does), so an enable in flight finishes first, and its
  * WHERE re-checks for a recorded login.
  */

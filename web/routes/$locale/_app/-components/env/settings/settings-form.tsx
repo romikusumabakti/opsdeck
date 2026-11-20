@@ -32,7 +32,7 @@ import {
 
 export const SERVICE_TYPES = ["docker", "systemd", "kubernetes"] as const;
 export const DB_TYPES = ["postgres", "mssql", "mysql"] as const;
-// Engines the panel logs into over TCP, so they need a user + password.
+// Engines Menara logs into over TCP, so they need a user + password.
 const TCP_AUTH_DB_TYPES = new Set<string>(["mssql", "mysql"]);
 export const ENV_KINDS = ["qa", "dev", "release", "sandbox", "prod"] as const;
 const HTTP_URL = z.url({ protocol: /^https?$/ });

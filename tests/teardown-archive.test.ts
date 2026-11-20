@@ -68,7 +68,7 @@ const state = vi.hoisted(() => ({
   log: [] as string[],
   destination: true,
   // Where today's backup destination points (its bucket and key prefix).
-  destinationBucket: "fictional-panel-backups",
+  destinationBucket: "fictional-menara-backups",
   destinationPrefix: null as string | null,
   connectionGone: false,
   uploads: [] as { key: string; body: string }[],
@@ -337,7 +337,7 @@ beforeEach(() => {
   state.run = { status: "started" };
   state.log = [];
   state.destination = true;
-  state.destinationBucket = "fictional-panel-backups";
+  state.destinationBucket = "fictional-menara-backups";
   state.destinationPrefix = null;
   state.connectionGone = false;
   state.uploads = [];
@@ -568,7 +568,7 @@ describe("archiveDatabase", () => {
   });
 
   it("records a new archive against the backup destination, under its key prefix", async () => {
-    state.destinationPrefix = "panel/";
+    state.destinationPrefix = "acme/";
     await archiveDatabase(ctx(), { serviceId: "svc" });
     const archive = state.archives[0] as Archive;
     expect(archive).toMatchObject({
@@ -576,11 +576,11 @@ describe("archiveDatabase", () => {
       inBackupDestination: true,
       s3ConnectionId: null,
       s3Endpoint: "https://objects.example.test",
-      s3Bucket: "fictional-panel-backups",
-      keyPrefix: `panel/menara-env-archives/menara-test/${archive.id}/`,
+      s3Bucket: "fictional-menara-backups",
+      keyPrefix: `acme/menara-env-archives/menara-test/${archive.id}/`,
     });
     expect(state.uploads.map((u) => u.key)).toEqual([
-      `panel/menara-env-archives/menara-test/${archive.id}/${DB_FILE}`,
+      `acme/menara-env-archives/menara-test/${archive.id}/${DB_FILE}`,
     ]);
   });
 

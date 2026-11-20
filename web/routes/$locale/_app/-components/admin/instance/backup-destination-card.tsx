@@ -214,7 +214,7 @@ export function BackupDestinationCard({
               {text("region", tForm("region"))}
             </div>
             {text("keyPrefix", t("keyPrefix"), {
-              placeholder: "panel/",
+              placeholder: "menara/",
               description: t("keyPrefixDescription"),
             })}
             {text("accessKeyId", tForm("accessKeyId"))}

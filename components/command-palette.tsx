@@ -387,7 +387,7 @@ export function CommandPalette({
             )}
             {canOrg(orgRole, { instance: ["manage"] }) && (
               <CommandItem
-                value="instance panel backups updates"
+                value="instance menara backups updates"
                 onSelect={() => run(() => router.push("/admin/instance"))}
               >
                 <Cog />

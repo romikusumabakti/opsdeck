@@ -111,7 +111,7 @@ vi.mock("@/lib/instance-backup/destination", async (importOriginal) => ({
     state.destination
       ? {
           ...state.destination,
-          keyPrefix: "panel/",
+          keyPrefix: "acme/",
           keepDaily: 14,
           keepWeekly: 8,
           store: {
@@ -184,7 +184,7 @@ function s3Row(extra: Partial<Row> = {}): Row {
 }
 
 const ENDPOINT = "https://objects.example.test";
-const BUCKET = "fictional-panel-backups";
+const BUCKET = "fictional-menara-backups";
 
 /** An archive written to the backup destination, under its key prefix. */
 function destinationRow(extra: Partial<Row> = {}): Row {
@@ -194,7 +194,7 @@ function destinationRow(extra: Partial<Row> = {}): Row {
     inBackupDestination: true,
     s3Endpoint: ENDPOINT,
     s3Bucket: BUCKET,
-    keyPrefix: `panel/menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
+    keyPrefix: `acme/menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
     ...extra,
   });
 }
@@ -366,7 +366,7 @@ describe("archives written to the backup destination", () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("dest dump!");
     expect(state.reads).toEqual([
-      `panel/menara-env-archives/menara-test/${S3_ARCHIVE_ID}/db-hris-0123456789.dump`,
+      `acme/menara-env-archives/menara-test/${S3_ARCHIVE_ID}/db-hris-0123456789.dump`,
     ]);
   });
 
@@ -390,10 +390,10 @@ describe("archives written to the backup destination", () => {
   it("never reads a key prefix that is not an archive's", async () => {
     state.destination = { endpoint: ENDPOINT, bucket: BUCKET };
     for (const keyPrefix of [
-      "panel/menara-backups/menara-test/",
+      "acme/menara-backups/menara-test/",
       `../menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
-      `panel//menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
-      `panel/menara-env-archives/menara-test/other-id/`,
+      `acme//menara-env-archives/menara-test/${S3_ARCHIVE_ID}/`,
+      `acme/menara-env-archives/menara-test/other-id/`,
     ]) {
       state.rows = [destinationRow({ keyPrefix })];
       expect((await app.request(url)).status).toBe(404);

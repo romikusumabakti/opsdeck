@@ -452,7 +452,7 @@ export const environmentServices = pgTable(
     // --- db-role config (null on non-db services) ---
     dbType: databaseTypeEnum("db_type"),
     dbName: text("db_name"),
-    // Admin login for the engines the panel authenticates to over TCP
+    // Admin login for the engines Menara authenticates to over TCP
     // (mssql, mysql). Null falls back to the engine's conventional account —
     // see lib/services#dbAdminUser. Not a secret, so it survives the sanitized
     // client projection. Unused for postgres, which uses trusted local auth.
@@ -2039,7 +2039,7 @@ export const jiraProjectLinks = pgTable(
 // Cloudflare Tunnel subdomains
 // =========================
 
-// A Cloudflare DNS zone the panel may publish hostnames in, managed by admins
+// A Cloudflare DNS zone Menara may publish hostnames in, managed by admins
 // like `servers`, `s3Connections`, and `jiraConnections`.
 //
 // The credential is held per zone rather than per tunnel because that is the
@@ -2049,7 +2049,7 @@ export const jiraProjectLinks = pgTable(
 export const cloudflareZones = pgTable("cloudflare_zones", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
   // The apex domain, e.g. "example.net". Hostnames are formed as
-  // `<label>.<name>`, and the panel refuses anything that isn't under a zone
+  // `<label>.<name>`, and Menara refuses anything that isn't under a zone
   // registered here.
   name: text("name").notNull().unique("cloudflare_zones_name_unique"),
   // Cloudflare's own zone identifier, taken from the dashboard overview.
@@ -2057,7 +2057,7 @@ export const cloudflareZones = pgTable("cloudflare_zones", {
   // API token, encrypted at rest via lib/secrets.ts and stripped before any row
   // reaches the client (see SafeCloudflareZone).
   //
-  // Scope it to `Zone:DNS:Edit` on THIS ZONE ONLY. That is everything the panel
+  // Scope it to `Zone:DNS:Edit` on THIS ZONE ONLY. That is everything Menara
   // does with it, and it deliberately excludes creating or deleting tunnels —
   // which is why tunnel creation is not a feature here and stays a manual,
   // audited step performed with the account-wide origin certificate.
@@ -2066,7 +2066,7 @@ export const cloudflareZones = pgTable("cloudflare_zones", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// A locally-managed `cloudflared` tunnel the panel can edit the ingress of.
+// A locally-managed `cloudflared` tunnel Menara can edit the ingress of.
 //
 // Note what is NOT here: the routes. The tunnel's `config.yml` on the server is
 // the source of truth for its ingress table, and this row only records where to
@@ -2085,7 +2085,7 @@ export const tunnels = pgTable(
         name: "tunnels_zone_id_cloudflare_zones_id_fk",
         onDelete: "restrict",
       }),
-    // The host the tunnel's stack and container live on. The panel reaches it
+    // The host the tunnel's stack and container live on. Menara reaches it
     // with this server's existing SSH credentials.
     serverId: uuid("server_id")
       .notNull()
@@ -3142,7 +3142,7 @@ export const assistantUsage = pgTable(
 );
 
 // A BRD or Jira issue the assistant drafted. `issueId` is set once the draft
-// was filed as a panel issue.
+// was filed as a Menara issue.
 export const assistantDrafts = pgTable(
   "assistant_drafts",
   {

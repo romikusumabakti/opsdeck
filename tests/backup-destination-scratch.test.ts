@@ -79,10 +79,10 @@ const CONN_FREE = "00000000-0000-7000-8000-00000000d0c2";
 const CONN_SAME = "00000000-0000-7000-8000-00000000d0c3";
 const CONN_OTHER = "00000000-0000-7000-8000-00000000d0c4";
 // Fictional credentials; the secrets are what must never come back.
-const SECRET = "fictional-panel-secret-3b9e";
+const SECRET = "fictional-menara-secret-3b9e";
 const LEGACY_SECRET = "fictional-legacy-secret-c01d";
 const ENDPOINT = "https://objects.example.test";
-const BUCKET = "fictional-panel-backups";
+const BUCKET = "fictional-menara-backups";
 
 const as = (id: string, role: string, signInMethod = "passkey") => {
   session.user = { id, role, name: role };
@@ -108,7 +108,7 @@ const destination = (over: Record<string, unknown> = {}) => ({
   accessKeyId: "AKFICTIONALMENARA",
   secretKey: SECRET,
   forcePathStyle: true,
-  keyPrefix: "panel/",
+  keyPrefix: "acme/",
   ...over,
 });
 
@@ -250,7 +250,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
       row(CONN_FREE, "Old bucket", null, "fictional-old", null, "s-free"),
       // An environment's connection on the destination's bucket, under the
       // destination's prefix, and one beside it.
-      row(CONN_SAME, "Menara copy", ENV, BUCKET, "panel/dumps/", "s-same"),
+      row(CONN_SAME, "Menara copy", ENV, BUCKET, "acme/dumps/", "s-same"),
       row(CONN_OTHER, "Uploads", ENV, BUCKET, "uploads/", "s-other"),
     ])}`;
     await sql`update instance_settings
@@ -272,7 +272,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
           bucket: BUCKET,
           accessKeyId: "AKFICTIONALMENARA",
           forcePathStyle: true,
-          keyPrefix: "panel/",
+          keyPrefix: "acme/",
           secretSet: true,
         });
         expect(JSON.stringify(view)).not.toContain(SECRET);
@@ -285,12 +285,12 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
 
     it("stores the secret encrypted, normalises the endpoint and the prefix", async () => {
       await svc.saveBackupDestination(
-        destination({ endpoint: `${ENDPOINT}/`, keyPrefix: "/panel/backups" })
+        destination({ endpoint: `${ENDPOINT}/`, keyPrefix: "/acme/backups" })
       );
       const row = await settingsRow();
       expect(row).toMatchObject({
         backup_s3_endpoint: ENDPOINT,
-        backup_s3_key_prefix: "panel/backups/",
+        backup_s3_key_prefix: "acme/backups/",
         // The legacy setting is left as it is (expand/contract).
         backup_destination_id: CONN_LEGACY,
       });
@@ -458,7 +458,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
           bucket: BUCKET,
           accessKeyId: "AKFICTIONALMENARA",
           forcePathStyle: true,
-          keyPrefix: "panel/",
+          keyPrefix: "acme/",
           secretKey: SECRET,
         },
       ]);
@@ -501,7 +501,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
       expect(loaded).toMatchObject({
         endpoint: ENDPOINT,
         bucket: BUCKET,
-        keyPrefix: "panel/",
+        keyPrefix: "acme/",
         keepDaily: 14,
         keepWeekly: 8,
       });
@@ -520,7 +520,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
         inBackupDestination: true,
         s3Endpoint: ENDPOINT,
         s3Bucket: BUCKET,
-        keyPrefix: "panel/menara-env-archives/menara/x/",
+        keyPrefix: "acme/menara-env-archives/menara/x/",
       });
       expect(created).toMatchObject({ inBackupDestination: true });
     });
@@ -553,7 +553,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
     it("an environment can't add or move a connection onto the destination", async () => {
       await svc.saveBackupDestination(destination());
       as(ENGINEER, "engineer");
-      for (const keyPrefix of [null, "panel/", "panel/sub/"]) {
+      for (const keyPrefix of [null, "acme/", "acme/sub/"]) {
         expect(
           await refusal(
             storage.createEnvironmentStorage(ENV, {
@@ -573,7 +573,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
       expect(
         await refusal(
           storage.updateEnvironmentStorage(ENV, CONN_OTHER, {
-            keyPrefix: "panel/",
+            keyPrefix: "acme/",
             secretKey: "s-other-new",
           })
         )
@@ -651,7 +651,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
         await refusal(
           storage.updateEnvironmentStorage(ENV, CONN_OTHER, {
             endpoint: "https://alias.example.test",
-            keyPrefix: "panel/sub/",
+            keyPrefix: "acme/sub/",
             secretKey: "s-other-new",
           })
         )

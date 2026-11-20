@@ -114,7 +114,7 @@ vi.mock("@/lib/apps", async (importOriginal) => {
       }
     ),
     setNotifySecret: vi.fn(async (componentKey: string, value: string) => {
-      state.calls.push("panel-secret");
+      state.calls.push("menara-secret");
       if (state.secretWriteError) throw state.secretWriteError;
       const c = state.components.find((x) => x.componentKey === componentKey);
       if (c) c.notifySecret = value;
@@ -958,7 +958,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
   it("updates Woodpecker first, then Menara, for an admin", async () => {
     const res = await send("POST", PATH);
     expect(res.status).toBe(200);
-    expect(state.calls).toEqual(["secret:1", "panel-secret"]);
+    expect(state.calls).toEqual(["secret:1", "menara-secret"]);
     const [, name, secret, events] = at(provider.upsertRepoSecret.mock.calls);
     expect(name).toBe("menara_notify");
     expect(events).toEqual(["push", "manual"]);
@@ -978,7 +978,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     expect((await res.json()).error).toBe(
       "Woodpecker secret not updated; Menara secret unchanged"
     );
-    expect(state.calls).not.toContain("panel-secret");
+    expect(state.calls).not.toContain("menara-secret");
     expect(at(state.components).notifySecret).toBe(before);
   });
 
@@ -1004,7 +1004,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     state.apps = [];
     state.components = [existingComponent({ appId: null })];
     expect((await send("POST", PATH)).status).toBe(200);
-    expect(state.calls).toEqual(["secret:1", "panel-secret"]);
+    expect(state.calls).toEqual(["secret:1", "menara-secret"]);
   });
 
   it("answers 409 when the component has no CI repo", async () => {

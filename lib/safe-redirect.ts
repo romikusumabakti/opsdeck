@@ -3,7 +3,7 @@
  *
  * The `?redirect=` query parameter ends up in `router.push()` and in the OAuth
  * `callbackURL`, so an attacker-controlled absolute URL would turn the sign-in
- * page into an open redirect: the victim authenticates on the real panel and is
+ * page into an open redirect: the victim authenticates on the real Menara and is
  * then dropped on a look-alike host. Only same-origin, single-slash paths are
  * allowed through; everything else falls back to the app root.
  */

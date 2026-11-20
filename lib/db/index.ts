@@ -10,7 +10,7 @@ function createDb() {
   const client = postgres(process.env.DATABASE_URL, {
     // A small pool: the app runs a handful of concurrent server actions and
     // SSE streams. `max: 1` serialized everything head-of-line; 10 is plenty
-    // for an internal ops panel and stays well under Postgres' default 100.
+    // for an internal Menara and stays well under Postgres' default 100.
     max: 10,
     // Timestamp columns are `timestamp` (no time zone) holding UTC wall-clock
     // time, which is what drizzle writes from JS Dates. DB-side `now()` and

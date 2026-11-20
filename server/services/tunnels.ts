@@ -72,7 +72,7 @@ import { loadCloudflareAccount } from "@/server/services/cloudflare-account";
 
 // Admin-managed Cloudflare Tunnel subdomains. Everything here is admin-only:
 // publishing or withdrawing a hostname changes what the public internet can
-// reach, which is a wider blast radius than any other action in this panel.
+// reach, which is a wider blast radius than any other action in this Menara.
 //
 // The division of labour: lib/tunnels/ingress and lib/tunnels/compose edit YAML
 // (pure, unit-tested), lib/tunnels/remote moves bytes and runs commands, and
@@ -329,7 +329,7 @@ export async function updateTunnel(
 
 /**
  * Forget a tunnel. Only the registration is removed — the tunnel keeps running
- * and keeps serving every hostname in its config, because this panel is not
+ * and keeps serving every hostname in its config, because this Menara is not
  * where that config lives. Withdraw the routes first if that is the intent.
  */
 export async function deleteTunnel(id: string): Promise<ActionResponse> {
@@ -382,7 +382,7 @@ async function loadTunnel(id: string): Promise<LoadedTunnel | null> {
 export type RouteRow = IngressRoute & {
   dns: DnsCheck;
   // State of the origin container, or null when the origin is not a container
-  // this panel can address (a bare IP, a unix socket, `hello_world`).
+  // this Menara can address (a bare IP, a unix socket, `hello_world`).
   origin: IngressRoute["origin"];
   originState: "running" | "stopped" | "not-found" | "unknown";
   // False when cloudflared shares no Docker network with the origin container,
@@ -404,7 +404,7 @@ export type TunnelRoutesView = {
 
 /**
  * The ingress table of one tunnel, read from its config.yml on the host and
- * annotated with what the panel can verify about each route.
+ * annotated with what Menara can verify about each route.
  *
  * Nothing here is cached in the database on purpose: the file is the source of
  * truth, so a route added by hand on the server shows up here, and one deleted

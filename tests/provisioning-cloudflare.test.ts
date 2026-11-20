@@ -362,7 +362,7 @@ describe("tunnel_route", () => {
   });
 
   it("refuses to adopt a same-service route when DNS is someone else's", async () => {
-    // E.g. production `panel` on the same tunnel, published by hand.
+    // E.g. production `app` on the same tunnel, published by hand.
     cf.records = [
       {
         ...foreign(),

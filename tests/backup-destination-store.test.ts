@@ -44,10 +44,10 @@ function memory(keys: string[]) {
 describe("prefixedStore", () => {
   it("puts every key under the prefix and hands keys back relative", async () => {
     const inner = memory([
-      "panel/menara-backups/x/manifest.json",
-      "panel/menara-backups/x/database.dump",
+      "acme/menara-backups/x/manifest.json",
+      "acme/menara-backups/x/database.dump",
     ]);
-    const store = prefixedStore(inner.store, "panel/");
+    const store = prefixedStore(inner.store, "acme/");
     expect(await store.list("menara-backups/")).toEqual([
       { key: "menara-backups/x/manifest.json", size: 1 },
       { key: "menara-backups/x/database.dump", size: 1 },
@@ -57,11 +57,11 @@ describe("prefixedStore", () => {
     await store.upload("menara-backups/y/database.dump", "/tmp/unused");
     await store.delete(["menara-backups/x/a", "menara-backups/x/b"]);
     expect(inner.calls).toEqual([
-      "list panel/menara-backups/",
-      "download panel/menara-backups/x/database.dump",
-      "read panel/menara-backups/x/manifest.json",
-      "upload panel/menara-backups/y/database.dump",
-      "delete panel/menara-backups/x/a,panel/menara-backups/x/b",
+      "list acme/menara-backups/",
+      "download acme/menara-backups/x/database.dump",
+      "read acme/menara-backups/x/manifest.json",
+      "upload acme/menara-backups/y/database.dump",
+      "delete acme/menara-backups/x/a,acme/menara-backups/x/b",
     ]);
   });
 
@@ -74,9 +74,9 @@ describe("prefixedStore", () => {
 const settings = (extra: Record<string, unknown> = {}) => ({
   backupS3Endpoint: "https://objects.example.test",
   backupS3Region: "auto",
-  backupS3Bucket: "fictional-panel-backups",
+  backupS3Bucket: "fictional-menara-backups",
   backupS3AccessKeyId: "AKFICTIONALMENARA",
-  backupS3SecretKey: encryptSecret("fictional-panel-secret"),
+  backupS3SecretKey: encryptSecret("fictional-menara-secret"),
   backupS3ForcePathStyle: true,
   backupS3KeyPrefix: null as string | null,
   backupKeepDaily: 14,
@@ -131,29 +131,31 @@ describe("destinationFromSettings", () => {
 
   it("names its location and keeps the retention", () => {
     const destination = destinationFromSettings(
-      settings({ backupS3KeyPrefix: "panel/" })
+      settings({ backupS3KeyPrefix: "acme/" })
     );
     expect(destination).toMatchObject({
       endpoint: "https://objects.example.test",
-      bucket: "fictional-panel-backups",
-      keyPrefix: "panel/",
+      bucket: "fictional-menara-backups",
+      keyPrefix: "acme/",
       keepDaily: 14,
       keepWeekly: 8,
     });
-    expect(JSON.stringify(destination)).not.toContain("fictional-panel-secret");
+    expect(JSON.stringify(destination)).not.toContain(
+      "fictional-menara-secret"
+    );
   });
 
   it("writes instance backups under the key prefix and archive keys whole", async () => {
     const s3 = fakeS3();
     const destination = destinationFromSettings(
-      settings({ backupS3KeyPrefix: "panel/" }),
+      settings({ backupS3KeyPrefix: "acme/" }),
       s3.extra
     );
     await destination?.store.list("menara-backups/menara/");
     await destination?.bucketStore.list("menara-env-archives/menara/a/");
     expect(s3.seen).toEqual([
-      "GET /fictional-panel-backups/ panel/menara-backups/menara/",
-      "GET /fictional-panel-backups/ menara-env-archives/menara/a/",
+      "GET /fictional-menara-backups/ acme/menara-backups/menara/",
+      "GET /fictional-menara-backups/ menara-env-archives/menara/a/",
     ]);
   });
 

@@ -27,7 +27,7 @@ describe("baseEnvSlug", () => {
 
 describe("slugify", () => {
   it("cuts to the given length and trims hyphens left at the cut", () => {
-    expect(slugify("panel-canary-2", 64)).toBe("panel-canary-2");
+    expect(slugify("canary-b", 64)).toBe("canary-b");
     expect(slugify("abc def", 4)).toBe("abc");
     expect(slugify("---", 10)).toBe("");
   });

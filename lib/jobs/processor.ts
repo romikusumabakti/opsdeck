@@ -494,8 +494,8 @@ async function handleMockEnvironmentTimeResetLegacy(
 // When the source backup lives on a different DB server/service than the
 // restore target (only the dbType matches), the file must be physically copied
 // into the target's backup dir before the normal restore can read it. The move
-// hops through the panel: extract the source file into an SSH-owned temp on the
-// source host, SFTP it down to the panel, SFTP it up to the target host, then
+// hops through Menara: extract the source file into an SSH-owned temp on the
+// source host, SFTP it down to Menara, SFTP it up to the target host, then
 // place it into the target's backup dir with the DB user's ownership. Streaming
 // host-to-host directly isn't possible (SFTP is per-connection), and passing
 // the bytes through a shell would collide with `sudo -S`'s stdin (in
@@ -561,7 +561,7 @@ async function transferBackupToTarget(
       DATA_COMMAND_TIMEOUT_MS
     );
   } finally {
-    // Drop the transient temps on both hosts and the panel regardless of
+    // Drop the transient temps on both hosts and Menara regardless of
     // outcome; the placed backup file is cleaned separately after the restore.
     await ignoreErrors(() =>
       executeRemoteCommand(srcCreds, `rm -f ${shq(srcHostTmp)}`)
@@ -1011,7 +1011,7 @@ async function handleDropDatabase(
     if (!database) throw new Error("Database name is required");
     // Defence in depth: the action layer already blocks dropping the environment's
     // configured database, but re-check here so a hand-crafted event can't
-    // wipe the default DB out from under the panel.
+    // wipe the default DB out from under Menara.
     if (database === db.dbName) {
       throw new Error("Refusing to drop the environment's configured database");
     }
@@ -1101,7 +1101,7 @@ async function handleRenameDatabase(
     if (from === to) throw new Error("New name must differ from the old name");
     // Defence in depth: the action layer already blocks renaming the environment's
     // configured database, but re-check here so a hand-crafted event can't
-    // orphan the default DB out from under the panel.
+    // orphan the default DB out from under Menara.
     if (from === db.dbName) {
       throw new Error(
         "Refusing to rename the environment's configured database"

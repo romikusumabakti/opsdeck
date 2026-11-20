@@ -135,7 +135,7 @@ function destination(
 ): BackupDeps["destination"] {
   return async () => ({
     endpoint: "https://objects.example.test",
-    bucket: "fictional-panel-backups",
+    bucket: "fictional-menara-backups",
     keyPrefix: null,
     store,
     bucketStore: store,
@@ -290,30 +290,30 @@ describe("runInstanceBackup", () => {
 
   it("keeps a destination's backups under its key prefix, retention included", async () => {
     const bucket = memoryStore({
-      "panel/menara-backups/test/2026-11-08T010000Z-1.2.2/manifest.json": "{}",
-      "panel/menara-backups/test/2026-11-07T010000Z-1.2.2/manifest.json": "{}",
+      "acme/menara-backups/test/2026-11-08T010000Z-1.2.2/manifest.json": "{}",
+      "acme/menara-backups/test/2026-11-07T010000Z-1.2.2/manifest.json": "{}",
       // Beside the prefix: never listed, never pruned.
       "menara-backups/test/2026-11-06T010000Z-1.2.2/manifest.json": "{}",
     });
     const result = await runInstanceBackup(
       "manual",
       deps({
-        destination: destination(prefixedStore(bucket.store, "panel/"), {
+        destination: destination(prefixedStore(bucket.store, "acme/"), {
           keepDaily: 2,
           keepWeekly: 0,
         }),
       })
     );
     expect(result).toMatchObject({ status: "succeeded", objectKey: PREFIX });
-    expect(bucket.uploads.at(-1)).toBe(`panel/${PREFIX}manifest.json`);
+    expect(bucket.uploads.at(-1)).toBe(`acme/${PREFIX}manifest.json`);
     expect([...bucket.objects.keys()].sort()).toEqual(
       [
         "menara-backups/test/2026-11-06T010000Z-1.2.2/manifest.json",
-        "panel/menara-backups/test/2026-11-08T010000Z-1.2.2/manifest.json",
-        `panel/${PREFIX}database.dump`,
-        `panel/${PREFIX}garage/attachments/a.png`,
-        `panel/${PREFIX}garage/issues/b/c.txt`,
-        `panel/${PREFIX}manifest.json`,
+        "acme/menara-backups/test/2026-11-08T010000Z-1.2.2/manifest.json",
+        `acme/${PREFIX}database.dump`,
+        `acme/${PREFIX}garage/attachments/a.png`,
+        `acme/${PREFIX}garage/issues/b/c.txt`,
+        `acme/${PREFIX}manifest.json`,
       ].sort()
     );
   });

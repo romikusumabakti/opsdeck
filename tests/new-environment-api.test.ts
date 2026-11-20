@@ -185,7 +185,7 @@ vi.mock("@/server/services/ci-connections", async (importOriginal) => ({
     listRepos: async () => [
       {
         ciRepoId: "",
-        fullName: "acme/panel-canary",
+        fullName: "acme/canary-a",
         forgeRemoteId: "{r1}",
         active: false,
       },
@@ -245,7 +245,7 @@ const freshInput = {
   projectId: PROJECT_ID,
   name: "Dev",
   repos: [
-    { ciConnectionId: CI, repoFullName: "acme/panel-canary", branch: "main" },
+    { ciConnectionId: CI, repoFullName: "acme/canary-a", branch: "main" },
   ],
   needsDatabase: false,
   address: { label: "" },
@@ -351,10 +351,10 @@ describe("POST /api/setup/new-environment", () => {
     expect(apps.registerSetupServices).toHaveBeenCalledTimes(1);
     expect(apps.registerSetupServices.mock.calls[0]?.[0]).toMatchObject([
       {
-        componentKey: "panel-canary",
+        componentKey: "canary-a",
         ciConnectionId: CI,
         forgeRemoteId: "{r1}",
-        bundleImage: "panel-canary-deploy",
+        bundleImage: "canary-a-deploy",
         pipelineMode: "generated",
         buildSpec: { branches: ["main"] },
       },
@@ -362,7 +362,7 @@ describe("POST /api/setup/new-environment", () => {
     // The build spec is detection's (server-derived); the new environment's
     // branch is the one that builds.
     expect(apps.registerSetupServices.mock.calls[0]?.[1]).toEqual({
-      "panel-canary": ["main"],
+      "canary-a": ["main"],
     });
 
     // The resolved setup: no app.
@@ -372,7 +372,7 @@ describe("POST /api/setup/new-environment", () => {
       projectId: PROJECT_ID,
       name: "Dev",
       server: { serverId: OPEN_SERVER },
-      targets: [{ componentKey: "panel-canary", sourceBranch: "main" }],
+      targets: [{ componentKey: "canary-a", sourceBranch: "main" }],
       domain: {
         kind: "tunnel",
         zoneId: ZONE,
@@ -393,10 +393,7 @@ describe("POST /api/setup/new-environment", () => {
     ]);
     const deploys = await import("@/lib/deploy/repository");
     expect(deploys.flagDeployNextBuild).not.toHaveBeenCalled();
-    expect(apps.triggerComponentBuild).toHaveBeenCalledWith(
-      "panel-canary",
-      "main"
-    );
+    expect(apps.triggerComponentBuild).toHaveBeenCalledWith("canary-a", "main");
   });
 
   it("first server choice becomes the project default", async () => {
@@ -493,7 +490,7 @@ describe("POST /api/setup/new-environment", () => {
         { ciConnectionId: CI, repoFullName: "acme/hris", branch: "main" },
         {
           ciConnectionId: CI,
-          repoFullName: "acme/panel-canary",
+          repoFullName: "acme/canary-a",
           branch: "main",
         },
       ],
@@ -502,18 +499,15 @@ describe("POST /api/setup/new-environment", () => {
     expect(apps.registerSetupServices).toHaveBeenCalledWith(
       [
         expect.objectContaining({
-          componentKey: "panel-canary",
+          componentKey: "canary-a",
           forgeRemoteId: "{r1}",
         }),
       ],
-      { hris: ["main"], "panel-canary": ["main"] }
+      { hris: ["main"], "canary-a": ["main"] }
     );
     expect(
       setup.createEnvironmentSetup.mock.calls[0]?.[0].targets
-    ).toMatchObject([
-      { componentKey: "hris" },
-      { componentKey: "panel-canary" },
-    ]);
+    ).toMatchObject([{ componentKey: "hris" }, { componentKey: "canary-a" }]);
   });
 
   it("deploys registered services picked by key, of any former app", async () => {
@@ -672,7 +666,7 @@ describe("POST /api/setup/new-environment", () => {
 
   it("returns pipeline file commit failures per branch", async () => {
     const failure = {
-      componentKey: "panel-canary",
+      componentKey: "canary-a",
       branch: "main",
       code: null,
       error: "Branch main does not exist",
@@ -712,7 +706,7 @@ describe("POST /api/setup/new-environment", () => {
     expect(await res.json()).toMatchObject({
       environmentId: ENV_ID,
       buildFailures: [
-        { componentKey: "panel-canary", code: "componentNotActivated" },
+        { componentKey: "canary-a", code: "componentNotActivated" },
       ],
     });
   });
@@ -762,7 +756,7 @@ describe("POST /api/setup/new-environment", () => {
     const chosen = {
       ...freshInput,
       advanced: {
-        pipelines: [{ repoFullName: "acme/panel-canary", mode: "custom" }],
+        pipelines: [{ repoFullName: "acme/canary-a", mode: "custom" }],
       },
     };
     for (const path of [

@@ -231,7 +231,7 @@ function uniqueKey(base: string, taken: ReadonlySet<string>): string {
   }
 }
 
-/** The key a repo's name gives: `owner/panel-canary-2` → `panel-canary-2`. */
+/** The key a repo's name gives: `owner/canary-b` → `canary-b`. */
 function repoKey(repoFullName: string): string {
   return (
     slugify(repoFullName.split("/").at(-1) ?? repoFullName, REPO_KEY_LENGTH) ||

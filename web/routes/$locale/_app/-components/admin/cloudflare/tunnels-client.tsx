@@ -41,7 +41,7 @@ export function TunnelsClient({
     async (tunnel: TunnelWithContext) => {
       const ok = await dialog.confirmTyping({
         title: t("deleteTitle"),
-        // Spelled out because the wording matters: this removes the panel's
+        // Spelled out because the wording matters: this removes Menara's
         // record, not the tunnel. Every hostname keeps working afterwards.
         description: t("deleteDescription", { name: tunnel.name }),
         phrase: tunnel.name,

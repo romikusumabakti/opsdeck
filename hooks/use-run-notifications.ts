@@ -134,7 +134,7 @@ export function useRunCompletionNotifications(
     const currentIds = new Set(runningTasks.map((run) => run.id));
 
     // Suppress notifications for runs that were already running when the
-    // panel loaded — only fire for transitions observed during this session.
+    // page loaded — only fire for transitions observed during this session.
     if (firstSnapshotRef.current) {
       seenIdsRef.current = currentIds;
       firstSnapshotRef.current = false;

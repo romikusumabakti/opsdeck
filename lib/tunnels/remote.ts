@@ -171,7 +171,7 @@ export async function tunnelImage(
 /**
  * Run `cloudflared tunnel ingress validate` against a config file on the host.
  *
- * cloudflared is the authority on its own config, so the panel asks it rather
+ * cloudflared is the authority on its own config, so Menara asks it rather
  * than trusting that a document this codebase can parse is a document the
  * daemon will accept. Throws with cloudflared's own output on rejection.
  */

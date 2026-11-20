@@ -30,7 +30,7 @@ const state = vi.hoisted(() => ({
 function serverRow(id: string, infraOnly: boolean) {
   return {
     id,
-    name: infraOnly ? "panel-host" : "web-1",
+    name: infraOnly ? "menara-host" : "web-1",
     host: "192.0.2.10",
     username: "root",
     sftpRoot: "/",
@@ -209,7 +209,7 @@ describe("terminal ticket on an infra-only server", () => {
       expect.objectContaining({
         action: "terminal.denied",
         entityId: INFRA_ID,
-        data: { server: "panel-host", reason: "infraOnly" },
+        data: { server: "menara-host", reason: "infraOnly" },
       }),
     ]);
   });

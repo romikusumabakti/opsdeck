@@ -225,7 +225,7 @@ export function SignInForm({
   // double-invoke of effects starting a second one that aborts the first.
   const autofillStarted = useRef(false);
 
-  // Microsoft is the primary route for a single-domain internal panel, so the
+  // Microsoft is the primary route for a single-domain internal app, so the
   // password form starts collapsed behind a link. It is expanded up-front when
   // there is nothing to collapse behind, and when the user has just bounced
   // back from a failed OAuth round trip — at that point the password path is

@@ -5,7 +5,7 @@
 // endpoints, and a dependency that can reach every Cloudflare product is a
 // poor match for a credential scoped to `Zone:DNS:Edit` on one zone.
 //
-// Creating the CNAME through the API is what lets the panel avoid `cert.pem`
+// Creating the CNAME through the API is what lets Menara avoid `cert.pem`
 // entirely. `cloudflared tunnel route dns` does exactly what createCnameRecord
 // does below, but it authenticates with the account-wide origin certificate —
 // a credential that can publish a hostname anywhere in the zone and which the

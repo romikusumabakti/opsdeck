@@ -13,7 +13,7 @@ import type { DatabaseEntry } from "@/web/api/databases";
 
 // Shared combobox for picking a target database. Used by backup, restore, and
 // the manage-databases page. The environment's configured database is flagged with
-// a "(default)" suffix so operators know which one the panel is wired to.
+// a "(default)" suffix so operators know which one Menara is wired to.
 export function DatabasePicker({
   id,
   databases,

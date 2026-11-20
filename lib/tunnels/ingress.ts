@@ -24,7 +24,7 @@ const STRINGIFY_OPTIONS = {
   flowCollectionPadding: false,
 } as const;
 
-// The `originRequest.connectTimeout` given to every route this panel writes.
+// The `originRequest.connectTimeout` given to every route this Menara writes.
 // Matches what the existing entries use; 30s is long enough for a container
 // that is still warming up and short enough that a dead origin fails visibly.
 export const DEFAULT_CONNECT_TIMEOUT = "30s";

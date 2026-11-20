@@ -22,7 +22,7 @@ const DEFAULT_DB_USERS: Record<DatabaseType, string> = {
 };
 
 /**
- * Resolve the login the panel connects to the engine with. Distros commonly
+ * Resolve the login Menara connects to the engine with. Distros commonly
  * lock the conventional account down (Debian/Ubuntu put `root@localhost` of
  * both MySQL and MariaDB on the unix_socket plugin, which rejects a TCP login),
  * so a service may name a dedicated admin account instead; unset falls back to
@@ -210,7 +210,7 @@ export function buildControlCommand(
   }
   if (serviceType === "kubernetes") {
     // Restart maps to `rollout restart` (preserves replica count). Start/stop
-    // map to `scale`: start assumes a single replica (panel scope is dev/test
+    // map to `scale`: start assumes a single replica (Menara scope is dev/test
     // single-instance services), stop scales to 0.
     if (action === "restart") {
       return `kubectl rollout restart deploy ${shq(serviceName)}`;

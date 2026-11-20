@@ -99,7 +99,7 @@ export async function createInitialUser(input: {
 
   const hash = await ctx.password.hash(input.password);
 
-  // The bootstrap user owns the panel — promote to admin so they can manage
+  // The bootstrap user owns Menara — promote to admin so they can manage
   // users/servers. Subsequent users get their role from their invitation.
   const created = await ctx.internalAdapter.createUser(
     {

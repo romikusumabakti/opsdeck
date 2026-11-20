@@ -732,7 +732,7 @@ describe("update.sh", () => {
     ]);
   });
 
-  it("TERM between stop and the restore brings the panel back", () => {
+  it("TERM between stop and the restore brings Menara back", () => {
     const t = setup({ current: "1.3.0" });
     t.request(restoreOf("1.2.0"));
     expect(t.run({ STUB_KILL: "stop" }).status).not.toBe(0);

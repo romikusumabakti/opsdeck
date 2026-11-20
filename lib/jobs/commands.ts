@@ -81,8 +81,8 @@ export function mysqlQuoteId(value: string): string {
 
 /**
  * `dirname` for a remote POSIX path. Not `node:path` — that would follow the
- * PANEL's platform, and these paths live on the remote host (or inside the
- * Linux container), so a Windows panel must not turn `/var/opt/x` into `\`.
+ * Menara's platform, and these paths live on the remote host (or inside the
+ * Linux container), so Menara on Windows must not turn `/var/opt/x` into `\`.
  * Keeps a file in the same directory it was backed up from when we relocate it.
  */
 export function posixDirname(p: string): string {
@@ -141,7 +141,7 @@ export function dbOsUser(dbType: DatabaseType): string {
 /**
  * Extended-regex fragment matching the filenames an engine's backups carry.
  * SQL Server writes its own `.bak` archives; pg_dump and mysqldump both emit a
- * SQL script the panel optionally gzips. Shared by the backup listing (which
+ * SQL script Menara optionally gzips. Shared by the backup listing (which
  * filters the directory with it) and, implicitly, by backupFilenameSchema.
  */
 export function dbBackupExtensionPattern(dbType: DatabaseType): string {
@@ -682,8 +682,8 @@ export function mssqlRestoreQuery(
 // When the source backup lives on a different DB server/service than the
 // restore target (only the dbType matches), the file must be physically copied
 // into the target's backup dir before the normal restore can read it. The move
-// hops through the panel: extract the source file into an SSH-owned temp on the
-// source host, SFTP it down to the panel, SFTP it up to the target host, then
+// hops through Menara: extract the source file into an SSH-owned temp on the
+// source host, SFTP it down to Menara, SFTP it up to the target host, then
 // place it into the target's backup dir with the DB user's ownership. Streaming
 // host-to-host directly isn't possible (SFTP is per-connection), and passing
 // the bytes through a shell would collide with `sudo -S`'s stdin (in

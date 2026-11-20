@@ -145,7 +145,7 @@ const validSettings = {
 const destinationBody = {
   endpoint: "https://objects.example.test",
   region: "auto",
-  bucket: "fictional-panel-backups",
+  bucket: "fictional-menara-backups",
   accessKeyId: "AKFICTIONAL",
   secretKey: "fictional-secret",
   forcePathStyle: true,

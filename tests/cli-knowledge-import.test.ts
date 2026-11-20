@@ -267,7 +267,7 @@ describe.skipIf(!enabled)("menara knowledge import on Postgres", () => {
   const guides = {
     "deploy-flow.md": file(
       "collection: Team Guides\ntitle: Deploy Flow\nvisibleTo: []",
-      "Deploys go through the panel. Hosts: [map](host-map.md#lan)."
+      "Deploys go through Menara. Hosts: [map](host-map.md#lan)."
     ),
     "branches.md": file(
       "collection: Team Guides\ntitle: Branches\ndocType: runbook",
@@ -283,7 +283,7 @@ describe.skipIf(!enabled)("menara knowledge import on Postgres", () => {
   const editedFlow = {
     "deploy-flow.md": file(
       "collection: Team Guides\ntitle: Deploy Flow\ndocType: runbook",
-      "Deploys go through the panel, never by hand."
+      "Deploys go through Menara, never by hand."
     ),
   };
 
@@ -428,7 +428,7 @@ describe.skipIf(!enabled)("menara knowledge import on Postgres", () => {
         "Merge main first, then read [the flow](/knowledge/deploy-flow) and [the docs](https://example.com/x.md).",
     });
     expect(flow.content).toBe(
-      "Deploys go through the panel. Hosts: [map](/knowledge/hosts)."
+      "Deploys go through Menara. Hosts: [map](/knowledge/hosts)."
     );
     expect(hosts).toMatchObject({
       collectionId: platform.id,
@@ -479,7 +479,7 @@ describe.skipIf(!enabled)("menara knowledge import on Postgres", () => {
     const after = await docBySlug("deploy-flow");
     expect(after).toMatchObject({
       id: flow.id,
-      content: "Deploys go through the panel, never by hand.",
+      content: "Deploys go through Menara, never by hand.",
       docType: "runbook",
       version: flow.version + 1,
       updatedById: ADMIN,

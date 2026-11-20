@@ -248,8 +248,8 @@ describe("fromAddress", () => {
 
 describe("keyMarker", () => {
   it("embeds the instance name and key id", () => {
-    vi.stubEnv("COMPOSE_PROJECT_NAME", "panel-2");
-    expect(keyMarker("abc")).toBe("menara:panel-2:abc");
+    vi.stubEnv("COMPOSE_PROJECT_NAME", "acme-2");
+    expect(keyMarker("abc")).toBe("menara:acme-2:abc");
   });
 
   it("falls back to menara when the project name is missing or invalid", () => {
