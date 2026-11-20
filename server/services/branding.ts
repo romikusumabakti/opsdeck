@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { type AccentColor, accentSchema, isAccent } from "@/lib/accents";
 import { recordActivity } from "@/lib/activity";
 import { type LogoError, validateBrandLogo } from "@/lib/brand-logo-validate";
-import { db } from "@/lib/db";
+import { type DbTransaction, db } from "@/lib/db";
 import { instanceBrandLogos, instanceSettings } from "@/lib/db/schema";
 import { invalidateBranding, type LogoType } from "@/lib/instance-branding";
 import { requireInstanceManage } from "@/server/services/instance-backups";
@@ -156,18 +156,58 @@ export async function saveBranding(
  */
 export type BrandLogoError = LogoError | "light_logo_required";
 
+// Thrown inside a logo transaction to roll it back (with its version bump).
+class Rollback extends Error {
+  constructor(readonly outcome: unknown) {
+    super("rollback");
+  }
+}
+
+/**
+ * Runs a logo write with the settings row locked: the version bump comes
+ * first, so concurrent logo writes queue on that row and each one sees the
+ * logos as the previous one committed them (a dark logo never outlives its
+ * light one).
+ */
+async function lockedLogoWrite<T>(
+  now: Date,
+  write: (tx: DbTransaction) => Promise<T>
+): Promise<T> {
+  try {
+    return await db.transaction(async (tx) => {
+      await tx
+        .update(instanceSettings)
+        .set({ brandUpdatedAt: now })
+        .where(eq(instanceSettings.id, 1));
+      return write(tx);
+    });
+  } catch (error) {
+    if (error instanceof Rollback) return error.outcome as T;
+    throw error;
+  }
+}
+
 export async function saveBrandLogo(
   theme: BrandTheme,
   bytes: Uint8Array
 ): Promise<BrandingSettings | { error: BrandLogoError }> {
   const session = await requireInstanceManage();
+  // Checked again under the lock below; this one spares the validation.
   if (theme === "dark" && !(await loadRaw()).logos.has("light")) {
     return { error: "light_logo_required" };
   }
   const result = await validateBrandLogo(bytes);
   if (!result.ok) return { error: result.error };
   const now = new Date();
-  await db.transaction(async (tx) => {
+  const refused = await lockedLogoWrite(now, async (tx) => {
+    if (theme === "dark") {
+      const [light] = await tx
+        .select({ theme: instanceBrandLogos.theme })
+        .from(instanceBrandLogos)
+        .where(eq(instanceBrandLogos.theme, "light"))
+        .limit(1);
+      if (!light) throw new Rollback(true);
+    }
     await tx
       .insert(instanceBrandLogos)
       .values({
@@ -180,11 +220,9 @@ export async function saveBrandLogo(
         target: instanceBrandLogos.theme,
         set: { bytes: result.bytes, contentType: result.type, updatedAt: now },
       });
-    await tx
-      .update(instanceSettings)
-      .set({ brandUpdatedAt: now })
-      .where(eq(instanceSettings.id, 1));
+    return false;
   });
+  if (refused) return { error: "light_logo_required" };
   return afterWrite(session.user.id, {
     logo: theme === "light",
     logoDark: theme === "dark",
@@ -195,23 +233,19 @@ export async function removeBrandLogo(
   theme: BrandTheme
 ): Promise<BrandingSettings> {
   const session = await requireInstanceManage();
-  const before = await loadRaw();
-  // Nothing to remove: no write, no version bump, no activity row.
-  if (!before.logos.has(theme)) return before.view;
-  // The dark logo is a variant of the light one: it goes with it.
+  // The dark logo is a variant of the light one: it goes with it, whatever
+  // the logos were when this request started.
   const themes: BrandTheme[] = theme === "light" ? ["light", "dark"] : ["dark"];
-  const removed = themes.filter((t) => before.logos.has(t));
-  await db.transaction(async (tx) => {
-    for (const t of removed) {
-      await tx
-        .delete(instanceBrandLogos)
-        .where(eq(instanceBrandLogos.theme, t));
-    }
-    await tx
-      .update(instanceSettings)
-      .set({ brandUpdatedAt: new Date() })
-      .where(eq(instanceSettings.id, 1));
+  const removed = await lockedLogoWrite(new Date(), async (tx) => {
+    const rows = await tx
+      .delete(instanceBrandLogos)
+      .where(inArray(instanceBrandLogos.theme, themes))
+      .returning({ theme: instanceBrandLogos.theme });
+    // Nothing to remove: no version bump, no activity row.
+    if (rows.length === 0) throw new Rollback(null);
+    return rows.map((row) => row.theme);
   });
+  if (!removed) return (await loadRaw()).view;
   return afterWrite(session.user.id, {
     logo: removed.includes("light"),
     logoDark: removed.includes("dark"),

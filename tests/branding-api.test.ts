@@ -79,15 +79,37 @@ vi.mock("@/lib/db", async () => {
       }),
     }),
     delete: () => ({
-      // eq(theme, value): the value is the chunk that holds a theme.
-      where: async (condition: { queryChunks: { value?: unknown }[] }) => {
-        const theme = condition.queryChunks.find(
-          (chunk) => chunk?.value === "light" || chunk?.value === "dark"
-        )?.value;
-        state.logos = state.logos.filter((l) => l.theme !== theme);
+      // inArray(theme, [...]): the themes are the condition's string values.
+      where: (condition: unknown) => {
+        const themes = new Set<unknown>();
+        const walk = (value: unknown) => {
+          if (value === "light" || value === "dark") themes.add(value);
+          else if (Array.isArray(value)) value.forEach(walk);
+          else if (value && typeof value === "object") {
+            const chunk = value as { value?: unknown; queryChunks?: unknown };
+            walk(chunk.value);
+            walk(chunk.queryChunks);
+          }
+        };
+        walk(condition);
+        const removed = state.logos.filter((l) => themes.has(l.theme));
+        state.logos = state.logos.filter((l) => !themes.has(l.theme));
+        return {
+          returning: async () => removed.map((l) => ({ theme: l.theme })),
+        };
       },
     }),
-    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
+    // A throw rolls the stand-in back, as Postgres would.
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+      const before = { settings: state.settings, logos: state.logos };
+      try {
+        return await fn(db);
+      } catch (error) {
+        state.settings = before.settings;
+        state.logos = before.logos;
+        throw error;
+      }
+    },
   };
   return { db };
 });

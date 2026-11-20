@@ -188,4 +188,74 @@ describe.skipIf(!enabled)("instance branding on Postgres", () => {
     expect(await sql`select 1 from instance_brand_logos`).toHaveLength(0);
     expect((await branding.getBranding()).logo).toBeNull();
   });
+
+  // Logo writes serialize on the settings row: each one locks it first, so a
+  // dark upload racing the light logo's removal never leaves a dark logo
+  // without its light one. `other` holds the lock while the service call
+  // queues behind it, then changes the logos and commits.
+  describe("racing logo writes", () => {
+    const svg = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><path d="M0 0h8v8H0z"/></svg>'
+    );
+    let other: ReturnType<typeof postgres>;
+
+    beforeAll(() => {
+      other = postgres(process.env.DATABASE_URL ?? "", {
+        max: 1,
+        onnotice: () => {},
+      });
+    });
+    afterAll(async () => {
+      await other?.end();
+    });
+
+    // Resolves once a backend of this database waits on a lock.
+    const blocked = async () => {
+      for (let i = 0; i < 200; i++) {
+        const rows = await sql`select 1 from pg_stat_activity
+          where datname = ${DB_NAME} and wait_event_type = 'Lock'`;
+        if (rows.length > 0) return;
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      throw new Error("the service call never waited on the settings row");
+    };
+
+    const withSettingsLocked = async (
+      call: () => Promise<unknown>,
+      meanwhile: (tx: postgres.TransactionSql) => Promise<unknown>
+    ) => {
+      let pending: Promise<unknown> | undefined;
+      await other.begin(async (tx) => {
+        await tx`update instance_settings set brand_updated_at = now()
+          where id = 1`;
+        pending = call();
+        await blocked();
+        await meanwhile(tx);
+      });
+      return pending;
+    };
+
+    it("refuses a dark upload whose light logo went away meanwhile", async () => {
+      const service = await import("@/server/services/branding");
+      await service.saveBrandLogo("light", svg);
+      const result = await withSettingsLocked(
+        () => service.saveBrandLogo("dark", svg),
+        (tx) => tx`delete from instance_brand_logos where theme = 'light'`
+      );
+      expect(result).toEqual({ error: "light_logo_required" });
+      expect(await sql`select theme from instance_brand_logos`).toHaveLength(0);
+    });
+
+    it("removing the light logo takes a dark one written meanwhile", async () => {
+      const service = await import("@/server/services/branding");
+      await service.saveBrandLogo("light", svg);
+      const result = await withSettingsLocked(
+        () => service.removeBrandLogo("light"),
+        (tx) => tx`insert into instance_brand_logos (theme, bytes, content_type)
+          values ('dark', ${Buffer.from(svg)}, 'image/svg+xml')`
+      );
+      expect(result).toMatchObject({ logo: null, logoDark: null });
+      expect(await sql`select theme from instance_brand_logos`).toHaveLength(0);
+    });
+  });
 });
