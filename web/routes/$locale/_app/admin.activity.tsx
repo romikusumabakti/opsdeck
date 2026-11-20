@@ -277,6 +277,16 @@ function message(
             bucket: String(d.bucket),
             endpoint: String(d.endpoint),
           });
+    // Admin › Instance › Branding: which fields changed, never the logo.
+    case "instance.brandingChanged":
+      return t("instanceBrandingChanged", {
+        actor,
+        nameChanged: String(d.nameChanged),
+        companyChanged: String(d.companyChanged),
+        accentChanged: String(d.accentChanged),
+        logoChanged: String(d.logoChanged),
+        logoDarkChanged: String(d.logoDarkChanged),
+      });
     case "mailpit.configured":
       return t("mailpitConfigured", {
         actor,

@@ -1,7 +1,20 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import postgres from "postgres";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+// The branding service's admin guard; the write path is what is under test.
+vi.mock("@/server/services/instance-backups", () => ({
+  requireInstanceManage: async () => ({ user: { id: null } }),
+}));
 
 // The instance branding boot seed against a real Postgres (a throwaway
 // database in the local menara-postgres container, migrated and dropped):
@@ -133,5 +146,41 @@ describe.skipIf(!enabled)("instance branding on Postgres", () => {
       sql`insert into instance_brand_logos (theme, bytes, content_type)
         values ('light', ${Buffer.from("a")}, 'text/html')`
     ).rejects.toThrow(/content_type_check/);
+  });
+
+  it("saves, reads back and removes a logo through the branding service", async () => {
+    const service = await import("@/server/services/branding");
+    const branding = await import("@/lib/instance-branding");
+    const svg = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><script>x</script><path d="M0 0h8v8H0z"/></svg>'
+    );
+    const saved = await service.saveBrandLogo("light", svg);
+    expect(saved).toMatchObject({ logo: { type: "image/svg+xml" } });
+    // A second upload of the same theme replaces the row.
+    await service.saveBrandLogo("light", svg);
+    const [logo] = await sql<{ theme: string; bytes: Buffer }[]>`
+      select theme, bytes from instance_brand_logos`;
+    expect(logo?.theme).toBe("light");
+    expect(logo?.bytes.toString()).not.toContain("script");
+    expect((await row())?.brand_updated_at).not.toBeNull();
+
+    const served = await branding.getBrandLogoBytes("light");
+    expect(served?.type).toBe("image/svg+xml");
+    expect(Buffer.from(served?.bytes ?? []).toString()).toContain(
+      "M0 0h8v8H0z"
+    );
+
+    await service.saveBranding({
+      name: "Acme Ops",
+      company: null,
+      accent: "rose",
+    });
+    expect((await branding.getBranding()).accent).toBe("rose");
+
+    expect(await service.removeBrandLogo("light")).toMatchObject({
+      logo: null,
+    });
+    expect(await sql`select 1 from instance_brand_logos`).toHaveLength(0);
+    expect((await branding.getBranding()).logo).toBeNull();
   });
 });

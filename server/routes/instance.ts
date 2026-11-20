@@ -1,4 +1,6 @@
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
+import { RASTER_LOGO_MAX_BYTES } from "@/lib/brand-logo-validate";
 import { backupDestinationInputSchema, uuidSchema } from "@/lib/validation";
 import { sessionRouter } from "@/server/router";
 import {
@@ -7,6 +9,14 @@ import {
   saveBackupDestination,
   testBackupDestination,
 } from "@/server/services/backup-destination";
+import {
+  brandingInputSchema,
+  brandThemeSchema,
+  getBrandingSettings,
+  removeBrandLogo,
+  saveBranding,
+  saveBrandLogo,
+} from "@/server/services/branding";
 import {
   acknowledgeInstanceBackup,
   getInstanceBackups,
@@ -37,6 +47,15 @@ import { json, param, query } from "@/server/validation";
 
 const idParam = param(z.object({ id: uuidSchema }));
 
+/** The largest logo file (the raster limit; SVG's is lower, checked later). */
+const BRAND_LOGO_MAX_BYTES = RASTER_LOGO_MAX_BYTES;
+// The whole multipart body is capped before it is parsed, with room for the
+// part headers, so a huge upload is a 413 without being buffered whole.
+const brandLogoBodyLimit = bodyLimit({
+  maxSize: BRAND_LOGO_MAX_BYTES + 16 * 1024,
+  onError: (c) => c.json({ error: "too_large" }, 413),
+});
+
 /**
  * The instance SSH key (Admin → Instance → SSH key): org server:manage, which
  * the services check, not instance:manage. Mounted before instanceRouter, so
@@ -64,6 +83,42 @@ export const instanceRouter = sessionRouter()
     await requireInstanceManage();
     await next();
   })
+  // Branding (Admin › Instance › Branding).
+  .get("/branding", async (c) => c.json(await getBrandingSettings()))
+  .put("/branding", json(brandingInputSchema), async (c) =>
+    c.json(await saveBranding(c.req.valid("json")))
+  )
+  .put(
+    "/branding/logo",
+    query(brandThemeSchema),
+    brandLogoBodyLimit,
+    async (c) => {
+      const form = await c.req.raw.formData().catch(() => null);
+      const file = form?.get("file");
+      if (!(file instanceof File)) return c.json({ error: "no_file" }, 400);
+      // Before decoding: the part size alone settles the raster limit.
+      if (file.size > BRAND_LOGO_MAX_BYTES) {
+        return c.json({ error: "too_large" }, 413);
+      }
+      const result = await saveBrandLogo(
+        c.req.valid("query").theme,
+        new Uint8Array(await file.arrayBuffer())
+      );
+      if ("error" in result) {
+        const status =
+          result.error === "too_large"
+            ? 413
+            : result.error === "unsupported_type"
+              ? 415
+              : 422;
+        return c.json({ error: result.error }, status);
+      }
+      return c.json(result);
+    }
+  )
+  .delete("/branding/logo", query(brandThemeSchema), async (c) =>
+    c.json(await removeBrandLogo(c.req.valid("query").theme))
+  )
   .get("/backups", async (c) => c.json(await getInstanceBackups()))
   .put("/backups/settings", json(instanceBackupSettingsSchema), async (c) =>
     c.json(await saveInstanceBackupSettings(c.req.valid("json")))

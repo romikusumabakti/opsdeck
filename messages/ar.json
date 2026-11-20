@@ -2383,6 +2383,7 @@
     "storageAssigned": "{actor} أسند التخزين {name} إلى {environment}",
     "backupDestinationSet": "{actor} عيّن وجهة النسخ الاحتياطي إلى {bucket} على {endpoint}",
     "backupDestinationCleared": "{actor} أزال وجهة النسخ الاحتياطي؛ تبقى النسخ على هذا الخادم",
+    "instanceBrandingChanged": "قام {actor} بتحديث هوية المثيل{nameChanged, select, true {: الاسم} other {}}{companyChanged, select, true {، الشركة} other {}}{accentChanged, select, true {، لون التمييز} other {}}{logoChanged, select, true {، الشعار} other {}}{logoDarkChanged, select, true {، الشعار الداكن} other {}}",
     "projectDefaultServerSet": "عيّن {actor} الخادم الافتراضي لـ {project} إلى {server}",
     "projectDefaultServerCleared": "أزال {actor} الخادم الافتراضي لـ {project}",
     "projectGroupCreated": "أنشأ {actor} مجموعة المشاريع {group}",

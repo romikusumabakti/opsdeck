@@ -50,9 +50,12 @@ const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
 
 // Applied after the handler so they land on every response, including the ones
 // onError renders and raw `Response`s handed back by better-auth or a download.
+// A route that sets its own Content-Security-Policy keeps it: /brand serves
+// uploaded SVG under a stricter, sandboxed policy than the app's.
 export const securityHeaders = createMiddleware(async (c, next) => {
   await next();
   for (const [name, value] of SECURITY_HEADERS) {
+    if (name === "Content-Security-Policy" && c.res.headers.has(name)) continue;
     c.res.headers.set(name, value);
   }
 });

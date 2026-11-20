@@ -399,3 +399,20 @@ describe("activity page backup destination events", () => {
     await act(async () => root.unmount());
   });
 });
+
+describe("activity page instance events", () => {
+  it("renders instance.brandingChanged with the fields that changed", async () => {
+    const text = await renderEvents([
+      row("1", "instance.brandingChanged", {
+        nameChanged: "true",
+        companyChanged: "false",
+        accentChanged: "true",
+        logoChanged: "false",
+        logoDarkChanged: "true",
+      }),
+    ]);
+    expect(text).toContain(
+      "Rina updated the instance branding: name, accent, dark logo"
+    );
+  });
+});

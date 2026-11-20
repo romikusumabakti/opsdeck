@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64" onload="alert(1)">
+  <defs>
+    <linearGradient id="gradient"><stop offset="0" stop-color="#2563eb"/></linearGradient>
+    <path id="tile" d="M0 0h8v8H0z"/>
+  </defs>
+  <script>alert(document.cookie)</script>
+  <style>@import url(https://evil.example.com/x.css);</style>
+  <style>rect { fill: url(https://evil.example.com/paint.svg#p); }</style>
+  <style>.ok { fill: url(#gradient); }</style>
+  <use href="https://evil.example.com/sprite.svg#icon"/>
+  <use xlink:href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIG9ubG9hZD0iYWxlcnQoMSkiLz4="/>
+  <use href="#tile"/>
+  <image xlink:href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIG9ubG9hZD0iYWxlcnQoMSkiLz4=" width="8" height="8"/>
+  <a href="javascript:alert(1)"><rect x="0" y="0" width="8" height="8"/></a>
+  <rect class="ok" x="8" y="8" width="8" height="8" fill="url(#gradient)" onclick="alert(2)"/>
+  <rect x="16" y="16" width="8" height="8" style="fill:url(https://evil.example.com/paint.svg#p)"/>
+  <rect x="24" y="24" width="8" height="8" fill="url('https://evil.example.com/paint.svg#p')"/>
+  <rect x="32" y="32" width="8" height="8" style="width: expression(alert(3))"/>
+  <foreignObject width="64" height="64"><div xmlns="http://www.w3.org/1999/xhtml" onmouseover="alert(4)">x</div></foreignObject>
+  <animate attributeName="href" to="javascript:alert(5)"/>
+  <set attributeName="xlink:href" to="https://evil.example.com/"/>
+  <path class="keep" d="M40 40h16v16H40z" fill="#1e3a8a"/>
+</svg>
