@@ -217,6 +217,10 @@
   --logo-status: var(--tint-ring-light);
 }
 
+/* `.dark [data-accent]` (and the neutral reset below) lets a nested
+   data-accent — the Branding tab's preview — re-theme its subtree in dark
+   mode too; the light role block already matches a nested element. */
+.dark [data-accent]:not([data-accent="neutral"]),
 .dark[data-accent]:not([data-accent="neutral"]) {
   --primary: var(--tint-300);
   --primary-foreground: oklch(0.145 0 0);
@@ -228,6 +232,36 @@
   --sidebar-ring: var(--tint-ring-dark);
   --logo: var(--tint-200);
   --logo-status: var(--tint-ring-dark);
+}
+
+/* Neutral is the stock tokens; re-declared for a nested neutral subtree,
+   which would otherwise inherit a coloured accent from <html>. The values
+   mirror :root and .dark (tests/accent-theme.test.ts checks they agree). */
+[data-accent="neutral"]:not(.dark) {
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.708 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+  --logo: var(--foreground);
+  --logo-status: color-mix(in oklab, var(--foreground) 40%, transparent);
+}
+
+.dark [data-accent="neutral"],
+.dark[data-accent="neutral"] {
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --ring: oklch(0.556 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.556 0 0);
+  --logo: var(--foreground);
+  --logo-status: color-mix(in oklab, var(--foreground) 40%, transparent);
 }
 
 /* The variables next/font used to set on <body>, under the same names, so the
@@ -401,6 +435,10 @@
     animation:
       brand-tile-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) 210ms both,
       brand-breathe 1.4s ease-in-out 0.63s infinite;
+  }
+  /* An uploaded logo shows as uploaded; a corner dot breathes instead. */
+  .brand-logo[data-active] .brand-activity {
+    animation: brand-breathe 1.4s ease-in-out infinite;
   }
   @keyframes brand-tile-in {
     from {

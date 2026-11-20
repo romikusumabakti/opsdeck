@@ -325,6 +325,41 @@ describe("instance branding API", () => {
     expect(branding.invalidate).not.toHaveBeenCalled();
   });
 
+  it("refuses a dark logo without a light one", async () => {
+    const res = await upload("dark", LOGO);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "light_logo_required" });
+    expect(state.logos).toEqual([]);
+    expect(activity.record).not.toHaveBeenCalled();
+    expect(branding.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("removing the light logo removes the dark one too", async () => {
+    await upload("light", LOGO);
+    await upload("dark", LOGO);
+    activity.record.mockClear();
+    const res = await send("DELETE", `${BASE}/logo?theme=light`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ logo: null, logoDark: null });
+    expect(state.logos).toEqual([]);
+    expect(activity.record.mock.calls.at(-1)?.[0].data).toMatchObject({
+      logoChanged: "true",
+      logoDarkChanged: "true",
+    });
+  });
+
+  it("never reports a dark-only logo left from before", async () => {
+    state.logos = [
+      {
+        theme: "dark",
+        bytes: new Uint8Array(LOGO),
+        contentType: "image/svg+xml",
+      },
+    ];
+    const res = await send("GET", BASE);
+    expect(await res.json()).toMatchObject({ logo: null, logoDark: null });
+  });
+
   it("removing a logo that is not there writes nothing", async () => {
     const res = await send("DELETE", `${BASE}/logo?theme=dark`);
     expect(res.status).toBe(200);

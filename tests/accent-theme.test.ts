@@ -71,6 +71,28 @@ describe("accent themes", () => {
     expect(block('[data-accent="neutral"]')).toBeUndefined();
   });
 
+  it("reset a nested neutral subtree to the stock tokens", () => {
+    // The Branding preview nests data-accent="neutral" under a coloured <html>.
+    const light = must(
+      block('[data-accent="neutral"]:not(.dark)'),
+      "light neutral reset"
+    );
+    const dark = must(
+      block('.dark[data-accent="neutral"]'),
+      "dark neutral reset"
+    );
+    for (const [reset, stock] of [
+      [light, ROOT],
+      [dark, { ...ROOT, ...DARK }],
+    ] as const) {
+      // Every token a coloured accent overrides comes back.
+      expect(Object.keys(reset).sort()).toEqual(Object.keys(ROLE_LIGHT).sort());
+      for (const [name, value] of Object.entries(reset)) {
+        expect(value, name).toBe(stock[name]);
+      }
+    }
+  });
+
   it("bind the ring steps lib/accent-palette.ts uses for the favicon", () => {
     for (const accent of TINTED) {
       const binding = must(block(`[data-accent="${accent}"]`), accent);

@@ -1,8 +1,57 @@
 import { queryOptions } from "@tanstack/react-query";
 import { type InferRequestType, parseResponse } from "hono/client";
-import { api } from "@/web/api/client";
+import { api, apiFetch } from "@/web/api/client";
 
 const routes = api.api.instance;
+
+// --- Branding (Admin › Instance › Branding) ---
+
+/** The stored branding: null fields mean "the default". */
+export async function getBranding() {
+  return parseResponse(routes.branding.$get());
+}
+
+export const getBrandingQuery = () =>
+  queryOptions({
+    queryKey: ["instance", "getBranding"],
+    queryFn: getBranding,
+  });
+
+export type BrandingData = Awaited<ReturnType<typeof getBranding>>;
+
+export type BrandingBody = InferRequestType<
+  (typeof routes.branding)["$put"]
+>["json"];
+
+/** Saves the name, company and accent (not the logos). */
+export async function saveBranding(json: BrandingBody) {
+  return parseResponse(routes.branding.$put({ json }));
+}
+
+export type BrandTheme = "light" | "dark";
+
+/**
+ * Uploads the light logo or its dark-mode variant. A refusal is an ApiError
+ * whose message is the code (`not_square`, `light_logo_required`, …).
+ */
+export async function uploadBrandLogo(
+  theme: BrandTheme,
+  file: File
+): Promise<BrandingData> {
+  const body = new FormData();
+  body.set("file", file);
+  // Multipart: sent through apiFetch, since the route reads the form itself.
+  const response = await apiFetch(
+    `/api/instance/branding/logo?theme=${theme}`,
+    { method: "PUT", body }
+  );
+  return (await response.json()) as BrandingData;
+}
+
+/** Removes a logo; removing the light one removes the dark one too. */
+export async function removeBrandLogo(theme: BrandTheme) {
+  return parseResponse(routes.branding.logo.$delete({ query: { theme } }));
+}
 
 export async function getInstanceBackups() {
   return parseResponse(routes.backups.$get());

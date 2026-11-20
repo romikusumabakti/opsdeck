@@ -5,11 +5,11 @@ import {
   BRAND_ICON_SRC,
   isAccent,
 } from "@/lib/accents";
+import { DEFAULT_APP_NAME } from "@/lib/brand-logos";
 import { db } from "@/lib/db";
 import { instanceBrandLogos, instanceSettings } from "@/lib/db/schema";
 
-/** The name an instance shows until an admin (or the boot seed) sets one. */
-export const DEFAULT_APP_NAME = "Menara";
+export { DEFAULT_APP_NAME };
 
 export type LogoType = "image/svg+xml" | "image/png" | "image/webp";
 
@@ -97,12 +97,15 @@ async function load(): Promise<InstanceBranding> {
     const found = logos.find((l) => l.theme === theme);
     return found ? { type: found.type as LogoType } : null;
   };
+  const logo = typeOf("light");
   return {
     name: row?.name || DEFAULT_APP_NAME,
     company: row?.company || null,
     accent: isAccent(row?.accent) ? row.accent : "neutral",
-    logo: typeOf("light"),
-    logoDark: typeOf("dark"),
+    logo,
+    // Only a variant of the light logo: never shown on its own (the API
+    // refuses that state; this covers a row written before the rule).
+    logoDark: logo ? typeOf("dark") : null,
     version: row?.updatedAt ? row.updatedAt.getTime().toString(36) : "0",
   };
 }

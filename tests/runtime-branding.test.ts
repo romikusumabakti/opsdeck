@@ -241,6 +241,22 @@ describe("runtime instance branding", () => {
     });
   });
 
+  it("a dark logo without a light one counts as no logo anywhere", async () => {
+    state.settings.brandUpdatedAt = new Date(1_700_000_000_000);
+    state.logos = [
+      { theme: "dark", bytes: new Uint8Array(), contentType: "image/png" },
+    ];
+    invalidateBranding();
+    expect(await bootstrap()).toMatchObject({
+      logo: null,
+      icon: { custom: false },
+    });
+    const dark = await app.request("/brand/logo?theme=dark");
+    expect(dark.status).toBe(200);
+    expect(dark.headers.get("content-type")).toBe("image/svg+xml");
+    expect(dark.headers.get("etag")).toMatch(/^"default-/);
+  });
+
   it("the server translator interpolates the saved name", async () => {
     expect((await getServerTranslator())("app.name")).toBe("Menara");
     await saveBranding({ name: NAME });

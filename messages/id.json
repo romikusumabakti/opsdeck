@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "{{APP_NAME}}"
+    "name": "{{APP_NAME}}",
+    "runsInProgress": "Run sedang berjalan"
   },
   "common": {
     "close": "Tutup",
@@ -3615,7 +3616,46 @@
     "subtitle": "Backup, update, dan SSH key milik Panel ini.",
     "tabBackups": "Cadangan",
     "tabUpdates": "Pembaruan",
-    "tabSshKey": "SSH key"
+    "tabSshKey": "SSH key",
+    "tabBranding": "Branding",
+    "branding": {
+      "title": "Branding",
+      "description": "Cara instans ini menamai dan menampilkan dirinya: di sidebar, di halaman masuk, di email, dan di tab browser.",
+      "name": "Nama instans",
+      "nameRestartHint": "Prompt masuk, aplikasi authenticator, dan passkey menampilkan nama baru setelah restart berikutnya",
+      "company": "Perusahaan",
+      "companyDescription": "Tampil di baris hak cipta. Kosongkan agar nama instans yang tampil di sana.",
+      "accent": "Aksen bawaan",
+      "accentDescription": "Aksen untuk semua pengguna yang belum memilih aksen sendiri, dan untuk halaman masuk.",
+      "accentDefault": "Bawaan (netral)",
+      "logo": "Logo",
+      "logoDescription": "Tanda persegi: SVG maks. 100 KB, atau PNG/WebP maks. 512 KB dan 64–1024 px. Juga dipakai sebagai favicon.",
+      "logoDark": "Logo mode gelap",
+      "logoDarkDescription": "Opsional. Ditampilkan sebagai pengganti logo dalam mode gelap.",
+      "logoDarkNeedsLight": "Unggah logo dulu: logo mode gelap adalah variannya.",
+      "upload": "Unggah logo",
+      "replace": "Ganti",
+      "remove": "Hapus logo",
+      "removeLightHint": "Menghapus logo juga menghapus logo mode gelap.",
+      "preview": "Pratinjau",
+      "previewDescription": "Perubahan yang belum disimpan tampil di sini lebih dulu.",
+      "previewSidebar": "Sidebar",
+      "previewSignIn": "Halaman masuk",
+      "saved": "Branding disimpan",
+      "logoUploaded": "Logo diunggah",
+      "logoRemoved": "Logo dihapus",
+      "error": {
+        "too_large": "Berkas terlalu besar: SVG maks. 100 KB, PNG atau WebP maks. 512 KB.",
+        "unsupported_type": "Gunakan gambar SVG, PNG, atau WebP.",
+        "invalid_image": "Gambar tidak dapat dibaca, atau SVG berisi konten yang tidak diizinkan.",
+        "not_square": "Logo harus persegi.",
+        "too_small": "Gambar terlalu kecil: minimal 64×64 px.",
+        "too_large_dimensions": "Gambar terlalu besar: maksimal 1024×1024 px.",
+        "light_logo_required": "Unggah logo dulu: logo mode gelap adalah variannya.",
+        "no_file": "Pilih berkas untuk diunggah.",
+        "failed": "Logo gagal diunggah."
+      }
+    }
   },
   "instanceBackups": {
     "settingsTitle": "Jadwal",

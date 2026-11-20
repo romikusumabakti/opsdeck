@@ -115,7 +115,9 @@ export const instanceRouter = sessionRouter()
             ? 413
             : result.error === "unsupported_type"
               ? 415
-              : 422;
+              : result.error === "light_logo_required"
+                ? 409
+                : 422;
         return c.json({ error: result.error }, status);
       }
       return c.json(result);

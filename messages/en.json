@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "{{APP_NAME}}"
+    "name": "{{APP_NAME}}",
+    "runsInProgress": "Runs in progress"
   },
   "common": {
     "close": "Close",
@@ -3615,7 +3616,46 @@
     "subtitle": "This Panel's own backups, updates and SSH key.",
     "tabBackups": "Backups",
     "tabUpdates": "Updates",
-    "tabSshKey": "SSH key"
+    "tabSshKey": "SSH key",
+    "tabBranding": "Branding",
+    "branding": {
+      "title": "Branding",
+      "description": "How this instance names and shows itself: in the sidebar, on the sign-in page, in emails and in the browser tab.",
+      "name": "Instance name",
+      "nameRestartHint": "Sign-in prompts, authenticator apps and passkeys show the new name after the next restart",
+      "company": "Company",
+      "companyDescription": "Shown in the copyright line. Leave it empty to show the instance name there.",
+      "accent": "Default accent",
+      "accentDescription": "The accent for everyone who hasn't picked their own, and for the sign-in page.",
+      "accentDefault": "Default (neutral)",
+      "logo": "Logo",
+      "logoDescription": "A square mark: SVG up to 100 KB, or PNG or WebP up to 512 KB and 64–1024 px. It is also the favicon.",
+      "logoDark": "Dark mode logo",
+      "logoDarkDescription": "Optional. Shown instead of the logo in dark mode.",
+      "logoDarkNeedsLight": "Upload a logo first: the dark mode logo is its variant.",
+      "upload": "Upload logo",
+      "replace": "Replace",
+      "remove": "Remove logo",
+      "removeLightHint": "Removing the logo removes the dark mode logo too.",
+      "preview": "Preview",
+      "previewDescription": "Unsaved changes show here first.",
+      "previewSidebar": "Sidebar",
+      "previewSignIn": "Sign-in page",
+      "saved": "Branding saved",
+      "logoUploaded": "Logo uploaded",
+      "logoRemoved": "Logo removed",
+      "error": {
+        "too_large": "The file is too large: SVG up to 100 KB, PNG or WebP up to 512 KB.",
+        "unsupported_type": "Use an SVG, PNG or WebP image.",
+        "invalid_image": "The image can't be read, or the SVG has content that isn't allowed.",
+        "not_square": "The logo must be square.",
+        "too_small": "The image is too small: at least 64×64 px.",
+        "too_large_dimensions": "The image is too large: at most 1024×1024 px.",
+        "light_logo_required": "Upload a logo first: the dark mode logo is its variant.",
+        "no_file": "Choose a file to upload.",
+        "failed": "The logo couldn't be uploaded."
+      }
+    }
   },
   "instanceBackups": {
     "settingsTitle": "Schedule",

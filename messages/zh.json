@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "{{APP_NAME}}"
+    "name": "{{APP_NAME}}",
+    "runsInProgress": "运行进行中"
   },
   "common": {
     "close": "关闭",
@@ -3615,7 +3616,46 @@
     "subtitle": "此面板自身的备份、更新和 SSH 密钥。",
     "tabBackups": "备份",
     "tabUpdates": "更新",
-    "tabSshKey": "SSH 密钥"
+    "tabSshKey": "SSH 密钥",
+    "tabBranding": "品牌",
+    "branding": {
+      "title": "品牌",
+      "description": "此实例如何命名和展示自身：侧边栏、登录页、邮件和浏览器标签页。",
+      "name": "实例名称",
+      "nameRestartHint": "登录提示、身份验证器应用和通行密钥会在下次重启后显示新名称",
+      "company": "公司",
+      "companyDescription": "显示在版权行中。留空则在该处显示实例名称。",
+      "accent": "默认强调色",
+      "accentDescription": "未自选强调色的用户以及登录页使用的强调色。",
+      "accentDefault": "默认（中性）",
+      "logo": "标志",
+      "logoDescription": "方形标志：SVG 不超过 100 KB，或 PNG/WebP 不超过 512 KB、64–1024 像素。它也用作网站图标。",
+      "logoDark": "深色模式标志",
+      "logoDarkDescription": "可选。在深色模式下代替标志显示。",
+      "logoDarkNeedsLight": "请先上传标志：深色模式标志是它的变体。",
+      "upload": "上传标志",
+      "replace": "替换",
+      "remove": "移除标志",
+      "removeLightHint": "移除标志也会移除深色模式标志。",
+      "preview": "预览",
+      "previewDescription": "未保存的更改会先显示在这里。",
+      "previewSidebar": "侧边栏",
+      "previewSignIn": "登录页",
+      "saved": "品牌已保存",
+      "logoUploaded": "标志已上传",
+      "logoRemoved": "标志已移除",
+      "error": {
+        "too_large": "文件过大：SVG 不超过 100 KB，PNG 或 WebP 不超过 512 KB。",
+        "unsupported_type": "请使用 SVG、PNG 或 WebP 图片。",
+        "invalid_image": "无法读取该图片，或 SVG 含有不允许的内容。",
+        "not_square": "标志必须是正方形。",
+        "too_small": "图片太小：至少 64×64 像素。",
+        "too_large_dimensions": "图片太大：最多 1024×1024 像素。",
+        "light_logo_required": "请先上传标志：深色模式标志是它的变体。",
+        "no_file": "请选择要上传的文件。",
+        "failed": "标志上传失败。"
+      }
+    }
   },
   "instanceBackups": {
     "settingsTitle": "计划",

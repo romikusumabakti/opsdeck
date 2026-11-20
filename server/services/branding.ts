@@ -78,6 +78,7 @@ async function loadRaw(): Promise<Raw> {
     const query = theme === "dark" ? `theme=dark&v=${version}` : `v=${version}`;
     return { type: found.type as LogoType, src: `/brand/logo?${query}` };
   };
+  const light = logo("light");
   return {
     name: row?.name ?? null,
     company: row?.company ?? null,
@@ -88,8 +89,9 @@ async function loadRaw(): Promise<Raw> {
       name: row?.name ?? null,
       company: row?.company ?? null,
       accent: isAccent(row?.accent) ? row.accent : null,
-      logo: logo("light"),
-      logoDark: logo("dark"),
+      logo: light,
+      // A variant of the light logo only, as lib/instance-branding reads it.
+      logoDark: light ? logo("dark") : null,
     },
   };
 }
@@ -148,11 +150,20 @@ export async function saveBranding(
   });
 }
 
+/**
+ * Why an upload was refused: the file itself (LogoError), or a dark logo sent
+ * while there is no light one (the dark logo is only its dark-mode variant).
+ */
+export type BrandLogoError = LogoError | "light_logo_required";
+
 export async function saveBrandLogo(
   theme: BrandTheme,
   bytes: Uint8Array
-): Promise<BrandingSettings | { error: LogoError }> {
+): Promise<BrandingSettings | { error: BrandLogoError }> {
   const session = await requireInstanceManage();
+  if (theme === "dark" && !(await loadRaw()).logos.has("light")) {
+    return { error: "light_logo_required" };
+  }
   const result = await validateBrandLogo(bytes);
   if (!result.ok) return { error: result.error };
   const now = new Date();
@@ -187,17 +198,22 @@ export async function removeBrandLogo(
   const before = await loadRaw();
   // Nothing to remove: no write, no version bump, no activity row.
   if (!before.logos.has(theme)) return before.view;
+  // The dark logo is a variant of the light one: it goes with it.
+  const themes: BrandTheme[] = theme === "light" ? ["light", "dark"] : ["dark"];
+  const removed = themes.filter((t) => before.logos.has(t));
   await db.transaction(async (tx) => {
-    await tx
-      .delete(instanceBrandLogos)
-      .where(eq(instanceBrandLogos.theme, theme));
+    for (const t of removed) {
+      await tx
+        .delete(instanceBrandLogos)
+        .where(eq(instanceBrandLogos.theme, t));
+    }
     await tx
       .update(instanceSettings)
       .set({ brandUpdatedAt: new Date() })
       .where(eq(instanceSettings.id, 1));
   });
   return afterWrite(session.user.id, {
-    logo: theme === "light",
-    logoDark: theme === "dark",
+    logo: removed.includes("light"),
+    logoDark: removed.includes("dark"),
   });
 }

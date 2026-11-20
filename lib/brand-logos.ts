@@ -1,6 +1,9 @@
 import { ACCENT_PALETTE } from "@/lib/accent-palette";
 import type { AccentColor } from "@/lib/accents";
 
+/** The name an instance shows until an admin (or the boot seed) sets one. */
+export const DEFAULT_APP_NAME = "Menara";
+
 /**
  * The built-in Menara mark, shown while the instance has no uploaded logo: a
  * four-tile dashboard grid — top-left, top-right, bottom-left, and the

@@ -177,8 +177,13 @@ describe.skipIf(!enabled)("instance branding on Postgres", () => {
     });
     expect((await branding.getBranding()).accent).toBe("rose");
 
+    // The dark logo is a variant: removing the light one takes it along.
+    expect(await service.saveBrandLogo("dark", svg)).toMatchObject({
+      logoDark: { type: "image/svg+xml" },
+    });
     expect(await service.removeBrandLogo("light")).toMatchObject({
       logo: null,
+      logoDark: null,
     });
     expect(await sql`select 1 from instance_brand_logos`).toHaveLength(0);
     expect((await branding.getBranding()).logo).toBeNull();

@@ -1,6 +1,7 @@
 {
   "app": {
-    "name": "{{APP_NAME}}"
+    "name": "{{APP_NAME}}",
+    "runsInProgress": "Ejecuciones en curso"
   },
   "common": {
     "close": "Cerrar",
@@ -3615,7 +3616,46 @@
     "subtitle": "Las copias de seguridad, actualizaciones y clave SSH de este Panel.",
     "tabBackups": "Copias de seguridad",
     "tabUpdates": "Actualizaciones",
-    "tabSshKey": "Clave SSH"
+    "tabSshKey": "Clave SSH",
+    "tabBranding": "Marca",
+    "branding": {
+      "title": "Marca",
+      "description": "Cómo se llama y se muestra esta instancia: en la barra lateral, en la página de inicio de sesión, en los correos y en la pestaña del navegador.",
+      "name": "Nombre de la instancia",
+      "nameRestartHint": "Los avisos de inicio de sesión, las apps de autenticación y las passkeys muestran el nuevo nombre tras el próximo reinicio",
+      "company": "Empresa",
+      "companyDescription": "Se muestra en la línea de copyright. Déjalo vacío para mostrar ahí el nombre de la instancia.",
+      "accent": "Acento predeterminado",
+      "accentDescription": "El acento de quienes no han elegido uno propio, y de la página de inicio de sesión.",
+      "accentDefault": "Predeterminado (neutro)",
+      "logo": "Logotipo",
+      "logoDescription": "Una marca cuadrada: SVG de hasta 100 KB, o PNG o WebP de hasta 512 KB y 64–1024 px. También es el favicon.",
+      "logoDark": "Logotipo para el modo oscuro",
+      "logoDarkDescription": "Opcional. Se muestra en lugar del logotipo en el modo oscuro.",
+      "logoDarkNeedsLight": "Sube primero un logotipo: el del modo oscuro es su variante.",
+      "upload": "Subir logotipo",
+      "replace": "Reemplazar",
+      "remove": "Quitar logotipo",
+      "removeLightHint": "Quitar el logotipo también quita el del modo oscuro.",
+      "preview": "Vista previa",
+      "previewDescription": "Los cambios sin guardar se ven aquí primero.",
+      "previewSidebar": "Barra lateral",
+      "previewSignIn": "Inicio de sesión",
+      "saved": "Marca guardada",
+      "logoUploaded": "Logotipo subido",
+      "logoRemoved": "Logotipo quitado",
+      "error": {
+        "too_large": "El archivo es demasiado grande: SVG hasta 100 KB, PNG o WebP hasta 512 KB.",
+        "unsupported_type": "Usa una imagen SVG, PNG o WebP.",
+        "invalid_image": "No se puede leer la imagen, o el SVG tiene contenido no permitido.",
+        "not_square": "El logotipo debe ser cuadrado.",
+        "too_small": "La imagen es demasiado pequeña: al menos 64×64 px.",
+        "too_large_dimensions": "La imagen es demasiado grande: como máximo 1024×1024 px.",
+        "light_logo_required": "Sube primero un logotipo: el del modo oscuro es su variante.",
+        "no_file": "Elige un archivo para subir.",
+        "failed": "No se pudo subir el logotipo."
+      }
+    }
   },
   "instanceBackups": {
     "settingsTitle": "Programación",
