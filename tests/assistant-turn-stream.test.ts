@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   hasTurnStream,
   loggingPublisher,
+  loggingSubscriber,
   publishTurnStream,
   resumeTurnStream,
 } from "@/lib/assistant/turn-stream";
@@ -110,6 +111,70 @@ async function until(check: () => Promise<boolean>): Promise<void> {
   throw new Error("condition never held");
 }
 
+/**
+ * Two ioredis-shaped clients over one in-memory bus: the publisher's
+ * commands, and the subscriber's "message" events and (un)subscribe.
+ */
+function ioredisLike(options: { unsubscribeFails?: boolean } = {}) {
+  const values = new Map<string, string>();
+  const subscribed = new Set<string>();
+  const listeners = new Set<(channel: string, message: string) => void>();
+  let readsFail = false;
+  const publisher = {
+    publish: async (channel: string, message: string) => {
+      const active = subscribed.has(channel) ? [...listeners] : [];
+      queueMicrotask(() => {
+        for (const listener of active) listener(channel, message);
+      });
+      return active.length;
+    },
+    set: async (key: string, value: string) => {
+      values.set(key, value);
+      return "OK";
+    },
+    get: async (key: string) => {
+      if (readsFail) throw new Error("NOPERM this user has no permissions");
+      return values.get(key) ?? null;
+    },
+    incr: async (key: string) => {
+      const next = Number(values.get(key) ?? "0") + 1;
+      values.set(key, String(next));
+      return next;
+    },
+  };
+  const subscriber = {
+    on: (
+      _event: string,
+      listener: (channel: string, message: string) => void
+    ) => listeners.add(listener),
+    removeListener: (
+      _event: string,
+      listener: (channel: string, message: string) => void
+    ) => listeners.delete(listener),
+    subscribe: async (channel: string) => {
+      subscribed.add(channel);
+      return subscribed.size;
+    },
+    unsubscribe: async (channel: string) => {
+      subscribed.delete(channel);
+      if (options.unsubscribeFails) {
+        throw new Error("READONLY You can't write against a read only replica");
+      }
+      return subscribed.size;
+    },
+  };
+  return {
+    publisher: publisher as unknown as Parameters<typeof loggingPublisher>[0],
+    subscriber: subscriber as unknown as Parameters<
+      typeof loggingSubscriber
+    >[0],
+    listeners: () => listeners.size,
+    failReads: () => {
+      readsFail = true;
+    },
+  };
+}
+
 describe("turn stream", () => {
   it("a follower that joins mid-stream gets the buffered chunks, then the rest", async () => {
     const streams = memoryRedis();
@@ -146,7 +211,7 @@ describe("turn stream", () => {
     expect(await hasTurnStream(crypto.randomUUID(), streams)).toBeNull();
   });
 
-  it("a failing publish or set is logged and resolves; reads still reject", async () => {
+  it("a failing publish, set or get is logged and resolves null; incr still rejects", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const down = () => Promise.reject(new Error("OOM command not allowed"));
     const client = {
@@ -161,9 +226,65 @@ describe("turn stream", () => {
     await expect(publisher.publish("c", "m")).resolves.toBeNull();
     await expect(publisher.set("k", "v", { EX: 60 })).resolves.toBeNull();
     expect(client.set).toHaveBeenCalledWith("k", "v", "EX", 60);
-    await expect(publisher.get("k")).rejects.toThrow("OOM");
+    await expect(publisher.get("k")).resolves.toBeNull();
     await expect(publisher.incr("k")).rejects.toThrow("OOM");
+    expect(error).toHaveBeenCalledTimes(3);
+    error.mockRestore();
+  });
+
+  it("dispatches messages by channel and logs a failing unsubscribe", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const client = ioredisLike({ unsubscribeFails: true });
+    const subscriber = loggingSubscriber(client.subscriber);
+    const a = vi.fn();
+    const b = vi.fn();
+    await subscriber.subscribe("a", a);
+    await subscriber.subscribe("b", b);
+    await client.publisher.publish("a", "to a");
+    await client.publisher.publish("b", "to b");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(a).toHaveBeenCalledExactlyOnceWith("to a");
+    expect(b).toHaveBeenCalledExactlyOnceWith("to b");
+    await expect(subscriber.unsubscribe("a")).resolves.toBeNull();
+    await subscriber.unsubscribe("b");
+    expect(client.listeners()).toBe(0);
     expect(error).toHaveBeenCalledTimes(2);
     error.mockRestore();
+  });
+
+  it("Valkey errors at a stream's end and on reads never reject unhandled", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const client = ioredisLike({ unsubscribeFails: true });
+      const streams = createResumableStreamContext({
+        waitUntil: null,
+        publisher: loggingPublisher(client.publisher),
+        subscriber: loggingSubscriber(client.subscriber),
+      });
+      const id = crypto.randomUUID();
+      const producer = channel();
+      producer.write(delta(1));
+      producer.close();
+      // The DONE branch unsubscribes: that rejection is logged.
+      await publishTurnStream(id, producer.stream, streams);
+      await until(async () => (await hasTurnStream(id, streams)) === "DONE");
+
+      // Reads fail from now on: the stream reads as never published.
+      client.failReads();
+      expect(await hasTurnStream(id, streams)).toBeNull();
+      expect(await resumeTurnStream(id, streams)).toBeUndefined();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(
+        error.mock.calls.some((args) => String(args[0]).includes("unsubscribe"))
+      ).toBe(true);
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      error.mockRestore();
+      warn.mockRestore();
+    }
   });
 });

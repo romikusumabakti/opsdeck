@@ -4,6 +4,7 @@ import {
   createResumableStreamContext,
   type Publisher,
   type ResumableStreamContext,
+  type Subscriber,
 } from "resumable-stream/ioredis";
 import { createRedisConnection } from "@/lib/queue";
 
@@ -18,20 +19,23 @@ export const TURN_STREAM_KEY_PREFIX = "menara-assistant-stream";
 
 let context: ResumableStreamContext | undefined;
 
+const logged = (command: string) => (error: unknown) => {
+  console.error(`[assistant] turn stream ${command} failed`, error);
+  return null;
+};
+
 /**
- * The library's publisher over an ioredis client, except that PUBLISH and
- * SET failures are logged and resolve: resumable-stream issues both inside
- * promise chains it never handles (each chunk's publish, the DONE sentinel),
- * and an unhandled rejection exits the Bun process, every running turn with
- * it. A lost publish or sentinel only costs followers the live view.
+ * The library's publisher over an ioredis client, except that PUBLISH, SET
+ * and GET failures are logged and resolve null: resumable-stream issues them
+ * inside promise chains and timers it never handles (each chunk's publish,
+ * the DONE sentinel, the resume ack timer), and an unhandled rejection exits
+ * the Bun process, every running turn with it. A lost publish or sentinel
+ * only costs followers the live view; a failed GET reads as "no stream"
+ * (hasExistingStream null, resumeExistingStream undefined).
  */
 export function loggingPublisher(
   client: Pick<IORedis, "publish" | "set" | "get" | "incr">
 ): Publisher {
-  const logged = (command: string) => (error: unknown) => {
-    console.error(`[assistant] turn stream ${command} failed`, error);
-    return null;
-  };
   return {
     connect: async () => {},
     publish: (channel, message) =>
@@ -41,23 +45,51 @@ export function loggingPublisher(
         ? client.set(key, value, "EX", options.EX)
         : client.set(key, value)
       ).catch(logged("set")),
-    get: (key) => client.get(key),
+    get: (key) => client.get(key).catch(logged("get")),
     incr: (key) => client.incr(key),
+  };
+}
+
+/**
+ * The library's subscriber over an ioredis client (the shape of its own
+ * ioredis adapter: one "message" listener dispatching by channel), except
+ * that UNSUBSCRIBE failures are logged and resolve: the library unsubscribes
+ * at every stream's end in chains it never handles. SUBSCRIBE still rejects,
+ * where the library awaits it.
+ */
+export function loggingSubscriber(
+  client: Pick<IORedis, "on" | "removeListener" | "subscribe" | "unsubscribe">
+): Subscriber {
+  const handlers = new Map<string, (message: string) => void>();
+  const dispatch = (channel: string, message: string) => {
+    handlers.get(channel)?.(message);
+  };
+  return {
+    connect: async () => {},
+    subscribe: async (channel, callback) => {
+      if (handlers.size === 0) client.on("message", dispatch);
+      handlers.set(channel, callback);
+      await client.subscribe(channel);
+    },
+    unsubscribe: (channel) => {
+      handlers.delete(channel);
+      if (handlers.size === 0) client.removeListener("message", dispatch);
+      return client.unsubscribe(channel).catch(logged("unsubscribe"));
+    },
   };
 }
 
 /**
  * The process's stream context, created on first use with its own publisher
  * and subscriber connections (a subscribed connection cannot run other
- * commands); the library adapts the ioredis subscriber itself. waitUntil is
- * null: the worker and server are long-lived.
+ * commands). waitUntil is null: the worker and server are long-lived.
  */
 export function turnStreamContext(): ResumableStreamContext {
   context ??= createResumableStreamContext({
     keyPrefix: TURN_STREAM_KEY_PREFIX,
     waitUntil: null,
     publisher: loggingPublisher(createRedisConnection()),
-    subscriber: createRedisConnection(),
+    subscriber: loggingSubscriber(createRedisConnection()),
   });
   return context;
 }

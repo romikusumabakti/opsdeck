@@ -40,7 +40,10 @@ import {
   uploadFile,
   uploadGate,
 } from "@/server/services/assistant-files";
-import { openAnswerStream } from "@/server/services/assistant-stream";
+import {
+  openAnswerStream,
+  STREAM_MAX_DURATION_MS,
+} from "@/server/services/assistant-stream";
 import { eventStream, pollSnapshots, sendEvent } from "@/server/sse";
 import { json, query } from "@/server/validation";
 
@@ -48,7 +51,6 @@ import { json, query } from "@/server/validation";
 // (lib/assistant/turn-store.ts). Capped like the run streams: EventSource
 // reconnects, which also frees sockets held by vanished tabs.
 const STREAM_POLL_INTERVAL_MS = 500;
-const STREAM_MAX_DURATION_MS = 10 * 60 * 1000;
 
 /** The assistant's chats. Each service function authorizes the caller. */
 export const assistantRouter = sessionRouter()

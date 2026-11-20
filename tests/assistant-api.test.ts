@@ -632,6 +632,7 @@ vi.mock("@/lib/jira/create", async (importOriginal) => ({
 }));
 
 const { app } = await import("@/server/app");
+const { openAnswerStream } = await import("@/server/services/assistant-stream");
 const { TurnError } = await import("@/lib/assistant/run-turn");
 const { JiraCreateError } = await import("@/lib/jira/create");
 
@@ -1816,7 +1817,7 @@ describe("stream", () => {
 
 describe("answer-stream", () => {
   const SSE =
-    'data: {"type":"start","messageId":"m"}\n\ndata: {"type":"text-delta","id":"t","delta":"Iuran"}\n\n';
+    'data: {"type":"start","messageId":"m"}\n\ndata: {"type":"text-delta","id":"t","delta":"Iuran"}\n\ndata: {"type":"finish","messageMetadata":{"status":"done","errorCode":null}}\n\n';
   const sseStream = () =>
     new ReadableStream<string>({
       start(controller) {
@@ -1935,10 +1936,155 @@ describe("answer-stream", () => {
 });
 
 describe("openAnswerStream", () => {
-  it("keeps a queued answer's wait alive, then gives up after waitMs", async () => {
-    const { openAnswerStream } = await import(
-      "@/server/services/assistant-stream"
+  const TEXT = 'data: {"type":"text-delta","id":"t","delta":"Iuran"}\n\n';
+  const textOf = async (stream: ReadableStream<string> | null) => {
+    expect(stream).toBeInstanceOf(ReadableStream);
+    let text = "";
+    const reader = (stream as ReadableStream<string>).getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return text;
+      text += value;
+    }
+  };
+  const lastFrame = (text: string) =>
+    JSON.parse(
+      text
+        .split("\n\n")
+        .filter((f) => f.startsWith("data: "))
+        .at(-1)
+        ?.slice("data: ".length) ?? "null"
     );
+  /** A stream that sends `chunks`, then stays open until cancelled. */
+  const openStream = (chunks: string[], cancel = vi.fn()) =>
+    new ReadableStream<string>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+      },
+      cancel,
+    });
+  const closedStream = (chunks: string[]) =>
+    new ReadableStream<string>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+        controller.close();
+      },
+    });
+  const until = async (check: () => boolean) => {
+    for (let i = 0; i < 200 && !check(); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(check()).toBe(true);
+  };
+
+  it("a resume that never answers is given up: 204 when streaming, the row's finish when queued", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    const resume = vi.fn(() => new Promise<never>(() => {}));
+    Object.assign(answer, { status: "streaming" });
+    expect(
+      await openAnswerStream(id, { resume, resumeTimeoutMs: 20 })
+    ).toBeNull();
+
+    Object.assign(answer, { status: "queued" });
+    const stream = await openAnswerStream(id, {
+      resume,
+      has: vi.fn(async () => true as const),
+      resumeTimeoutMs: 20,
+    });
+    // The turn failed meanwhile (its worker died).
+    Object.assign(answer, { status: "failed", errorCode: "assistant.failed" });
+    expect(lastFrame(await textOf(stream))).toEqual({
+      type: "finish",
+      messageMetadata: { status: "failed", errorCode: "assistant.failed" },
+    });
+    warn.mockRestore();
+  });
+
+  it("cancelling while the resume is pending cancels the stream it then gets", async () => {
+    const id = await newConversation();
+    await send(id);
+    let resolveResume!: (stream: ReadableStream<string>) => void;
+    const resume = vi.fn(
+      () =>
+        new Promise<ReadableStream<string>>((resolve) => {
+          resolveResume = resolve;
+        })
+    );
+    const stream = await openAnswerStream(id, {
+      resume,
+      has: vi.fn(async () => true as const),
+    });
+    await until(() => resume.mock.calls.length > 0);
+    await stream?.cancel();
+    const cancel = vi.fn();
+    resolveResume(openStream([TEXT], cancel));
+    await until(() => cancel.mock.calls.length > 0);
+  });
+
+  it("cancelling a follow cancels the stream it follows", async () => {
+    const id = await newConversation();
+    await send(id);
+    Object.assign(store.messages[1]!, { status: "streaming" });
+    const cancel = vi.fn();
+    const stream = await openAnswerStream(id, {
+      resume: vi.fn(async () => openStream([TEXT], cancel)),
+    });
+    const reader = (stream as ReadableStream<string>).getReader();
+    expect((await reader.read()).value).toBe(TEXT);
+    await reader.cancel();
+    await until(() => cancel.mock.calls.length > 0);
+  });
+
+  it("a follow that ends without a finish ends with the row's", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    Object.assign(answer, { status: "streaming" });
+    const stream = await openAnswerStream(id, {
+      resume: vi.fn(async () => closedStream([TEXT])),
+    });
+    Object.assign(answer, { status: "done", errorCode: null });
+    const text = await textOf(stream);
+    expect(text.startsWith(TEXT)).toBe(true);
+    expect(lastFrame(text)).toEqual({
+      type: "finish",
+      messageMetadata: { status: "done", errorCode: null },
+    });
+  });
+
+  it("a queued answer whose stream is already gone ends with the row's finish", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    const stream = await openAnswerStream(id, {
+      has: vi.fn(async () => true as const),
+      resume: vi.fn(async () => null),
+    });
+    Object.assign(answer, { status: "failed", errorCode: "assistant.refused" });
+    expect(lastFrame(await textOf(stream))).toEqual({
+      type: "finish",
+      messageMetadata: { status: "failed", errorCode: "assistant.refused" },
+    });
+  });
+
+  it("a follow whose chat is deleted ends as stopped", async () => {
+    const id = await newConversation();
+    await send(id);
+    Object.assign(store.messages[1]!, { status: "streaming" });
+    const stream = await openAnswerStream(id, {
+      resume: vi.fn(async () => closedStream([TEXT])),
+    });
+    store.messages = [];
+    expect(lastFrame(await textOf(stream))).toEqual({
+      type: "finish",
+      messageMetadata: { status: "failed", errorCode: "assistant.stopped" },
+    });
+  });
+
+  it("keeps a queued answer's wait alive, then gives up after waitMs", async () => {
     const id = await newConversation();
     await send(id);
     let clock = 0;
