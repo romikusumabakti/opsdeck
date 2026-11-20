@@ -142,3 +142,27 @@ export async function mapLimit<T, R>(
   );
   return results;
 }
+
+const fold = (text: string) =>
+  text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+/**
+ * Whether `query` names the person: a substring of their name, what they like
+ * to be called, email or title, ignoring case and accents. An empty query
+ * matches everyone.
+ */
+export function personMatchesQuery(
+  person: {
+    name: string;
+    preferredName: string | null;
+    email: string;
+    title: string | null;
+  },
+  query: string
+): boolean {
+  const needle = fold(query.trim());
+  if (!needle) return true;
+  return [person.name, person.preferredName, person.email, person.title].some(
+    (field) => field !== null && fold(field).includes(needle)
+  );
+}

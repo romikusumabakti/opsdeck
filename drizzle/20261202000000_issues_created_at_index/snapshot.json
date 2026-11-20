@@ -1,0 +1,57 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "56a3d09d-9c12-45d5-9240-8e038050b5ea",
+  "prevIds": [
+    "bc9a14bd-35f0-4e83-a366-8b3402a1eeee"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "issues",
+        "issues_created_at_idx"
+      ],
+      "writes": [
+        "s|idx|public.issues_created_at_idx",
+        "n|idx|public.issues_created_at_idx",
+        "e|idx|public.issues_created_at_idx",
+        "n|rel|public.issues_created_at_idx"
+      ],
+      "reads": [
+        "n|tbl|public.issues",
+        "n|sch|public",
+        "n|col|public.issues.created_at"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "issues",
+        "name": "issues_created_at_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "created_at",
+            "isExpression": false,
+            "asc": false,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    }
+  ]
+}

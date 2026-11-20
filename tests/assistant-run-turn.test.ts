@@ -794,9 +794,9 @@ describe("runTurn", () => {
     // message, so switching it keeps the cached history prefix.
     expect(String(volatile?.content)).not.toContain("Environment:");
     const tools = toolsOf(call);
-    // The seven Stage 2 tools, read_upload, then the nine Panel tools
+    // The seven Stage 2 tools, read_upload, then the eight data tools
     // every role gets.
-    expect(tools).toHaveLength(17);
+    expect(tools).toHaveLength(16);
     expect(tools.at(-1)?.providerOptions).toEqual(CACHE);
     expect(tools.slice(0, -1).some((t) => t.providerOptions)).toBe(false);
     expect(conversationOf(call)).toEqual([

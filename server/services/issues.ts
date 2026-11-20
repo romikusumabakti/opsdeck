@@ -5,8 +5,11 @@ import {
   eq,
   exists,
   getTableColumns,
+  gte,
   ilike,
   inArray,
+  isNull,
+  lt,
   or,
   type SQL,
   sql,
@@ -38,6 +41,9 @@ import {
   environments,
   type Issue,
   type IssueComment,
+  type IssuePriority,
+  type IssueStatus,
+  type IssueType,
   issueComments,
   issueLabels,
   issues,
@@ -63,6 +69,7 @@ import {
   issueInputSchema,
   issuePrioritySchema,
   issueStatusSchema,
+  issueTypeSchema,
   issueUpdateSchema,
 } from "@/lib/validation";
 import { CodedHTTPException } from "@/server/errors";
@@ -402,6 +409,23 @@ export type IssueQuery = {
   /** Free text over the title and the human key (`CMEM-42`). */
   q?: string;
   status?: string;
+  /** Any of these statuses; wins over `status` and `view` when non-empty. */
+  statuses?: IssueStatus[];
+  types?: IssueType[];
+  priorities?: IssuePriority[];
+  /** Only issues with no assignee. */
+  unassigned?: boolean;
+  createdById?: string;
+  environmentId?: string;
+  milestoneId?: string;
+  /** Issues carrying any of these labels. */
+  labelIds?: string[];
+  /** Created at or after / before (exclusive). */
+  createdFrom?: Date;
+  createdTo?: Date;
+  /** Updated at or after / before (exclusive). */
+  updatedFrom?: Date;
+  updatedTo?: Date;
   /** The board shows every status by default; the table defaults to active. */
   view?: IssueView;
   projectId?: string;
@@ -474,10 +498,35 @@ export async function listAllIssuesFor(
   }
   // Every filter value arrives from the URL: validate before it reaches SQL so
   // a junk enum value is ignored rather than throwing a 22P02 from Postgres.
-  const statuses = resolveStatusFilter(query.status, query.view ?? "table");
+  const listed = enumMembers(issueStatusSchema, query.statuses);
+  const statuses = listed.length
+    ? listed
+    : resolveStatusFilter(query.status, query.view ?? "table");
   if (statuses) conditions.push(inArray(issues.status, [...statuses]));
   const priority = issuePrioritySchema.safeParse(query.priority);
   if (priority.success) conditions.push(eq(issues.priority, priority.data));
+  const types = enumMembers(issueTypeSchema, query.types);
+  if (types.length) conditions.push(inArray(issues.type, types));
+  const priorities = enumMembers(issuePrioritySchema, query.priorities);
+  if (priorities.length) conditions.push(inArray(issues.priority, priorities));
+  if (query.unassigned) conditions.push(isNull(issues.assigneeId));
+  if (isUuid(query.createdById)) {
+    conditions.push(eq(issues.createdById, query.createdById));
+  }
+  if (isUuid(query.environmentId)) {
+    conditions.push(eq(issues.environmentId, query.environmentId));
+  }
+  if (isUuid(query.milestoneId)) {
+    conditions.push(eq(issues.milestoneId, query.milestoneId));
+  }
+  if (query.createdFrom) {
+    conditions.push(gte(issues.createdAt, query.createdFrom));
+  }
+  if (query.createdTo) conditions.push(lt(issues.createdAt, query.createdTo));
+  if (query.updatedFrom) {
+    conditions.push(gte(issues.updatedAt, query.updatedFrom));
+  }
+  if (query.updatedTo) conditions.push(lt(issues.updatedAt, query.updatedTo));
   if (isUuid(query.projectId)) {
     conditions.push(eq(issues.projectId, query.projectId));
   }
@@ -496,6 +545,22 @@ export async function listAllIssuesFor(
             and(
               eq(issueLabels.issueId, issues.id),
               eq(issueLabels.labelId, query.labelId)
+            )
+          )
+      )
+    );
+  }
+  const labelIds = (query.labelIds ?? []).filter(isUuid);
+  if (labelIds.length) {
+    conditions.push(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(issueLabels)
+          .where(
+            and(
+              eq(issueLabels.issueId, issues.id),
+              inArray(issueLabels.labelId, labelIds)
             )
           )
       )
@@ -592,6 +657,17 @@ export async function listAllIssuesFor(
     console.error("Failed to list all issues:", error);
     return { rows: [], total: 0 };
   }
+}
+
+/** The members of `values` the enum accepts: junk is dropped, not an error. */
+function enumMembers<T extends string>(
+  schema: z.ZodType<T>,
+  values: readonly string[] | undefined
+): T[] {
+  return (values ?? []).flatMap((value) => {
+    const parsed = schema.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  });
 }
 
 function isUuid(value: string | undefined): value is string {

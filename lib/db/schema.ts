@@ -1502,6 +1502,8 @@ export const issues = pgTable(
     // Default order of the cross-project list (newest activity first). Paging
     // without it means a full sort of the table on every page.
     index("issues_updated_at_idx").on(t.updatedAt.desc().nullsFirst()),
+    // The same list sorted by creation date (the assistant's date filters).
+    index("issues_created_at_idx").on(t.createdAt.desc()),
     // Cross-project filters: "assigned to me" and the status dropdown.
     index("issues_assignee_idx").on(t.assigneeId),
     index("issues_status_idx").on(t.status),

@@ -120,19 +120,6 @@ export type IssueAttachment = {
   sizeBytes: number;
 };
 
-export type IssueToolData = {
-  key: string;
-  title: string;
-  status: string;
-  type: string;
-  description: string;
-  descriptionTruncated: boolean;
-  comments: { author: string; body: string; createdAt: string }[];
-  /** Empty when the list could not be fetched; see attachmentsError. */
-  attachments: IssueAttachment[];
-  attachmentsError: string | null;
-};
-
 function toAttachment(meta: JiraAttachmentMeta): IssueAttachment {
   return {
     id: meta.id,
@@ -161,61 +148,6 @@ export async function listIssueAttachments(
   } catch (error) {
     return { attachments: [], error: jiraFailure(error) };
   }
-}
-
-export async function getIssueTool(
-  viewer: AssistantViewer,
-  rawKey: string
-): Promise<ToolResult<IssueToolData>> {
-  const visible = await visibleIssueByKey(viewer, rawKey);
-  if (!visible) return fail(`issue ${rawKey.trim()} not found`);
-  const { issue } = visible;
-  const key = issue.jiraKey ?? rawKey.trim().toUpperCase();
-
-  const latest = await db.query.issueComments.findMany({
-    where: { issueId: issue.id },
-    with: { author: { columns: { name: true } } },
-    orderBy: { createdAt: "desc" },
-    limit: MAX_COMMENTS,
-  });
-  let withheld = 0;
-  const redact = (text: string): string => {
-    const result = redactSecretLines(text);
-    withheld += result.redacted;
-    return result.text;
-  };
-  const comments = latest.reverse().map((c) => {
-    const body = capBytes(redact(c.body), MAX_COMMENT_BYTES);
-    return {
-      author: c.author?.name ?? "Unknown",
-      body: body.truncated ? `${body.text}\n[truncated]` : body.text,
-      createdAt: c.createdAt.toISOString(),
-    };
-  });
-
-  const { attachments, error: attachmentsError } =
-    await listIssueAttachments(visible);
-
-  const description = capBytes(
-    redact(issue.description),
-    MAX_DESCRIPTION_BYTES
-  );
-  return {
-    ok: true,
-    data: {
-      key,
-      title: redact(issue.title),
-      status: issue.status,
-      type: issue.type,
-      description: description.text,
-      descriptionTruncated: description.truncated,
-      comments,
-      attachments,
-      attachmentsError,
-    },
-    // Redacted credential lines, as for files withheld by the code tools.
-    meta: withheld > 0 ? { issueKeys: [key], withheld } : { issueKeys: [key] },
-  };
 }
 
 export type AttachmentContent =

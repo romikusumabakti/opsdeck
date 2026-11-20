@@ -1,14 +1,21 @@
 import { stripVTControlCharacters } from "node:util";
 import { type FlexibleSchema, jsonSchema } from "ai";
+import { inArray } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { type OrgScope, requireOrgPermissionIn } from "@/lib/access-scope";
 import { db } from "@/lib/db";
-import type { EnvironmentListItem } from "@/lib/db/schema";
+import { type EnvironmentListItem, labels, milestones } from "@/lib/db/schema";
 import { resolveEnvironmentBySlug } from "@/lib/environment-slug";
 import { listPeopleFor } from "@/lib/people/queries";
 import type { OrgPermissions } from "@/lib/permissions";
+import { APP_TIMEZONE } from "@/lib/timezone";
 import { callName } from "@/lib/user-display";
+import {
+  issuePrioritySchema,
+  issueStatusSchema,
+  issueTypeSchema,
+} from "@/lib/validation";
 import { listActivityFor } from "@/server/services/activity";
 import { listProjectBuildsFor } from "@/server/services/deploy-builds";
 import { getDeployLockStateFor } from "@/server/services/deploy-locks";
@@ -51,6 +58,11 @@ import {
   unknownProjectError,
   withWithheld,
 } from "./data-shared";
+import {
+  DEFAULT_ISSUE_LIST_LIMIT,
+  ISSUE_LIST_LIMIT,
+  listIssuesTool,
+} from "./issues";
 
 /**
  * Data tools: read-only views of Menara data (environments, live status,
@@ -82,9 +94,6 @@ export const DEFAULT_SERVICE_LOG_LINES = 100;
 export const MAX_SERVICE_LOG_BYTES = 32 * 1024;
 /** The longest `since` the tool takes (7 days). */
 export const MAX_LOG_SINCE_SECONDS = 7 * 24 * 3600;
-export const MAX_ISSUE_DESCRIPTION_BYTES = 16 * 1024;
-export const MAX_ISSUE_COMMENTS = 50;
-export const MAX_ISSUE_COMMENT_BYTES = 4 * 1024;
 
 /** The service cores the tools read through (tests replace them). */
 export type DataCores = {
@@ -108,6 +117,12 @@ export type DataCores = {
   resolveEnvironmentSlug: typeof resolveEnvironmentBySlug;
   /** Display names of environment owners, by user id. */
   ownerNames: (ids: string[]) => Promise<Map<string, string>>;
+  /** Every workspace label (they belong to no project). */
+  listLabels: () => Promise<{ id: string; name: string }[]>;
+  /** The milestones of the given (already visible) projects. */
+  listMilestones: (
+    projectIds: string[]
+  ) => Promise<{ id: string; projectId: string; name: string }[]>;
 };
 
 async function ownerNames(ids: string[]): Promise<Map<string, string>> {
@@ -117,6 +132,22 @@ async function ownerNames(ids: string[]): Promise<Map<string, string>> {
     columns: { id: true, name: true, preferredName: true },
   });
   return new Map(rows.map((u) => [u.id, callName(u)]));
+}
+
+async function listLabels() {
+  return db.select({ id: labels.id, name: labels.name }).from(labels);
+}
+
+async function listMilestones(projectIds: string[]) {
+  if (projectIds.length === 0) return [];
+  return db
+    .select({
+      id: milestones.id,
+      projectId: milestones.projectId,
+      name: milestones.name,
+    })
+    .from(milestones)
+    .where(inArray(milestones.projectId, projectIds));
 }
 
 export const DATA_CORES: DataCores = {
@@ -138,6 +169,8 @@ export const DATA_CORES: DataCores = {
   listActivity: listActivityFor,
   resolveEnvironmentSlug: resolveEnvironmentBySlug,
   ownerNames,
+  listLabels,
+  listMilestones,
 };
 
 type ServiceStatus = { role: string; state: string; error?: string };
@@ -164,6 +197,8 @@ export type EnvironmentStatus = {
  */
 export type DataTurn = {
   cores: DataCores;
+  /** The zone the user reads dates in (bare dates in tool inputs). */
+  timeZone: string;
   projects: () => Promise<ProjectEntry[]>;
   environments: () => Promise<EnvironmentListItem[]>;
   probe: (environment: EnvironmentListItem) => Promise<ServiceStatus[] | null>;
@@ -173,6 +208,8 @@ export type DataTurnOptions = {
   /** The viewer's visible projects. */
   projects: () => Promise<ProjectEntry[]>;
   cores?: Partial<DataCores>;
+  /** The user's IANA zone; defaults to APP_TIMEZONE. */
+  timeZone?: string;
   probeTimeoutMs?: number;
 };
 
@@ -212,6 +249,7 @@ export function createDataTurn(
 
   return {
     cores,
+    timeZone: options.timeZone ?? APP_TIMEZONE,
     projects: once(options.projects),
     environments: once(() => cores.listEnvironments(viewer.scope)),
     probe: (env) => {
@@ -249,6 +287,9 @@ const nullable = <T extends z.ZodType>(type: T, description: string) =>
 const empty = z.strictObject({});
 
 const SERVICE_ROLES = ["db", "backend", "frontend"] as const;
+const ISSUE_STATUSES = issueStatusSchema.options;
+const ISSUE_TYPES = issueTypeSchema.options;
+const ISSUE_PRIORITIES = issuePrioritySchema.options;
 
 const environmentArg = str(
   'Environment as "PROJECTKEY/slug" (from list_environments, e.g. "ACME/uat") or its id.'
@@ -310,17 +351,66 @@ const ALWAYS = {
       ),
     }),
   },
-  search_panel_issues: {
-    description: `Search the Menara issues (any status) by text over title, description and key (e.g. "ACME-12"). At most ${DATA_LIST_LIMIT} hits, most recently updated first.`,
+  list_issues: {
+    description: `List or search the Menara issues (any status unless filtered) with the Issues page's filters, most recently updated first by default. "total" counts every match; at most ${ISSUE_LIST_LIMIT} rows come back per call (default ${DEFAULT_ISSUE_LIST_LIMIT}), so page with offset. Each row has the Menara key and, for issues mirrored from Jira, the jiraKey. Dates are YYYY-MM-DD (the user's local day; "to" includes that whole day) or an ISO datetime with an offset. Read one issue with get_issue.`,
     inputSchema: z.strictObject({
-      query: str("Search text."),
+      query: nullable(
+        z.string(),
+        'Text over title, description and key (e.g. "ACME-12"); null for no text filter.'
+      ),
       project: nullable(z.string(), "Only this project key; null for all."),
-    }),
-  },
-  get_panel_issue: {
-    description: `One Menara issue by key ("ACME-12"): status, type, priority, assignee, labels, parent and children, description and the latest ${MAX_ISSUE_COMMENTS} comments. For Jira issues use get_issue.`,
-    inputSchema: z.strictObject({
-      key: str('Menara issue key, e.g. "ACME-12".'),
+      status: nullable(
+        z.array(z.enum(ISSUE_STATUSES)),
+        "Only these statuses; null for every status."
+      ),
+      type: nullable(
+        z.array(z.enum(ISSUE_TYPES)),
+        "Only these types; null for all."
+      ),
+      priority: nullable(
+        z.array(z.enum(ISSUE_PRIORITIES)),
+        "Only these priorities; null for all."
+      ),
+      assignee: nullable(
+        z.string(),
+        '"me", "unassigned", or a person (name, email or id); null for anyone.'
+      ),
+      reporter: nullable(
+        z.string(),
+        'Who created it: "me" or a person (name, email or id); null for anyone.'
+      ),
+      labels: nullable(
+        z.array(z.string()),
+        "Issues with any of these label names; null for no label filter."
+      ),
+      environment: nullable(
+        z.string(),
+        'Environment as "PROJECTKEY/slug" or its id; null for any.'
+      ),
+      milestone: nullable(
+        z.string(),
+        "Milestone name (within project when given); null for any."
+      ),
+      created_from: nullable(z.string(), "Created on or after this date."),
+      created_to: nullable(z.string(), "Created on or before this date."),
+      updated_from: nullable(z.string(), "Updated on or after this date."),
+      updated_to: nullable(z.string(), "Updated on or before this date."),
+      sort: nullable(
+        z.enum(["updated", "created", "priority"]),
+        "Sort field. Default updated."
+      ),
+      order: nullable(
+        z.enum(["asc", "desc"]),
+        "Sort order. Default desc (newest, highest priority first)."
+      ),
+      limit: nullable(
+        z.number(),
+        `How many rows (whole number, at most ${ISSUE_LIST_LIMIT}). Default ${DEFAULT_ISSUE_LIST_LIMIT}.`
+      ),
+      offset: nullable(
+        z.number(),
+        "Rows to skip, to read the next page. Default 0."
+      ),
     }),
   },
   list_people: {
@@ -440,11 +530,26 @@ export const DATA_INPUTS = {
   }),
   get_deploy: z.strictObject({ id: z.string() }),
   list_builds: z.strictObject({ project: z.string(), limit }),
-  search_panel_issues: z.strictObject({
-    query: z.string(),
+  list_issues: z.strictObject({
+    query: z.string().nullish(),
     project: z.string().nullish(),
+    status: z.array(z.enum(ISSUE_STATUSES)).nullish(),
+    type: z.array(z.enum(ISSUE_TYPES)).nullish(),
+    priority: z.array(z.enum(ISSUE_PRIORITIES)).nullish(),
+    assignee: z.string().nullish(),
+    reporter: z.string().nullish(),
+    labels: z.array(z.string()).nullish(),
+    environment: z.string().nullish(),
+    milestone: z.string().nullish(),
+    created_from: z.string().nullish(),
+    created_to: z.string().nullish(),
+    updated_from: z.string().nullish(),
+    updated_to: z.string().nullish(),
+    sort: z.enum(["updated", "created", "priority"]).nullish(),
+    order: z.enum(["asc", "desc"]).nullish(),
+    limit,
+    offset: limit,
   }),
-  get_panel_issue: z.strictObject({ key: z.string() }),
   list_people: z.strictObject({ project: z.string().nullish() }),
   list_servers: empty,
   get_server: z.strictObject({ server: z.string() }),
@@ -902,119 +1007,6 @@ async function listBuildsTool(
   return ok({ project: found.key, builds: data }, withWithheld(meta, withheld));
 }
 
-async function searchIssuesTool(
-  ctx: DataContext,
-  query: string,
-  project: string | null | undefined
-) {
-  if (!query.trim()) return fail("query must not be empty");
-  let projectId: string | undefined;
-  let meta: ToolMeta = {};
-  if (project) {
-    const found = await projectByKey(ctx, project);
-    if (typeof found === "string") {
-      return fail(unknownProjectError(found, ctx.mode), { project: found });
-    }
-    projectId = found.id;
-    meta = { project: found.key };
-  }
-  const page = await ctx.data.cores.listIssues(ctx.viewer.scope, {
-    q: query.trim(),
-    status: "all",
-    ...(projectId ? { projectId } : {}),
-    sort: "updatedAt",
-    desc: true,
-    limit: DATA_LIST_LIMIT,
-  });
-  let withheld = 0;
-  const issues = page.rows.slice(0, DATA_LIST_LIMIT).map((i) => {
-    const title = safeText(i.title);
-    withheld += title.redacted;
-    return compact({
-      key: `${i.project.key}-${i.number}`,
-      title: title.text,
-      status: i.status,
-      type: i.type,
-      priority: i.priority,
-      assignee: i.assignee?.name ?? null,
-      environment: i.environment?.name ?? null,
-      updatedAt: iso(i.updatedAt),
-    });
-  });
-  return ok(
-    { total: page.total, issues },
-    withWithheld(
-      { ...meta, issueKeys: issues.map((i) => String(i.key)) },
-      withheld
-    )
-  );
-}
-
-const PANEL_ISSUE_KEY = /^([A-Z][A-Z0-9_]*)-([1-9][0-9]{0,8})$/;
-
-async function getPanelIssueTool(ctx: DataContext, rawKey: string) {
-  const key = rawKey.trim().toUpperCase();
-  const match = PANEL_ISSUE_KEY.exec(key);
-  const notFound = fail(`Menara issue ${rawKey.trim()} not found.`);
-  if (!match?.[1] || !match[2]) return notFound;
-  const issue = await ctx.data.cores.getIssueDetail(
-    ctx.viewer.scope,
-    match[1],
-    Number(match[2])
-  );
-  if (!issue) return notFound;
-  const projectKey = issue.project.key;
-  let withheld = 0;
-  const text = (value: string | null | undefined, maxBytes?: number) => {
-    const safe = safeText(value, maxBytes);
-    withheld += safe.redacted;
-    return safe.text;
-  };
-  const ref = (r: { number: number; title: string; status: string }) =>
-    compact({
-      key: `${projectKey}-${r.number}`,
-      title: text(r.title),
-      status: r.status,
-    });
-  const comments = issue.comments.slice(-MAX_ISSUE_COMMENTS).map((c) =>
-    compact({
-      author: c.author?.name ?? null,
-      at: iso(c.createdAt),
-      body: text(c.body, MAX_ISSUE_COMMENT_BYTES),
-    })
-  );
-  const data = compact({
-    key: `${projectKey}-${issue.number}`,
-    project: projectKey,
-    title: text(issue.title),
-    status: issue.status,
-    type: issue.type,
-    priority: issue.priority,
-    estimate: issue.estimate,
-    environment: issue.environment?.name ?? null,
-    assignee: issue.assignee?.name ?? null,
-    createdBy: issue.createdBy?.name ?? null,
-    createdAt: iso(issue.createdAt),
-    updatedAt: iso(issue.updatedAt),
-    labels: issue.labels.map((l) => l.name),
-    parent: issue.parent ? ref(issue.parent) : null,
-    children: issue.children.map(ref),
-    description: text(issue.description, MAX_ISSUE_DESCRIPTION_BYTES),
-    comments,
-    olderComments:
-      issue.comments.length > comments.length
-        ? issue.comments.length - comments.length
-        : null,
-  });
-  return ok(
-    data,
-    withWithheld(
-      { project: projectKey, issueKeys: [String(data.key)] },
-      withheld
-    )
-  );
-}
-
 async function listPeopleTool(
   ctx: DataContext,
   project: string | null | undefined
@@ -1171,14 +1163,11 @@ export async function runDataTool(
       const i = data as z.infer<typeof DATA_INPUTS.list_builds>;
       return listBuildsTool(ctx, i.project, i.limit);
     }
-    case "search_panel_issues": {
-      const i = data as z.infer<typeof DATA_INPUTS.search_panel_issues>;
-      return searchIssuesTool(ctx, i.query, i.project);
-    }
-    case "get_panel_issue": {
-      const i = data as z.infer<typeof DATA_INPUTS.get_panel_issue>;
-      return getPanelIssueTool(ctx, i.key);
-    }
+    case "list_issues":
+      return listIssuesTool(
+        ctx,
+        data as z.infer<typeof DATA_INPUTS.list_issues>
+      );
     case "list_people": {
       const i = data as z.infer<typeof DATA_INPUTS.list_people>;
       return listPeopleTool(ctx, i.project);

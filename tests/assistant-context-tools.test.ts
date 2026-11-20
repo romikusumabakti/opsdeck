@@ -103,7 +103,7 @@ vi.mock("@/lib/jira/sync", () => ({
 const { parseAttachmentRefs } = await import("@/lib/assistant/attachment-refs");
 const { REDACTED_LINE } = await import("@/lib/assistant/secret-filter");
 const {
-  getIssueTool,
+  listIssueAttachments,
   readAttachmentTool,
   readKnowledgeTool,
   searchKnowledgeTool,
@@ -228,18 +228,15 @@ afterEach(() => {
 const PDF = new TextEncoder().encode("%PDF-1.7\n%fake\n");
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-describe("getIssueTool", () => {
+describe("visibleIssueByKey and listIssueAttachments", () => {
   it("rejects issue keys outside the caller's visible projects", async () => {
-    const result = await getIssueTool(qa, "CRM-7");
-    expect(result).toMatchObject({ ok: false });
-    expect(!result.ok && result.error).toMatch(/not found/);
-    expect(fetchCalls).toEqual([]);
     expect(await visibleIssueByKey(qa, "CRM-7")).toBeNull();
+    expect(fetchCalls).toEqual([]);
   });
 
-  it("treats keys the Panel does not mirror and malformed keys as not found", async () => {
-    expect((await getIssueTool(admin, "KST-999")).ok).toBe(false);
-    expect((await getIssueTool(admin, "not a key")).ok).toBe(false);
+  it("treats keys the Menara does not mirror and malformed keys as not found", async () => {
+    expect(await visibleIssueByKey(admin, "KST-999")).toBeNull();
+    expect(await visibleIssueByKey(admin, "not a key")).toBeNull();
     expect(fetchCalls).toEqual([]);
   });
 
@@ -248,7 +245,7 @@ describe("getIssueTool", () => {
     expect(await visibleIssueByKey(none, "KST-10")).toBeNull();
   });
 
-  it("returns the issue with comments oldest-first and the attachment list", async () => {
+  it("lists the live attachments by Jira's stable id", async () => {
     attachments = [
       {
         id: "900",
@@ -258,14 +255,9 @@ describe("getIssueTool", () => {
         bytes: PDF,
       },
     ];
-    const result = await getIssueTool(qa, "kst-10");
-    if (!result.ok) throw new Error(result.error);
-    expect(result.data).toMatchObject({
-      key: "KST-10",
-      title: "Iuran calculation",
-      status: "open",
-      type: "story",
-      description: "Describe the **rule**.",
+    const visible = await visibleIssueByKey(qa, "kst-10");
+    if (!visible) throw new Error("expected a visible issue");
+    expect(await listIssueAttachments(visible)).toEqual({
       attachments: [
         {
           id: "900",
@@ -274,64 +266,18 @@ describe("getIssueTool", () => {
           sizeBytes: PDF.byteLength,
         },
       ],
-      attachmentsError: null,
+      error: null,
     });
-    expect(result.data.comments).toEqual([
-      {
-        author: "Widya",
-        body: "first",
-        createdAt: "2026-11-01T00:00:00.000Z",
-      },
-      {
-        author: "Unknown",
-        body: "second",
-        createdAt: "2026-11-02T00:00:00.000Z",
-      },
-    ]);
-    expect(result.meta.issueKeys).toEqual(["KST-10"]);
-    // Looked up by Jira's stable id, not the key.
     expect(fetchCalls).toEqual(["/rest/api/3/issue/5010"]);
   });
 
-  it("redacts credential lines of the description and comments", async () => {
-    state.issues[0]!.title =
-      "Login fails with token ghp_abcdefghijklmnopqrstuvwxyz0123456789AB";
-    state.issues[0]!.description = [
-      "Login fails on SIT.",
-      "DB_PASSWORD=Sup3rS3cret!",
-      "-----BEGIN OPENSSH PRIVATE KEY-----",
-      "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW",
-      "-----END OPENSSH PRIVATE KEY-----",
-      "See the log.",
-    ].join("\n");
-    state.comments.push({
-      issueId: "issue-kmem",
-      body: "Tried again with\npassword: hunter2-Prod!\nstill failing",
-      createdAt: new Date("2026-11-03T00:00:00Z"),
-      author: { name: "Wulan" },
-    });
-    const result = await getIssueTool(qa, "KST-10");
-    if (!result.ok) throw new Error(result.error);
-    expect(result.data.title).toBe(REDACTED_LINE);
-    expect(result.data.description).toBe(
-      `Login fails on SIT.\n${REDACTED_LINE}\n${REDACTED_LINE}\nSee the log.`
-    );
-    expect(result.data.comments.at(-1)?.body).toBe(
-      `Tried again with\n${REDACTED_LINE}\nstill failing`
-    );
-    expect(JSON.stringify(result.data)).not.toMatch(
-      /Sup3rS3cret|hunter2|ghp_|b3BlbnNzaC|PRIVATE KEY/
-    );
-    // Title, password line, key block, comment line.
-    expect(result.meta).toEqual({ issueKeys: ["KST-10"], withheld: 4 });
-  });
-
-  it("still answers from the Panel when the project has no Jira link", async () => {
+  it("explains a missing Jira link instead of failing", async () => {
     state.links = {};
-    const result = await getIssueTool(qa, "KST-10");
-    if (!result.ok) throw new Error(result.error);
-    expect(result.data.attachments).toEqual([]);
-    expect(result.data.attachmentsError).toMatch(/no Jira link/);
+    const visible = await visibleIssueByKey(qa, "KST-10");
+    if (!visible) throw new Error("expected a visible issue");
+    const result = await listIssueAttachments(visible);
+    expect(result.attachments).toEqual([]);
+    expect(result.error).toMatch(/no Jira link/);
     expect(fetchCalls).toEqual([]);
   });
 });

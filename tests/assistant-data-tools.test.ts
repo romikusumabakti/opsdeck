@@ -102,6 +102,8 @@ function fakeCores(envs: EnvironmentListItem[]): Fakes {
     listActivity: vi.fn(async () => []),
     resolveEnvironmentSlug: vi.fn(async () => null),
     ownerNames: vi.fn(async () => new Map()),
+    listLabels: vi.fn(async () => []),
+    listMilestones: vi.fn(async () => []),
   };
 }
 
@@ -870,130 +872,6 @@ describe("builds, issues and people", () => {
       error: "Unknown project SECRET. Call list_projects.",
     });
     expect(cores.listProjectBuilds).toHaveBeenCalledTimes(2);
-  });
-
-  it("searches Panel issues through the Issues page core, every status", async () => {
-    const cores = fakeCores([]);
-    cores.listIssues.mockResolvedValue({
-      total: 1,
-      rows: [
-        {
-          number: 12,
-          title: "Iuran report empty",
-          status: "resolved",
-          type: "bug",
-          priority: "high",
-          assignee: { id: "u2", name: "Sari", image: null },
-          environment: null,
-          updatedAt: new Date("2026-11-10T00:00:00Z"),
-          project: { id: ACME_ID, name: "Acme", key: "ACME" },
-        },
-      ],
-    });
-    const result = await executeTool(
-      "search_panel_issues",
-      { query: " iuran ", project: "acme" },
-      contextFor(engineer, cores)
-    );
-    expect(cores.listIssues).toHaveBeenCalledWith(engineer.scope, {
-      q: "iuran",
-      status: "all",
-      projectId: ACME_ID,
-      sort: "updatedAt",
-      desc: true,
-      limit: 20,
-    });
-    expect(result).toEqual({
-      ok: true,
-      data: {
-        total: 1,
-        issues: [
-          {
-            key: "ACME-12",
-            title: "Iuran report empty",
-            status: "resolved",
-            type: "bug",
-            priority: "high",
-            assignee: "Sari",
-            updatedAt: "2026-11-10T00:00:00Z",
-          },
-        ],
-      },
-      meta: { project: "ACME", issueKeys: ["ACME-12"] },
-    });
-  });
-
-  it("reads one Panel issue by key, with redacted text", async () => {
-    const cores = fakeCores([]);
-    cores.getIssueDetail.mockImplementation(
-      async (_scope: unknown, key: string, number: number) =>
-        key === "ACME" && number === 7
-          ? {
-              number: 7,
-              title: "Login fails",
-              status: "open",
-              type: "bug",
-              priority: "medium",
-              estimate: null,
-              description: "Steps:\npassword=hunter2\nthen it fails",
-              createdAt: new Date("2026-11-01T00:00:00Z"),
-              updatedAt: new Date("2026-11-02T00:00:00Z"),
-              project: { id: ACME_ID, name: "Acme", key: "ACME" },
-              environment: { id: envId(1), name: "UAT" },
-              assignee: null,
-              createdBy: { id: "u3", name: "Wati", image: null },
-              labels: [{ id: "l1", name: "auth", color: "red" }],
-              parent: null,
-              children: [
-                {
-                  id: "c",
-                  number: 8,
-                  title: "Sub",
-                  status: "open",
-                  type: "task",
-                },
-              ],
-              comments: [],
-            }
-          : null
-    );
-    const ctx = contextFor(engineer, cores);
-    const result = await executeTool(
-      "get_panel_issue",
-      { key: " acme-7 " },
-      ctx
-    );
-    expect(cores.getIssueDetail).toHaveBeenCalledWith(
-      engineer.scope,
-      "ACME",
-      7
-    );
-    expect(result).toEqual({
-      ok: true,
-      data: {
-        key: "ACME-7",
-        project: "ACME",
-        title: "Login fails",
-        status: "open",
-        type: "bug",
-        priority: "medium",
-        environment: "UAT",
-        createdBy: "Wati",
-        createdAt: "2026-11-01T00:00:00Z",
-        updatedAt: "2026-11-02T00:00:00Z",
-        labels: ["auth"],
-        children: [{ key: "ACME-8", title: "Sub", status: "open" }],
-        description: `Steps:\n${REDACTED_LINE}\nthen it fails`,
-      },
-      meta: { project: "ACME", issueKeys: ["ACME-7"], withheld: 1 },
-    });
-    for (const key of ["SECRET-1", "not a key"]) {
-      expect(await executeTool("get_panel_issue", { key }, ctx)).toEqual({
-        ok: false,
-        error: `Menara issue ${key} not found.`,
-        meta: {},
-      });
-    }
   });
 
   it("lists people as the People page shows them, with what they like to be called", async () => {

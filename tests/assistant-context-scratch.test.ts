@@ -90,7 +90,7 @@ describe.skipIf(!enabled)("assistant context tools on a real Postgres", () => {
     const d = drizzle({ client });
     const { loadAssistantViewer } = await import("@/lib/assistant/viewer");
     const {
-      getIssueTool,
+      listIssueAttachments,
       visibleIssueByKey,
       searchKnowledgeTool,
       readKnowledgeTool,
@@ -156,12 +156,11 @@ describe.skipIf(!enabled)("assistant context tools on a real Postgres", () => {
     expect((await visibleIssueByKey(adminViewer, "CRM-1"))?.issue.title).toBe(
       "Other client issue"
     );
-    const got = await getIssueTool(qaViewer, "KST-1");
-    if (!got.ok) throw new Error(got.error);
-    expect(got.data.comments).toEqual([
-      expect.objectContaining({ author: admin.name, body: "hello" }),
-    ]);
-    expect(got.data.attachmentsError).toMatch(/no Jira link/);
+    const mirrored = await visibleIssueByKey(qaViewer, "KST-1");
+    if (!mirrored) throw new Error("expected a visible issue");
+    expect((await listIssueAttachments(mirrored)).error).toMatch(
+      /no Jira link/
+    );
 
     const collection = one(
       await d

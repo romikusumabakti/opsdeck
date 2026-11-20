@@ -18,7 +18,8 @@ vi.mock("@/lib/assistant/tools/code", async (importOriginal) => ({
   }),
 }));
 vi.mock("@/lib/assistant/tools/context", () => ({
-  getIssueTool: vi.fn(record("getIssueTool")),
+  visibleIssueByKey: vi.fn(record("visibleIssueByKey")),
+  listIssueAttachments: vi.fn(record("listIssueAttachments")),
   readAttachmentTool: vi.fn(record("readAttachmentTool")),
   searchKnowledgeTool: vi.fn(record("searchKnowledgeTool")),
   readKnowledgeTool: vi.fn(record("readKnowledgeTool")),
@@ -109,8 +110,7 @@ const ALWAYS_PANEL_TOOLS = [
   "list_deploys",
   "get_deploy",
   "list_builds",
-  "search_panel_issues",
-  "get_panel_issue",
+  "list_issues",
   "list_people",
 ];
 /** Only the named tools of a wire map. */
@@ -168,6 +168,23 @@ describe("buildTools", () => {
     }
     expect(unknownProjectError("X", "auto")).not.toMatch(/Panel/);
     expect(unknownProjectError("X", "pinned")).not.toMatch(/Panel/);
+  });
+
+  it("offers list_issues and get_issue, not the old issue tools", () => {
+    const names = Object.keys(buildTools(adminCtx, noRecord));
+    expect(names).toContain("list_issues");
+    expect(names).toContain("get_issue");
+    expect(names.filter((name) => /panel/.test(name))).toEqual([]);
+  });
+
+  it("still marks at most 20 tools strict for an admin on anthropic", () => {
+    for (const context of [adminCtx, adminAutoCtx]) {
+      const tools = buildTools(context, noRecord, { strictToolLimit: 20 });
+      const strict = Object.values(tools).filter(
+        (t) => (t as { strict?: boolean }).strict === true
+      );
+      expect(strict.length).toBeLessThanOrEqual(20);
+    }
   });
 
   it("describes the product as Menara", () => {

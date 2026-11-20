@@ -14,6 +14,7 @@ import {
   type ToolSet,
   UnsupportedFunctionalityError,
 } from "ai";
+import { APP_TIMEZONE } from "@/lib/timezone";
 import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import { type AssistantRuntime, loadAssistantRuntime } from "./client";
 import type { UploadSummary } from "./file-store";
@@ -876,6 +877,8 @@ async function runClaimedTurn(
         ? async () => resolved.projects
         : async () => visibleProjects(viewer, await sourceDeps.loadProjects()),
     cores: deps.dataCores,
+    // Until the turn carries the user's zone.
+    timeZone: APP_TIMEZONE,
     probeTimeoutMs: deps.probeTimeoutMs,
   });
   const shared = {

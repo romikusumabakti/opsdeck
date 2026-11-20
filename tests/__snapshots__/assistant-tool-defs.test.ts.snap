@@ -3,18 +3,34 @@
 exports[`buildTools > sends the Stage 2 tool set and schemas in a pinned context 1`] = `
 {
   "get_issue": {
-    "description": "Get a Jira issue mirrored in Menara for a project the user can see: title, status, type, description, comments (latest 100) and the attachment list (names, types, sizes only). Unknown or invisible keys return not found.",
+    "description": "Get one Menara issue for a project the user can see, by its Menara key ("ACME-12") or its Jira key ("KST-123"): status, type, priority, assignee, labels, parent and children, description and the latest 50 comments. Both keys can exist; with no source the Menara key is tried first and "otherMatch" names a different issue the Jira key also matches. For issues mirrored from Jira the result has the jiraKey and the attachment list (names, types, sizes only); read_attachment takes that jiraKey. Unknown or invisible keys return not found. Find keys with list_issues.",
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "additionalProperties": false,
       "properties": {
         "key": {
-          "description": "Jira issue key, e.g. "KST-123".",
+          "description": "Menara issue key (e.g. "ACME-12") or Jira key (e.g. "KST-123").",
           "type": "string",
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "menara",
+                "jira",
+              ],
+              "type": "string",
+            },
+            {
+              "type": "null",
+            },
+          ],
+          "description": "Read the key only as a Menara key or only as a Jira key; null tries Menara first, then Jira.",
         },
       },
       "required": [
         "key",
+        "source",
       ],
       "type": "object",
     },

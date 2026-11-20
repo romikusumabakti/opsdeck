@@ -24,3 +24,26 @@ describe("database connection", () => {
     expect(postgresCalls[0]?.options.connection).toEqual({ TimeZone: "UTC" });
   });
 });
+
+describe("zoned days", () => {
+  it("zonedDayStart gives local midnight in UTC", async () => {
+    const { zonedDayStart } = await import("@/lib/timezone");
+    expect(zonedDayStart("2026-11-20", "Asia/Jakarta").toISOString()).toBe(
+      "2026-11-19T17:00:00.000Z"
+    );
+    // The day the clocks spring forward: midnight is still EST (UTC-5).
+    expect(zonedDayStart("2026-03-08", "America/New_York").toISOString()).toBe(
+      "2026-03-08T05:00:00.000Z"
+    );
+    expect(zonedDayStart("2026-03-09", "America/New_York").toISOString()).toBe(
+      "2026-03-09T04:00:00.000Z"
+    );
+  });
+
+  it("zonedToday", async () => {
+    const { zonedToday } = await import("@/lib/timezone");
+    expect(zonedToday(new Date("2026-11-20T18:00:00Z"), "Asia/Jakarta")).toBe(
+      "2026-11-21"
+    );
+  });
+});

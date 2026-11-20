@@ -19,7 +19,6 @@ import {
 } from "./tools/code";
 import {
   type AttachmentContent,
-  getIssueTool,
   readAttachmentTool,
   readKnowledgeTool,
   searchKnowledgeTool,
@@ -42,6 +41,7 @@ import {
   isDatabaseTool,
   runDatabaseTool,
 } from "./tools/database";
+import { getIssueTool, MAX_ISSUE_COMMENTS } from "./tools/issues";
 import { readUploadTool } from "./tools/uploads";
 import { MAX_UPLOAD_TEXT_CHARS } from "./upload-types";
 import type { AssistantViewer } from "./viewer";
@@ -105,10 +105,15 @@ const DEFINITIONS = {
     }),
   },
   get_issue: {
-    description:
-      "Get a Jira issue mirrored in Menara for a project the user can see: title, status, type, description, comments (latest 100) and the attachment list (names, types, sizes only). Unknown or invisible keys return not found.",
+    description: `Get one Menara issue for a project the user can see, by its Menara key ("ACME-12") or its Jira key ("KST-123"): status, type, priority, assignee, labels, parent and children, description and the latest ${MAX_ISSUE_COMMENTS} comments. Both keys can exist; with no source the Menara key is tried first and "otherMatch" names a different issue the Jira key also matches. For issues mirrored from Jira the result has the jiraKey and the attachment list (names, types, sizes only); read_attachment takes that jiraKey. Unknown or invisible keys return not found. Find keys with list_issues.`,
     inputSchema: z.strictObject({
-      key: str('Jira issue key, e.g. "KST-123".'),
+      key: str(
+        'Menara issue key (e.g. "ACME-12") or Jira key (e.g. "KST-123").'
+      ),
+      source: nullable(
+        z.enum(["menara", "jira"]),
+        "Read the key only as a Menara key or only as a Jira key; null tries Menara first, then Jira."
+      ),
     }),
   },
   read_attachment: {
@@ -360,7 +365,10 @@ const INPUTS = {
     start_line: line,
     end_line: line,
   }),
-  get_issue: z.strictObject({ key: z.string() }),
+  get_issue: z.strictObject({
+    key: z.string(),
+    source: z.enum(["menara", "jira"]).nullish(),
+  }),
   read_attachment: z.strictObject({
     issue_key: z.string(),
     attachment_id: z.string(),
@@ -614,7 +622,11 @@ async function run(
         : runCode(name, data, ctx.snaps);
     case "get_issue": {
       const i = data as z.infer<typeof INPUTS.get_issue>;
-      return getIssueTool(ctx.viewer, i.key);
+      return getIssueTool(
+        { viewer: ctx.viewer, data: ctx.data, mode: ctx.mode },
+        i.key,
+        i.source ?? null
+      );
     }
     case "read_attachment": {
       const i = data as z.infer<typeof INPUTS.read_attachment>;

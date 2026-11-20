@@ -866,7 +866,7 @@ describe("sources", () => {
         meta: { project: "DEMO", environment: "DEMO/dev", withheld: 2 },
       },
       // Issue keys are listed under Issues, not twice.
-      { tool: "get_panel_issue", meta: { issueKeys: ["DEMO-1"] } },
+      { tool: "list_issues", meta: { issueKeys: ["DEMO-1"] } },
     ];
     expect(summarizeReads(calls).panel).toEqual([
       { tool: "list_environments", subject: "DEMO" },
