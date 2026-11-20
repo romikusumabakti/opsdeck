@@ -22,7 +22,7 @@ import { notFound } from "@/server/errors";
 // Restricted targets: the servers and the buckets the engineer grant does not
 // reach (lib/permissions#canOrgAccessTarget), nor an environment's rights.
 // An infra-only server (servers.infra_only), and the places that hold full
-// dumps of the Panel database: the backup destination (instance_settings
+// dumps of the Menara database: the backup destination (instance_settings
 // backup_s3_*), which is no S3 connection and so never an explorer source,
 // but any connection pointing into it (the same bucket name on any
 // endpoint, a key prefix inside the destination's or containing it), and the S3 connection

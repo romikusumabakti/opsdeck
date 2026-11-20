@@ -969,7 +969,7 @@ function bridgeSubnet(table: string): string | null {
 // bridge network; any other setup sets MENARA_NETWORK_SUBNET.
 
 /**
- * The CIDR of the network the Panel's container sits in, which servers on the
+ * The CIDR of the network Menara's container sits in, which servers on the
  * same host see its connections come from (the compose bridge, whose
  * addresses change on recreate). MENARA_NETWORK_SUBNET wins (normalised; one
  * wider than /8 or /32 means none); otherwise the bridge subnet read from the

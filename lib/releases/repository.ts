@@ -67,7 +67,7 @@ export type ReleaseSource = {
   tag: string;
   componentKey: string;
   targetKind: DeployTargetKind;
-  // Null when the Panel has no build row for the deployed tag.
+  // Null when Menara has no build row for the deployed tag.
   branch: string | null;
   commitSha: string | null;
 };

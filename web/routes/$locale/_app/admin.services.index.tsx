@@ -55,7 +55,7 @@ export function filterServices<S extends { key: string; repoFullName: string }>(
   );
 }
 
-// The services the Panel builds and deploys (Stage 8: a service is one
+// The services Menara builds and deploys (Stage 8: a service is one
 // buildable unit of a repository), under admin: org integration:manage, like
 // the pipeline actions and variable templates on a service's page.
 export const Route = createFileRoute("/$locale/_app/admin/services/")({

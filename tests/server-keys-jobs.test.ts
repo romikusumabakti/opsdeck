@@ -473,9 +473,9 @@ const lastJob = () =>
 const markerOf = (keyId: unknown) => `menara:menara:${String(keyId)}`;
 const NEW_KEY_ID = "0197f3a0-1b2c-7def-8000-0000000000bb";
 const DEAD_KEY_ID = "0197f3a0-1b2c-7def-8000-00000000dead";
-// Another Panel deployment with the same default instance name: its key id
+// Another Menara deployment with the same default instance name: its key id
 // is not in this database.
-const OTHER_PANEL = `ssh-ed25519 ${parseableKeyPair().public.split(" ")[1]} menara:menara:0197f3a0-1b2c-7def-8000-0000000f0e19`;
+const OTHER_MENARA_LINE = `ssh-ed25519 ${parseableKeyPair().public.split(" ")[1]} menara:menara:0197f3a0-1b2c-7def-8000-0000000f0e19`;
 
 /** A key this database once had, retired since. */
 function retiredKey() {
@@ -772,38 +772,38 @@ describe("rotate", () => {
     const otherInstance = `ssh-ed25519 ${oldBase64} menara:beta:0197f3a0-1b2c-7def-8000-00000000beef`;
     writeFileSync(
       authorizedKeys(sshds[0] as Sshd),
-      `${FOREIGN}\n${stale}\n${otherInstance}\n${OTHER_PANEL}\n`
+      `${FOREIGN}\n${stale}\n${otherInstance}\n${OTHER_MENARA_LINE}\n`
     );
     expect(await moveServerToKey(IDS[0] as string, USER_ID)).toEqual({
       ok: true,
     });
     expect(fileOf(0)).toBe(
-      `${FOREIGN}\n${otherInstance}\n${OTHER_PANEL}\n${oldLine}\n`
+      `${FOREIGN}\n${otherInstance}\n${OTHER_MENARA_LINE}\n${oldLine}\n`
     );
   });
 
-  it("another Panel's line with the same prefix survives move, reinstall and rotate", async () => {
+  it("another Menara's line with the same prefix survives move, reinstall and rotate", async () => {
     mkdirSync(join((sshds[0] as Sshd).home, ".ssh"), { mode: 0o700 });
     writeFileSync(
       authorizedKeys(sshds[0] as Sshd),
-      `${FOREIGN}\n${OTHER_PANEL}\n`
+      `${FOREIGN}\n${OTHER_MENARA_LINE}\n`
     );
     state.tables.servers = [serverRow(0)];
 
     await request("POST", "/api/instance/ssh-key/move-all");
     await runQueued();
     expect(lastJob().results[0]).toMatchObject({ ok: true });
-    expect(fileOf(0)).toContain(OTHER_PANEL);
+    expect(fileOf(0)).toContain(OTHER_MENARA_LINE);
 
     expect(
       await moveServerToKey(IDS[0] as string, USER_ID, { passwordOnce: "pw" })
     ).toEqual({ ok: true });
-    expect(fileOf(0)).toContain(OTHER_PANEL);
+    expect(fileOf(0)).toContain(OTHER_MENARA_LINE);
 
     await request("POST", "/api/instance/ssh-key/rotate");
     await runQueued();
     expect(lastJob().results[0]).toMatchObject({ ok: true });
-    expect(fileOf(0)).toContain(OTHER_PANEL);
+    expect(fileOf(0)).toContain(OTHER_MENARA_LINE);
     expect(fileOf(0)).not.toContain(OLD_MARKER);
   });
 

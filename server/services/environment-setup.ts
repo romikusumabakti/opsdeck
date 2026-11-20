@@ -1123,7 +1123,7 @@ export async function getCopySource(
     })),
     database: dbService
       ? {
-          // A binding from before database kinds is one the Panel does not
+          // A binding from before database kinds is one Menara does not
           // manage.
           kind: dbService.dbKind ?? "external",
           databaseHostId: dbService.databaseHostId,

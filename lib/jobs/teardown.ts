@@ -185,7 +185,7 @@ function removeTunnelRoute(
 }
 
 /**
- * The Access app, in the Cloudflare account the Panel uses for the zone, but
+ * The Access app, in the Cloudflare account Menara uses for the zone, but
  * only while it covers no hostname but ours (domain, self-hosted domains,
  * destinations; paths ignored): deleting an app someone extended since would
  * expose the other hostnames, so that is refused (domainShared) and nothing

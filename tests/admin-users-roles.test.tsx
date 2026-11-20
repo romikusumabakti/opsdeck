@@ -7,7 +7,7 @@ import { applyBranding } from "@/i18n/branding";
 import rawMessages from "../messages/en.json";
 
 const messages = applyBranding(rawMessages, {
-  appName: "Panel",
+  appName: "Menara",
   companyName: null,
   allowedEmailDomain: "acme.test",
 });

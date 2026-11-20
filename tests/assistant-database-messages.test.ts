@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { locales } from "@/i18n/locales";
 
 // The wording of the Assistant's database queries outside the tools: the
-// activity entry (assistant.databaseQuery) and the answer's "Panel data"
+// activity entry (assistant.databaseQuery) and the answer's "Menara data"
 // labels, in every locale.
 
 type Messages = Record<string, Record<string, unknown>>;
@@ -66,7 +66,7 @@ describe("assistant database query messages", () => {
     );
   });
 
-  it("an answer lists its database reads under Panel data", () => {
+  it("an answer lists its database reads under Menara data", () => {
     const view = readFileSync(
       "web/components/assistant/message-sources.tsx",
       "utf8"

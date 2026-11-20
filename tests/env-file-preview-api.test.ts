@@ -128,7 +128,7 @@ function failedDir(deployDir: string, status: string) {
   return { serverId: "srv-2", serverName: "kestrel-db", deployDir, status };
 }
 
-// Hand-written: comments, `export`, other quoting and order than the Panel's.
+// Hand-written: comments, `export`, other quoting and order than Menara's.
 const LIVE = [
   "# Kestrel API",
   "LOG_LEVEL=info",

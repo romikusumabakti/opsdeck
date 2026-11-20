@@ -308,7 +308,7 @@ describe("createRelease", () => {
     expect(repo.insertReleaseWithRun).not.toHaveBeenCalled();
   });
 
-  it("refuses a deployed tag the Panel has no build for with 409", async () => {
+  it("refuses a deployed tag Menara has no build for with 409", async () => {
     repo.getReleaseSource.mockResolvedValue({
       ...source,
       branch: null,

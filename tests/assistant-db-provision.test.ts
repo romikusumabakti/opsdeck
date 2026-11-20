@@ -146,7 +146,7 @@ describe("assistantDbUnavailableReason", () => {
     ).toBeNull();
   });
 
-  it("allows external databases the Panel has an admin path to", () => {
+  it("allows external databases Menara has an admin path to", () => {
     expect(
       assistantDbUnavailableReason({
         ...base,
@@ -642,7 +642,7 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
       "docker exec 'kestrel-db' bash -c 'psql -X -q -v ON_ERROR_STOP=on -U '\\''menara_ro_kestrel_qa'\\'' -d '\\''kestrel_qa'\\'' -Atc '\\''select 1'\\'''"
     );
     expect(sha(drop?.command ?? "")).toBe(
-      "c7bd55ab4324ca28bf60e626d2d6452ab713ace5fc48a7dbdb5191c2b5f19b94"
+      "eb11ba65581532d179b93751e46e6113034aab9294a0b68bf0506ce0524b4565"
     );
     for (const call of ssh.calls) expect(call.stdin).toBeUndefined();
   });
@@ -826,10 +826,10 @@ describe("never adopting a login the environment doesn't record", () => {
     };
     const fresh = pgEnableAssistantDbSql({ ...base, adopt: false });
     expect(fresh).toContain("menara-assistant-login-exists");
-    expect(fresh).not.toContain("was not created by the Panel");
+    expect(fresh).not.toContain("was not created by Menara");
     const own = pgEnableAssistantDbSql({ ...base, adopt: true });
     expect(own).not.toContain("menara-assistant-login-exists");
-    expect(own).toContain("was not created by the Panel for this environment");
+    expect(own).toContain("was not created by Menara for this environment");
   });
 
   it("SQL Server SQL refuses an existing login or user unless adopting, and one mapped into another database", () => {

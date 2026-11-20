@@ -407,7 +407,7 @@ describe("editing a server's password", () => {
 });
 
 describe("servers in environment payloads (project members)", () => {
-  it("carry where the server is, not how the Panel signs in", async () => {
+  it("carry where the server is, not how Menara signs in", async () => {
     const { sanitizeEnvironment } = await import("@/lib/environments");
     const environment = {
       id: "e",

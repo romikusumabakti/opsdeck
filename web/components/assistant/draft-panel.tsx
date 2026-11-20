@@ -87,7 +87,7 @@ export function useDraftGeneration(conversationId: string) {
 
 /**
  * Drafts written by the model from the conversation: a BRD section set or an
- * issue, newest first, each editable before anything leaves the Panel. An
+ * issue, newest first, each editable before anything leaves Menara. An
  * issue draft picks its project among the caller's visible ones.
  */
 export function DraftPanel({

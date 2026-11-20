@@ -375,7 +375,7 @@ describe("handleDeploy", () => {
   // actor for both runs instead of "Unknown" on the backup.
   it.each([
     [
-      "a Panel user (manual, rollback, unlock)",
+      "a Menara user (manual, rollback, unlock)",
       { userId: "user-1", triggeredBy: null },
     ],
     ["a forge actor (auto)", { userId: null, triggeredBy: "alice" }],
@@ -779,7 +779,7 @@ describe("handleDeploy with a managed .env", () => {
     expect(ssh.executeRemoteCommand).not.toHaveBeenCalled();
     expect(progress.failRun).toHaveBeenCalledWith(
       RUN_ID,
-      "The environment's variables cannot be written to .env — check them in the Panel"
+      "The environment's variables cannot be written to .env — check them in Menara"
     );
     expectNoSecrets();
   });

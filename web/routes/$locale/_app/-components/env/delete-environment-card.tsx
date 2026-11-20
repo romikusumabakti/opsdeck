@@ -45,7 +45,7 @@ const REMOVES = [
  * Settings → Danger zone: deletes the environment for good (a teardown:
  * archive, bring down, remove; its progress shows in the TeardownBanner),
  * behind the typed name. Production: only admins, who also tick a
- * confirmation. Admins also get "Remove from Panel only" (rows only) under
+ * confirmation. Admins also get "Remove from Menara only" (rows only) under
  * Advanced options.
  */
 export function DeleteEnvironmentCard({

@@ -200,7 +200,7 @@ describe("managed .env switch: turning on", () => {
     expect(secret?.textContent).toMatch(/(^|[^•])••••••([^•]|$)/);
     expect(secret?.className).not.toContain("text-destructive");
 
-    // A tag the Panel writes at the next deploy.
+    // A tag Menara writes at the next deploy.
     expect(rowOf("APP_VERSION")?.textContent).toContain(t.setAtDeploy);
     expect(rowOf("LOG_LEVEL")?.textContent).toContain("debug");
     expect(rowOf("LOG_LEVEL")?.textContent).toContain("info");
@@ -387,7 +387,7 @@ describe("Variables tab: unmanaged hint", () => {
     expect(body()).not.toContain(t.unmanagedHint);
   });
 
-  it("shows no hint once the Panel manages the .env", async () => {
+  it("shows no hint once Menara manages the .env", async () => {
     await render(
       <VariablesClient environmentId={ENV} listing={listing(true)} />
     );

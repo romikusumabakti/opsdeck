@@ -86,7 +86,7 @@ export type JobMap = {
   "jira/push.comment": {
     commentId: string;
   };
-  // --- Panel deploy ---
+  // --- Menara deploy ---
   // Roll a deployment out. Carries only ids; the target, tag and SSH
   // credentials are re-read in the worker.
   "deploy/run.requested": {
@@ -123,7 +123,7 @@ export type JobMap = {
   // (repeatable; see scheduleAssistantTemporaryPrune).
   "assistant/temporary.prune": Record<string, never>;
   // --- Instance self-backup ---
-  // One backup of the Panel itself (lib/instance-backup/archive). The
+  // One backup of Menara itself (lib/instance-backup/archive). The
   // destination and retention are read from instance_settings in the worker.
   "instance/backup.run": { trigger: "schedule" | "manual" };
   // Hourly: check GitHub Releases and, with auto-update on, ask the host

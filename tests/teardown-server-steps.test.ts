@@ -806,7 +806,7 @@ describe("without realpath -m (busybox)", () => {
 describe("dropDatabase", () => {
   const dbParams = { serviceId: "svc-db" };
 
-  it("drops a database the Panel provisioned for this environment, and its roles", async () => {
+  it("drops a database Menara provisioned for this environment, and its roles", async () => {
     writeFileSync(join(FAKE, "probe"), "marked|1\n");
     const line = await dropDatabase(ctx(), dbParams);
     expect(line).toContain("app_db dropped");
@@ -833,7 +833,7 @@ describe("dropDatabase", () => {
     expect(state.calls.filter((c) => c.stdin !== undefined)).toEqual([]);
   });
 
-  it("leaves a database the Panel did not provision for this environment", async () => {
+  it("leaves a database Menara did not provision for this environment", async () => {
     writeFileSync(join(FAKE, "probe"), "unmarked|0\n");
     const line = await dropDatabase(ctx(), dbParams);
     expect(line).toContain("left in place");

@@ -74,7 +74,7 @@ export const instanceSshKeyRouter = sessionRouter()
   .post("/rotate", async (c) => c.json(await requestRotate(), 202));
 
 /**
- * The Panel instance itself (Admin → Instance). The router checks org
+ * The Menara instance itself (Admin → Instance). The router checks org
  * instance:manage first; each service function checks it again.
  */
 export const instanceRouter = sessionRouter()

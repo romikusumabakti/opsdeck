@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The setup wizard's environment API without a database: who may call it,
 // and the variable copy rules (planEnvironmentVariables). The full create and
-// preview against a real Panel database are in
+// preview against a real Menara database are in
 // tests/environment-setup-scratch.test.ts.
 
 process.env.SECRETS_KEY ??= Buffer.alloc(32, 7).toString("base64");

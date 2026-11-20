@@ -4,8 +4,8 @@
 //
 // Each step is idempotent. An object that already exists exactly as wanted is
 // reused without a write; one in another shape (a route to another service, an
-// Access app or DNS record the Panel did not create for this environment) fails
-// the step before anything is written, naming the clash. The Panel tags what it
+// Access app or DNS record Menara did not create for this environment) fails
+// the step before anything is written, naming the clash. Menara tags what it
 // creates with `menara:<environmentId>` (app name, record comment) and owns
 // only what carries that tag.
 //

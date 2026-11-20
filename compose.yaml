@@ -88,7 +88,7 @@ services:
       S3_BUCKET: ${S3_BUCKET:-knowledge}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY-}
       S3_SECRET_KEY: ${S3_SECRET_KEY-}
-      # Container registry the Panel deploys from (docs/deploy.md). Unset = deploy
+      # Container registry Menara deploys from (docs/deploy.md). Unset = deploy
       # feature disabled: build notifications get 503 and deploy jobs fail.
       DEPLOY_REGISTRY: ${DEPLOY_REGISTRY-}
       # Image processing (imgproxy). The app signs URLs with the same KEY/SALT
@@ -185,7 +185,7 @@ services:
     ports:
       # Loopback only: cloudflared runs on the host and dials http://localhost:80,
       # so nothing outside the box needs to reach Caddy directly. Binding to
-      # 0.0.0.0 let anyone on the LAN hit the panel by IP, bypassing Cloudflare
+      # 0.0.0.0 let anyone on the LAN hit Menara by IP, bypassing Cloudflare
       # (no TLS, no Access, no logs) — which defeated the point of the tunnel.
       - "127.0.0.1:80:80"
     volumes:

@@ -132,7 +132,7 @@ export async function getServerById(
 /**
  * The servers list for an explicit scope (the assistant worker has no
  * session): the rows the Servers page lists, as SafeServer (where each server
- * is, never how the Panel signs in: no password, key, host key or from=).
+ * is, never how Menara signs in: no password, key, host key or from=).
  * Name ties are broken by id, so the order is stable.
  */
 export async function getServersFor(scope: OrgScope): Promise<SafeServer[]> {

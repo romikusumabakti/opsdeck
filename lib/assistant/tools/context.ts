@@ -30,7 +30,7 @@ import type { AssistantViewer } from "../viewer";
 import type { ToolMeta, ToolResult } from "./code";
 
 /**
- * Context tools: Panel-mirrored Jira issues, their live attachments, and the
+ * Context tools: Menara-mirrored Jira issues, their live attachments, and the
  * knowledge base. Every lookup is scoped to the asking user's visibility
  * (AssistantViewer); an issue the user cannot see is "not found" and causes
  * no Jira call.
@@ -67,10 +67,10 @@ export function normalizeJiraKey(raw: string): string | null {
 export type VisibleIssue = { issue: Issue; link: ResolvedLink | null };
 
 /**
- * The Panel issue mirrored from Jira `key`, if its project is visible to the
+ * Menara issue mirrored from Jira `key`, if its project is visible to the
  * viewer, with its project's Jira link (null when unlinked). Only issues the
- * Panel stores are reachable: the service account sees the whole Jira site,
- * so a key the Panel does not mirror for a visible project is never fetched.
+ * Menara stores are reachable: the service account sees the whole Jira site,
+ * so a key Menara does not mirror for a visible project is never fetched.
  */
 export async function visibleIssueByKey(
   viewer: AssistantViewer,

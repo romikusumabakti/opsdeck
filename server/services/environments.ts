@@ -830,7 +830,7 @@ function changesBindings(
 //   service names that start with the project's key lowercased plus "-"
 //   (`hris-backend` in HRIS) and that no other environment on that server
 //   uses, so an open placement never reaches another environment's
-//   containers or databases, nor an unregistered container (the Panel's own
+//   containers or databases, nor an unregistered container (Menara's own
 //   database, ZITADEL, the CI server);
 // - the one exception is a shared database binding: its container is a
 //   registered database host (withDerivedDbBinding resolved it), so the
@@ -1550,7 +1550,7 @@ export async function escrowRefusal(): Promise<CodedHTTPException> {
 }
 
 /**
- * "Remove from Panel only": deletes the environment's rows and leaves its
+ * "Remove from Menara only": deletes the environment's rows and leaves its
  * servers, databases and Cloudflare objects alone (a full delete is
  * startTeardown). Org server:manage only, on top of project
  * environment:delete. Its services, deploy targets and variables go with

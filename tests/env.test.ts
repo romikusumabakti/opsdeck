@@ -126,7 +126,7 @@ describe("validateEnv", () => {
 
   it("rejects a malformed BETTER_AUTH_URL", () => {
     // lib/auth derives the passkey rpID and origin from it via `new URL()`.
-    setEnv({ ...validCore(), BETTER_AUTH_URL: "panel.example.com" });
+    setEnv({ ...validCore(), BETTER_AUTH_URL: "app.example.com" });
     expect(() => validateEnv()).toThrow(/BETTER_AUTH_URL/);
   });
 

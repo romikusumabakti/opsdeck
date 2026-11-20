@@ -23,7 +23,7 @@ What the design defends against:
   AES-256-GCM under `SECRETS_KEY` (`lib/secrets.ts`). Backups never contain
   that key, and a restore refuses to run without it. Keep it offline, apart
   from the backups.
-- **The network in front of the panel.** Caddy listens on `127.0.0.1` only and
+- **The network in front of Menara.** Caddy listens on `127.0.0.1` only and
   serves plain HTTP. TLS terminates at a tunnel (e.g. cloudflared) or a reverse
   proxy you put in front. Postgres, Valkey, Garage and imgproxy publish no
   host ports.
@@ -78,7 +78,7 @@ What it does not defend against:
 - **Code execution inside the app container.** The app holds `SECRETS_KEY` in
   memory to decrypt secrets, so an attacker who runs code there can read every
   secret. Keep the host patched and limit who can `docker exec`.
-- **A malicious admin.** Admins can read and change everything the panel
+- **A malicious admin.** Admins can read and change everything Menara
   manages. The activity log records who did what, but it lives in the same
   database.
 

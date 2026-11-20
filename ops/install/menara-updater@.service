@@ -17,7 +17,7 @@ Type=oneshot
 ExecStart=/opt/%i/.updater/update.sh /opt/%i
 # Backup, pull, migrate and two `up --wait` runs; a hung step must not keep
 # the status "running" forever (on TERM the script rolls back: interrupted).
-# The Panel treats a "running" status older than 70 min (this, the stop
+# Menara treats a "running" status older than 70 min (this, the stop
 # timeout and a margin) as interrupted: keep lib/updates/files.ts in step.
 TimeoutStartSec=1h
 # On stop or that timeout the script rolls back (up --wait, up to 180 s plus

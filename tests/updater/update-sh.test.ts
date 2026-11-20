@@ -123,7 +123,7 @@ case $url in
     fi ;;
   http://127.0.0.1:8080/api/health)
     d=$(cat "$STUB_STATE/deployed")
-    if [ "$host" != "Host: panel.example.test" ] || [ "$d" = "\${STUB_HEALTH_FAIL_VERSION:-}" ]; then
+    if [ "$host" != "Host: app.example.test" ] || [ "$d" = "\${STUB_HEALTH_FAIL_VERSION:-}" ]; then
       printf 'bad gateway' > "$out"; printf 502
     else
       printf '{"ok":true,"version":"%s"}' "$d" > "$out"; printf 200
@@ -188,7 +188,7 @@ function envFile(version: string) {
     "MENARA_DIR=/opt/menara",
     ...imageLines(version),
     "MENARA_HTTP_PORT=8080",
-    "BETTER_AUTH_URL=https://panel.example.test",
+    "BETTER_AUTH_URL=https://app.example.test",
     `SECRETS_KEY=${SECRET}`,
     "POSTGRES_PASSWORD=pg-pass-do-not-log",
     "",
@@ -500,7 +500,7 @@ describe("update.sh", () => {
       "docker compose pull [1.3.0]",
       "docker compose run --rm migrate [1.3.0]",
       "docker compose up -d --wait --wait-timeout 180 [1.3.0]",
-      "curl http://127.0.0.1:8080/api/health Host: panel.example.test",
+      "curl http://127.0.0.1:8080/api/health Host: app.example.test",
     ]);
     const status = t.status();
     expect(status).toMatchObject({

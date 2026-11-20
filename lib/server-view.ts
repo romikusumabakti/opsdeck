@@ -8,7 +8,7 @@ import { keyMarker } from "@/lib/ssh-keys";
  * For the servers pages (server:read): no password, no host key blobs (only
  * their fingerprints), and what the access UI needs: whether a password is
  * stored, whether the server offered another host key, and the marker of the
- * Panel's authorized_keys line on it.
+ * Menara's authorized_keys line on it.
  */
 export type ServerView = Omit<
   Server,
@@ -46,7 +46,7 @@ export function serverView({
 
 /**
  * For everyone else who sees a server through another object (an
- * environment's services, a tunnel): where it is, not how the Panel signs in.
+ * environment's services, a tunnel): where it is, not how Menara signs in.
  * Everything serverView drops, plus the fingerprints, the key, from= and the
  * key error.
  */

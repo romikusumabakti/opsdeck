@@ -16,7 +16,7 @@ const readFixture = (name: string) =>
   readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
 const REGISTRY = "192.168.10.113:5000";
-const MENARA_URL = "https://panel.example.com";
+const MENARA_URL = "https://app.example.com";
 
 const JAR_SPEC: BuildSpec = buildSpecSchema.parse({
   branches: ["kestrel/development"],

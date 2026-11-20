@@ -44,7 +44,7 @@ const KEY_JOB_NAMES = {
   rotate: "server-key-rotate",
 } as const satisfies Record<KeyJobKind, JobName>;
 
-/** Why a key job stopped before it ran out (the Panel restarted, or a bug). */
+/** Why a key job stopped before it ran out (Menara restarted, or a bug). */
 const JOB_INTERRUPTED = "keyJobInterrupted";
 
 async function finishKeyJob(keyJobId: string, errorCode: string | null) {

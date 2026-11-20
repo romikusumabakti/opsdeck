@@ -37,7 +37,7 @@ or in place of a JAR or a static web root.
 
 ## What's in it
 
-Each project has environments (Dev, QA, …), and the panel ties together:
+Each project has environments (Dev, QA, …), and Menara ties together:
 
 - **Deploys** of container apps and legacy artifacts, triggered by CI build
   notifications (Woodpecker, Bitbucket), with deploy locks, health checks and
@@ -70,8 +70,8 @@ that it was built by this repository's release workflow, then run it:
 ```sh
 curl -fsSLO https://github.com/romikusumabakti/menara/releases/latest/download/install.sh
 gh attestation verify install.sh -R romikusumabakti/menara
-sh install.sh --hostname panel.example.com --dry-run   # prints every action
-sh install.sh --hostname panel.example.com
+sh install.sh --hostname app.example.com --dry-run   # prints every action
+sh install.sh --hostname app.example.com
 ```
 
 The installer checks every other asset against the sha256 in the release's
@@ -93,7 +93,7 @@ the full contract. After the first start:
 2. Store `SECRETS_KEY` offline. Backups never contain it, and a restore needs
    it.
 3. **Put TLS in front.** Caddy listens on `127.0.0.1` only and serves plain
-   HTTP, so the panel is unreachable until you add a tunnel (e.g.
+   HTTP, so Menara is unreachable until you add a tunnel (e.g.
    cloudflared) or a TLS-terminating reverse proxy. Don't expose that port
    directly: passwords and session cookies would travel in cleartext.
 

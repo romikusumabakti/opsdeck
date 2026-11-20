@@ -604,7 +604,7 @@ export type EnvFilePreviewDir = {
  * Per deploy dir, how the `.env` the next deploy would install differs from
  * the live one (B§4): rendered from the stored variables with the deploy's
  * own inputs (managedEnvFileInputs, renderManagedEnvFile) and the live file's
- * tag values, then diffed per key. Works whether or not the Panel manages
+ * tag values, then diffed per key. Works whether or not Menara manages
  * the file. Secret values never leave the server (`masked`); reading the
  * live file is as good as a reveal, so a strong sign-in is required, as for
  * the reveal. Records nothing.
@@ -691,7 +691,7 @@ async function previewDir(
     throw new CodedHTTPException(
       409,
       "envFileInvalid",
-      "The environment's variables cannot be written to .env — check them in the Panel"
+      "The environment's variables cannot be written to .env — check them in Menara"
     );
   }
   return {

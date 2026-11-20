@@ -23,7 +23,7 @@ type ServiceParams = Extract<
  * stopped database container fails the same way, saying so (as
  * archive_database does); the run waits for a retry, it never loops.
  * Ok when no login is recorded any more. External databases and systemd
- * Postgres go through the same disableAssistantDbLogin as the Panel's own.
+ * Postgres go through the same disableAssistantDbLogin as Menara's own.
  */
 export async function dropAssistantDbLogin(
   ctx: { environmentId: string; secrets: string[] },

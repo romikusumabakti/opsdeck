@@ -76,7 +76,7 @@ const SPEC = buildSpecSchema.parse({
 });
 const GENERATED = generateWoodpeckerPipeline("hris", SPEC, {
   registry: "registry.example.com",
-  menaraUrl: "https://panel.example.com",
+  menaraUrl: "https://app.example.com",
 });
 
 const COMPONENT = {
@@ -89,7 +89,7 @@ const COMPONENT = {
 
 beforeEach(() => {
   vi.stubEnv("DEPLOY_REGISTRY", "registry.example.com");
-  vi.stubEnv("BETTER_AUTH_URL", "https://panel.example.com");
+  vi.stubEnv("BETTER_AUTH_URL", "https://app.example.com");
   vi.clearAllMocks();
   mocks.requireSession.mockResolvedValue({
     user: { role: "engineer" },
@@ -259,7 +259,7 @@ describe("registerSetupServices (New environment, server-derived spec)", () => {
 describe("generated registration checks", () => {
   beforeEach(asAdmin);
 
-  it("refuses up front (409) when a branch holds a non-Panel pipeline file", async () => {
+  it("refuses up front (409) when a branch holds a non-Menara pipeline file", async () => {
     mocks.readRepoFile.mockResolvedValue("steps:\n  build:\n    image: x\n");
     await expect(registerServices(SERVICES)).rejects.toMatchObject({
       status: 409,
@@ -269,11 +269,11 @@ describe("generated registration checks", () => {
     expect(mocks.commitFile).not.toHaveBeenCalled();
   });
 
-  it("refuses a Panel file generated for another component", async () => {
+  it("refuses a Menara file generated for another component", async () => {
     mocks.readRepoFile.mockResolvedValue(
       generateWoodpeckerPipeline("other", SPEC, {
         registry: "registry.example.com",
-        menaraUrl: "https://panel.example.com",
+        menaraUrl: "https://app.example.com",
       })
     );
     await expect(registerServices(SERVICES)).rejects.toMatchObject({
@@ -290,7 +290,7 @@ describe("generated registration checks", () => {
     expect(mocks.activateRepo).not.toHaveBeenCalled();
   });
 
-  it("overwrites a Panel-generated pipeline file", async () => {
+  it("overwrites a Menara-generated pipeline file", async () => {
     mocks.readRepoFile.mockResolvedValue(GENERATED);
     await registerServices(SERVICES);
     expect(mocks.commitFile).toHaveBeenCalledTimes(1);

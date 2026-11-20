@@ -261,9 +261,9 @@ function repoNotFound(repoFullName: string): never {
 }
 
 // Detection's refusals by status: an unknown connection or repo, one whose
-// files the Panel cannot read, a CI server or forge that failed.
+// files Menara cannot read, a CI server or forge that failed.
 const DETECTION_CODES: Record<number, [string, string]> = {
-  400: ["repoUnreadable", "The Panel cannot read this repository's files"],
+  400: ["repoUnreadable", "Menara cannot read this repository's files"],
   404: ["repoNotFound", "The CI server does not list this repository"],
   502: ["ciUnavailable", "Reading the repository failed"],
 };
@@ -715,7 +715,7 @@ export type SetupRepo = {
 
 /**
  * The CI server's repos whose name contains `q` (case-insensitive), on the
- * connections whose files the Panel can read, each with the service that
+ * connections whose files Menara can read, each with the service that
  * already builds it. At most REPO_SEARCH_LIMIT, by name. Same gate as
  * detection.
  */

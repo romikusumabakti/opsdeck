@@ -167,9 +167,9 @@ const ROUND_TRIP = [
   "\t tab",
 ];
 
-// The Panel's own parser (lib/variables/dotenv.ts) reads the rendered file
+// Menara's own parser (lib/variables/dotenv.ts) reads the rendered file
 // back to the stored values too: `parse(renderEnvFile(v)) == v`.
-function parseWithPanelParser(file: string): Record<string, string> {
+function parseWithMenaraParser(file: string): Record<string, string> {
   const result = parseComposeDotenv(file);
   if ("error" in result) throw new Error(`line ${result.error.line}`);
   for (const entry of result.entries) {
@@ -182,7 +182,7 @@ function parseWithPanelParser(file: string): Record<string, string> {
 describe("lib/variables/dotenv round trip", () => {
   it.each(ROUND_TRIP)("parses the rendered %j back", (value) => {
     const file = renderEnvFile([{ name: "VALUE", value }], {}, REGISTRY);
-    expect(parseWithPanelParser(file)).toEqual({
+    expect(parseWithMenaraParser(file)).toEqual({
       VALUE: value,
       DOCKER_REGISTRY: REGISTRY,
     });
@@ -198,7 +198,7 @@ describe("lib/variables/dotenv round trip", () => {
         composeFiles: ["compose.yaml", "compose.menara.yaml"],
       }
     );
-    expect(parseWithPanelParser(file)).toEqual({
+    expect(parseWithMenaraParser(file)).toEqual({
       COMPOSE_FILE: "compose.yaml:compose.menara.yaml",
       ...Object.fromEntries(vars.map((v) => [v.name, v.value])),
       DOCKER_REGISTRY: REGISTRY,
@@ -233,8 +233,8 @@ describe("lib/variables/dotenv round trip", () => {
         value += alphabet[next() % alphabet.length];
       }
       const file = renderEnvFile([{ name: "V", value }], {}, REGISTRY);
-      expect(parseWithPanelParser(file)).toEqual(parseDotenv(file));
-      expect(parseWithPanelParser(file).V).toBe(value);
+      expect(parseWithMenaraParser(file)).toEqual(parseDotenv(file));
+      expect(parseWithMenaraParser(file).V).toBe(value);
     }
   });
 });
@@ -341,7 +341,7 @@ describe("renderEnvFile", () => {
 
   it("uses the exact header", () => {
     expect(ENV_FILE_HEADER).toBe(
-      "# Managed by Menara — edit variables in the Panel; local edits are overwritten on the next deploy."
+      "# Managed by Menara — edit variables in Menara; local edits are overwritten on the next deploy."
     );
     expect(renderEnvFile([], {}, REGISTRY)).toBe(
       `${ENV_FILE_HEADER}\nDOCKER_REGISTRY=${REGISTRY}\n`

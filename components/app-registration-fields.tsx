@@ -20,7 +20,7 @@ import { ApiError } from "@/web/api/client";
 import { pipelinePreviewQuery } from "@/web/api/service-catalog";
 
 // The build spec editor of a generated pipeline (images, bundle files,
-// checks) with the YAML the Panel will commit to every built branch, and the
+// checks) with the YAML Menara will commit to every built branch, and the
 // draft helpers around it. The New environment page's pipeline choices use it.
 
 type ImageDraft = { name: string; dockerfile: string; context: string };
@@ -441,7 +441,7 @@ function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-/** The YAML the Panel will commit for this spec, rendered by the server. */
+/** The YAML Menara will commit for this spec, rendered by the server. */
 function PipelinePreview({
   componentKey,
   spec,

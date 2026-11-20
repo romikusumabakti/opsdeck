@@ -53,7 +53,7 @@ cp .env.example .env    # fill in every CHANGE_ME
 docker compose up -d --build
 ```
 
-The panel is then at `http://localhost` (Caddy on `127.0.0.1:80`).
+Menara is then at `http://localhost` (Caddy on `127.0.0.1:80`).
 
 ### Object storage setup
 

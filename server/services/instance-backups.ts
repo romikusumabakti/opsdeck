@@ -42,7 +42,7 @@ import { CodedHTTPException, notFound } from "@/server/errors";
 import { getServerTranslator } from "@/server/i18n";
 
 /**
- * Admin → Instance → Backups: the Panel's own backup settings, history and
+ * Admin → Instance → Backups: Menara's own backup settings, history and
  * "Back up now". Every function needs org instance:manage (admins only); a
  * refusal is a 403 with code `forbidden`.
  *

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The delete API: POST /api/environments/:id/teardown starts a full teardown
 // (archive, bring down, remove), /retry resumes it, GET shows its steps, and
-// DELETE /api/environments/:id is the row-only "Remove from Panel only", now
+// DELETE /api/environments/:id is the row-only "Remove from Menara only", now
 // for org server:manage only. Refusals are coded; the body carries the code
 // and the fixed catalogue text, nothing else.
 
@@ -607,7 +607,7 @@ describe("GET /api/environments/:id/teardown", () => {
   });
 });
 
-describe("DELETE /api/environments/:id (Remove from Panel only)", () => {
+describe("DELETE /api/environments/:id (Remove from Menara only)", () => {
   it("is 403 for an engineer without org server:manage", async () => {
     for (const orgRole of ["engineer", "qa", "observer"]) {
       state.orgRole = orgRole;

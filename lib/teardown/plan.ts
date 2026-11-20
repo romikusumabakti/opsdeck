@@ -118,13 +118,13 @@ export type TeardownPlan =
  * The ordered steps that delete an environment: check each stack, archive
  * every database while it runs, stop the stacks, archive every deploy
  * directory and stack volume (so a running container cannot change a file
- * under tar), bring the stacks down, drop shared databases, remove the Cloudflare objects the Panel created (only those whose
+ * under tar), bring the stacks down, drop shared databases, remove the Cloudflare objects Menara created (only those whose
  * ids are recorded), remove the deploy directories, then the environment row.
  * Nothing destructive comes before the archives; stopping is not
  * destructive (a cancelled teardown leaves the stacks stopped). Refuses an unsafe deploy
  * dir, a dir that collides with another environment's on the same machine
  * (compared by host, so two server rows for one machine count as one), a
- * database the Panel cannot dump (only Postgres is), and a Cloudflare object
+ * database Menara cannot dump (only Postgres is), and a Cloudflare object
  * another environment also records. Pure.
  */
 export function planTeardown(env: TeardownEnvironment): TeardownPlan {
@@ -133,7 +133,7 @@ export function planTeardown(env: TeardownEnvironment): TeardownPlan {
   const legacyDirs: { host: string; deployDir: string }[] = [];
   const seen = new Set<string>();
   for (const target of env.targets) {
-    // jar and static targets live on long-lived client VMs: the Panel only
+    // jar and static targets live on long-lived client VMs: Menara only
     // drops their records, so their dirs get no server steps.
     if (target.kind && target.kind !== "compose") {
       legacyDirs.push({

@@ -498,7 +498,7 @@ const PSQL = "psql -U postgres -X -q -At -v ON_ERROR_STOP=1";
 
 /**
  * drop_database: drops the environment's database on its shared host, but
- * only one the Panel provisioned for this environment (its owner carries the
+ * only one Menara provisioned for this environment (its owner carries the
  * environment's role marker), then the environment's marked roles that own
  * nothing any more. A database someone else made is left in place. Ok when
  * nothing is left.
@@ -565,7 +565,7 @@ export async function dropDatabase(
   if (status !== "marked" && roles === "0") {
     return status === "absent"
       ? `Database ${database} already absent`
-      : `Database ${database} was not created by the Panel for this environment; left in place`;
+      : `Database ${database} was not created by Menara for this environment; left in place`;
   }
 
   // A role still owning something elsewhere is kept rather than failing the
@@ -596,5 +596,5 @@ export async function dropDatabase(
   });
   return status === "marked"
     ? `Database ${database} dropped`
-    : `Database ${database} ${status === "absent" ? "already absent" : "left in place (not created by the Panel)"}; its leftover roles dropped`;
+    : `Database ${database} ${status === "absent" ? "already absent" : "left in place (not created by Menara)"}; its leftover roles dropped`;
 }

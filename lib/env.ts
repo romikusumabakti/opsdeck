@@ -245,14 +245,14 @@ function collectFindings(): Finding[] {
     });
   }
 
-  // Panel deploys pull bundle images from this registry. Unset is a supported
+  // Menara deploys pull bundle images from this registry. Unset is a supported
   // state: the deploy feature is off (the job fails its run, the build hook
   // answers 503).
   if (!process.env.DEPLOY_REGISTRY) {
     findings.push({
       level: "warn",
       message:
-        "Panel deploys disabled (DEPLOY_REGISTRY unset) — build notifications are refused and deploy jobs fail",
+        "Menara deploys disabled (DEPLOY_REGISTRY unset) — build notifications are refused and deploy jobs fail",
     });
   } else {
     checkOptional("DEPLOY_REGISTRY", deployRegistrySchema, findings);

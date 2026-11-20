@@ -50,7 +50,7 @@ function failureMessage(error: unknown): string {
 /**
  * Prepares one release: the artifact layer of its build is read from the
  * registry, packaged (the jar, or the static tree as a zip) into a temp dir,
- * uploaded to the Panel's Garage under a key that never changes, and the row
+ * uploaded to Menara's Garage under a key that never changes, and the row
  * becomes `ready`. Any failure makes it `failed`, which frees its version.
  *
  * Returns rather than throws: the outcome lives in the release row and the

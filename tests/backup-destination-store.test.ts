@@ -75,7 +75,7 @@ const settings = (extra: Record<string, unknown> = {}) => ({
   backupS3Endpoint: "https://objects.example.test",
   backupS3Region: "auto",
   backupS3Bucket: "fictional-panel-backups",
-  backupS3AccessKeyId: "AKFICTIONALPANEL",
+  backupS3AccessKeyId: "AKFICTIONALMENARA",
   backupS3SecretKey: encryptSecret("fictional-panel-secret"),
   backupS3ForcePathStyle: true,
   backupS3KeyPrefix: null as string | null,

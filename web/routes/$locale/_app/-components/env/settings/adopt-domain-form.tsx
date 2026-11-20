@@ -27,7 +27,7 @@ const isDomainErrorCode = (code: string): code is DomainErrorCode =>
 /**
  * Binds a hostname Cloudflare already routes through a registered tunnel
  * (org server:manage; shown only while the environment has no domain), so
- * the Panel records it and a teardown removes it.
+ * Menara records it and a teardown removes it.
  */
 export function AdoptDomainForm({ environmentId }: { environmentId: string }) {
   const t = useTranslations("domains");

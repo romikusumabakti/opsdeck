@@ -11,7 +11,7 @@ export { sharedDatabaseNameSchema } from "@/lib/validation";
 
 // Shared databases: a database and its owner role inside a registered
 // Postgres container (a database host) that several environments use. The
-// Panel never sends a plaintext password to the server: it computes the
+// Menara never sends a plaintext password to the server: it computes the
 // SCRAM-SHA-256 verifier itself and the SQL travels on psql's stdin.
 // Server-only (node:crypto, SSH); the client-safe name schema lives in
 // lib/validation.
@@ -39,7 +39,7 @@ export function scramSha256Verifier(
   return `SCRAM-SHA-256$${iterations}:${salt.toString("base64")}$${storedKey.toString("base64")}:${serverKey.toString("base64")}`;
 }
 
-/** The comment the Panel puts on every role it creates for an environment. */
+/** The comment Menara puts on every role it creates for an environment. */
 export function provisionedRoleMarker(environmentId: string): string {
   return `menara:${environmentId}`;
 }
@@ -64,14 +64,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  *   (a hand-made role, even one that owns just this database: the typical
  *   app role an operator made by hand).
  *
- * So the only existing role it reuses is one the Panel created for this
+ * So the only existing role it reuses is one Menara created for this
  * environment that owns this exact database and nothing else (a rerun), or
  * the marked bare role a half-finished run left behind; it never takes over
  * a role made for something else and resets its password. CONNECT and
  * TEMPORARY on the database are revoked from PUBLIC, so the other roles on
  * the host can't connect to it.
  *
- * Residual risk, by design: the Panel does not revoke PUBLIC's CONNECT on the
+ * Residual risk, by design: Menara does not revoke PUBLIC's CONNECT on the
  * host's other databases, so the role can connect to any database that
  * still grants it to PUBLIC (Postgres' default). It gets no rights on their
  * objects beyond what PUBLIC has; Postgres 15+ (required by
@@ -109,7 +109,7 @@ export function pgProvisionDatabaseSql(input: {
     `    RAISE EXCEPTION 'database % exists with owner %', ${dbLit}, current_owner;`,
     "  END IF;",
     `  IF db_oid IS NOT NULL AND shobj_description(owner_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
-    `    RAISE EXCEPTION 'database % was not created by the Panel for this environment', ${dbLit};`,
+    `    RAISE EXCEPTION 'database % was not created by Menara for this environment', ${dbLit};`,
     "  END IF;",
     `  SELECT oid INTO role_oid FROM pg_roles WHERE rolname = ${roleLit};`,
     "  IF role_oid IS NULL THEN",
@@ -129,7 +129,7 @@ export function pgProvisionDatabaseSql(input: {
     `    RAISE EXCEPTION 'role % is in use outside database %', ${roleLit}, ${dbLit};`,
     "  END IF;",
     `  IF shobj_description(role_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
-    `    RAISE EXCEPTION 'role % was not created by the Panel for this environment', ${roleLit};`,
+    `    RAISE EXCEPTION 'role % was not created by Menara for this environment', ${roleLit};`,
     "  END IF;",
     "END",
   ].join("\n");

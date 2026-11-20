@@ -45,7 +45,7 @@ const orgStatements = {
   integration: ["manage"],
   knowledge: ["read", "write", "manage"],
   audit: ["read"],
-  // The Panel instance itself: its backups and updates (Admin → Instance).
+  // The Menara instance itself: its backups and updates (Admin → Instance).
   instance: ["manage"],
   // The code assistant's settings: API key, model, effort and daily cap.
   assistant: ["manage"],
@@ -128,7 +128,7 @@ const projectStatements = {
   member: ["manage"],
   // Acknowledge a failed run so it leaves Home's "Needs attention" for everyone.
   run: ["acknowledge"],
-  // Panel deploys: anyone can see history; only engineers trigger, roll back
+  // Menara deploys: anyone can see history; only engineers trigger, roll back
   // or edit deploy targets.
   deploy: ["view", "run", "rollback", "configure"],
   // Environment variables (the managed .env): reading includes secret values.
@@ -386,7 +386,7 @@ export function holdsEngineerAnywhere(
 // Registering an app activates a repository in the CI server and sets its
 // notify secret, so it is for admins (integration:manage) and for the job
 // roles that hold the engineer set (infra, engineer). A generated pipeline
-// commits its build spec with the Panel's forge token, so choosing one needs
+// commits its build spec with Menara's forge token, so choosing one needs
 // integration:manage (the New environment page registers detection's spec for
 // engineers). Retrying a pipeline file commit and secret rotation stay with
 // integration:manage.

@@ -397,7 +397,7 @@ describe.skipIf(!enabled)(
         const page = await outcome(() => serversService.getServers());
         if (readsServers.has(person.id)) {
           // The same servers as the page, in its order (name ties aside),
-          // minus every page field about how the Panel signs in.
+          // minus every page field about how Menara signs in.
           const byKey = (a: { id: string }, b: { id: string }) =>
             a.id.localeCompare(b.id);
           expect(list.value?.toSorted(byKey)).toEqual(

@@ -156,9 +156,9 @@ describe("tunnel configuration", () => {
 const live113 = (): TunnelConfig => ({
   ingress: [
     {
-      hostname: "panel.example.net",
+      hostname: "app.example.net",
       service: "http://localhost:80",
-      originRequest: { httpHostHeader: "panel.example.net" },
+      originRequest: { httpHostHeader: "app.example.net" },
     },
     { hostname: "ci.example.net", service: "http://localhost:8000" },
     { hostname: "hris.example.net", service: "http://localhost:8091" },

@@ -85,7 +85,7 @@ export function updateStatusMessage(
   code: string,
   state?: Status["state"]
 ): string {
-  // Failed (not rolled back) after an interruption: nothing says the Panel
+  // Failed (not rolled back) after an interruption: nothing says Menara
   // is back on its version (a run cut off by a reboot, or older than the
   // updater's timeout).
   if (code === "interrupted" && state === "failed") {

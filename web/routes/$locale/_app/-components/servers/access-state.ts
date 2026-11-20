@@ -1,7 +1,7 @@
 import type { ServerRow } from "@/web/api/servers";
 
 /**
- * How the Panel signs in to a server, as the list and the server page show
+ * How Menara signs in to a server, as the list and the server page show
  * it:
  * - hostKeyChanged: the server offered another host key, nothing connects;
  * - needsSetup: a password server with no password stored (a password-once

@@ -67,7 +67,7 @@ export function ServersClient({
     async (server: Server) => {
       const ok = await dialog.confirmTyping({
         title: t("deleteTitle"),
-        // The Panel cannot reach a deleted server, so its key line there is
+        // Menara cannot reach a deleted server, so its key line there is
         // the admin's to remove.
         description:
           server.auth === "key" ? (
@@ -303,7 +303,7 @@ function InfraOnlyBadge() {
 }
 
 /**
- * How the Panel signs in (accessState): Key (the host key fingerprint on
+ * How Menara signs in (accessState): Key (the host key fingerprint on
  * hover), Key not verified yet, Password, Needs setup, or a warning when the
  * server offered another host key (nothing connects).
  */

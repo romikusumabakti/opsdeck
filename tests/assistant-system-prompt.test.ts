@@ -244,7 +244,7 @@ describe("buildSystemPrompt", () => {
     expect(intro.length).toBeLessThan(420);
   });
 
-  it("never calls the product the Panel", () => {
+  it("never calls the product Menara", () => {
     for (const role of ["qa", "engineer", "staff"] as const) {
       const text = buildSystemPrompt(
         ctx({ role, lacking: ["projects", "database", "servers", "activity"] })

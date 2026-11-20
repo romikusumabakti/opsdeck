@@ -35,7 +35,7 @@ export type DecodedVariable = {
 
 /**
  * Every stored variable of an environment, decrypted, whether or not the
- * Panel manages its `.env`. No permission check: callers check first.
+ * Menara manages its `.env`. No permission check: callers check first.
  */
 export async function loadEnvFileVariables(
   environmentId: string
@@ -49,7 +49,7 @@ export async function loadEnvFileVariables(
 }
 
 /**
- * The decrypted variables of an environment whose `.env` the Panel manages,
+ * The decrypted variables of an environment whose `.env` Menara manages,
  * or null when it does not manage it. For the deploy job, which runs as the
  * system: there is no permission check, so never call it for an HTTP request.
  */
@@ -83,7 +83,7 @@ export type ManagedEnvFileInputs = {
    * component's deploy never drops another's from the network.
    */
   overlayServices: string[];
-  /** The `COMPOSE_FILE` list the Panel writes (with a network only). */
+  /** The `COMPOSE_FILE` list Menara writes (with a network only). */
   composeFiles?: string[];
 };
 
@@ -157,7 +157,7 @@ export type EnvFileChange = {
   status: "changed" | "added" | "removed";
   /** Values left out: a stored non-plain variable, or a live-only key that looks secret. */
   masked: boolean;
-  /** Written by the Panel itself: `DOCKER_REGISTRY`, tag variables, `COMPOSE_FILE`. */
+  /** Written by Menara itself: `DOCKER_REGISTRY`, tag variables, `COMPOSE_FILE`. */
   menaraWritten: boolean;
   /** A live `COMPOSE_*`/`DOCKER_*`/`BUILDKIT_*` key the managed file drops. */
   reserved: boolean;

@@ -56,7 +56,7 @@ function reportError(error: unknown): void {
 }
 
 /**
- * The server page's SSH access: how the Panel signs in, the pinned host key
+ * The server page's SSH access: how Menara signs in, the pinned host key
  * and the from= address, with Move to SSH key or Reinstall key, and a banner
  * when the server offered another host key. A key server also has its install
  * command and Check key login, so one installed by hand that never signed in
@@ -109,7 +109,7 @@ export function ServerAccessCard({
     });
     if (!ok) return;
     // The fingerprint shown is the one trusted: if the server has offered
-    // another since, the Panel refuses (hostKeyChanged).
+    // another since, Menara refuses (hostKeyChanged).
     await run(() => trustServerHostKey(server.id, fingerprint), t("trustDone"));
   }
 
@@ -264,7 +264,7 @@ export function ServerAccessCard({
 
 /**
  * Asks for the login's password to install the key with. The password lives
- * only in this dialog's state and the one request; the Panel never stores it.
+ * only in this dialog's state and the one request; Menara never stores it.
  */
 function PasswordOnceDialog({
   open,

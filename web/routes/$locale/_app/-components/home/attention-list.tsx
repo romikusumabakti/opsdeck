@@ -23,7 +23,7 @@ export function AttentionList({
   instanceBackup = null,
 }: {
   groups: AttentionGroup[];
-  /** The Panel's own backup, for those who manage the instance. */
+  /** Menara's own backup, for those who manage the instance. */
   instanceBackup?: InstanceBackupAttentionItem | null;
 }) {
   const t = useTranslations("homePage");

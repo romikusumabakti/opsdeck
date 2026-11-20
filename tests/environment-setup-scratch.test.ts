@@ -9,7 +9,7 @@ import {
   vi,
 } from "vitest";
 
-// The setup wizard's preview and create against a real Panel database: the
+// The setup wizard's preview and create against a real Menara database: the
 // local scratch copy named by SETUP_SCRATCH_DB (e.g. wiz_scratch, in the
 // menara-postgres container), reached through its published port with the
 // container's own superuser password, read from the container and never

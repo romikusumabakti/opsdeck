@@ -767,7 +767,7 @@ export async function saveDraft(
  * Creates the Jira issue of the caller's Jira draft in the draft's project
  * (chosen on the draft), with that project's Jira link. Besides owning the
  * conversation, the caller needs issue:write on it: the issue lands in the
- * Panel's issue list too. A draft without a project is refused until one is
+ * Menara's issue list too. A draft without a project is refused until one is
  * chosen.
  */
 export async function createJiraIssue(

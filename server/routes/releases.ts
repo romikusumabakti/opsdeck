@@ -22,7 +22,7 @@ function attachmentHeader(fileName: string): string {
 const idParam = param(z.object({ id: uuidSchema }));
 
 /**
- * Releases: a tested jar/static build kept in the Panel's Garage. Listing
+ * Releases: a tested jar/static build kept in Menara's Garage. Listing
  * needs any project role; creating, editing notes and downloading need the
  * engineer role; deleting needs org `server:manage` (the services check them).
  * Each router is mounted under its own prefix: a session router guards its

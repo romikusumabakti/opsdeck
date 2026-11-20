@@ -99,7 +99,7 @@ export const checkEnvironmentSlugQuery = (
   });
 
 /**
- * "Remove from Panel only" (org server:manage): deletes the rows, nothing on
+ * "Remove from Menara only" (org server:manage): deletes the rows, nothing on
  * the servers. `escrowed` is true when it was refused because the
  * environment has escrowed variables (409); an admin may then repeat it with
  * `confirmEscrowedDeletion`.

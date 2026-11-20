@@ -122,7 +122,7 @@ export async function unacknowledgeRuns(
 }
 
 /**
- * Home's "Needs attention" item for the Panel's own backups, shown to those
+ * Home's "Needs attention" item for Menara's own backups, shown to those
  * who manage the instance (null for everyone else): the latest backup failed
  * unacknowledged, or none succeeded in 36 h. The first user's sign-up stands
  * in for the install time, so a fresh install is not flagged at once.

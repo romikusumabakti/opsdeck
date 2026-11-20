@@ -82,7 +82,7 @@ async function ownedConnection(environmentId: string, connectionId: string) {
   return row ?? notFound();
 }
 
-// The instance backup destination (dumps of the Panel database) is Admin ›
+// The instance backup destination (dumps of the Menara database) is Admin ›
 // Instance's: never edited, deleted or probed as an environment's storage.
 async function refuseRestricted(connectionId: string): Promise<void> {
   if (!(await isRestrictedSource({ kind: "s3", connectionId }))) return;
@@ -96,7 +96,7 @@ async function refuseRestricted(connectionId: string): Promise<void> {
 
 // An environment's connection never points into the instance backup
 // destination (the same bucket name on any endpoint, overlapping key
-// prefix): its managers could then browse and edit the Panel's dumps.
+// prefix): its managers could then browse and edit Menara's dumps.
 async function refuseBackupDestinationOverlap(location: {
   endpoint: string;
   bucket: string;

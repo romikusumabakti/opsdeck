@@ -21,7 +21,7 @@ import { COMPOSE_OVERLAY_FILE } from "@/lib/variables/compose-overlay";
  * Invariants the tests hold it to: it never runs `compose down/stop/rm`, it
  * only (re)starts the listed services (`--no-deps`), the only `.env` line it
  * touches is the tag variable — unless `installStagedEnvFile`, when it first
- * replaces `.env` with the staged file the Panel uploaded — and
+ * replaces `.env` with the staged file Menara uploaded — and
  * a stack that never turns (and stays) healthy makes it exit non-zero within
  * `healthTimeoutSeconds`.
  */
@@ -44,7 +44,7 @@ export interface DeployScriptInput {
    */
   stableSeconds?: number;
   /**
-   * The environment's `.env` is managed by the Panel: the job has uploaded the
+   * The environment's `.env` is managed by Menara: the job has uploaded the
    * rendered file as {@link stagedEnvFileName}(deploymentId). After the bundle
    * step (so a failed pull leaves `.env` alone and a bundle `.env` never wins)
    * the script keeps the first hand-written `.env` once as
@@ -157,7 +157,7 @@ export function buildDeployScript(input: DeployScriptInput): string {
 
   const lines = [
     "set -eu",
-    // Keep going if the Panel's SSH session drops (timeout, Panel restart):
+    // Keep going if Menara's SSH session drops (timeout, Menara restart):
     // dying between removing an old container and starting its replacement
     // would leave the service down.
     "trap '' HUP PIPE",
@@ -174,7 +174,7 @@ export function buildDeployScript(input: DeployScriptInput): string {
     `docker cp "$cid":/bundle/. . || { docker rm "$cid" >/dev/null || true; exit 1; }`,
     `docker rm "$cid" >/dev/null`,
 
-    // 1b. Managed .env: the hand-written file from before the Panel managed
+    // 1b. Managed .env: the hand-written file from before Menara managed
     //     it is kept once as .env.menara-unmanaged (0600, never
     //     overwritten), so neither later deploys nor a rollback lose it.
     //     Then the current file is kept as .env.menara-prev and the staged
@@ -221,7 +221,7 @@ export function buildDeployScript(input: DeployScriptInput): string {
         ]
       : []),
 
-    // 2. The tag variable — the only .env line the Panel ever changes.
+    // 2. The tag variable — the only .env line Menara ever changes.
     `if [ -f .env ] && grep -q ${shq(`^${v.tagVariable}=`)} .env; then`,
     `  sed -i ${shq(sedExpr)} .env`,
     "else",

@@ -7,7 +7,7 @@ import { routeTree } from "@/web/routeTree.gen";
 import { parseSearch, stringifySearch } from "@/web/search-params";
 
 const bootstrap = {
-  appName: "Panel",
+  appName: "Menara",
   companyName: "Acme",
   allowedEmailDomain: "acme.test",
   accent: "neutral",

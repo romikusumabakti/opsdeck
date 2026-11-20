@@ -111,7 +111,7 @@ describe("CSRF origin check", () => {
   });
 
   it("lets a request the browser marks same-origin through", async () => {
-    process.env.BETTER_AUTH_URL = "https://panel.example.com";
+    process.env.BETTER_AUTH_URL = "https://app.example.com";
     const res = await formPost("https://elsewhere.example", {
       "Sec-Fetch-Site": "same-origin",
     });
@@ -132,8 +132,8 @@ describe("CSRF origin check", () => {
   });
 
   it("trusts the BETTER_AUTH_URL origin when it is set", async () => {
-    process.env.BETTER_AUTH_URL = "https://panel.example.com/some/path";
-    expect((await formPost("https://panel.example.com")).status).toBe(401);
+    process.env.BETTER_AUTH_URL = "https://app.example.com/some/path";
+    expect((await formPost("https://app.example.com")).status).toBe(401);
     expect((await formPost("http://localhost")).status).toBe(403);
   });
 });

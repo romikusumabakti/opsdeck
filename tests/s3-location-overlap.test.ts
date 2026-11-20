@@ -11,7 +11,7 @@ import { sameS3Bucket } from "@/lib/validation";
 
 const BASE = {
   endpoint: "https://objects.example.test",
-  bucket: "panel-dumps",
+  bucket: "menara-dumps",
 };
 
 describe("sameS3Bucket", () => {
@@ -28,7 +28,9 @@ describe("sameS3Bucket", () => {
     ["a bare path", "https://objects.example.test/"],
     ["surrounding blanks", "  https://objects.example.test  "],
   ])("treats %s as the same endpoint", (_label, endpoint) => {
-    expect(sameS3Bucket(BASE, { endpoint, bucket: "panel-dumps" })).toBe(true);
+    expect(sameS3Bucket(BASE, { endpoint, bucket: "menara-dumps" })).toBe(
+      true
+    );
   });
 
   it("keeps other hosts, ports, paths and buckets apart", () => {
@@ -37,7 +39,7 @@ describe("sameS3Bucket", () => {
       "https://objects.example.test:9000",
       "https://objects.example.test/tenant-a",
     ]) {
-      expect(sameS3Bucket(BASE, { endpoint, bucket: "panel-dumps" })).toBe(
+      expect(sameS3Bucket(BASE, { endpoint, bucket: "menara-dumps" })).toBe(
         false
       );
     }
@@ -60,7 +62,7 @@ describe("locationsOverlap", () => {
   ])("sees through %s", (_label, endpoint) => {
     expect(
       locationsOverlap(
-        { endpoint, bucket: "panel-dumps", keyPrefix: null },
+        { endpoint, bucket: "menara-dumps", keyPrefix: null },
         destination
       )
     ).toBe(true);
@@ -74,13 +76,13 @@ describe("locationsOverlap", () => {
     ]) {
       expect(
         locationsOverlap(
-          { endpoint, bucket: "panel-dumps", keyPrefix: "panel/2026/" },
+          { endpoint, bucket: "menara-dumps", keyPrefix: "panel/2026/" },
           destination
         )
       ).toBe(true);
       expect(
         locationsOverlap(
-          { endpoint, bucket: "panel-dumps", keyPrefix: null },
+          { endpoint, bucket: "menara-dumps", keyPrefix: null },
           destination
         )
       ).toBe(true);
@@ -90,7 +92,7 @@ describe("locationsOverlap", () => {
   it("compares bucket names and prefixes in their stored form", () => {
     expect(
       locationsOverlap(
-        { ...BASE, bucket: " Panel-Dumps ", keyPrefix: "/panel" },
+        { ...BASE, bucket: " Menara-Dumps ", keyPrefix: "/panel" },
         destination
       )
     ).toBe(true);

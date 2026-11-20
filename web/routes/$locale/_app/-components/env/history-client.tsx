@@ -104,7 +104,7 @@ export function HistoryClient({ runs }: { runs: RunWithUser[] }) {
       },
       {
         id: "user",
-        // An auto run resolved to a Panel user filters under that user.
+        // An auto run resolved to a Menara user filters under that user.
         accessorFn: (row) => row.user?.id ?? row.autoUser?.id ?? USER_UNKNOWN,
         filterFn: facetFilterFn,
         meta: { label: t("colUser") },

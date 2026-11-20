@@ -137,7 +137,7 @@ describe("planImportRows", () => {
     });
   });
 
-  it("proposes the Panel kind, then the template kind, then the heuristic", () => {
+  it("proposes Menara kind, then the template kind, then the heuristic", () => {
     const result = plan(
       [
         textFile(
@@ -306,7 +306,7 @@ describe("planImportRows", () => {
     expect(new Set(ids).size).toBe(3);
   });
 
-  it("calls a row with differing dirs a conflict when one dir matches the Panel", () => {
+  it("calls a row with differing dirs a conflict when one dir matches Menara", () => {
     const result = plan(
       [
         dirFile("/srv/a", "LOG_LEVEL=info\n"),

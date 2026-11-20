@@ -14,7 +14,7 @@ import { parseSearch, stringifySearch } from "@/web/search-params";
 
 const ENV_ID = "0197f3a0-1b2c-7def-8000-0123456789e1";
 const bootstrap = {
-  appName: "Panel",
+  appName: "Menara",
   companyName: "Acme",
   allowedEmailDomain: "acme.test",
   accent: "neutral",

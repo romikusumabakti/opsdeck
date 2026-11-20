@@ -73,7 +73,7 @@ const DESTINATION = {
   endpoint: "https://objects.example.test",
   region: "auto",
   bucket: "fictional-panel-backups",
-  accessKeyId: "AKFICTIONALPANEL",
+  accessKeyId: "AKFICTIONALMENARA",
   forcePathStyle: true,
   keyPrefix: "panel/" as string | null,
   secretSet: true,
@@ -241,7 +241,7 @@ describe("Admin → Instance → Backups", () => {
       "https://objects.example.test"
     );
     await type(byId("backup-destination-bucket"), "fictional-panel-backups");
-    await type(byId("backup-destination-accessKeyId"), "AKFICTIONALPANEL");
+    await type(byId("backup-destination-accessKeyId"), "AKFICTIONALMENARA");
     await act(async () => {
       byId("backup-destination-bucket")?.form?.requestSubmit();
     });

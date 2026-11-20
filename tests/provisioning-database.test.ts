@@ -10,7 +10,7 @@ import {
   vi,
 } from "vitest";
 
-// Shared database provisioning: the Panel computes the SCRAM-SHA-256 verifier
+// Shared database provisioning: Menara computes the SCRAM-SHA-256 verifier
 // itself, so Postgres never receives the plaintext password, and the SQL
 // (verifier included) travels on psql's stdin, never in argv. A failure
 // message must not carry the password or the verifier either.
@@ -157,8 +157,8 @@ describe("pgProvisionDatabaseSql", () => {
     for (const needle of [
       "CREATE ROLE %I LOGIN",
       "COMMENT ON ROLE %I IS %L",
-      "role % was not created by the Panel for this environment",
-      "database % was not created by the Panel for this environment",
+      "role % was not created by Menara for this environment",
+      "database % was not created by Menara for this environment",
     ]) {
       const at = sql.indexOf(needle);
       expect(at).toBeGreaterThan(-1);
@@ -250,7 +250,7 @@ describe("provisionSharedDatabase", () => {
     expect(error?.message).toContain("[redacted]");
     expect(error?.message).not.toContain(verifier);
     expect(error?.message).not.toContain(input.password);
-    // Nor does the Panel log.
+    // Nor does Menara log.
     const log = JSON.stringify(logged.map((a) => a.map(String)));
     expect(log).not.toContain(verifier);
     expect(log).not.toContain(input.password);
@@ -388,7 +388,7 @@ describe("allowedDatabaseName / allowedBackupFilename", () => {
 });
 
 // Runs the generated SQL against the local scratch cluster (a restored copy
-// of the Panel DB in the menara-postgres container) and logs in as the role.
+// of the Menara DB in the menara-postgres container) and logs in as the role.
 // 127.0.0.1 is `trust` in that container's pg_hba, so the login goes to the
 // container's own network address, which hits `host all all all
 // scram-sha-256`. Everything it creates is named cnry_it_* and dropped.
@@ -574,7 +574,7 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
       stdout: `${ROLE} ${DB}`,
     });
     expect((await login("wrong-password")).code).not.toBe(0);
-    // Marked as the Panel's, for this environment.
+    // Marked as Menara's, for this environment.
     expect(
       (
         await superuser(
@@ -596,7 +596,7 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
     const refused = await provision(DB, "other-env-Pw", ROLE, OTHER_ENV_ID);
     expect(refused.code).not.toBe(0);
     expect(refused.stderr).toContain(
-      `database ${DB} was not created by the Panel for this environment`
+      `database ${DB} was not created by Menara for this environment`
     );
     expect(await passwordOf(ROLE)).toBe(before);
   });
@@ -626,7 +626,7 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
     const refused = await provision(HAND, "takeover-Pw-7", HAND);
     expect(refused.code).not.toBe(0);
     expect(refused.stderr).toContain(
-      `database ${HAND} was not created by the Panel for this environment`
+      `database ${HAND} was not created by Menara for this environment`
     );
     expect(await passwordOf(HAND)).toBe(before);
     expect(
@@ -650,7 +650,7 @@ describe.skipIf(!scratch)("shared database SQL on a scratch Postgres", () => {
     const roleOnly = await provision(NEW_DB, "takeover-Pw-8", HAND);
     expect(roleOnly.code).not.toBe(0);
     expect(roleOnly.stderr).toContain(
-      `role ${HAND} was not created by the Panel for this environment`
+      `role ${HAND} was not created by Menara for this environment`
     );
     expect(await passwordOf(HAND)).toBe(before);
   });

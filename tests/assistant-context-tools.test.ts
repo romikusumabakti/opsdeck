@@ -234,7 +234,7 @@ describe("visibleIssueByKey and listIssueAttachments", () => {
     expect(fetchCalls).toEqual([]);
   });
 
-  it("treats keys the Menara does not mirror and malformed keys as not found", async () => {
+  it("treats keys Menara does not mirror and malformed keys as not found", async () => {
     expect(await visibleIssueByKey(admin, "KST-999")).toBeNull();
     expect(await visibleIssueByKey(admin, "not a key")).toBeNull();
     expect(fetchCalls).toEqual([]);

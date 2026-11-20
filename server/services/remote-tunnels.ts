@@ -21,7 +21,7 @@ import { callCloudflare } from "@/server/services/cloudflare-account";
 
 /**
  * Remotely-managed Cloudflare tunnels registered per server (one each). The
- * Panel later edits a registered tunnel's ingress through the API, so a tunnel
+ * Menara later edits a registered tunnel's ingress through the API, so a tunnel
  * with a locally managed config is refused. Org `server:manage` throughout.
  */
 
@@ -62,7 +62,7 @@ export async function registerRemoteTunnel(
   const tunnels = await callCloudflare(listTunnels);
   const tunnel = tunnels.find((t) => t.id === input.tunnelId);
   if (!tunnel) return fail(422, DOMAIN_ERRORS.tunnelUnknown);
-  // A locally managed tunnel's config would be replaced by the Panel's PUT.
+  // A locally managed tunnel's config would be replaced by Menara's PUT.
   if (!tunnel.remoteConfig) return fail(422, DOMAIN_ERRORS.tunnelNotRemote);
   if (await getRemoteTunnelByCloudflareId(accountRowId, tunnel.id)) {
     return fail(409, DOMAIN_ERRORS.tunnelAlreadyRegistered);

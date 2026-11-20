@@ -24,7 +24,7 @@ import { teardownRunningError } from "@/server/services/teardown-runs";
 // The Assistant's read-only database login per environment (Stage 9 spec
 // F.1/F.2): off by default; only admin and infra (org server:manage, on top
 // of editing the environment) turn it on or off. Enabling provisions the
-// dedicated login through the Panel's admin path (lib/assistant-db/provision)
+// dedicated login through Menara's admin path (lib/assistant-db/provision)
 // before the row says enabled; disabling turns the row off first, so the
 // Assistant stops at once, then drops the login. The login's password never
 // leaves the server: not in the response, the activity, or a log line. This
@@ -67,7 +67,7 @@ const messageOf = (error: unknown) =>
 /**
  * Turns the Assistant's read-only database access for an environment on or
  * off. 403 below admin/infra; 409 without a database service or for a
- * database the Panel can't administer (external, incomplete, no admin
+ * database Menara can't administer (external, incomplete, no admin
  * password); 502 when the database server refused (the message carries its
  * redacted reason). Enabling again refreshes the grants and keeps the
  * stored password; disabling an environment that is already off is a no-op.

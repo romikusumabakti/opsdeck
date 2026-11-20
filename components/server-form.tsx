@@ -48,7 +48,7 @@ import {
 const PLACEMENTS = ["restricted", "open"] as const;
 
 // How a new server gets the instance key: the admin runs the command shown
-// (nothing secret is sent), or types the password once and the Panel installs
+// (nothing secret is sent), or types the password once and Menara installs
 // it (the password is never stored).
 const METHODS = ["key", "passwordOnce"] as const;
 type Method = (typeof METHODS)[number];

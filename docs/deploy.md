@@ -1,6 +1,6 @@
-# Panel deploy
+# Menara deploy
 
-How CI tells the Panel about a new build, how the Panel deploys it to a Docker
+How CI tells Menara about a new build, how Menara deploys it to a Docker
 Compose host over SSH, and what must be true on the server. This is the contract
 for pipeline authors (Woodpecker) and operators. Where this document and the
 code differ, the code wins; the files are named in each section.
@@ -12,15 +12,15 @@ The feature is off until `DEPLOY_REGISTRY` is set (for example
 ## Overview
 
 1. CI builds the app images and a **bundle image**, pushes them, then notifies
-   the Panel with a signed request.
-2. The Panel records the build. For every target that follows the build's
+   Menara with a signed request.
+2. Menara records the build. For every target that follows the build's
    branch with auto deploy on, it queues an `auto` deployment. A maintainer can
    also deploy any recorded tag of the target's branch by hand.
 3. A worker runs one shell script on the target's server over SSH: pull the
    bundle, extract it into the deploy dir, set the tag variable in `.env`, pull
    images, restart only the listed services, wait for health.
 
-The Panel stores no app configuration. The only `.env` line it ever changes on
+Menara stores no app configuration. The only `.env` line it ever changes on
 the server is the target's tag variable (default `IMAGE_TAG`).
 
 ## Build notification hook
@@ -50,7 +50,7 @@ The field is still called `app` so that pipelines already in the field keep
 working; its value is the **component key** (see below).
 
 The tag CI produces is `origin-<branch with / replaced by ->-<shorthash>`; the
-Panel only checks the regex above.
+Menara only checks the regex above.
 
 Responses:
 
@@ -77,7 +77,7 @@ Builds are idempotent per `(app, tag)`:
 - A replay **never re-triggers deployments.** CI can retry the notification
   freely, but if an auto deployment was lost (for example one target failed to
   queue, which is logged and does not stop the others), redeploy that tag
-  manually from the Panel.
+  manually from Menara.
 
 ## The bundle image
 
@@ -91,13 +91,13 @@ Convention:
 - The deploy extracts it with `docker create <img> noop`, `docker cp
   <cid>:/bundle/. <deployDir>/`, `docker rm <cid>`. Files in the bundle
   overwrite files of the same name in the deploy dir.
-- The base compose file is always named `compose.yaml`. The Panel may write a
+- The base compose file is always named `compose.yaml`. Menara may write a
   second one next to it, `compose.menara.yaml` (see below); a bundle must not
   contain that name either.
 - The bundle must **never** contain `compose.override.yaml` or `.env`. Those are
   server-only, and `docker cp` would overwrite the server's copy.
 - The compose file must take its image tags from the target's tag variable
-  (default `IMAGE_TAG`), because that is the one value the Panel writes to
+  (default `IMAGE_TAG`), because that is the one value Menara writes to
   `.env`.
 
 Minimal `Dockerfile.bundle`:
@@ -109,7 +109,7 @@ COPY deploy/compose.yaml /bundle/compose.yaml
 # COPY deploy/config/ /bundle/config/
 ```
 
-The image never runs, so it needs no entrypoint; the Panel passes the dummy
+The image never runs, so it needs no entrypoint; Menara passes the dummy
 command `noop` to `docker create` only because a scratch image has none.
 
 - **Build bundles in CI, never from a Windows-style checkout.** A laptop with
@@ -124,9 +124,9 @@ command `noop` to `docker create` only because a scratch image has none.
 
 ## Client note
 
-Cloudflare in front of `panel.example.net` blocks some client signatures:
+Cloudflare in front of `app.example.net` blocks some client signatures:
 Python's `urllib` user agent gets **403 error code 1010** before reaching the
-Panel. `curl` is accepted. Send notifications with `curl` (as below) or set a
+Menara. `curl` is accepted. Send notifications with `curl` (as below) or set a
 normal `User-Agent`.
 
 ## Woodpecker example
@@ -169,7 +169,7 @@ steps:
   - name: notify-menara
     image: alpine:3
     environment:
-      MENARA_URL: https://panel.example.com
+      MENARA_URL: https://app.example.com
       MENARA_NOTIFY_SECRET:
         from_secret: menara_notify
     commands:
@@ -195,17 +195,17 @@ Notes:
   patterns exclude quotes and backslashes. Do not add free-text fields this way.
 - Sign the file you send: `--data-binary @body.json` sends the bytes unchanged,
   whereas `-d` would strip newlines and break the signature.
-- Notify only after the push succeeded, since the Panel starts deploying as soon
+- Notify only after the push succeeded, since Menara starts deploying as soon
   as it accepts the notification.
 - `alpine:3` has no `curl` or `openssl`, hence the `apk add` (a per-run
   download; bake an image with both if that matters).
 - **Required:** turn on Woodpecker's "cancel previous pipelines" for `push`
-  events on every branch a target deploys from (repository settings). The Panel
+  events on every branch a target deploys from (repository settings). Menara
   orders auto deploys by when it receives the notification, not by commit. If
   two pipelines of one branch run side by side and the older one finishes last,
   its build is notified last and **auto-deploys last**: the environment then
   runs the older commit while every status is green. Recover with a manual
-  deploy of the newest build from the Panel.
+  deploy of the newest build from Menara.
 
 ## Services and CI connections
 
@@ -227,7 +227,7 @@ Notes:
 
 ## Registering a component and a target
 
-**Service** (by an operator with database access to the Panel; the admin UI
+**Service** (by an operator with database access to Menara; the admin UI
 registers services too):
 
 ```sh
@@ -241,7 +241,7 @@ accepted by `create` and `create-artifact` so older runbooks keep working, but
 it is deprecated and ignored (the command prints a warning). `--ci` may be omitted when exactly one CI connection
 exists; otherwise the command exits with status 2 and lists the connection
 names. It prints a random notify secret to stdout, once. The secret is
-stored encrypted (`enc:v1:`); the Panel cannot show it again. Put it in the
+stored encrypted (`enc:v1:`); Menara cannot show it again. Put it in the
 Woodpecker repo secret it names on stderr: `menara_notify` for a
 repository's first service. A repository's later services (registered with
 `create`, `create-artifact` or in the admin UI) read their own secret,
@@ -251,13 +251,13 @@ straight into the Woodpecker API instead of printing it. `rotate` issues a new
 secret and invalidates the old one at once. `<bundleImage>` is a lowercase
 repository path without registry or tag (for example `acme/myapp-bundle`).
 
-**Target** (per environment, in the Panel UI on the environment's deploy page;
+**Target** (per environment, in the Menara UI on the environment's deploy page;
 maintainers only): server, source branch, auto deploy on or off, deploy dir,
 services, tag variable, optional pre-start command, optional health URL, health
 timeout, back up before deploy. Viewing is open to any project role; deploy and
 rollback are maintainer-only. A service has at most one target per environment.
 
-**Admin API** (session-authenticated, used by the Panel UI; not for CI):
+**Admin API** (session-authenticated, used by the Menara UI; not for CI):
 `/api/apps` is gone, `GET /api/apps` included. The per-component routes under
 `/api/apps/<appKey>/components/<componentKey>/…` (`build`, `builds/active`,
 `rotate-secret`, `commit-pipeline-file`), `POST /api/apps` and `GET
@@ -293,7 +293,7 @@ Before the script is sent, the worker takes the optional database backup
 if it fails, the deploy fails before any SSH deploy command runs.
 
 The script first ignores `SIGHUP` and `SIGPIPE` (so it keeps going if the
-Panel's SSH session drops mid-deploy, rather than dying between removing an old
+Menara's SSH session drops mid-deploy, rather than dying between removing an old
 container and starting its replacement), changes into the deploy dir and takes
 the lock `.menara-deploy.lock` there with `flock`. If another deploy script
 still holds it after 600 s, it prints `DEPLOY LOCKED` and exits non-zero
@@ -319,9 +319,9 @@ only ends the subshell. A non-zero status aborts the deploy.
 
 ### Compose overlay for a shared database network
 
-When an environment's `.env` is managed by the Panel and its database is
+When an environment's `.env` is managed by Menara and its database is
 **shared** with a database host that has a Docker `network` recorded (on the
-same server), the Panel writes `compose.menara.yaml` next to `compose.yaml`
+same server), Menara writes `compose.menara.yaml` next to `compose.yaml`
 and adds `COMPOSE_FILE=compose.yaml:compose.menara.yaml` to the managed
 `.env`, so Compose merges both. The overlay gives every service of every deploy
 target in that deploy dir `networks: [default, <network>]` and declares
@@ -385,8 +385,8 @@ images and bundle.
   whenever a deploy finds its environment busy), and its run is failed too. A
   redelivered job for a deployment that was already running is failed rather
   than re-run, since the server state is unknown.
-- The whole script has a 20 minute wall-clock limit. When the Panel gives up
-  (timeout, Panel restart), the script may keep running on the server; the
+- The whole script has a 20 minute wall-clock limit. When Menara gives up
+  (timeout, Menara restart), the script may keep running on the server; the
   deploy-dir lock keeps the next deploy from overlapping it.
 
 ## Server prerequisites
@@ -402,9 +402,9 @@ images and bundle.
   trusted/insecure as configured on that host).
 - `.env` in the deploy dir is **placed by hand** with every deploy-time value:
   `DOCKER_REGISTRY` (used by `compose.yaml` to name the app images) and every
-  app-specific variable. The Panel adds or updates only the tag variable.
+  app-specific variable. Menara adds or updates only the tag variable.
 - `compose.override.yaml`, if needed, lives only on the server. Compose merges
-  it automatically (with the database-network overlay, the Panel's
+  it automatically (with the database-network overlay, Menara's
   `COMPOSE_FILE` line lists it; see above).
 - The deploy dir contains the compose project the target's `services` belong to.
 
@@ -413,7 +413,7 @@ images and bundle.
 1. Set `DEPLOY_REGISTRY` (and `DEPLOY_REGISTRY_USERNAME`/`PASSWORD`/`SCHEME`
    for an authenticated plain-HTTP registry) in the instance `.env`
    (`/opt/<name>/.env`).
-2. Update the Panel to a release that contains the deploy feature. The
+2. Update Menara to a release that contains the deploy feature. The
    `migrate` service applies pending migrations before the app starts.
 
 Updating production needs Romi's go-ahead.

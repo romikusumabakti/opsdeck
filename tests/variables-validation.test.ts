@@ -42,7 +42,7 @@ describe("variableNameSchema", () => {
     }
   });
 
-  it("says in the reserved-prefix message that the Panel writes DOCKER_REGISTRY", () => {
+  it("says in the reserved-prefix message that Menara writes DOCKER_REGISTRY", () => {
     expect(RESERVED_PREFIX_MESSAGE).toContain("DOCKER_REGISTRY");
   });
 

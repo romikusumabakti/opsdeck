@@ -760,7 +760,7 @@ export function FileExplorer({ source, rootLabel }: Props) {
     };
   }
 
-  // Panel-level drop: uploads into the folder currently being browsed. Move
+  // panel-level drop: uploads into the folder currently being browsed. Move
   // drags are ignored here — the entry already lives in this folder.
   const panelDropProps = {
     onDragEnter: (e: React.DragEvent) => {

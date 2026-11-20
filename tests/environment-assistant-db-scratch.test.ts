@@ -12,7 +12,7 @@ import {
 } from "vitest";
 
 // Turning the Assistant's read-only database login on and off (Stage 9 spec
-// F.1/F.2) against a real Panel database: a throwaway database in the local
+// F.1/F.2) against a real Menara database: a throwaway database in the local
 // menara-postgres container (superuser password read from the container,
 // never printed), migrated with `menara migrate` and dropped afterwards. The
 // database servers are faked at the SSH session: every command is recorded
@@ -20,7 +20,7 @@ import {
 // and the encrypted password, that the password never reaches an API
 // response, the activity log or a log line, idempotent enabling, disabling
 // (the row goes off first, then the login is dropped), refusals for
-// databases the Panel can't administer, the rebind guard, and
+// databases Menara can't administer, the rebind guard, and
 // getAssistantDbLogin.
 //
 //   ASSISTANT_DB_SCRATCH=1 env -u SECRETS_KEY bun --bun vitest run tests/environment-assistant-db-scratch.test.ts
@@ -262,8 +262,8 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
   });
 
   it("refuses a database without its name and an environment without one, before SSH", async () => {
-    // External databases are provisioned like the Panel's own; one the
-    // Panel can't provision (no database name) is refused.
+    // External databases are provisioned like Menara's own; one the
+    // Menara can't provision (no database name) is refused.
     const external = await post(ENV_EXT, true);
     expect(external.status).toBe(409);
     expect(await external.json()).toMatchObject({
@@ -336,7 +336,7 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
       const ms = await post(ENV_MS, true);
       expect(ms.status).toBe(409);
       expect(await ms.json()).toMatchObject({ code });
-      // No cleanup: the login isn't the Panel's to drop.
+      // No cleanup: the login isn't Menara's to drop.
       expect(ssh.calls).toHaveLength(1);
       expect(await row(SVC_MS)).toMatchObject(off);
     }

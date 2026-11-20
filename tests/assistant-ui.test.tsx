@@ -666,7 +666,7 @@ describe("Create Jira ticket", () => {
     expect(text()).toContain(t.saveBeforeCreate);
   });
 
-  it("links the created issue to the Panel issue of the draft's project", async () => {
+  it("links the created issue to Menara issue of the draft's project", async () => {
     await renderForm({
       draft: { ...draft, issueId: "i1", jiraKey: "KST-9", issueNumber: 42 },
     });
@@ -893,12 +893,12 @@ describe("sources", () => {
       files: ["a.ts:1-40", "b.ts"],
       issueKeys: ["KST-1"],
       docSlugs: ["iuran"],
-      panel: [],
+      data: [],
       withheld: 3,
     });
   });
 
-  it("lists the Panel data an answer read, once per tool and subject", async () => {
+  it("lists Menara data an answer read, once per tool and subject", async () => {
     const calls: Parameters<typeof summarizeReads>[0] = [
       { tool: "list_environments", meta: { project: "DEMO" } },
       {
@@ -917,7 +917,7 @@ describe("sources", () => {
       // Issue keys are listed under Issues, not twice.
       { tool: "list_issues", meta: { issueKeys: ["DEMO-1"] } },
     ];
-    expect(summarizeReads(calls).panel).toEqual([
+    expect(summarizeReads(calls).data).toEqual([
       { tool: "list_environments", subject: "DEMO" },
       { tool: "get_environment_status", subject: "DEMO/dev" },
       { tool: "list_servers", subject: null },

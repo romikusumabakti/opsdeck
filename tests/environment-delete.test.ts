@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The row-only delete ("Remove from Panel only") is for org server:manage
+// The row-only delete ("Remove from Menara only") is for org server:manage
 // (admin, infra) only. Deleting an environment cascades to its variables. Escrowed ones (e.g. the
 // HRIS DATA_ENCRYPTION_KEY) exist nowhere else, so a delete is refused (409)
 // while the environment has any, unless an admin with org

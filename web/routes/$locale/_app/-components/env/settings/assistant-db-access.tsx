@@ -25,9 +25,9 @@ import type { SettingsEnvironment } from "./settings-form";
  * "Let the Assistant query this database (read-only)" (Stage 9 spec F.1).
  * Saves on its own, outside the Database form: switching it creates or
  * drops the dedicated read-only login on the database server. Only admin
- * and infra (org server:manage) may switch it; a database the Panel can't
+ * and infra (org server:manage) may switch it; a database Menara can't
  * provision (engine, name or admin password missing) shows the switch off
- * and disabled with the reason. An external database, which the Panel
+ * and disabled with the reason. An external database, which Menara
  * doesn't manage, carries a note either way.
  */
 export function AssistantDbAccess({

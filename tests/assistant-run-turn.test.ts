@@ -2003,7 +2003,7 @@ describe("runTurn", () => {
       inputSchema: { properties: Record<string, unknown> };
     }>;
     expect(tools.map((t) => t.name)).not.toContain("list_projects");
-    // The Stage 2 tools; the Panel tools that follow may name a project.
+    // The Stage 2 tools; Menara tools that follow may name a project.
     for (const t of tools.slice(0, 7))
       expect(t.inputSchema.properties).not.toHaveProperty("project");
     expect(tools.slice(7).map((t) => t.name)).toContain("list_environments");

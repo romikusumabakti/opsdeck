@@ -1,8 +1,8 @@
-// Whether the Panel can create the Assistant's read-only login for an
+// Whether Menara can create the Assistant's read-only login for an
 // environment's database (Stage 9 spec F.2). Pure and client-safe: the
 // service enforces it, the Database settings tab shows the reason. External
 // databases and Postgres run by systemd are provisioned through the same
-// admin paths as the Panel's own (lib/assistant-db/provision).
+// admin paths as Menara's own (lib/assistant-db/provision).
 
 export type AssistantDbUnavailableReason =
   // The db service lacks its engine or database name.

@@ -204,7 +204,7 @@ export type NewEnvironmentPlan = {
   };
   issues: SetupIssue[];
   /**
-   * Non-blocking: a custom pipeline file that does not notify the Panel, or
+   * Non-blocking: a custom pipeline file that does not notify Menara, or
    * an admin's custom choice for a repository without one.
    */
   warnings: {

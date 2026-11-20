@@ -10,7 +10,7 @@ import { locales } from "@/i18n/locales";
 import enMessages from "../messages/en.json";
 
 // Deleting an environment from Settings → Danger zone (a teardown, or
-// "Remove from Panel only" for admins), and the banner the environment pages
+// "Remove from Menara only" for admins), and the banner the environment pages
 // show while the teardown runs or after it stopped.
 
 const ENV = "0197f3a0-1b2c-7def-8000-0123456789e1";
@@ -191,7 +191,7 @@ describe("Delete environment dialog", () => {
     expect(body()).not.toContain("internal prose from the API");
   });
 
-  it("shows Remove from Panel only's refusal by its code", async () => {
+  it("shows Remove from Menara only's refusal by its code", async () => {
     api.orgRole = "admin";
     api.deleteEnvironment.mockResolvedValue({
       success: false,
@@ -206,7 +206,7 @@ describe("Delete environment dialog", () => {
     expect(api.push).not.toHaveBeenCalled();
   });
 
-  it("offers Remove from Panel only to admins alone, under Advanced options", async () => {
+  it("offers Remove from Menara only to admins alone, under Advanced options", async () => {
     await openDialog();
     expect(body()).not.toContain(messages.setup.advancedOptions);
     expect(body()).not.toContain(t.removeFromApp);
@@ -463,7 +463,7 @@ describe("Teardown banner polling and the end of a teardown", () => {
     expect(api.toast.success).toHaveBeenCalledWith(tt.banner.deleted);
   });
 
-  it("says nothing for a 404 without a running teardown (no access, or removed from the Panel)", async () => {
+  it("says nothing for a 404 without a running teardown (no access, or removed from Menara)", async () => {
     api.getTeardown.mockRejectedValue(new ApiError(404, "Not found"));
     await render(<TeardownBanner environmentId={ENV} projectKey="HRIS" />);
     await advance(10_000);
@@ -472,7 +472,7 @@ describe("Teardown banner polling and the end of a teardown", () => {
     expect(api.toast.success).not.toHaveBeenCalled();
   });
 
-  it("says nothing when a stopped teardown's environment is removed from the Panel", async () => {
+  it("says nothing when a stopped teardown's environment is removed from Menara", async () => {
     api.getTeardown
       .mockResolvedValueOnce(stopped)
       .mockRejectedValue(new ApiError(404, "Not found"));

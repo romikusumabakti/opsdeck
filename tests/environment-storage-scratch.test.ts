@@ -276,7 +276,13 @@ describe.skipIf(!enabled)("environment storage on Postgres", () => {
       row(CONN_A, "Kestrel files", ENV_A, "team-a/", SECRET_A),
       row(CONN_B, "Heron files", ENV_B, "team-b/", SECRET_B),
       row(CONN_FREE, "Old bucket", null, null, "fictional-secret-free"),
-      row(CONN_BACKUP, "Panel backups", null, null, "fictional-secret-backup"),
+      row(
+        CONN_BACKUP,
+        "Menara backups",
+        null,
+        null,
+        "fictional-secret-backup"
+      ),
     ])}`;
     await sql`insert into instance_settings (id, backup_destination_id)
       values (1, ${CONN_BACKUP})
@@ -666,13 +672,13 @@ describe.skipIf(!enabled)("environment storage on Postgres", () => {
           svc.testEnvironmentStorage(ENV_A, {
             ...stored(CONN_A),
             keyPrefix: null,
-            accessKeyId: "AKPANELBACKUPS",
+            accessKeyId: "AKMENARABACKUPS",
             connectionId: CONN_BACKUP,
           })
         )
       ).toEqual({ status: 409, code: "s3BackupDestinationRestricted" });
       expect(await connection(CONN_BACKUP)).toMatchObject({
-        name: "Panel backups",
+        name: "Menara backups",
       });
       expect(s3.probes).toEqual([]);
     });

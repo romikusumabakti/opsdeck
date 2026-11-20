@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// The teardown loader and step storage against a real Panel database: the
+// The teardown loader and step storage against a real Menara database: the
 // local scratch copy named by TEARDOWN_SCRATCH_DB (a migrated database in the
 // menara-postgres container), reached through its published port with the
 // container's own superuser password, read from the container and never

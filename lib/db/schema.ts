@@ -120,7 +120,7 @@ export const serverPlacementEnum = pgEnum("server_placement", [
 
 // Where a db service's database lives: "shared" is a database host's
 // container, "container" a Postgres container of its own, "external" a server
-// the Panel does not manage.
+// Menara does not manage.
 export const databaseKindEnum = pgEnum("database_kind", [
   "shared",
   "container",
@@ -137,7 +137,7 @@ export const provisioningStepKindEnum = pgEnum("provisioning_step_kind", [
 ]);
 
 // How an environment's public hostname reaches it: through a remotely-managed
-// tunnel the Panel edits, or outside the Panel's reach ("external"). No
+// tunnel Menara edits, or outside Menara's reach ("external"). No
 // environment_domains row means no domain.
 export const domainKindEnum = pgEnum("domain_kind", ["tunnel", "external"]);
 
@@ -148,7 +148,7 @@ export const provisioningStepStatusEnum = pgEnum("provisioning_step_status", [
   "failed",
 ]);
 
-// How the Panel signs in to a server: with the stored password, or with the
+// How Menara signs in to a server: with the stored password, or with the
 // instance's SSH key.
 export const serverAuthEnum = pgEnum("server_auth", ["password", "key"]);
 
@@ -215,7 +215,7 @@ export const servers = pgTable("servers", {
   placement: serverPlacementEnum("placement").notNull().default("restricted"),
   // Infra only: the terminal and the file explorer stay with org admin/infra;
   // the engineer grant (lib/permissions#canOrgAccessTarget) does not reach it.
-  // Set on hosts whose shell reaches the Panel's own secrets (its own host).
+  // Set on hosts whose shell reaches Menara's own secrets (its own host).
   infraOnly: boolean("infra_only").notNull().default(false),
   // Last preflight scan (non-secret facts) and when it ran; null until the
   // server has been scanned.
@@ -225,7 +225,7 @@ export const servers = pgTable("servers", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// A Postgres container on a server that environments can share; the Panel
+// A Postgres container on a server that environments can share; Menara
 // creates a database and role inside it.
 export const databaseHosts = pgTable(
   "database_hosts",
@@ -362,7 +362,7 @@ export const environments = pgTable(
       name: "environments_app_id_apps_id_fk",
       onDelete: "restrict",
     }),
-    // Whether the Panel renders this environment's .env on every deploy. False
+    // Whether Menara renders this environment's .env on every deploy. False
     // keeps the server-side file hand-managed (only the tag line changes).
     envFileManaged: boolean("env_file_managed").notNull().default(false),
     // Host port the environment's entry point listens on. Null until chosen.
@@ -591,10 +591,10 @@ export const runs = pgTable(
       onDelete: "set null",
     }),
     description: text("description").notNull(),
-    // Display text for a run without a Panel user: the forge login that pushed
+    // Display text for a run without a Menara user: the forge login that pushed
     // the build behind an auto-deploy (max 200 characters), else its head
     // commit's author email, lower-cased (max 320 characters; Bitbucket sends
-    // no login), shown as the Panel user with that email when there is one.
+    // no login), shown as the Menara user with that email when there is one.
     // Never used for authorization; a run with userId shows that user instead.
     triggeredBy: text("triggered_by"),
     status: runStatusEnum("status").notNull().default("started"),
@@ -663,7 +663,7 @@ export const forgeKindEnum = pgEnum("forge_kind", [
 ]);
 
 // Where a component's pipeline comes from: the repo's own file ("custom") or
-// one the Panel generates from the component's build spec ("generated").
+// one Menara generates from the component's build spec ("generated").
 export const pipelineModeEnum = pgEnum("pipeline_mode", [
   "custom",
   "generated",
@@ -689,7 +689,7 @@ export const ciConnections = pgTable("ci_connections", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// A product the Panel deploys, e.g. the customer portal. Groups the
+// A product Menara deploys, e.g. the customer portal. Groups the
 // components (backend, frontend, ...) that ship together to an environment.
 export const apps = pgTable("apps", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
@@ -2122,7 +2122,7 @@ export const tunnels = pgTable(
   ]
 );
 
-// The Cloudflare account the Panel manages remotely-managed tunnels, Access
+// The Cloudflare account Menara manages remotely-managed tunnels, Access
 // apps and DNS records in. One token covers all of it (Tunnel: Edit, Access
 // Apps and Policies: Edit, Access IdPs: Read, DNS: Edit on the zone), so it is
 // held once per account. Encrypted at rest and never sent to the client.
@@ -2131,7 +2131,7 @@ export const cloudflareAccounts = pgTable("cloudflare_accounts", {
   accountId: text("account_id").notNull().unique(),
   name: text("name").notNull(),
   apiToken: text("api_token").notNull(),
-  // The identity provider the Access apps the Panel creates allow.
+  // The identity provider the Access apps Menara creates allow.
   accessIdpId: text("access_idp_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -2537,7 +2537,7 @@ export type EnvironmentListItem = EnvironmentSummary & {
 // full `EnvironmentWithServers` via lib/projects#loadEnvironmentWithServers;
 // anything passed to a client component must be sanitized to these shapes first.
 // A server seen through another object (lib/server-view#toSafeServer): no
-// password and nothing about how the Panel signs in.
+// password and nothing about how Menara signs in.
 export type SafeServer = Omit<
   Server,
   | "password"
@@ -2878,7 +2878,7 @@ export const releaseStatusEnum = pgEnum("release_status", [
 ]);
 
 // A client release: the artifact of one successful jar/static deployment,
-// copied into the Panel's Garage and kept until an admin deletes it.
+// copied into Menara's Garage and kept until an admin deletes it.
 export const releases = pgTable(
   "releases",
   {

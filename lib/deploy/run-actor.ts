@@ -6,8 +6,8 @@ export type RunActor =
   | { kind: "unknown" };
 
 /**
- * A Panel user always wins. Otherwise a run with an actor (`triggeredBy`: a
- * forge login or a commit author email) is an auto-deploy — by the Panel user
+ * a Menara user always wins. Otherwise a run with an actor (`triggeredBy`: a
+ * forge login or a commit author email) is an auto-deploy — by the Menara user
  * that actor resolves to (`autoUserName`, matched by email) or else by the raw
  * actor. `auto` marks a run known to be automatic even without an actor (a
  * deployment with trigger `auto`).

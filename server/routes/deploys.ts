@@ -15,7 +15,7 @@ import {
 import { json, param, query } from "@/server/validation";
 
 /**
- * Panel deploys: targets, manual deploys and rollbacks. Viewing needs any
+ * Menara deploys: targets, manual deploys and rollbacks. Viewing needs any
  * project role; deploy, rollback and configuring need the engineer role
  * (the service functions check it against the target's environment).
  */

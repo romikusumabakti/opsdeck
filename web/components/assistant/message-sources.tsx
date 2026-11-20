@@ -17,7 +17,7 @@ const strings = (value: unknown): string[] =>
     : [];
 
 /**
- * The data tools listed under "Panel data". The Menara issue tools are left
+ * The data tools listed under "Menara data". The Menara issue tools are left
  * out: their keys are listed under Issues.
  */
 export const DATA_READ_TOOLS: ReadonlySet<string> = new Set([
@@ -51,7 +51,7 @@ export function summarizeReads(toolCalls: ToolCall[]) {
   const paths = new Set<string>();
   const issueKeys = new Set<string>();
   const docSlugs = new Set<string>();
-  const panel = new Map<string, { tool: string; subject: string | null }>();
+  const data = new Map<string, { tool: string; subject: string | null }>();
   let withheld = 0;
   for (const { tool, meta } of toolCalls) {
     if (DATA_READ_TOOLS.has(tool)) {
@@ -61,7 +61,7 @@ export function summarizeReads(toolCalls: ToolCall[]) {
           : typeof meta.project === "string"
             ? meta.project
             : null;
-      panel.set(`${tool} ${subject ?? ""}`, { tool, subject });
+      data.set(`${tool} ${subject ?? ""}`, { tool, subject });
       if (typeof meta.withheld === "number") withheld += meta.withheld;
       continue;
     }
@@ -83,7 +83,7 @@ export function summarizeReads(toolCalls: ToolCall[]) {
     files,
     issueKeys: [...issueKeys].sort(),
     docSlugs: [...docSlugs].sort(),
-    panel: [...panel.values()],
+    data: [...data.values()],
     withheld,
   };
 }
@@ -170,7 +170,7 @@ export function MessageSources({
     reads.files.length === 0 &&
     reads.issueKeys.length === 0 &&
     reads.docSlugs.length === 0 &&
-    reads.panel.length === 0 &&
+    reads.data.length === 0 &&
     reads.withheld === 0
   ) {
     return null;
@@ -201,7 +201,7 @@ export function MessageSources({
         <ReadList label={t("docsRead")} items={reads.docSlugs} />
         <ReadList
           label={t("appData")}
-          items={reads.panel.map(({ tool, subject }) =>
+          items={reads.data.map(({ tool, subject }) =>
             subject
               ? `${t(toolLabelKey(tool))} · ${subject}`
               : t(toolLabelKey(tool))

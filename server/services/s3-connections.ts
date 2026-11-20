@@ -207,7 +207,7 @@ export async function listUnassignedS3Connections(): Promise<
  * Give an unassigned connection to an environment (404 when either is
  * missing). Refused with a coded 409: a connection an environment already
  * owns (`s3ConnectionAlreadyAssigned`), the instance backup destination,
- * which holds dumps of the Panel database (`s3BackupDestinationNotAssignable`),
+ * which holds dumps of the Menara database (`s3BackupDestinationNotAssignable`),
  * and a connection old environment archives still live in
  * (`s3ConnectionHoldsArchives`): their download and prune resolve it by id,
  * and an environment's managers could then edit or delete it.

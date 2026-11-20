@@ -20,7 +20,7 @@ import { uuidSchema } from "@/lib/validation";
 
 export type RunWithUser = Run & {
   user: UserRef | null;
-  /** The Panel user an auto run's `triggeredBy` resolves to (by email). */
+  /** The Menara user an auto run's `triggeredBy` resolves to (by email). */
   autoUser: UserRef | null;
 };
 

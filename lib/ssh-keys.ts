@@ -257,7 +257,7 @@ function markerOf(line: string): string | null {
  * drop: every key in this database's ssh_keys (any status), less the keys
  * another key row on the same host and login signs in with (one machine
  * entered twice, by IP and by name: one file, and dropping that line would
- * lock the other row out). Another Panel deployment can share the instance
+ * lock the other row out). Another Menara deployment can share the instance
  * name (the default "menara"), so a marker counts as ours only for a key id
  * we hold.
  */
@@ -288,7 +288,7 @@ export async function ownKeyMarkers(server: {
  * Drop the lines of our own keys (`ours`, from ownKeyMarkers) other than
  * `keep` (a retired or leaked key must not keep signing in), and return them
  * so a failed step can put them back. Lines of keys we do not hold (another
- * Panel's, foreign) are untouched.
+ * Menara's, foreign) are untouched.
  */
 export function dropOtherInstanceKeys(
   existing: string,

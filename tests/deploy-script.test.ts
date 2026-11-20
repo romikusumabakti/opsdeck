@@ -782,7 +782,7 @@ describe.concurrent("buildDeployScript stub runs", () => {
     SLOW
   );
 
-  // The hand-written .env from before the Panel managed it is kept once and
+  // The hand-written .env from before Menara managed it is kept once and
   // never overwritten, so it survives later deploys and rollbacks.
   it(
     "stub run, first managed install keeps the hand-written .env once (0600)",

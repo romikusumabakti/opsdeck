@@ -26,7 +26,7 @@ import {
 } from "@/lib/ssh-connect";
 
 // The Assistant's dedicated read-only login per environment (Stage 9 spec
-// F.2). Enabling creates, through the Panel's admin path, a login that reads
+// F.2). Enabling creates, through Menara's admin path, a login that reads
 // only that environment's database; disabling drops it. Server-only (SSH).
 //
 // - Postgres: role `menara_ro_<db>` with LOGIN, CONNECT on this
@@ -35,9 +35,9 @@ import {
 //   and a 10 s statement timeout. No predefined pg_* role, no
 //   pg_read_all_data: PUBLIC keeps CONNECT on a shared host's other
 //   databases (lib/provisioning/database), but without grants their tables
-//   stay unreadable. Marked like every role the Panel makes for the
+//   stay unreadable. Marked like every role Menara makes for the
 //   environment, so the teardown of a shared database drops it too.
-//   In a container (or on a shared host) it has no password: the Panel
+//   In a container (or on a shared host) it has no password: Menara
 //   connects over the container's trusted local socket. Run by systemd,
 //   where the socket only admits `postgres` (peer), it gets a generated
 //   password, set as a pre-computed SCRAM-SHA-256 verifier so Postgres and
@@ -198,7 +198,7 @@ export function pgEnableAssistantDbSql(input: {
     ...(input.adopt
       ? [
           `  ELSIF shobj_description(role_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
-          `    RAISE EXCEPTION 'role % was not created by the Panel for this environment', ${roleLit};`,
+          `    RAISE EXCEPTION 'role % was not created by Menara for this environment', ${roleLit};`,
         ]
       : [
           "  ELSE",
@@ -286,7 +286,7 @@ export function pgDisableAssistantDbSql(input: {
     `  SELECT oid INTO role_oid FROM pg_roles WHERE rolname = ${roleLit};`,
     "  IF role_oid IS NULL THEN RETURN; END IF;",
     `  IF shobj_description(role_oid, 'pg_authid') IS DISTINCT FROM ${markerLit} THEN`,
-    `    RAISE EXCEPTION 'role % was not created by the Panel for this environment', ${roleLit};`,
+    `    RAISE EXCEPTION 'role % was not created by Menara for this environment', ${roleLit};`,
     "  END IF;",
     `  EXECUTE format('DROP OWNED BY %I', ${roleLit});`,
     `  EXECUTE format('DROP ROLE %I', ${roleLit});`,

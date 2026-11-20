@@ -74,7 +74,7 @@ describe("variables messages", () => {
 });
 
 describe("reserved-prefix messages", () => {
-  it("tell every locale that the Panel writes DOCKER_REGISTRY", () => {
+  it("tell every locale that Menara writes DOCKER_REGISTRY", () => {
     for (const locale of locales) {
       const all = leaves(messages(locale));
       for (const key of [

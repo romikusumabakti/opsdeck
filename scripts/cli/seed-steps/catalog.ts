@@ -166,7 +166,7 @@ async function isOldDemoProject(
 
 /**
  * A placeholder CI connection (required by app_components), the demo
- * services (registered without an app, as the Panel does since Stage 8), and
+ * services (registered without an app, as Menara does since Stage 8), and
  * each project's services and default branches.
  */
 export async function seedServices(ctx: SeedContext): Promise<void> {

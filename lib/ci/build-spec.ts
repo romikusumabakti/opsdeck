@@ -68,7 +68,7 @@ const environmentName = z
   );
 
 // A Woodpecker repo secret a check step reads. Only names with the `build_`
-// prefix: the Panel's notify secrets and the registry credentials (org
+// prefix: Menara's notify secrets and the registry credentials (org
 // secrets the build step alone uses) can never be handed to a check, and
 // `deploy-app.js set-secret` can never overwrite them.
 export const checkSecretNameSchema = z
@@ -122,7 +122,7 @@ export const artifactSchema = z.object({
 export const buildSpecSchema = z
   .object({
     // Woodpecker branch filter. The branch also becomes part of the image tag,
-    // so it has to pass the Panel's branch rule (no globs). Needs at least one
+    // so it has to pass Menara's branch rule (no globs). Needs at least one
     // entry unless `artifact` is set (see the refinement below).
     branches: z.array(branchSchema),
     tagShaLength: z.number().int().min(7).max(40).default(7),

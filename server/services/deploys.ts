@@ -332,7 +332,7 @@ export type SavedDeployTarget = DeployTarget & {
   pipelineFileFailures: PipelineFileFailure[];
 };
 
-/** Whether the Panel generates (and commits) the component's pipeline. */
+/** Whether Menara generates (and commits) the component's pipeline. */
 function hasGeneratedPipeline(component: Component | undefined | null) {
   return component?.pipelineMode === "generated" && !!component.buildSpec;
 }

@@ -32,7 +32,7 @@ export const buildNotificationSchema = z.object({
   branch: branchSchema,
   tag: deployTagSchema,
   commit: commitShaSchema,
-  // Shown as a link in the Panel, so only http(s).
+  // Shown as a link in Menara, so only http(s).
   pipelineUrl: z
     .url({ protocol: /^https?$/ })
     .max(2048)
@@ -67,7 +67,7 @@ const clip = (value: string | null, max: number) =>
 /**
  * Who pushed the build, read from the component's own CI connection and repo.
  * The pipeline number comes from the notified `pipelineUrl`, used only when it
- * points at that repo, so a notification cannot make the Panel read another
+ * points at that repo, so a notification cannot make Menara read another
  * repo's pipeline.
  */
 async function fetchBuildActors(n: BuildActorsInput): Promise<BuildActors> {

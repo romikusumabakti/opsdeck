@@ -59,9 +59,9 @@ import { listEntryPortsOnServer } from "@/server/services/preflight-repository";
 
 /**
  * An environment's public domain: through a registered remote tunnel (the
- * Panel provisions it later) or an external hostname (recorded only). Reading
+ * Menara provisions it later) or an external hostname (recorded only). Reading
  * needs project `deploy:view`, changing it `deploy:configure`. Publishing
- * without an Access policy, or an entry port outside the Panel's free-port
+ * without an Access policy, or an entry port outside Menara's free-port
  * range, also needs org `server:manage`. No caller may pick a port another
  * environment on the same server already uses: the tunnel would route the
  * hostname into that environment.
@@ -227,7 +227,7 @@ export async function validateDomainBinding(
     if (await hostnameTakenByOther(input.hostname, environmentId)) {
       return failDomain(409, "domainHostnameTaken");
     }
-    // Under a registered zone the Panel can do better than a record.
+    // Under a registered zone Menara can do better than a record.
     const zoneNames = (await listZones()).map((z) => z.name);
     if (isUnderZone(input.hostname, zoneNames)) {
       return failDomain(422, "domainExternalInZone");
@@ -247,7 +247,7 @@ export async function validateDomainBinding(
   if (input.accessPolicyId === null && !canPublish(orgRole)) {
     return failDomain(403, "domainPublicForbidden");
   }
-  // Outside the free-port range sit the server's own services (the Panel,
+  // Outside the free-port range sit the server's own services (Menara,
   // CI, production apps): pointing a hostname there is an org-level call.
   if (!inFreePortRange(input.entryPort) && !canPublish(orgRole)) {
     return failDomain(403, "domainPortForbidden");

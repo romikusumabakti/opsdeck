@@ -320,7 +320,7 @@ async function runClaimedDeployment(
     return;
   }
 
-  // A managed environment gets its whole .env rendered from the Panel's
+  // A managed environment gets its whole .env rendered from Menara's
   // variables; null leaves the deploy exactly as it was before (tag line only).
   const managedVars = await loadManagedEnvFileVariables(target.environmentId);
   // The dir's tag variables, and the shared database network the services
@@ -386,7 +386,7 @@ async function runClaimedDeployment(
 
   if (target.backupBeforeDeploy) {
     // The backup is part of the deploy: it carries the deploy run's actor
-    // (the Panel user, or the forge actor of an auto-deploy).
+    // (the Menara user, or the forge actor of an auto-deploy).
     const actor = await getRunActor(runId);
     const backupRunId = await createRun({
       environmentId: target.environmentId,
@@ -531,7 +531,7 @@ async function runArtifactDeployment(
   if (target.kind === "jar") {
     if (!target.jarName || !target.systemdUnit) {
       throw new DeployAborted(
-        "The jar target has no jar name or systemd unit — set them in the Panel"
+        "The jar target has no jar name or systemd unit — set them in Menara"
       );
     }
     script = buildArtifactDeployScript({
@@ -629,7 +629,7 @@ function renderManagedOverlay(services: string[], network: string): string {
     return renderComposeOverlay(services, network);
   } catch {
     throw new DeployAborted(
-      "The shared database network cannot be written to the compose overlay — check the database host in the Panel"
+      "The shared database network cannot be written to the compose overlay — check the database host in Menara"
     );
   }
 }
@@ -649,7 +649,7 @@ function renderManagedEnvFileOrAbort(
     return renderManagedEnvFile(vars, tags, registry, inputs);
   } catch {
     throw new DeployAborted(
-      "The environment's variables cannot be written to .env — check them in the Panel"
+      "The environment's variables cannot be written to .env — check them in Menara"
     );
   }
 }

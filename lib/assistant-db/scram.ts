@@ -1,6 +1,6 @@
 // SCRAM-SHA-256 verifier for a Postgres role (RFC 5802 / RFC 7677). Postgres
 // accepts it in place of a plaintext password in CREATE/ALTER ROLE ...
-// PASSWORD, so the Panel can give the Assistant's read-only role a password
+// PASSWORD, so Menara can give the Assistant's read-only role a password
 // without ever sending the plaintext to the server.
 
 const encoder = new TextEncoder();

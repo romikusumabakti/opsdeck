@@ -76,7 +76,7 @@ export function suggestServiceKey(
 /**
  * Register service(s): one or more services from one repository of a CI
  * connection, each with its key and pipeline (custom: the repository's own
- * file; generated: the Panel commits one from the build spec). The server
+ * file; generated: Menara commits one from the build spec). The server
  * activates the repository, gives each service its notify secret and stores
  * it without an app.
  */

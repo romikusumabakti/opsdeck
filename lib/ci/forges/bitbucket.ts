@@ -117,7 +117,7 @@ export async function commitFile(
 }
 
 /**
- * Checks that the credentials work: reads a repository the Panel commits to
+ * Checks that the credentials work: reads a repository Menara commits to
  * (the access commits need) or, with none registered yet, the account itself.
  * Throws CiProviderError (status 0 when unreachable).
  */

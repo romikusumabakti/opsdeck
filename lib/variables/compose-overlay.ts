@@ -2,7 +2,7 @@ import { stringify } from "yaml";
 import { composeServiceSchema } from "@/lib/deploy/validation";
 import { dockerNetworkSchema } from "@/lib/setup/network";
 
-/** The compose file, next to `compose.yaml`, the Panel writes for a shared database network. */
+/** The compose file, next to `compose.yaml`, Menara writes for a shared database network. */
 export const COMPOSE_OVERLAY_FILE = "compose.menara.yaml";
 
 export const COMPOSE_OVERLAY_HEADER =

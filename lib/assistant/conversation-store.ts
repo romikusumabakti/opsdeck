@@ -511,7 +511,7 @@ export type ConversationDraft = {
   projectId: string | null;
   /** The created issue's Jira key; null before creation or once unlinked. */
   jiraKey: string | null;
-  /** The created Panel issue's number (`/<KEY>/issues/<n>`); null before. */
+  /** The created Menara issue's number (`/<KEY>/issues/<n>`); null before. */
   issueNumber: number | null;
   createdAt: Date;
   updatedAt: Date;

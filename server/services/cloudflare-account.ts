@@ -18,7 +18,7 @@ import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { badRequest } from "@/server/errors";
 
 /**
- * The Cloudflare account the Panel manages tunnels, Access apps and DNS
+ * The Cloudflare account Menara manages tunnels, Access apps and DNS
  * records in. The token is write-only: stored encrypted, reduced to a
  * `hasToken` flag on read, and never returned.
  *
@@ -111,7 +111,7 @@ export async function saveCloudflareAccount(
 }
 
 /**
- * The account's credentials (token decrypted) and the IdP the Panel's Access
+ * The account's credentials (token decrypted) and the IdP Menara's Access
  * apps allow, or null when no account is set up. For the provisioning job; the
  * same rules as getCloudflareCreds apply.
  */

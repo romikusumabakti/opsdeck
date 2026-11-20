@@ -149,7 +149,7 @@ export const environmentsRouter = sessionRouter()
   .post("/:id/teardown/cancel", envParam, async (c) =>
     c.json(await cancelTeardown(c.req.valid("param").id))
   )
-  /** "Remove from Panel only": the rows, nothing on the servers. */
+  /** "Remove from Menara only": the rows, nothing on the servers. */
   .delete(
     "/:id",
     envParam,

@@ -339,7 +339,7 @@ describe.skipIf(!enabled)("assistant read-only role on Postgres", () => {
       expect(other.code).not.toBe(0);
       expect(other.stderr).toMatch(
         adopt
-          ? /was not created by the Panel for this environment/
+          ? /was not created by Menara for this environment/
           : /menara-assistant-login-exists/
       );
     }

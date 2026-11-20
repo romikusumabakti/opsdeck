@@ -356,7 +356,7 @@ main() {
   esac
   channel=${channel:-stable}
   if [ -n "$hostname" ]; then
-    matches "$hostname" "$HOST_RE" || die "--hostname must be a bare host name, e.g. panel.example.com"
+    matches "$hostname" "$HOST_RE" || die "--hostname must be a bare host name, e.g. app.example.com"
   fi
   if [ -n "$http_port" ]; then
     if ! matches "$http_port" '[0-9]{1,5}' || [ "$http_port" -lt 1 ] || [ "$http_port" -gt 65535 ]; then
@@ -388,7 +388,7 @@ main() {
   env_file=$dir/.env
 
   if [ -e "$env_file" ] && [ -z "$adopt" ]; then
-    die "$env_file already exists: this dir is installed (updates come from the Panel; --adopt takes over a stack)"
+    die "$env_file already exists: this dir is installed (updates come from Menara; --adopt takes over a stack)"
   fi
 
   # --- host ------------------------------------------------------------------

@@ -4,7 +4,7 @@
 
 /** 400 for a variable or template name with a reserved prefix. */
 export const RESERVED_PREFIX_MESSAGE =
-  "Variable names must not start with COMPOSE_, DOCKER_ or BUILDKIT_, except COMPOSE_PROFILES (the Panel writes DOCKER_REGISTRY itself)";
+  "Variable names must not start with COMPOSE_, DOCKER_ or BUILDKIT_, except COMPOSE_PROFILES (Menara writes DOCKER_REGISTRY itself)";
 
 /**
  * 400 for a deploy target's tag variable with a reserved prefix. Strict, with

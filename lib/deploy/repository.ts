@@ -44,9 +44,9 @@ import type { UserRef } from "@/lib/types";
 const RECENT_LIMIT = 20;
 
 /**
- * The Panel user an auto run's actor (runs.triggered_by, a forge login or a
+ * The Menara user an auto run's actor (runs.triggered_by, a forge login or a
  * commit author email) resolves to: the user with that email, ignoring case.
- * Only runs without a Panel user match. A lateral subquery with LIMIT 1, so a
+ * Only runs without a Menara user match. A lateral subquery with LIMIT 1, so a
  * run yields at most one row even if two users' emails differ only in case
  * (users.email is unique case-sensitively). Join it with
  * `.leftJoinLateral(autoUsers, autoUserOn)`.
@@ -91,7 +91,7 @@ export const autoUserColumns = {
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * What the target's server runs, as far as the Panel knows.
+ * What the target's server runs, as far as Menara knows.
  * - currentTag: the tag of the latest deployment whose script reached the
  *   server. After a failed deploy the server may run it, half-started — it is
  *   not necessarily a good release (see currentStatus).
@@ -116,7 +116,7 @@ export type TargetState = DeployTarget &
 export type DeploymentEntry = Deployment & {
   userName: string | null;
   triggeredBy: string | null;
-  /** The Panel user `triggeredBy` resolves to; see {@link autoUsers}. */
+  /** The Menara user `triggeredBy` resolves to; see {@link autoUsers}. */
   autoUser: UserRef | null;
   /**
    * The build the tag names, by (component, tag) as a release source reads
@@ -1480,7 +1480,7 @@ export async function setRunsTriggeredBy(
     );
 }
 
-/** Who a run was started by: a Panel user, or the actor of an auto-deploy. */
+/** Who a run was started by: a Menara user, or the actor of an auto-deploy. */
 export type RunActorColumns = {
   userId: string | null;
   triggeredBy: string | null;

@@ -81,7 +81,7 @@ export function TeardownBanner({
   });
   // Only the 404 that ends a teardown this page saw running is "deleted":
   // the data of the last successful poll stays while the error is shown. A
-  // 404 without one (Remove from Panel only, lost access) is not ours.
+  // 404 without one (Remove from Menara only, lost access) is not ours.
   const gone =
     query.error instanceof ApiError &&
     query.error.status === 404 &&

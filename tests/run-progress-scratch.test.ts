@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// The guarded completeRun / failRun against the local scratch Panel DB
+// The guarded completeRun / failRun against the local scratch Menara DB
 // (provision_scratch in the menara-postgres container, reached through its
 // published port with the container's own superuser password, read from the
 // container and never printed). It needs only a migrated schema: it creates

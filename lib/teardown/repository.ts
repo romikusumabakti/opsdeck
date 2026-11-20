@@ -97,7 +97,7 @@ export async function loadTeardownEnvironment(
     .orderBy(asc(deployTargets.createdAt), asc(deployTargets.id));
   // Every other environment's target with its host: planTeardown matches
   // machines by normalised host, since two server rows (another login, say)
-  // can be one machine. The Panel has tens of targets, not thousands.
+  // can be one machine. Menara has tens of targets, not thousands.
   const otherTargets =
     targets.length === 0
       ? []
@@ -863,7 +863,7 @@ export async function getArchive(
  * The archives the daily prune deletes: completed ones past `expires_at`,
  * and open ones created before `incompleteBefore` whose environment has no
  * teardown steps left (the teardown was abandoned, the row removed from
- * the Panel, or the teardown cancelled: a detached archive's null
+ * Menara, or the teardown cancelled: a detached archive's null
  * environment_id matches no step). An open archive whose teardown still has steps is kept even
  * past expiry: its finished archive steps are not taken again, so a retry
  * would go on to the destructive steps with the files gone.

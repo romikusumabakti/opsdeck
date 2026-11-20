@@ -15,7 +15,7 @@ const composeFileNameSchema = z
   .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/, "Invalid compose file name");
 
 export const ENV_FILE_HEADER =
-  "# Managed by Menara — edit variables in the Panel; local edits are overwritten on the next deploy.";
+  "# Managed by Menara — edit variables in Menara; local edits are overwritten on the next deploy.";
 
 /**
  * Quotes a value so Docker Compose reads it back byte for byte. Rules from
@@ -47,12 +47,12 @@ function quoteValue(value: string): string {
 /**
  * Renders an environment's `.env`: the header, the variables sorted by name,
  * `DOCKER_REGISTRY=<registry>`, then the tag variables sorted by name. The
- * registry is the deploy registry; the Panel writes it because `DOCKER_` names
+ * registry is the deploy registry; Menara writes it because `DOCKER_` names
  * are reserved for user variables while every compose file pulls
  * `${DOCKER_REGISTRY}/…`. Registry and tag lines stay unquoted (the form the
  * deploy script greps and `sed`s); both are validated to characters that need
  * no quoting. With `opts.composeFiles`, `COMPOSE_FILE=<files joined by ':'>`
- * comes right after the header (the Panel writes `COMPOSE_FILE` itself; user
+ * comes right after the header (Menara writes `COMPOSE_FILE` itself; user
  * variables with a `COMPOSE_` prefix stay refused, except `COMPOSE_PROFILES`). Throws on an invalid name, value, tag or registry, a duplicate
  * name, or a variable named like a tag variable.
  */

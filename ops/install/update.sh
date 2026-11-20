@@ -458,7 +458,7 @@ restore_refused() {
 # fails with restoreFailed (the safety backup in the status undoes it).
 restore_failed() { # <failed step>
   log "$1 failed after the restore started; starting version $version again"
-  compose_up || log "the panel did not come back up"
+  compose_up || log "Menara did not come back up"
   finish failed restoreFailed
 }
 

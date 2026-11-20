@@ -145,7 +145,7 @@ export function failurePrefill(
   };
 }
 
-// --- The Panel's own backups ---
+// --- Menara's own backups ---
 
 /** A backup that has not succeeded for this long needs attention. */
 export const BACKUP_STALE_AFTER_MS = 36 * 60 * 60 * 1000;
@@ -155,7 +155,7 @@ export type InstanceBackupAttention =
   | { kind: "stale"; lastSucceededAt: Date | null };
 
 /**
- * Home's item for the Panel's own backups: the latest finished backup failed
+ * Home's item for Menara's own backups: the latest finished backup failed
  * and nobody acknowledged it, or none has succeeded for 36 h. With no
  * successful backup ever, the 36 h count from `installedAt`, so a fresh
  * install is not flagged before its first scheduled run.

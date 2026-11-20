@@ -105,7 +105,7 @@ const destination = (over: Record<string, unknown> = {}) => ({
   endpoint: ENDPOINT,
   region: "auto",
   bucket: BUCKET,
-  accessKeyId: "AKFICTIONALPANEL",
+  accessKeyId: "AKFICTIONALMENARA",
   secretKey: SECRET,
   forcePathStyle: true,
   keyPrefix: "panel/",
@@ -246,11 +246,11 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
       force_path_style: true,
     });
     await sql`insert into s3_connections ${sql([
-      row(CONN_LEGACY, "Panel backups", null, BUCKET, null, LEGACY_SECRET),
+      row(CONN_LEGACY, "Menara backups", null, BUCKET, null, LEGACY_SECRET),
       row(CONN_FREE, "Old bucket", null, "fictional-old", null, "s-free"),
       // An environment's connection on the destination's bucket, under the
       // destination's prefix, and one beside it.
-      row(CONN_SAME, "Panel copy", ENV, BUCKET, "panel/dumps/", "s-same"),
+      row(CONN_SAME, "Menara copy", ENV, BUCKET, "panel/dumps/", "s-same"),
       row(CONN_OTHER, "Uploads", ENV, BUCKET, "uploads/", "s-other"),
     ])}`;
     await sql`update instance_settings
@@ -270,7 +270,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
           endpoint: ENDPOINT,
           region: "auto",
           bucket: BUCKET,
-          accessKeyId: "AKFICTIONALPANEL",
+          accessKeyId: "AKFICTIONALMENARA",
           forcePathStyle: true,
           keyPrefix: "panel/",
           secretSet: true,
@@ -456,7 +456,7 @@ describe.skipIf(!enabled)("the backup destination on Postgres", () => {
           endpoint: ENDPOINT,
           region: "auto",
           bucket: BUCKET,
-          accessKeyId: "AKFICTIONALPANEL",
+          accessKeyId: "AKFICTIONALMENARA",
           forcePathStyle: true,
           keyPrefix: "panel/",
           secretKey: SECRET,

@@ -10,7 +10,7 @@ export type CiRepo = {
 export type RepoSettings = {
   timeoutMinutes: number;
   cancelPreviousOnPush: boolean;
-  // The Panel does not use Woodpecker's configuration extension; null clears
+  // Menara does not use Woodpecker's configuration extension; null clears
   // any endpoint left on the repo.
   configExtensionEndpoint: string | null;
 };

@@ -41,7 +41,7 @@ export async function loadEnvironmentWithServers(
 
 /**
  * A server's SSH credentials, decrypted, for a job that targets the server
- * directly rather than through an environment's services (Panel deploys).
+ * directly rather than through an environment's services (Menara deploys).
  * SERVER-ONLY, like loadEnvironmentWithServers: same decryption boundary.
  */
 export async function loadServerCredentials(

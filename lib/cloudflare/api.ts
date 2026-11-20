@@ -20,7 +20,7 @@ export type CloudflareCreds = { accountId: string; apiToken: string };
 export class CloudflareConflictError extends Error {}
 
 /**
- * The fetched tunnel config is not one the Panel may edit: no ingress list, an
+ * The fetched tunnel config is not one Menara may edit: no ingress list, an
  * empty one, or no catch-all last. Writing it back would drop live routes.
  */
 export class UnsafeTunnelConfigError extends Error {}

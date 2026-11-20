@@ -538,7 +538,7 @@ export function NewEnvironmentForm({
       return result;
     } catch (error) {
       if (id !== requestId.current) return null;
-      // A coded refusal (a repository the Panel cannot read, the CI server
+      // A coded refusal (a repository Menara cannot read, the CI server
       // down) is an issue of its field; anything else leaves the check open.
       if (
         error instanceof ApiError &&

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-// getAssistantDbLogin against a real Panel database: a throwaway database in
+// getAssistantDbLogin against a real Menara database: a throwaway database in
 // the local menara-postgres container (superuser password read from the
 // container, never printed), migrated with `menara migrate`, dropped after.
 //

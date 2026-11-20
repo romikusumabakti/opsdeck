@@ -276,7 +276,7 @@ function mapFields(remote: JiraIssue, ctx: SyncContext): MappedFields {
 
 /**
  * resolveUser outside a sweep, for one actor (the assignee of an issue the
- * Panel just created): same rule, by stored account id, else by email with
+ * Menara just created): same rule, by stored account id, else by email with
  * the account id written back.
  */
 export async function resolveRemoteUser(

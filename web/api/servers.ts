@@ -110,7 +110,7 @@ export async function moveServerToKey(id: string) {
   return parseResponse(routes[":id"]["move-to-key"].$post({ param: { id } }));
 }
 
-/** Installs the key with a password typed once; the Panel never stores it. */
+/** Installs the key with a password typed once; Menara never stores it. */
 export async function reinstallServerKey(id: string, password: string) {
   return parseResponse(
     routes[":id"]["reinstall-key"].$post({ param: { id }, json: { password } })

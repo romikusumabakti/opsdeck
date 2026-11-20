@@ -19,7 +19,7 @@ import {
 /**
  * Registers a generated artifact service (a jar or a static site), without an
  * app, from the command line (scripts/deploy-app.ts `create-artifact`), with no session: the
- * caller is an operator inside the Panel's container. Unlike the register
+ * caller is an operator inside Menara's container. Unlike the register
  * form, the repository may already build other components (one per artifact,
  * each on its own branches); each then reads its notify secret from its own
  * Woodpecker secret, so registering one never overwrites another's.
@@ -95,7 +95,7 @@ async function resolveConnectionId(name: string | undefined): Promise<string> {
 }
 
 /**
- * Validates everything the Panel knows, activates (or finds) the repository
+ * Validates everything Menara knows, activates (or finds) the repository
  * in Woodpecker, applies the repo settings (only for a repository's first
  * component), writes the notify secret to Woodpecker, then stores the service (no app) with
  * `pipeline_mode: "generated"`. Commits no pipeline file: the spec has no
@@ -192,7 +192,7 @@ export async function registerArtifactComponent(
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
     refuse(
-      `Component ${componentKey} was registered meanwhile. Woodpecker may now hold a ${notifySecretName} the Panel does not know: rotate the component's notify secret.`
+      `Component ${componentKey} was registered meanwhile. Woodpecker may now hold a ${notifySecretName} Menara does not know: rotate the component's notify secret.`
     );
   }
   return { componentKey, ciRepoId: repo.ciRepoId, notifySecretName };
@@ -202,7 +202,7 @@ export async function registerArtifactComponent(
  * Stores a Woodpecker repo secret a check step of the component reads
  * (`environment: { NAME: { fromSecret } }` in its build spec), for push and
  * manual events. The value comes from the operator (stdin of
- * `deploy-app.js set-secret`) and never appears in an error. The Panel's
+ * `deploy-app.js set-secret`) and never appears in an error. Menara's
  * notify secrets cannot be written this way.
  */
 export async function setComponentSecret(

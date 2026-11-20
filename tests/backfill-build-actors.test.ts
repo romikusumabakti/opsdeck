@@ -54,7 +54,7 @@ function fakeStore() {
   ];
   type Actor = { userId: string | null; triggeredBy: string | null };
   const backups: ({ id: string; source: Actor } & Actor)[] = [
-    // Manual deploy by a Panel user.
+    // Manual deploy by a Menara user.
     {
       id: "k1",
       userId: null,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { autoRunActor, firstLine, runActorLabel } from "@/lib/deploy/run-actor";
 
 describe("runActorLabel", () => {
-  it("shows the Panel user first", () => {
+  it("shows the Menara user first", () => {
     expect(
       runActorLabel({
         userName: "Romi",
@@ -13,7 +13,7 @@ describe("runActorLabel", () => {
     ).toEqual({ kind: "user", name: "Romi" });
   });
 
-  it("shows the Panel user an auto run's actor resolves to", () => {
+  it("shows the Menara user an auto run's actor resolves to", () => {
     expect(
       runActorLabel({
         userName: null,
@@ -30,7 +30,7 @@ describe("runActorLabel", () => {
     });
   });
 
-  it("shows the commit email of an auto run with no matching Panel user", () => {
+  it("shows the commit email of an auto run with no matching Menara user", () => {
     expect(
       runActorLabel({ autoUserName: null, triggeredBy: "bob@x.test" })
     ).toEqual({ kind: "auto", by: "bob@x.test" });

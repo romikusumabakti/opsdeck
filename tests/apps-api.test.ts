@@ -955,7 +955,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     state.components = [existingComponent()];
   });
 
-  it("updates Woodpecker first, then the Panel, for an admin", async () => {
+  it("updates Woodpecker first, then Menara, for an admin", async () => {
     const res = await send("POST", PATH);
     expect(res.status).toBe(200);
     expect(state.calls).toEqual(["secret:1", "panel-secret"]);
@@ -968,7 +968,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     expect(await res.text()).not.toContain(secret);
   });
 
-  it("reports a Woodpecker failure and leaves the Panel secret", async () => {
+  it("reports a Woodpecker failure and leaves Menara secret", async () => {
     const before = at(state.components).notifySecret;
     provider.upsertRepoSecret.mockRejectedValue(
       new CiProviderError("Woodpecker GET failed with 500", 500)
@@ -982,7 +982,7 @@ describe("POST rotate-secret (Review Focus 5)", () => {
     expect(at(state.components).notifySecret).toBe(before);
   });
 
-  it("reports a Panel failure after Woodpecker succeeded", async () => {
+  it("reports a Menara failure after Woodpecker succeeded", async () => {
     state.secretWriteError = new Error("connection lost");
     const res = await send("POST", PATH);
     expect(res.status).toBe(500);

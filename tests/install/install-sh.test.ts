@@ -154,7 +154,7 @@ const OLD_ENV = [
   "# old stack",
   `POSTGRES_PASSWORD=${OLD_SECRETS.POSTGRES_PASSWORD}`,
   `DATABASE_URL=postgres://postgres:${encodeURIComponent(OLD_SECRETS.POSTGRES_PASSWORD)}@menara-postgres:5432/menara`,
-  "BETTER_AUTH_URL=https://panel.example.test",
+  "BETTER_AUTH_URL=https://app.example.test",
   `BETTER_AUTH_SECRET=${OLD_SECRETS.BETTER_AUTH_SECRET}`,
   `SECRETS_KEY=${OLD_SECRETS.SECRETS_KEY}`,
   "MICROSOFT_CLIENT_ID=ms-client-id-value",
@@ -169,7 +169,7 @@ const OLD_ENV = [
   `GARAGE_ADMIN_TOKEN=${OLD_SECRETS.GARAGE_ADMIN_TOKEN}`,
   `IMGPROXY_KEY=${OLD_SECRETS.IMGPROXY_KEY}`,
   `IMGPROXY_SALT=${OLD_SECRETS.IMGPROXY_SALT}`,
-  "SITE_ADDRESS=panel.example.test",
+  "SITE_ADDRESS=app.example.test",
   "",
 ].join("\n");
 
@@ -312,7 +312,7 @@ describe("install.sh --dry-run", () => {
       "--dir",
       ctx.dir,
       "--hostname",
-      "panel.example.test",
+      "app.example.test",
     ]);
     expect(r.status, r.all).toBe(0);
     inOrder(r.stdout, [
@@ -332,7 +332,7 @@ describe("install.sh --dry-run", () => {
       "==> Start",
       `docker compose -f ${ctx.dir}/compose.yaml pull`,
       `docker compose -f ${ctx.dir}/compose.yaml up -d --wait`,
-      "https://panel.example.test",
+      "https://app.example.test",
       "SECRETS_KEY",
     ]);
     // The keys written, never their values.
@@ -642,7 +642,7 @@ describe("install.sh --adopt --dry-run", () => {
       `docker compose -f ${ctx.dir}/compose.yaml run --rm migrate menara migrate --adopt`,
       "==> Start",
       `docker compose -f ${ctx.dir}/compose.yaml up -d --wait`,
-      "https://panel.example.test",
+      "https://app.example.test",
     ]);
     // No beta settings and no generated SECRETS_KEY in adopt mode.
     expect(r.stdout).not.toContain("update_channel");
@@ -740,7 +740,7 @@ describe("install.sh --adopt --dry-run", () => {
 describe("install.sh --restore --dry-run", () => {
   const KEY = Buffer.alloc(32, 9).toString("base64");
   const NAME = "2026-11-08T023000.000Z-a1b2c3-1.2.0";
-  const HOST = ["--hostname", "panel.example.test"];
+  const HOST = ["--hostname", "app.example.test"];
 
   it("installs the backup's version and restores the copied folder before up", () => {
     const ctx = setup();
@@ -767,7 +767,7 @@ describe("install.sh --restore --dry-run", () => {
       `run --rm --no-deps app menara restore local:menara/${NAME}/`,
       "==> Start",
       "up -d --wait",
-      "https://panel.example.test",
+      "https://app.example.test",
     ]);
     expect(r.all).not.toContain(KEY);
   });

@@ -270,7 +270,7 @@ const route = (hostname: string, service = "http://localhost:8091") => ({
 const live = () => ({
   "warp-routing": { enabled: false },
   ingress: [
-    { hostname: "panel.example.net", service: "http://localhost:8000" },
+    { hostname: "app.example.net", service: "http://localhost:8000" },
     {
       service: "http_status:404",
       originRequest: { noTLSVerify: true },
@@ -321,7 +321,7 @@ describe("tunnel_route", () => {
       tunnelRoute(ctx(ENV_B), route(HOST_B, "http://localhost:8092")),
     ]);
     expect(hostnames(cf.config)).toEqual([
-      "panel.example.net",
+      "app.example.net",
       HOST_A,
       HOST_B,
       "*",
@@ -366,7 +366,7 @@ describe("tunnel_route", () => {
     cf.records = [
       {
         ...foreign(),
-        name: "panel.example.net",
+        name: "app.example.net",
         type: "CNAME",
         content: `${CF_TUNNEL}.cfargotunnel.com`,
         proxied: true,
@@ -374,9 +374,9 @@ describe("tunnel_route", () => {
       },
     ];
     await expect(
-      tunnelRoute(ctx(), route("panel.example.net", "http://localhost:8000"))
+      tunnelRoute(ctx(), route("app.example.net", "http://localhost:8000"))
     ).rejects.toThrow(
-      `DNS record CNAME ${CF_TUNNEL}.cfargotunnel.com already exists for panel.example.net`
+      `DNS record CNAME ${CF_TUNNEL}.cfargotunnel.com already exists for app.example.net`
     );
     expect(cf.writes).toEqual([]);
     expect(cf.gets).toEqual([]);
@@ -384,9 +384,9 @@ describe("tunnel_route", () => {
 
   it("fails without a write when the hostname routes elsewhere", async () => {
     await expect(
-      tunnelRoute(ctx(), route("PANEL.example.net", "http://localhost:9"))
+      tunnelRoute(ctx(), route("APP.example.net", "http://localhost:9"))
     ).rejects.toThrow(
-      "PANEL.example.net already routes to http://localhost:8000"
+      "APP.example.net already routes to http://localhost:8000"
     );
     expect(cf.writes).toEqual([]);
   });
@@ -399,7 +399,7 @@ describe("tunnel_route", () => {
       {
         ingress: [
           {
-            hostname: "panel.example.net",
+            hostname: "app.example.net",
             service: "http://localhost:8000",
           },
         ],
@@ -422,7 +422,7 @@ describe("access_app", () => {
     policyId: "pol-1",
   };
 
-  it("creates a Panel-tagged app and stores its id", async () => {
+  it("creates a Menara-tagged app and stores its id", async () => {
     await accessApp(ctx(), params);
     expect(cf.apps).toEqual([
       {

@@ -46,7 +46,7 @@ const { PROVIDERS, strictBudgetFor } = await import(
 /** The strict-schema budgets of the provider that sets them. */
 const STRICT_BUDGET =
   PROVIDERS.map(strictBudgetFor).find((budget) => budget !== null) ?? null;
-const panelFor = (v: AssistantViewer) =>
+const dataFor = (v: AssistantViewer) =>
   createDataTurn(v, { projects: async () => [], cores: {} });
 
 const viewer: AssistantViewer = {
@@ -67,7 +67,7 @@ const ctx = {
   snaps: [],
   viewer,
   attachments: ticked,
-  data: panelFor(viewer),
+  data: dataFor(viewer),
   uploads: [],
   nativeFiles: true,
 };
@@ -97,14 +97,14 @@ const autoCtx = {
   mode: "auto" as const,
   viewer,
   attachments: ticked,
-  data: panelFor(viewer),
+  data: dataFor(viewer),
   uploads: [],
   nativeFiles: true,
   snapshotsFor,
   listProjects,
 };
-const adminCtx = { ...ctx, viewer: admin, data: panelFor(admin) };
-const adminAutoCtx = { ...autoCtx, viewer: admin, data: panelFor(admin) };
+const adminCtx = { ...ctx, viewer: admin, data: dataFor(admin) };
+const adminAutoCtx = { ...autoCtx, viewer: admin, data: dataFor(admin) };
 const STAGE2_TOOLS = [
   "list_files",
   "search_code",
@@ -114,7 +114,7 @@ const STAGE2_TOOLS = [
   "search_knowledge",
   "read_knowledge",
 ];
-const ALWAYS_PANEL_TOOLS = [
+const ALWAYS_DATA_TOOLS = [
   "list_environments",
   "get_environment_status",
   "get_service_logs",
@@ -172,14 +172,14 @@ const wireOf = async (tools: ReturnType<typeof buildTools>) =>
   );
 
 describe("buildTools", () => {
-  it("no tool description or error template names the Panel", () => {
+  it("no tool description or error template names Menara", () => {
     for (const mode of [adminCtx, adminAutoCtx]) {
       for (const [name, tool] of Object.entries(buildTools(mode, noRecord))) {
         expect(tool.description, name).not.toMatch(/\bPanel\b/);
       }
     }
-    expect(unknownProjectError("X", "auto")).not.toMatch(/Panel/);
-    expect(unknownProjectError("X", "pinned")).not.toMatch(/Panel/);
+    expect(unknownProjectError("X", "auto")).not.toMatch(/Menara/);
+    expect(unknownProjectError("X", "pinned")).not.toMatch(/Menara/);
   });
 
   it("offers list_issues and get_issue, not the old issue tools", () => {
@@ -262,7 +262,7 @@ describe("buildTools", () => {
   });
 
   it("sends the Stage 2 tool set and schemas in a pinned context", async () => {
-    // The Stage 2 tools come first and unchanged; the Panel tools follow.
+    // The Stage 2 tools come first and unchanged; Menara tools follow.
     const wire = await wireOf(buildTools(ctx, noRecord));
     expect(Object.keys(wire).slice(0, STAGE2_TOOLS.length)).toEqual(
       STAGE2_TOOLS
@@ -270,8 +270,8 @@ describe("buildTools", () => {
     expect(pick(wire, STAGE2_TOOLS)).toMatchSnapshot();
   });
 
-  it("offers the Panel tools in both modes, gated ones by the page's org permission", () => {
-    const panelNames = (c: Parameters<typeof buildTools>[0]) =>
+  it("offers Menara tools in both modes, gated ones by the page's org permission", () => {
+    const dataToolNames = (c: Parameters<typeof buildTools>[0]) =>
       Object.keys(buildTools(c, noRecord)).filter((n) =>
         (DATA_TOOL_NAMES as string[]).includes(n)
       );
@@ -280,22 +280,22 @@ describe("buildTools", () => {
       for (const role of ["qa", "ba", "pm"] as const) {
         const v = viewerAs(role);
         expect(
-          panelNames({ ...mode, viewer: v, data: panelFor(v) }),
+          dataToolNames({ ...mode, viewer: v, data: dataFor(v) }),
           role
-        ).toEqual(ALWAYS_PANEL_TOOLS);
+        ).toEqual(ALWAYS_DATA_TOOLS);
       }
       // engineer: the Servers page (engineer grant), no Activity page.
       const engineer = viewerAs("engineer");
       expect(
-        panelNames({ ...mode, viewer: engineer, data: panelFor(engineer) })
-      ).toEqual([...ALWAYS_PANEL_TOOLS, "list_servers", "get_server"]);
+        dataToolNames({ ...mode, viewer: engineer, data: dataFor(engineer) })
+      ).toEqual([...ALWAYS_DATA_TOOLS, "list_servers", "get_server"]);
       for (const role of ["admin", "infra", "observer"] as const) {
         const v = viewerAs(role);
         expect(
-          panelNames({ ...mode, viewer: v, data: panelFor(v) }),
+          dataToolNames({ ...mode, viewer: v, data: dataFor(v) }),
           role
         ).toEqual([
-          ...ALWAYS_PANEL_TOOLS,
+          ...ALWAYS_DATA_TOOLS,
           "list_servers",
           "get_server",
           "recent_activity",
@@ -308,7 +308,7 @@ describe("buildTools", () => {
     for (const role of ["qa", "engineer", "admin"] as const) {
       const v = viewerAs(role);
       const tools = buildTools(
-        { ...autoCtx, viewer: v, data: panelFor(v) },
+        { ...autoCtx, viewer: v, data: dataFor(v) },
         noRecord,
         { strictBudget: STRICT_BUDGET }
       );
@@ -319,7 +319,7 @@ describe("buildTools", () => {
     }
   });
 
-  it("refuses a gated Panel tool the viewer is not offered, without running it", async () => {
+  it("refuses a gated Menara tool the viewer is not offered, without running it", async () => {
     for (const [name, input] of [
       ["list_servers", {}],
       ["get_server", { server: "web-1" }],
@@ -343,7 +343,7 @@ describe("buildTools", () => {
     expect(Object.keys(pinned)).toEqual([
       ...STAGE2_TOOLS,
       "read_upload",
-      ...ALWAYS_PANEL_TOOLS,
+      ...ALWAYS_DATA_TOOLS,
     ]);
     // Explicit: strict tools need the empty required list.
     expect(auto.list_projects?.schema).toEqual({
@@ -377,11 +377,11 @@ describe("buildTools", () => {
     }
   });
 
-  it("defines the seven Stage 2 tools in order, then read_upload and the Panel tools", () => {
+  it("defines the seven Stage 2 tools in order, then read_upload and Menara tools", () => {
     expect(Object.keys(buildTools(ctx, noRecord))).toEqual([
       ...STAGE2_TOOLS,
       "read_upload",
-      ...ALWAYS_PANEL_TOOLS,
+      ...ALWAYS_DATA_TOOLS,
     ]);
     expect(TOOL_NAMES).toEqual(STAGE2_TOOLS);
   });
@@ -781,7 +781,7 @@ describe("capabilityGaps", () => {
         projectIds: role === "staff" ? [] : ["p"],
       };
       const tools = Object.keys(
-        buildTools({ ...ctx, viewer: v, data: panelFor(v) }, async () => {})
+        buildTools({ ...ctx, viewer: v, data: dataFor(v) }, async () => {})
       );
       const expected = [
         ...(role === "staff" ? ["projects"] : []),

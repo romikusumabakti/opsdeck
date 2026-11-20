@@ -27,7 +27,7 @@ export function hasReservedPrefix(name: string): boolean {
  * {@link RESERVED_NAME_PREFIXES}: `COMPOSE_PROFILES` only selects which
  * services of the project run, so it is stored and rendered like any other
  * variable (live `.env` files set it; dropping it would stop profile services
- * from deploying). `COMPOSE_FILE` and the rest stay Panel-owned. Tag variable
+ * from deploying). `COMPOSE_FILE` and the rest stay Menara-owned. Tag variable
  * names keep the strict {@link hasReservedPrefix}: a tag written as
  * `COMPOSE_PROFILES=<tag>` would disable the profiled services.
  */
@@ -35,7 +35,7 @@ export const RESERVED_PREFIX_EXEMPT_NAMES: readonly string[] = [
   "COMPOSE_PROFILES",
 ];
 
-/** A stored or template variable name the Panel refuses for its prefix. */
+/** A stored or template variable name Menara refuses for its prefix. */
 export function isReservedVariableName(name: string): boolean {
   return (
     !RESERVED_PREFIX_EXEMPT_NAMES.includes(name) && hasReservedPrefix(name)

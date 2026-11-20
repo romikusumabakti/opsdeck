@@ -402,7 +402,7 @@ export async function archiveDatabase(
     container = service.serviceName;
     user = "postgres";
   } else {
-    // A systemd or Kubernetes database: the Panel has no dump path for it.
+    // A systemd or Kubernetes database: Menara has no dump path for it.
     throw new StepFailed("databaseBackupUnsupported");
   }
 
