@@ -66,18 +66,37 @@ export function privilegedViaStdin(
 }
 
 /**
- * As privileged(), for a command that reads `stdin` itself (SQL that holds a
- * secret, say): nothing of it goes into the command string. In
- * sudo-password mode `sudo -S -p ''` reads the password as the first stdin
- * line, then the command gets the rest. Pass the result's `stdin` to
- * executeRemoteCommand and the secrets in its `secrets`.
+ * The line privilegedWithStdin puts right before the payload. Fixed, and
+ * no generated password could be it.
+ */
+export const STDIN_PAYLOAD_MARKER =
+  "--menara-stdin-payload-7f3c9a2e-4b1d-4e8a-9c6f-0d5e2b8a1c47--";
+
+/**
+ * `inner` (a shell script reading its input from stdin) run as root, or as
+ * `runAsUser`, in `bash -c`, fed `stdin` without putting any of it in the
+ * command string (SQL that holds a secret, say).
+ *
+ * stdin is `[sudo password line]`, then STDIN_PAYLOAD_MARKER, then `stdin`.
+ * The shell drops every line up to and including the marker before `inner`
+ * runs, so it never matters whether sudo read its password line: a NOPASSWD
+ * rule or a cached timestamp leaves it unread, and it must never reach
+ * `inner` (psql would log it in a failed statement). The marker is sent in
+ * every mode. Without one, `inner` never runs and the command fails. bash's
+ * `read` takes one byte at a time from a pipe, so the payload stays whole.
+ * Pass `secrets` to executeRemoteCommand as usual.
  */
 export function privilegedWithStdin(
-  cmd: string,
+  inner: string,
   server: PrivilegedServer,
   opts: { runAsUser?: string; stdin: string }
 ): { command: string; stdin: string } {
-  const { runAsUser, stdin } = opts;
+  const { runAsUser } = opts;
+  const script =
+    `while IFS= read -r l; do if [ "$l" = ${shq(STDIN_PAYLOAD_MARKER)} ]; then ${inner}\n exit; fi; done; ` +
+    `echo 'stdin payload marker missing' >&2; exit 1`;
+  const cmd = `bash -c ${shq(script)}`;
+  const stdin = `${STDIN_PAYLOAD_MARKER}\n${opts.stdin}`;
   if (privilegeMode(server) === "sudo-password") {
     const sudoUser = runAsUser ? `-u ${shq(runAsUser)} ` : "";
     return {

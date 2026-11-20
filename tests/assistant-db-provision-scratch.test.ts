@@ -8,6 +8,7 @@ import {
   pgEnableAssistantDbSql,
 } from "@/lib/assistant-db/provision";
 import { scramSha256Verifier } from "@/lib/assistant-db/scram";
+import { privilegedWithStdin } from "@/lib/privileged";
 
 // The Assistant's read-only Postgres role on a real cluster (Stage 9 spec
 // F.2, Review Focus 2): two databases on one host, like a shared database
@@ -395,18 +396,38 @@ describe.skipIf(!enabled)("assistant read-only role on Postgres", () => {
     // Plaintext only here and on stdin; Postgres gets the verifier alone.
     const password = "Fictional1Scratch2Password3abcde";
     const verifier = await scramSha256Verifier(password);
-    const admin = await run(
-      ["exec", "-i", CONTAINER, "bash", "-c", pgAssistantDbAdminPsql(DB_A)],
-      pgEnableAssistantDbSql({
-        database: DB_A,
-        role: RO_A,
-        environmentId: ENV_A,
-        appRoles: [APP_A],
-        adopt: true,
-        passwordVerifier: verifier,
-      })
+    // The production admin command (root mode: runuser to postgres) through
+    // the stdin marker, with a sudo password line nobody read ahead of it,
+    // as when sudo needs none (NOPASSWD, cached timestamp).
+    const sql = pgEnableAssistantDbSql({
+      database: DB_A,
+      role: RO_A,
+      environmentId: ENV_A,
+      appRoles: [APP_A],
+      adopt: true,
+      passwordVerifier: verifier,
+    });
+    const viaRoot = privilegedWithStdin(
+      pgAssistantDbAdminPsql(DB_A),
+      { username: "root", auth: "key", password: null },
+      { runAsUser: "postgres", stdin: sql }
     );
-    expect(admin).toMatchObject({ code: 0 });
+    expect(viaRoot.command).toMatch(/^runuser -u 'postgres' -- bash -c /);
+    const adminRun = (stdin: string) =>
+      run(["exec", "-i", CONTAINER, "bash", "-c", viaRoot.command], stdin);
+    // No marker: psql never runs, so nothing reaches the server or its log.
+    const missing = await adminRun(`unread-Sudo-Pw-1\n${sql}`);
+    expect(missing.code).not.toBe(0);
+    expect(missing.stderr).toContain("stdin payload marker missing");
+    expect(
+      (
+        await superuser(
+          `SELECT rolpassword IS NULL FROM pg_authid WHERE rolname = '${RO_A}'`
+        )
+      ).stdout
+    ).toBe("t");
+    const admin = await adminRun(`unread-Sudo-Pw-1\n${viaRoot.stdin}`);
+    expect(admin).toMatchObject({ code: 0, stderr: "" });
     // Stored as given, not hashed again.
     expect(
       (

@@ -836,7 +836,7 @@ async function enableSystemdPg(
     passwordVerifier: verifier,
   });
   const admin = privilegedWithStdin(
-    `bash -c ${shq(pgAssistantDbAdminPsql(service.dbName))}`,
+    pgAssistantDbAdminPsql(service.dbName),
     service.server,
     { runAsUser: "postgres", stdin: sql }
   );
@@ -858,6 +858,8 @@ async function enableSystemdPg(
       `${password}\n`
     );
   } catch (error) {
+    // Deliberate: an adopted role given a fresh password here keeps it,
+    // unstored; the next enable sets a new one.
     if (!adopt) await opts.dropAgain();
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(

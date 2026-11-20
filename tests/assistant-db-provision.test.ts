@@ -37,6 +37,7 @@ const {
   pgDisableAssistantDbSql,
   pgEnableAssistantDbSql,
 } = await import("@/lib/assistant-db/provision");
+const { STDIN_PAYLOAD_MARKER } = await import("@/lib/privileged");
 const { assistantDbUnavailableReason } = await import(
   "@/lib/assistant-db/availability"
 );
@@ -674,9 +675,17 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
         expect(call.command).not.toContain(STORED);
         expect(call.command).not.toContain("SCRAM-SHA-256");
       }
-      expect(admin?.command).toBe(
-        "sudo -n -u 'postgres' bash -c 'psql -X -q -1 -v ON_ERROR_STOP=on -U postgres -d '\\''kestrel_qa'\\'''"
+      // psql runs only after the marker line, whatever came before it.
+      expect(admin?.command).toMatch(
+        /^sudo -n -u 'postgres' bash -c 'while IFS= read -r l; do if \[ "\$l" = /
       );
+      expect(admin?.command).toContain(STDIN_PAYLOAD_MARKER);
+      expect(admin?.command).toContain(
+        "psql -X -q -1 -v ON_ERROR_STOP=on -U postgres -d "
+      );
+      expect(admin?.command).toContain("kestrel_qa");
+      expect(admin?.command).toContain("stdin payload marker missing");
+      expect(admin?.stdin?.startsWith(`${STDIN_PAYLOAD_MARKER}\n`)).toBe(true);
       expect(admin?.stdin).toMatch(
         /PASSWORD 'SCRAM-SHA-256\$4096:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+'/
       );
@@ -723,7 +732,14 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
       expect(admin?.command).toContain("sudo -S -p ''");
       expect(admin?.command).toContain("-u 'postgres'");
       expect(admin?.command).not.toContain(sudoPassword);
-      expect(admin?.stdin?.startsWith(`${sudoPassword}\n`)).toBe(true);
+      // sudo password, then the marker, then the SQL: a sudo that reads
+      // nothing (NOPASSWD, cached timestamp) can't hand the password to psql.
+      expect(
+        admin?.stdin?.startsWith(
+          `${sudoPassword}\n${STDIN_PAYLOAD_MARKER}\nSET search_path`
+        )
+      ).toBe(true);
+      expect(admin?.command).toContain(STDIN_PAYLOAD_MARKER);
       expect(admin?.stdin).toContain("SCRAM-SHA-256$4096:");
       expect(check?.command).not.toContain(sudoPassword);
       expect(check?.command).not.toMatch(/sudo/);

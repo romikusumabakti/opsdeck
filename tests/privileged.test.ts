@@ -1,10 +1,13 @@
+import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   privileged,
   privilegedViaStdin,
   privilegedWithStdin,
   privilegeMode,
+  STDIN_PAYLOAD_MARKER,
 } from "@/lib/privileged";
+import { shq } from "@/lib/sh";
 
 const root = { username: "root", auth: "key", password: null } as const;
 const rootWithPassword = {
@@ -155,39 +158,68 @@ describe("privilegedViaStdin", () => {
 
 describe("privilegedWithStdin", () => {
   const sql = "SELECT 'fictional secret';\n";
-  it("root: runuser, stdin as given", () => {
+  const M = STDIN_PAYLOAD_MARKER;
+  // The script privilegedWithStdin wraps `inner` in, as one shell word.
+  const wrapped = (inner: string) =>
+    `bash -c ${shq(
+      `while IFS= read -r l; do if [ "$l" = ${shq(M)} ]; then ${inner}\n exit; fi; done; echo 'stdin payload marker missing' >&2; exit 1`
+    )}`;
+
+  it("root: runuser, the marker first on stdin", () => {
     expect(
-      privilegedWithStdin("bash -c 'psql'", root, {
+      privilegedWithStdin("psql", root, { runAsUser: "postgres", stdin: sql })
+    ).toEqual({
+      command: `runuser -u 'postgres' -- ${wrapped("psql")}`,
+      stdin: `${M}\n${sql}`,
+    });
+  });
+
+  it("sudo-nopasswd: sudo -n, the marker first on stdin", () => {
+    expect(
+      privilegedWithStdin("psql", keyUser, {
         runAsUser: "postgres",
         stdin: sql,
       })
     ).toEqual({
-      command: "runuser -u 'postgres' -- bash -c 'psql'",
-      stdin: sql,
+      command: `sudo -n -u 'postgres' ${wrapped("psql")}`,
+      stdin: `${M}\n${sql}`,
     });
   });
 
-  it("sudo-nopasswd: sudo -n, stdin as given", () => {
-    expect(
-      privilegedWithStdin("bash -c 'psql'", keyUser, {
-        runAsUser: "postgres",
-        stdin: sql,
-      })
-    ).toEqual({ command: "sudo -n -u 'postgres' bash -c 'psql'", stdin: sql });
-  });
-
-  it("sudo-password: the password is the first stdin line, never in the command", () => {
-    const result = privilegedWithStdin("bash -c 'psql'", passwordUser, {
+  it("sudo-password: the password line, then the marker, then the payload; none of it in the command", () => {
+    const result = privilegedWithStdin("psql", passwordUser, {
       runAsUser: "postgres",
       stdin: sql,
     });
     expect(result).toEqual({
-      command: "sudo -S -p '' -u 'postgres' bash -c 'psql'",
-      stdin: `${passwordUser.password}\n${sql}`,
+      command: `sudo -S -p '' -u 'postgres' ${wrapped("psql")}`,
+      stdin: `${passwordUser.password}\n${M}\n${sql}`,
     });
     expect(result.command).not.toContain(passwordUser.password);
-    expect(privilegedWithStdin("id", passwordUser, { stdin: "" }).command).toBe(
-      "sudo -S -p '' id"
-    );
+    expect(result.command).not.toContain("fictional secret");
+    expect(
+      privilegedWithStdin("cat", passwordUser, { stdin: "" }).command
+    ).toBe(`sudo -S -p '' ${wrapped("cat")}`);
+  });
+
+  it("the inner command gets exactly the payload, whether or not sudo read its line", () => {
+    // Root mode: the command is the bare wrapped script, runnable here.
+    const { command, stdin } = privilegedWithStdin("cat", root, {
+      stdin: `${sql}line two\n`,
+    });
+    const sh = (input: string) =>
+      spawnSync("bash", ["-c", command], { input, encoding: "utf8" });
+    // As sent (nothing ahead of the marker).
+    expect(sh(stdin)).toMatchObject({ status: 0, stdout: `${sql}line two\n` });
+    // A sudo password sudo left unread (NOPASSWD, cached timestamp): dropped.
+    expect(sh(`${passwordUser.password}\n${stdin}`)).toMatchObject({
+      status: 0,
+      stdout: `${sql}line two\n`,
+    });
+    // No marker: the inner command never runs.
+    const missing = sh(`${passwordUser.password}\n${sql}`);
+    expect(missing.status).toBe(1);
+    expect(missing.stdout).toBe("");
+    expect(missing.stderr).toContain("stdin payload marker missing");
   });
 });
