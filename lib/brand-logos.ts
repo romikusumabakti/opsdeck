@@ -1,13 +1,12 @@
 import { ACCENT_PALETTE } from "@/lib/accent-palette";
 import type { AccentColor } from "@/lib/accents";
-import type { BrandName } from "@/lib/brands";
 
 /**
- * Logo shapes per brand (BRAND). Every logo is the same four-tile grid — top-
- * left, top-right, bottom-left, and the bottom-right "status" tile that
- * animates while runs are active — so the motion in web/styles.css works for all
- * of them and only the shape differs. Colour comes from the user's accent:
- * --logo / --logo-status in the app, ACCENT_PALETTE for the favicon.
+ * The built-in Menara mark, shown while the instance has no uploaded logo: a
+ * four-tile dashboard grid — top-left, top-right, bottom-left, and the
+ * bottom-right "status" tile that animates while runs are active (motion in
+ * web/styles.css). Colour comes from the accent: --logo / --logo-status in the
+ * app, ACCENT_PALETTE for the favicon.
  *
  * Geometry is drawn twice, each on a whole-pixel grid for the sizes it is shown
  * at, so no edge lands on half a pixel and blurs:
@@ -17,8 +16,6 @@ import type { BrandName } from "@/lib/brands";
 
 type Tiles = { tl: string; tr: string; bl: string; br: string };
 type Colors = { fg: string; status: string };
-
-type LogoDef = { tiles: (unit: Grid) => Tiles };
 
 type Grid = { tile: number; gap: number; radius: number };
 
@@ -46,31 +43,21 @@ function tilePath(
   ].join("");
 }
 
-/** Four tiles; `outer` sets the radius of each tile's outermost corner. */
-function grid(
-  { tile: s, gap, radius: r }: Grid,
-  outer: { tr: number; br: number }
-): Tiles {
+/** Four tiles with the same corner radius. */
+function grid({ tile: s, gap, radius: r }: Grid): Tiles {
   const far = s + gap;
+  const corners: [number, number, number, number] = [r, r, r, r];
   return {
-    tl: tilePath(0, 0, s, [r, r, r, r]),
-    tr: tilePath(far, 0, s, [r, outer.tr, r, r]),
-    bl: tilePath(0, far, s, [r, r, r, r]),
-    br: tilePath(far, far, s, [r, r, outer.br, r]),
+    tl: tilePath(0, 0, s, corners),
+    tr: tilePath(far, 0, s, corners),
+    bl: tilePath(0, far, s, corners),
+    br: tilePath(far, far, s, corners),
   };
 }
 
-export const BRAND_LOGO_DEFS: Record<BrandName, LogoDef> = {
-  // Neutral product mark: a plain dashboard grid.
-  default: { tiles: (g) => grid(g, { tr: g.radius, br: g.radius }) },
-  // Acme brand: the right-hand tiles round their outer corners into a "D".
-  acme: {
-    tiles: (g) => grid(g, { tr: g.tile - g.radius, br: g.tile - g.radius }),
-  },
-};
-
-export function logoTiles(logo: BrandName): Tiles {
-  return BRAND_LOGO_DEFS[logo].tiles(GRID_24);
+/** The in-app mark's tiles, on the 24-unit grid. */
+export function logoTiles(): Tiles {
+  return grid(GRID_24);
 }
 
 const NEUTRAL_ICON: { light: Colors; dark: Colors } = {
@@ -88,8 +75,8 @@ function iconColors(accent: AccentColor): { light: Colors; dark: Colors } {
 }
 
 /** The favicon: static, on the 16-unit grid, coloured by the browser scheme. */
-export function renderBrandIcon(logo: BrandName, accent: AccentColor): string {
-  const t = BRAND_LOGO_DEFS[logo].tiles(GRID_16);
+export function renderBrandIcon(accent: AccentColor): string {
+  const t = grid(GRID_16);
   const icon = iconColors(accent);
   const size = GRID_16.tile * 2 + GRID_16.gap;
   return [

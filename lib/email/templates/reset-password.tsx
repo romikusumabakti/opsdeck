@@ -10,15 +10,17 @@ import {
   Section,
   Text,
 } from "react-email";
-import { APP_NAME } from "@/lib/branding";
 
 export interface ResetPasswordEmailProps {
+  /** The instance name (Admin › Instance › Branding). */
+  appName: string;
   recipientName: string;
   resetUrl: string;
   expiresInMinutes: number;
 }
 
 export function ResetPasswordEmail({
+  appName,
   recipientName,
   resetUrl,
   expiresInMinutes,
@@ -26,10 +28,10 @@ export function ResetPasswordEmail({
   return (
     <Html>
       <Head />
-      <Preview>Reset kata sandi {APP_NAME}</Preview>
+      <Preview>Reset kata sandi {appName}</Preview>
       <Body style={body}>
         <Container style={container}>
-          <Heading style={heading}>{APP_NAME}</Heading>
+          <Heading style={heading}>{appName}</Heading>
           <Text style={paragraph}>Halo {recipientName},</Text>
           <Text style={paragraph}>
             Kami menerima permintaan untuk mereset kata sandi akun Anda. Klik

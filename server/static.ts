@@ -2,8 +2,11 @@ import { join } from "node:path";
 import type { Context, Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import type { MiddlewareHandler } from "hono/types";
-import { defaultAccent } from "@/lib/accents";
-import { APP_NAME, brand } from "@/lib/branding";
+import {
+  brandIcon,
+  getBranding,
+  type InstanceBranding,
+} from "@/lib/instance-branding";
 import { resolveRedirect } from "@/lib/redirects";
 import type { AppEnv } from "@/server/context";
 import { preferredLocale } from "@/server/middleware/locale";
@@ -50,19 +53,22 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * index.html with this deployment's branding filled in: the runtime APP_NAME
- * as the <title>, and `data-brand` / `data-accent` (the brand's default) on
- * <html>. The build can't know them (lib/branding.ts reads the environment at
- * runtime), and the SPA only applies them once /api/bootstrap answers, so
- * without this the first paint shows the generic title and palette.
+ * index.html with the instance branding filled in: the instance name as the
+ * <title>, the instance accent as `data-accent` on <html>, and the favicon
+ * (an uploaded logo's, or the built-in mark). The build can't know them (an
+ * admin sets them at runtime), and the SPA only applies them once
+ * /api/bootstrap answers, so without this the first paint shows the generic
+ * title, palette and icon.
  */
-export function brandShell(html: string): string {
-  const logo = brand();
+export function brandShell(html: string, b: InstanceBranding): string {
+  const icon = brandIcon(b);
   return html
-    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(APP_NAME)}</title>`)
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(b.name)}</title>`)
+    .replace(/<html\b/, `<html data-accent="${escapeHtml(b.accent)}"`)
     .replace(
-      /<html\b/,
-      `<html data-brand="${escapeHtml(logo)}" data-accent="${escapeHtml(defaultAccent(logo))}"`
+      /<link rel="icon"[^>]*?(\s*\/?>)/,
+      (_, end: string) =>
+        `<link rel="icon" href="${escapeHtml(icon.src)}" type="${icon.type}"${end}`
     );
 }
 
@@ -80,18 +86,20 @@ export function mountStatic(
 
   if (process.env.NODE_ENV !== "production") return;
 
-  // Read once: a deploy replaces the process along with the build.
+  // Read once: a deploy replaces the process along with the build. Branded
+  // per request, since an admin can change the branding at any time
+  // (getBranding caches it).
   let shell: Promise<string> | undefined;
   const serveShell = async (c: Context<AppEnv>) => {
     shell ??= Bun.file(join(clientDir, "index.html"))
       .text()
-      .then(brandShell)
       .catch((error: unknown) => {
         shell = undefined;
         throw error;
       });
+    const [html, branding] = await Promise.all([shell, getBranding()]);
     c.header("Cache-Control", "no-cache");
-    return c.body(await shell, 200, {
+    return c.body(brandShell(html, branding), 200, {
       "Content-Type": "text/html; charset=utf-8",
     });
   };

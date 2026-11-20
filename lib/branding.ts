@@ -1,41 +1,28 @@
 /**
- * Whitelabel branding configuration.
+ * Deployment configuration that is not instance branding: the sign-in email
+ * domain (ALLOWED_EMAIL_DOMAIN), read from the server env at runtime. The
+ * instance name, company, logo and accent live in Admin › Instance › Branding
+ * (lib/instance-branding.ts).
  *
- * All deployment-specific identity (app name, company name, email domain)
- * lives here so the codebase stays generic. Values are read by the server at
- * runtime (APP_NAME, COMPANY_NAME, ALLOWED_EMAIL_DOMAIN), never inlined at
- * build time: the Docker build sees no deployment env, so a build-time value
- * would always be the default.
- *
- * The fallback defaults are intentionally generic — set the env vars for
- * any real deployment.
- *
- * Server-only: these read `process.env` at module load. Client code takes the
- * same values from `/api/bootstrap`, and the env-free parts from lib/brands.
+ * Server-only: this reads `process.env` at module load. Client code takes the
+ * same values from `/api/bootstrap`.
  */
-
-import { BRANDS, type BrandName } from "@/lib/brands";
-
-export { BRAND_ICON_SRC, BRANDS, type BrandName } from "@/lib/brands";
-
-export const APP_NAME = process.env.APP_NAME || "Menara";
-
-export const COMPANY_NAME = process.env.COMPANY_NAME || "the company";
 
 export const ALLOWED_EMAIL_DOMAIN =
   process.env.ALLOWED_EMAIL_DOMAIN || "example.com";
 
 /**
- * This deployment's brand (BRAND). Server-only and read per call; the server
- * reads it and passes it down. An unknown value falls back to the default
- * brand; lib/env.ts warns about it once at boot.
+ * The From address when EMAIL_FROM is unset: `<name> <no-reply@domain>`. The
+ * name is admin input, so anything beyond letters, digits, spaces and hyphens
+ * is sent as an RFC 5322 quoted string, and line breaks are dropped.
  */
-export function brand(): BrandName {
-  const value = process.env.BRAND;
-  return BRANDS.find((logo) => logo === value) ?? "default";
+export function defaultEmailFrom(name: string): string {
+  const flat = name.replace(/[\r\n]+/g, " ").trim();
+  const display = /^[\p{L}\p{N} -]*$/u.test(flat)
+    ? flat
+    : `"${flat.replace(/["\\]/g, "\\$&")}"`;
+  return `${display} <no-reply@${ALLOWED_EMAIL_DOMAIN}>`;
 }
-
-export const DEFAULT_EMAIL_FROM = `${APP_NAME} <no-reply@${ALLOWED_EMAIL_DOMAIN}>`;
 
 export function isAllowedEmail(email: string): boolean {
   return email.toLowerCase().trim().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);

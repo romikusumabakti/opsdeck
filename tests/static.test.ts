@@ -1,25 +1,31 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
-import { defaultAccent } from "@/lib/accents";
-import { APP_NAME, brand } from "@/lib/branding";
-import { createBaseApp } from "@/server/app";
-import { mountStatic } from "@/server/static";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import type { InstanceBranding } from "@/lib/instance-branding";
+
+const DEFAULT_BRANDING: InstanceBranding = {
+  name: "Menara",
+  company: null,
+  accent: "neutral",
+  logo: null,
+  logoDark: null,
+  version: "0",
+};
+
+vi.mock("@/lib/instance-branding", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/instance-branding")>()),
+  getBranding: vi.fn(async () => DEFAULT_BRANDING),
+}));
+
+const { createBaseApp } = await import("@/server/app");
+const { brandShell, mountStatic } = await import("@/server/static");
 
 const INDEX_HTML =
-  '<!doctype html><html lang="en"><head><title>Menara</title></head><div id="root"></div></html>';
-// INDEX_HTML as served with this process's branding (Menara, default brand,
-// neutral accent unless APP_NAME/BRAND are set).
-const BRANDED_HTML = `<!doctype html><html data-brand="${brand()}" data-accent="${defaultAccent(brand())}" lang="en"><head><title>${APP_NAME}</title></head><div id="root"></div></html>`;
+  '<!doctype html><html lang="en"><head><link rel="icon" href="/brand/icon.svg" type="image/svg+xml" /><title>Menara</title></head><div id="root"></div></html>';
+// INDEX_HTML as served with the default branding.
+const BRANDED_HTML =
+  '<!doctype html><html data-accent="neutral" lang="en"><head><link rel="icon" href="/brand/icon.svg" type="image/svg+xml" /><title>Menara</title></head><div id="root"></div></html>';
 
 let dir: string;
 let clientDir: string;
@@ -176,33 +182,37 @@ describe("static serving outside production", () => {
 });
 
 describe("brandShell", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
+  const branding = (over: Partial<InstanceBranding>): InstanceBranding => ({
+    ...DEFAULT_BRANDING,
+    ...over,
   });
 
-  // APP_NAME is read when lib/branding loads, so load a fresh copy.
-  async function freshBrandShell(env: Record<string, string>) {
-    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
-    vi.resetModules();
-    return (await import("@/server/static")).brandShell;
-  }
-
-  it("puts the runtime app name, brand and its accent into the shell", async () => {
-    const brandShell = await freshBrandShell({
-      APP_NAME: "Acme Ops",
-      BRAND: "acme",
-    });
-    expect(brandShell(INDEX_HTML)).toBe(
-      '<!doctype html><html data-brand="acme" data-accent="blue" lang="en"><head><title>Acme Ops</title></head><div id="root"></div></html>'
+  it("puts the instance name, accent and favicon into the shell", () => {
+    expect(
+      brandShell(INDEX_HTML, branding({ name: "Acme Ops", accent: "blue" }))
+    ).toBe(
+      '<!doctype html><html data-accent="blue" lang="en"><head><link rel="icon" href="/brand/icon.svg" type="image/svg+xml" /><title>Acme Ops</title></head><div id="root"></div></html>'
     );
   });
 
-  it("HTML-escapes the app name", async () => {
-    const brandShell = await freshBrandShell({
-      APP_NAME: '</title><script>alert("x")</script>&',
-    });
-    expect(brandShell(INDEX_HTML)).toContain(
+  it("links a stored SVG logo as the favicon, versioned", () => {
+    expect(
+      brandShell(
+        INDEX_HTML,
+        branding({ logo: { type: "image/svg+xml" }, version: "kx1" })
+      )
+    ).toContain(
+      '<link rel="icon" href="/brand/icon.svg?v=kx1" type="image/svg+xml" />'
+    );
+  });
+
+  it("HTML-escapes the app name", () => {
+    expect(
+      brandShell(
+        INDEX_HTML,
+        branding({ name: '</title><script>alert("x")</script>&' })
+      )
+    ).toContain(
       "<title>&lt;/title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;</title>"
     );
   });

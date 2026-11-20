@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { bootstrapQuery, meQuery, resetSession } from "@/web/api/session";
 import { createQueryClient } from "@/web/query-client";
 
-const bootstrap = { appName: "Panel", brand: "default" };
+const bootstrap = { appName: "Panel", accent: "neutral" };
 const oldUser = {
   user: { id: "u1" },
   orgRole: "engineer",

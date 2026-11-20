@@ -1,5 +1,9 @@
 import { isRtlLocale, type Locale } from "@/i18n/locales";
-import { type AccentColor, brandIconSrc } from "@/lib/accents";
+import {
+  type AccentColor,
+  type BootstrapIcon,
+  brandIconSrc,
+} from "@/lib/accents";
 
 /**
  * Point <html> at the locale being read: `lang` for screen readers and
@@ -14,14 +18,19 @@ export function applyDocumentLocale(locale: Locale): void {
 
 /**
  * Paint the page and the favicon in `accent`: `data-accent` on <html> selects
- * the palette in web/styles.css, and the icon is rendered per accent by
- * server/routes/brand.ts.
+ * the palette in web/styles.css. `icon` is the instance favicon from
+ * /api/bootstrap: the built-in mark is rendered per accent by
+ * server/routes/brand.ts; an uploaded logo is shown as uploaded.
  */
-export function applyDocumentAccent(accent: AccentColor): void {
+export function applyDocumentAccent(
+  accent: AccentColor,
+  icon: BootstrapIcon
+): void {
   document.documentElement.dataset.accent = accent;
   for (const link of document.querySelectorAll<HTMLLinkElement>(
     'link[rel="icon"]'
   )) {
-    link.href = brandIconSrc(accent);
+    link.href = brandIconSrc(icon, accent);
+    link.type = icon.type;
   }
 }

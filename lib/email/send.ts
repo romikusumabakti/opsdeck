@@ -1,6 +1,6 @@
 import { render } from "react-email";
-import { APP_NAME } from "../branding";
-import { getFromAddress, getResend } from "./client";
+import { getBranding } from "../instance-branding";
+import { emailFrom, getResend } from "./client";
 import {
   InvitationEmail,
   type InvitationEmailProps,
@@ -12,16 +12,18 @@ import {
 
 export async function sendInvitationEmail(
   to: string,
-  props: InvitationEmailProps
+  props: Omit<InvitationEmailProps, "appName">
 ) {
   const resend = getResend();
-  const html = await render(InvitationEmail(props));
-  const text = await render(InvitationEmail(props), { plainText: true });
+  const { name: appName } = await getBranding();
+  const email = InvitationEmail({ ...props, appName });
+  const html = await render(email);
+  const text = await render(email, { plainText: true });
 
   const { error } = await resend.emails.send({
-    from: getFromAddress(),
+    from: await emailFrom(),
     to,
-    subject: `Undangan ke ${APP_NAME}`,
+    subject: `Undangan ke ${appName}`,
     html,
     text,
   });
@@ -33,16 +35,18 @@ export async function sendInvitationEmail(
 
 export async function sendResetPasswordEmail(
   to: string,
-  props: ResetPasswordEmailProps
+  props: Omit<ResetPasswordEmailProps, "appName">
 ) {
   const resend = getResend();
-  const html = await render(ResetPasswordEmail(props));
-  const text = await render(ResetPasswordEmail(props), { plainText: true });
+  const { name: appName } = await getBranding();
+  const email = ResetPasswordEmail({ ...props, appName });
+  const html = await render(email);
+  const text = await render(email, { plainText: true });
 
   const { error } = await resend.emails.send({
-    from: getFromAddress(),
+    from: await emailFrom(),
     to,
-    subject: `Reset kata sandi ${APP_NAME}`,
+    subject: `Reset kata sandi ${appName}`,
     html,
     text,
   });

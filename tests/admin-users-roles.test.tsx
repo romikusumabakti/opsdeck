@@ -8,6 +8,7 @@ import rawMessages from "../messages/en.json";
 
 const messages = applyBranding(rawMessages, {
   appName: "Panel",
+  companyName: null,
   allowedEmailDomain: "acme.test",
 });
 

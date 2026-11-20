@@ -5,6 +5,7 @@ import { InvitationEmail } from "@/lib/email/templates/invitation";
 
 const html = await render(
   InvitationEmail({
+    appName: "Menara",
     recipientName: "Rina",
     inviteUrl: "https://example.com/invite",
     expiresInHours: 24,

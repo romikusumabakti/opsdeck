@@ -1,29 +1,25 @@
 import { logoTiles } from "@/lib/brand-logos";
-import type { BrandName } from "@/lib/brands";
 import { cn } from "@/lib/utils";
 import { useBootstrap } from "@/web/api/session";
 
 /**
- * The deployment's logo, inline so it takes the accent's colours (--logo and
+ * The built-in Menara mark, inline so it takes the accent's colours (--logo and
  * --logo-status, set per accent in globals.css) and animates (motion lives in
  * globals.css under `.brand-logo`). A 24px mark centred in a 32px box: the box
  * matches the sidebar's collapsed icon button, and the mark stays on its
  * whole-pixel grid. Decorative (`aria-hidden`): the app name is always beside
  * it or in a tooltip.
  *
- * `logo` (the shape) is the deployment's brand, from `/api/bootstrap`.
  * `active` makes the status tile pulse — set it while runs are in progress.
  */
 export function BrandLogo({
-  logo,
   active = false,
   className,
 }: {
-  logo: BrandName;
   active?: boolean;
   className?: string;
 }) {
-  const tiles = logoTiles(logo);
+  const tiles = logoTiles();
   return (
     <span
       className={cn(
@@ -52,10 +48,10 @@ export function BrandLogo({
 
 /** Lockup used on the unauthenticated pages: the logo plus the wordmark. */
 export function BrandMark({ className }: { className?: string }) {
-  const { appName, brand } = useBootstrap();
+  const { appName } = useBootstrap();
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
-      <BrandLogo logo={brand} />
+      <BrandLogo />
       <span className="text-base font-semibold tracking-tight">{appName}</span>
     </div>
   );

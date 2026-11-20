@@ -10,7 +10,9 @@ const bootstrap = {
   appName: "Panel",
   companyName: "Acme",
   allowedEmailDomain: "acme.test",
-  brand: "default",
+  accent: "neutral",
+  logo: null,
+  icon: { src: "/brand/icon.svg", type: "image/svg+xml", custom: false },
   microsoftSignIn: false,
   appTimeZone: "Asia/Jakarta",
 };
@@ -127,6 +129,7 @@ describe("web route tree", () => {
     const match = router.state.matches.find((m) => m.routeId === "/$locale");
     const messages = match?.loaderData?.messages as Record<string, unknown>;
     expect(JSON.stringify(messages)).not.toContain("{{APP_NAME}}");
+    expect(JSON.stringify(messages)).not.toContain("{{COMPANY_NAME}}");
   });
 
   // An unknown first segment is not a locale: the path gets the default one,

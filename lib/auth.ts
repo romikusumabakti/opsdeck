@@ -12,7 +12,7 @@ import { twoFactor } from "better-auth/plugins/two-factor";
 import { eq } from "drizzle-orm";
 import { recordActivity } from "./activity";
 import { authActivityFor, clientIpFrom } from "./auth-activity";
-import { APP_NAME, isAllowedEmail } from "./branding";
+import { isAllowedEmail } from "./branding";
 import { db } from "./db";
 import {
   accounts,
@@ -24,6 +24,7 @@ import {
 } from "./db/schema";
 import { sendResetPasswordEmail } from "./email/send";
 import { MICROSOFT_AUTH_ENABLED } from "./env";
+import { bootBrandName } from "./instance-branding";
 import { nameTaken, pickFreeName } from "./people/names";
 import { orgAc, orgRoles } from "./permissions";
 import {
@@ -65,8 +66,13 @@ const microsoftTenantId = process.env.MICROSOFT_TENANT_ID;
 const DEV_ORIGINS =
   process.env.NODE_ENV === "production" ? [] : ["http://localhost:5173"];
 
+// The instance name as primed at boot (server/index.ts primes the branding
+// before this module loads). better-auth fixes appName, the TOTP issuer and
+// the passkey rpName at init, so a rename reaches these three after a restart.
+const INSTANCE_NAME = bootBrandName();
+
 export const auth = betterAuth({
-  appName: APP_NAME,
+  appName: INSTANCE_NAME,
   baseURL: BASE_URL,
   trustedOrigins: DEV_ORIGINS,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -349,10 +355,10 @@ export const auth = betterAuth({
     // passkey sign-in path exactly as it does on the password one.
     // TOTP as a second factor after the password. The issuer is what
     // authenticator apps show next to the account.
-    twoFactor({ issuer: APP_NAME }),
+    twoFactor({ issuer: INSTANCE_NAME }),
     passkey({
       rpID: RP_ID,
-      rpName: APP_NAME,
+      rpName: INSTANCE_NAME,
       origin: RP_ORIGIN,
       // Discoverable credentials, so sign-in works without typing an email
       // first — that is the whole point of the passkey button on /sign-in.

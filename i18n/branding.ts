@@ -1,17 +1,23 @@
-// Replace `{{APP_NAME}}` / `{{EMAIL_DOMAIN}}` tokens in translation strings
-// with the deployment's branding. Double braces are used so the tokens don't
-// collide with ICU's single-brace placeholders (`{name}`).
+// Replace `{{APP_NAME}}` / `{{COMPANY_NAME}}` / `{{EMAIL_DOMAIN}}` tokens in
+// translation strings with the instance's branding. Double braces are used so
+// the tokens don't collide with ICU's single-brace placeholders (`{name}`).
+// `{{COMPANY_NAME}}` falls back to the instance name when no company is set.
 //
-// The values are passed in rather than read from lib/branding: the server has
-// them in its env, the SPA gets them from `/api/bootstrap`, and this module
-// runs in both.
+// The values are passed in: the server reads them from the stored branding
+// (lib/instance-branding), the SPA gets them from `/api/bootstrap`, and this
+// module runs in both.
 
-export type Branding = { appName: string; allowedEmailDomain: string };
+export type Branding = {
+  appName: string;
+  companyName: string | null;
+  allowedEmailDomain: string;
+};
 
 export function applyBranding<T>(value: T, branding: Branding): T {
   if (typeof value === "string") {
     return value
       .replaceAll("{{APP_NAME}}", branding.appName)
+      .replaceAll("{{COMPANY_NAME}}", branding.companyName ?? branding.appName)
       .replaceAll("{{EMAIL_DOMAIN}}", branding.allowedEmailDomain) as T;
   }
   if (Array.isArray(value)) {

@@ -39,7 +39,7 @@ import { loadCatalogue } from "@/web/messages";
 // Every page lives under `/<locale>`. This route owns what the old
 // app/[locale]/layout.tsx did around both of its branches: reject an unknown
 // locale, gate signed-out visitors, load the messages, set <html lang dir
-// data-brand> and mount the providers every page shares. The signed-in shell
+// data-accent> and mount the providers every page shares. The signed-in shell
 // is the pathless `_app` route below it; the sign-in, setup, password and
 // invitation pages sit beside `_app` and frame themselves (AuthShell).
 export const Route = createFileRoute("/$locale")({
@@ -67,8 +67,8 @@ export const Route = createFileRoute("/$locale")({
     return { messages: applyBranding(catalogue, bootstrap) };
   },
   // The messages depend only on the locale (part of the match) and on the
-  // branding, which is fixed per server process: load them once per locale
-  // rather than re-walking the catalogue on every navigation.
+  // branding, kept for the life of the page like bootstrapQuery: load them
+  // once per locale rather than re-walking the catalogue on every navigation.
   staleTime: Number.POSITIVE_INFINITY,
   head: ({ loaderData }) => ({
     meta: [{ title: loaderData?.messages.app?.name }],
@@ -90,7 +90,7 @@ function LocaleLayout() {
   }, [locale]);
   return (
     <IntlShell locale={locale} messages={messages}>
-      <DocumentBrand />
+      <DocumentAccent />
       <StrongSignInMessage />
       <ThemeProvider>
         <DialogProvider>
@@ -118,19 +118,16 @@ function StrongSignInMessage() {
   return null;
 }
 
-// Logo shape and accent colour select CSS in web/styles.css through
-// `data-brand` / `data-accent` on <html>. Signed in, the shell's
+// The accent colour selects CSS in web/styles.css through `data-accent` on
+// <html>, and tints the built-in favicon. Signed in, the shell's
 // AccentProvider owns the accent (it repaints at once on a change); signed
-// out, the pages wear the brand's default.
-function DocumentBrand() {
-  const { brand } = useBootstrap();
+// out, the pages wear the instance accent.
+function DocumentAccent() {
+  const { accent, icon } = useBootstrap();
   const me = useMe();
   React.useEffect(() => {
-    document.documentElement.dataset.brand = brand;
-  }, [brand]);
-  React.useEffect(() => {
-    if (!me) applyDocumentAccent(effectiveAccent(null, brand));
-  }, [me, brand]);
+    if (!me) applyDocumentAccent(effectiveAccent(null, accent), icon);
+  }, [me, accent, icon]);
   return null;
 }
 

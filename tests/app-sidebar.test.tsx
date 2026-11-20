@@ -9,6 +9,7 @@ import enMessages from "../messages/en.json";
 
 const messages = applyBranding(enMessages, {
   appName: "Menara",
+  companyName: null,
   allowedEmailDomain: "example.com",
 });
 
@@ -120,7 +121,6 @@ async function renderSidebar(
               image: null,
             } as never
           }
-          logo={"menara" as never}
           assistantEnabled={scope.assistantEnabled}
         />
       </IntlProvider>

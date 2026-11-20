@@ -1,5 +1,10 @@
 import { eq, sql } from "drizzle-orm";
-import { type AccentColor, isAccent } from "@/lib/accents";
+import {
+  type AccentColor,
+  type BootstrapIcon,
+  BRAND_ICON_SRC,
+  isAccent,
+} from "@/lib/accents";
 import { db } from "@/lib/db";
 import { instanceBrandLogos, instanceSettings } from "@/lib/db/schema";
 
@@ -17,6 +22,31 @@ export type InstanceBranding = {
   /** brand_updated_at in ms, base36; "0" when never written. Cache-busts the logo URLs. */
   version: string;
 };
+
+/** The favicon for `b`: the uploaded logo (a PNG of a raster one), or the built-in mark. */
+export function brandIcon(b: InstanceBranding): BootstrapIcon {
+  if (!b.logo) {
+    return { src: BRAND_ICON_SRC, type: "image/svg+xml", custom: false };
+  }
+  return b.logo.type === "image/svg+xml"
+    ? { src: `/brand/icon.svg?v=${b.version}`, type: b.logo.type, custom: true }
+    : {
+        src: `/brand/icon.png?v=${b.version}`,
+        type: "image/png",
+        custom: true,
+      };
+}
+
+/** The uploaded logo's URLs, versioned; null while the built-in mark shows. */
+export function brandLogo(
+  b: InstanceBranding
+): { src: string; darkSrc: string | null } | null {
+  if (!b.logo) return null;
+  return {
+    src: `/brand/logo?v=${b.version}`,
+    darkSrc: b.logoDark ? `/brand/logo?theme=dark&v=${b.version}` : null,
+  };
+}
 
 export const BRANDING_TTL_MS = 30_000;
 /** How long a failed load is served from the fallback before retrying. */

@@ -3,6 +3,7 @@ import { useTranslations } from "use-intl";
 import { useOptimisticPreference } from "@/hooks/use-optimistic-preference";
 import type { AccentColor } from "@/lib/accents";
 import { setAccentColor } from "@/web/api/profile";
+import { useBootstrap } from "@/web/api/session";
 import { applyDocumentAccent } from "@/web/document-locale";
 
 type AccentContextValue = {
@@ -13,8 +14,8 @@ type AccentContextValue = {
 const AccentContext = React.createContext<AccentContextValue | null>(null);
 
 /**
- * The signed-in user's accent. `initial` is the stored choice (or the brand
- * default); changes repaint at once and save in the background. Saves are queued and latest-wins (see
+ * The signed-in user's accent. `initial` is the stored choice (or the
+ * instance accent); changes repaint at once and save in the background. Saves are queued and latest-wins (see
  * hooks/use-optimistic-preference.ts).
  */
 export function AccentProvider({
@@ -30,10 +31,11 @@ export function AccentProvider({
     save: setAccentColor,
     failedMessage: t("saveFailed"),
   });
+  const { icon } = useBootstrap();
   // Paints the shown accent: on mount, on a pick, and on a rollback.
   React.useEffect(() => {
-    applyDocumentAccent(accent);
-  }, [accent]);
+    applyDocumentAccent(accent, icon);
+  }, [accent, icon]);
   const value = React.useMemo(
     () => ({ accent, setAccent }),
     [accent, setAccent]

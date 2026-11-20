@@ -428,8 +428,11 @@ Values an instance sets for itself, outside any app's `.env`:
   asks for one. Both compose files (`compose.yaml`, `ops/install/compose.yaml`)
   pass it through to the app container, and `install.sh` adopts it from an
   older `.env`.
-- `BRAND` (instance `.env`): an unknown value no longer fails boot; the app
-  logs one warning and uses the `default` brand.
+- `APP_NAME`, `COMPANY_NAME` and `BRAND` (instance `.env`): initial value
+  only, seeded once into Admin › Instance › Branding on the first boot;
+  `BRAND=acme` seeds the blue accent. After that the instance name, company,
+  logo and default accent are set in Admin › Instance › Branding, and these
+  variables are ignored. `install.sh` still adopts them from an older `.env`.
 - Assistant organisation context (Admin → Assistant): a paragraph about the
   organisation and its business that the code assistant and its drafts get in
   their system prompt. Empty: a generic description is used.

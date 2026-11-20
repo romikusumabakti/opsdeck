@@ -100,11 +100,13 @@ describe("public routes", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(Object.keys(body).sort()).toEqual([
+      "accent",
       "allowedEmailDomain",
       "appName",
       "appTimeZone",
-      "brand",
       "companyName",
+      "icon",
+      "logo",
       "microsoftSignIn",
     ]);
     expect(typeof body.microsoftSignIn).toBe("boolean");

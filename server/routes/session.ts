@@ -1,11 +1,7 @@
 import { getServerSession } from "@/lib/auth-session";
-import {
-  ALLOWED_EMAIL_DOMAIN,
-  APP_NAME,
-  brand,
-  COMPANY_NAME,
-} from "@/lib/branding";
+import { ALLOWED_EMAIL_DOMAIN } from "@/lib/branding";
 import { MICROSOFT_AUTH_ENABLED } from "@/lib/env";
+import { brandIcon, brandLogo, getBranding } from "@/lib/instance-branding";
 import { normalizeOrgRole } from "@/lib/permissions";
 import { APP_TIMEZONE, effectiveTimeZone } from "@/lib/timezone";
 import { publicRouter } from "@/server/router";
@@ -16,21 +12,27 @@ import { publicRouter } from "@/server/router";
  * client finds out that it is.
  */
 export const sessionInfoRouter = publicRouter()
-  // Deployment identity, read from the server env at runtime (the client
-  // bundle is built without it). `microsoftSignIn` shows the Microsoft button
-  // on the sign-in page — true only when all three MICROSOFT_* vars are set.
-  // `appTimeZone` is the server clock's zone (APP_TIMEZONE): signed-out pages
-  // format dates in it, and the shell shows it beside the user's own zone.
-  .get("/bootstrap", (c) =>
-    c.json({
-      appName: APP_NAME,
-      companyName: COMPANY_NAME,
+  // Instance identity: the branding an admin sets in Admin › Instance ›
+  // Branding (name, company, accent, logo, favicon), read at runtime and
+  // revalidated on every load so a save shows without a restart.
+  // `microsoftSignIn` shows the Microsoft button on the sign-in page — true
+  // only when all three MICROSOFT_* vars are set. `appTimeZone` is the server
+  // clock's zone (APP_TIMEZONE): signed-out pages format dates in it, and the
+  // shell shows it beside the user's own zone.
+  .get("/bootstrap", async (c) => {
+    const branding = await getBranding();
+    c.header("Cache-Control", "no-cache");
+    return c.json({
+      appName: branding.name,
+      companyName: branding.company,
       allowedEmailDomain: ALLOWED_EMAIL_DOMAIN,
-      brand: brand(),
+      accent: branding.accent,
+      logo: brandLogo(branding),
+      icon: brandIcon(branding),
       microsoftSignIn: MICROSOFT_AUTH_ENABLED,
       appTimeZone: APP_TIMEZONE,
-    })
-  )
+    });
+  })
   // The signed-in user, or null (200, not 401): being signed out is an answer
   // here, not an error. Never cached — it changes on sign-in and sign-out.
   .get("/me", async (c) => {

@@ -48,7 +48,6 @@ import {
 } from "@/components/ui/sidebar";
 import { UserMenu, type UserSummary } from "@/components/user-menu";
 import { Link, usePathname } from "@/i18n/navigation";
-import type { BrandName } from "@/lib/brands";
 import { type EnvSection, visibleEnvSections } from "@/lib/env-sections";
 import {
   isProjectReleasable,
@@ -224,7 +223,6 @@ export function AppSidebar({
   issueCounts,
   openCounts,
   user,
-  logo,
   side = "left",
   assistantEnabled = false,
 }: {
@@ -235,7 +233,6 @@ export function AppSidebar({
   issueCounts: AssignedIssueCounts;
   openCounts: Record<string, number>;
   user: UserSummary;
-  logo: BrandName;
   side?: "left" | "right";
   /**
    * The code assistant is on (and has a key): show the top-level Assistant
@@ -312,7 +309,7 @@ export function AppSidebar({
               size="lg"
               tooltip={tApp("name")}
             >
-              <BrandLogo logo={logo} active={anyRunActive} />
+              <BrandLogo active={anyRunActive} />
               <span className="font-semibold truncate">{tApp("name")}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

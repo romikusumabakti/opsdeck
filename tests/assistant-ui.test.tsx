@@ -16,6 +16,7 @@ import enMessages from "../messages/en.json";
 
 const messages = applyBranding(enMessages, {
   appName: "Menara",
+  companyName: null,
   allowedEmailDomain: "example.com",
 });
 

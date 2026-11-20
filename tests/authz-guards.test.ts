@@ -1085,8 +1085,9 @@ describe("API routers reach a guard", () => {
     // CI posts build notifications with no session; a per-app HMAC of the raw
     // body is the credential.
     "server/routes/deploy-hooks.ts": ["POST /builds"],
-    // The favicon, linked by the signed-out sign-in, 404 and error pages.
-    "server/routes/brand.ts": ["GET /icon.svg"],
+    // The instance logo and favicon, shown by the signed-out sign-in, 404
+    // and error pages; sandbox CSP + nosniff on every answer.
+    "server/routes/brand.ts": ["GET /logo", "GET /icon.svg", "GET /icon.png"],
   };
   // A router's routes: from its factory call up to the next exported router.
   function routesOf(source: string, factory: string): string[] {

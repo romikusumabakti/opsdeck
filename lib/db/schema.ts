@@ -1733,7 +1733,7 @@ export const users = pgTable(
     statusExpiresAt: timestamp("status_expires_at"),
     // Where `image` came from. 'removed' blocks the Microsoft re-import.
     avatarSource: text("avatar_source").$type<AvatarSource>(),
-    // lib/accents.ts ACCENTS; null = the brand default (effectiveAccent).
+    // lib/accents.ts ACCENTS; null = the instance accent (effectiveAccent).
     accentColor: text("accent_color").$type<AccentColor>(),
     // lib/motifs.ts: 'none' or a motif slug; null = daily rotation
     // (effectiveMotifPreference).

@@ -113,10 +113,16 @@ describe("/brand routes", () => {
     expect(stale.status).toBe(200);
 
     setBranding({ accent: "rose" });
+    const tag = (await app.request("/brand/logo")).headers.get("etag");
     const mark = await app.request("/brand/logo", {
-      headers: { "If-None-Match": 'W/"x", "default-rose"' },
+      headers: { "If-None-Match": `W/"x", ${tag}` },
     });
     expect(mark.status).toBe(304);
+    // A tag from before a renderer change (no hash) is stale.
+    const old = await app.request("/brand/logo", {
+      headers: { "If-None-Match": '"default-rose"' },
+    });
+    expect(old.status).toBe(200);
   });
 
   it("falls back to the default mark tinted by the instance accent", async () => {
@@ -124,8 +130,11 @@ describe("/brand routes", () => {
     const res = await app.request("/brand/logo");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/svg+xml");
-    expect(res.headers.get("etag")).toBe('"default-rose"');
     const body = await res.text();
+    // Keyed on the rendered bytes, so a renderer change gives a new tag.
+    expect(res.headers.get("etag")).toBe(
+      `"default-rose-${Bun.hash(body).toString(36)}"`
+    );
     expect(body).toMatch(/^<svg/);
     expect(body).toContain("oklch(41% 0.159 10.272)"); // rose-900
     expect(state.loads).toBe(0);

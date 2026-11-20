@@ -54,10 +54,24 @@ const stored = (b: InstanceBranding, theme: "light" | "dark"): Answer => ({
   etag: `"${b.version}-${theme}"`,
 });
 
+// The built-in mark's SVG per accent, with an ETag hashed from the bytes, so
+// a change to the renderer (lib/brand-logos.ts) gives browsers a new tag.
+const marks = new Map<AccentColor, { svg: string; etag: string }>();
+
+function renderedMark(accent: AccentColor): { svg: string; etag: string } {
+  let mark = marks.get(accent);
+  if (!mark) {
+    const svg = renderBrandIcon(accent);
+    mark = { svg, etag: `"default-${accent}-${Bun.hash(svg).toString(36)}"` };
+    marks.set(accent, mark);
+  }
+  return mark;
+}
+
 const defaultMark = (accent: AccentColor): Answer => ({
   kind: "default",
   accent,
-  etag: `"default-${accent}"`,
+  etag: renderedMark(accent).etag,
 });
 
 // The favicon PNG for a raster logo, resized once per branding version.
@@ -117,8 +131,7 @@ async function serve(c: Context<AppEnv>, answer: Answer) {
     return c.body(null, 304, { ETag: answer.etag });
   }
   if (answer.kind === "default") {
-    // Task 3 drops renderBrandIcon's shape parameter; "default" until then.
-    return c.body(renderBrandIcon("default", answer.accent), 200, {
+    return c.body(renderedMark(answer.accent).svg, 200, {
       "Content-Type": SVG,
       ETag: answer.etag,
     });

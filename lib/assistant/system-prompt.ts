@@ -1,4 +1,3 @@
-import { APP_NAME } from "@/lib/branding";
 import type { OrgRole } from "@/lib/permissions";
 import { callName } from "@/lib/user-display";
 import { MENARA_VERSION, parseVersion } from "@/lib/version";
@@ -32,6 +31,11 @@ export type SystemPromptContext = {
   timeZone: string;
   /** The tool groups the user is not offered (capabilityGaps). */
   lacking: CapabilityGap[];
+  /**
+   * The instance name, from the cached branding (getBranding), so the prompt
+   * stays byte-identical until an admin renames the instance.
+   */
+  appName: string;
 };
 
 /** What each org role means, as lib/permissions.ts defines it. */
@@ -182,17 +186,17 @@ ${style}`;
 export const UPSTREAM_REPO_URL = "https://github.com/romikusumabakti/menara";
 
 /**
- * What this instance is: a Menara instance named APP_NAME, the running
+ * What this instance is: a Menara instance named `appName`, the running
  * version (as Admin › Instance reports it: MENARA_VERSION, fixed per image,
  * so the cached prompt stays byte-stable while a build runs) and the upstream
  * repository. Who runs it at the organisation is the organisation context.
  */
-export function aboutInstance(version: string): string {
+export function aboutInstance(version: string, appName: string): string {
   const running = parseVersion(version)
     ? `Menara version ${version}`
     : "a development build of Menara (no release version)";
   return `# About this instance
-This Menara instance is called ${APP_NAME}; call it that when talking to the user. It runs ${running}. Menara is open source; its upstream repository is ${UPSTREAM_REPO_URL}. Use this when the user asks about ${APP_NAME} itself: what it is, which version runs, where its code lives.`;
+This Menara instance is called ${appName}; call it that when talking to the user. It runs ${running}. Menara is open source; its upstream repository is ${UPSTREAM_REPO_URL}. Use this when the user asks about ${appName} itself: what it is, which version runs, where its code lives.`;
 }
 
 /**
@@ -225,8 +229,8 @@ Examples:
  */
 export function buildSystemPrompt(ctx: SystemPromptContext): string {
   const intro = ctx.orgContext
-    ? `You are the assistant built into ${APP_NAME}, the internal operations portal of the organisation described under "Organisation" below.`
-    : `You are the assistant built into ${APP_NAME}, an internal operations portal of ${GENERIC_ORGANISATION}.`;
+    ? `You are the assistant built into ${ctx.appName}, the internal operations portal of the organisation described under "Organisation" below.`
+    : `You are the assistant built into ${ctx.appName}, an internal operations portal of ${GENERIC_ORGANISATION}.`;
   const organisation = ctx.orgContext
     ? `\n\n# Organisation\n${ctx.orgContext}`
     : "";
@@ -237,7 +241,7 @@ ${DOMAIN_GLOSSARY}
 
 ${aboutUser(ctx)}
 
-${aboutInstance(MENARA_VERSION)}
+${aboutInstance(MENARA_VERSION, ctx.appName)}
 
 ${DEFAULT_TO_ACTION}
 
@@ -273,7 +277,7 @@ Some files are withheld because they may hold secrets or real participant data (
 The Menara data tools read Menara itself, read-only, with exactly the user's own permissions: get_overview (a summary of the user's projects: last deploys, issue counts, today's activity), list_environments and get_environment_status (live service state, running versions, deploy lock), list_deploys and get_deploy (history and a failed deploy's log tail), get_service_logs (the last lines of a running service's logs, for users allowed on the Logs page), list_builds, list_issues (search and filter issues; get_issue reads one), list_people (search by name, email or title), and, only for users who can open those pages, list_servers / get_server and recent_activity. They work in every context.
 - Answer questions about environments, deploys, builds, Menara issues and people from these tools, not from the code, and say when you read them.
 - A service "unknown" means its live check failed; "checked": false means it was not checked in this answer (only ${STATUS_PROBES_PER_TURN} environments are checked live per answer). An empty "services" list means the environment has no services registered in Menara, so there is nothing to check live. Say so instead of guessing, and never call such an environment healthy.
-- Times are UTC; convert them to the user's timezone (${ctx.timeZone}) when you show them. You cannot deploy, restart, lock or change anything; tell the user where in ${APP_NAME} to do it.
+- Times are UTC; convert them to the user's timezone (${ctx.timeZone}) when you show them. You cannot deploy, restart, lock or change anything; tell the user where in ${ctx.appName} to do it.
 
 # Database
 Engineers, infra and admins also have list_tables and query_database. They read one environment's database read-only, through a login that can read only that database, and only where an admin or infra user turned it on for that environment.

@@ -135,7 +135,7 @@
                   },
                   {
                     "group": ["@/lib/branding", "@/lib/timezone", "@/lib/env"],
-                    "message": "Reads process.env at module load, which throws in the browser. Take the deployment values from bootstrapQuery / useBootstrap() (@/web/api/session) and the env-free parts from @/lib/brands or @/lib/iana-time-zone."
+                    "message": "Reads process.env at module load, which throws in the browser. Take the instance values from bootstrapQuery / useBootstrap() (@/web/api/session) and the env-free parts from @/lib/accents or @/lib/iana-time-zone."
                   },
                   {
                     "group": ["@/lib/db/schema"],

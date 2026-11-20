@@ -32,7 +32,9 @@ describe("GET /brand/icon.svg", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/svg+xml");
     expect(res.headers.get("cache-control")).toMatch(/^public/);
-    expect(res.headers.get("etag")).toBe('"default-blue"');
+    expect(res.headers.get("etag")).toBe(
+      `"default-blue-${Bun.hash(body).toString(36)}"`
+    );
     expect(body).toMatch(/^<svg/);
   });
 

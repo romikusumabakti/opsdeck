@@ -29,7 +29,7 @@ export const meQuery = () =>
     staleTime: 10_000,
   });
 
-/** Deployment identity and flags: branding, Microsoft sign-in, app zone. */
+/** Instance identity and flags: branding, Microsoft sign-in, app zone. */
 export async function getBootstrap() {
   return parseResponse(api.api.bootstrap.$get());
 }
@@ -38,7 +38,9 @@ export const bootstrapQuery = () =>
   queryOptions({
     queryKey: ["session", "getBootstrap"],
     queryFn: getBootstrap,
-    // Fixed for the life of the server process.
+    // Kept for the life of the page: a branding save elsewhere shows on the
+    // next load (the server revalidates it), and the Branding page refreshes
+    // this entry after its own save.
     staleTime: Number.POSITIVE_INFINITY,
     meta: { fixed: true },
   });
@@ -68,9 +70,10 @@ export function useCanOrg(): (
 }
 
 /**
- * The deployment's identity (`appName`, `companyName`, `brand`, …) for client
- * code — what lib/branding and lib/timezone give the server. The $locale
- * loader has already loaded it, so this never suspends below that route.
+ * The instance's identity (`appName`, `companyName`, `accent`, `logo`,
+ * `icon`, …) for client code — what lib/instance-branding, lib/branding and
+ * lib/timezone give the server. The $locale loader has already loaded it, so
+ * this never suspends below that route.
  */
 export function useBootstrap() {
   return useSuspenseQuery(bootstrapQuery()).data;

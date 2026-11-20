@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { BRAND_ICON_SRC, type BrandName } from "@/lib/brands";
 
 /**
  * Accent colours a user can pick: shadcn/ui's seven colour themes plus
@@ -21,37 +20,48 @@ export type AccentColor = (typeof ACCENTS)[number];
 
 export const accentSchema = z.enum(ACCENTS);
 
-/** What a user gets until they choose: the brand's own colour. */
-export const BRAND_DEFAULT_ACCENT: Record<BrandName, AccentColor> = {
-  default: "neutral",
-  acme: "blue",
-};
-
 export function isAccent(value: unknown): value is AccentColor {
   return (
     typeof value === "string" && (ACCENTS as readonly string[]).includes(value)
   );
 }
 
-/** `logo` is the deployment's brand: `brand()` on the server, bootstrap in the SPA. */
-export function defaultAccent(logo: BrandName): AccentColor {
-  return BRAND_DEFAULT_ACCENT[logo];
-}
-
 /**
  * The accent to render for `user`. An unset or unknown stored value (a hand
- * edit, or a colour removed later) falls back to the brand default rather than
+ * edit, or a colour removed later) falls back to the instance accent (Admin ›
+ * Instance › Branding; the SPA has it from /api/bootstrap) rather than
  * failing, like effectiveTimeZone does for zones.
  */
 export function effectiveAccent(
   user: { accentColor?: string | null } | null | undefined,
-  logo: BrandName
+  instanceAccent: AccentColor
 ): AccentColor {
   const stored = user?.accentColor;
-  return isAccent(stored) ? stored : defaultAccent(logo);
+  return isAccent(stored) ? stored : instanceAccent;
 }
 
-/** Favicon URL for `accent`; no accent lets the route use the brand default. */
-export function brandIconSrc(accent?: AccentColor): string {
-  return accent ? `${BRAND_ICON_SRC}?accent=${accent}` : BRAND_ICON_SRC;
+/** The built-in favicon, rendered per accent by server/routes/brand.ts. */
+export const BRAND_ICON_SRC = "/brand/icon.svg";
+
+/**
+ * The favicon as /api/bootstrap describes it: the built-in mark
+ * (`custom: false`), or the instance's uploaded logo (its SVG, or a PNG
+ * rendered from a raster logo), versioned so a new upload is fetched.
+ */
+export type BootstrapIcon = {
+  src: string;
+  type: "image/svg+xml" | "image/png";
+  custom: boolean;
+};
+
+/**
+ * Favicon URL for `icon` painted in `accent`. Only the built-in mark takes
+ * the accent; an uploaded logo is shown as uploaded. No accent lets the route
+ * use the instance accent.
+ */
+export function brandIconSrc(
+  icon: BootstrapIcon,
+  accent?: AccentColor
+): string {
+  return accent && !icon.custom ? `${icon.src}?accent=${accent}` : icon.src;
 }

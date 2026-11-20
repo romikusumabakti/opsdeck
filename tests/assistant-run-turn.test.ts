@@ -2644,6 +2644,7 @@ describe("buildSystemPrompt", () => {
       title: null,
       timeZone: "Asia/Jakarta",
       lacking: [],
+      appName: "Menara",
     });
 
   type NoteSources = Parameters<typeof buildSourceNote>[0]["sources"];

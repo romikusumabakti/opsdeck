@@ -17,7 +17,9 @@ const bootstrap = {
   appName: "Panel",
   companyName: "Acme",
   allowedEmailDomain: "acme.test",
-  brand: "default",
+  accent: "neutral",
+  logo: null,
+  icon: { src: "/brand/icon.svg", type: "image/svg+xml", custom: false },
   microsoftSignIn: false,
   appTimeZone: "Asia/Jakarta",
 };

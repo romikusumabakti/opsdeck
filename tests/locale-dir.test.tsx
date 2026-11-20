@@ -29,10 +29,30 @@ describe("applyDocumentAccent", () => {
     document.head.innerHTML =
       '<link rel="icon" type="image/svg+xml" href="/brand/icon.svg" />';
 
-    applyDocumentAccent("rose");
+    applyDocumentAccent("rose", {
+      src: "/brand/icon.svg",
+      type: "image/svg+xml",
+      custom: false,
+    });
 
     expect(document.documentElement.dataset.accent).toBe("rose");
     const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
     expect(icon?.getAttribute("href")).toBe("/brand/icon.svg?accent=rose");
+    expect(icon?.getAttribute("type")).toBe("image/svg+xml");
+  });
+
+  it("points the favicon at a raster logo's PNG, untinted", () => {
+    document.head.innerHTML =
+      '<link rel="icon" type="image/svg+xml" href="/brand/icon.svg" />';
+
+    applyDocumentAccent("rose", {
+      src: "/brand/icon.png?v=kx1",
+      type: "image/png",
+      custom: true,
+    });
+
+    const icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    expect(icon?.getAttribute("href")).toBe("/brand/icon.png?v=kx1");
+    expect(icon?.getAttribute("type")).toBe("image/png");
   });
 });

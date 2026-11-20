@@ -115,6 +115,8 @@ services:
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID-}
       MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID-}
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET-}
+      # APP_NAME, COMPANY_NAME and BRAND: initial value only, seeded once into
+      # Admin › Instance › Branding; BRAND=acme seeds the blue accent.
       APP_NAME: ${APP_NAME-}
       COMPANY_NAME: ${COMPANY_NAME-}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN-}

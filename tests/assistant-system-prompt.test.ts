@@ -9,8 +9,9 @@ import {
   ROLE_LINES,
   type SystemPromptContext,
 } from "@/lib/assistant/system-prompt";
-import { APP_NAME } from "@/lib/branding";
 import { MENARA_VERSION } from "@/lib/version";
+
+const APP_NAME = "Menara";
 
 /** A full prompt context: an engineer with every capability. */
 const ctx = (
@@ -23,6 +24,7 @@ const ctx = (
   title: null,
   timeZone: "Asia/Jakarta",
   lacking: [],
+  appName: APP_NAME,
   ...overrides,
 });
 
@@ -129,7 +131,29 @@ describe("buildSystemPrompt", () => {
     expect(about).toContain("Menara");
     expect(about).toContain("open source");
     expect(about).toContain("https://github.com/romikusumabakti/menara");
-    expect(text).toContain(aboutInstance(MENARA_VERSION));
+    expect(text).toContain(aboutInstance(MENARA_VERSION, APP_NAME));
+  });
+
+  it("names the instance from ctx.appName", () => {
+    const name = ["Acme", "Ops"].join(" ");
+    const text = buildSystemPrompt(ctx({ appName: name }));
+    expect(text).toContain(
+      `This Menara instance is called ${name}; call it that when talking to the user.`
+    );
+    expect(text).toContain(`You are the assistant built into ${name}`);
+    expect(text).toContain(`tell the user where in ${name} to do it`);
+  });
+
+  it("is byte-identical for the same appName and changes only where the name appears", () => {
+    const acme = ["Acme", "Ops"].join(" ");
+    const beta = ["Beta", "Deck"].join(" ");
+    const first = buildSystemPrompt(ctx({ appName: acme }));
+    expect(buildSystemPrompt(ctx({ appName: acme }))).toBe(first);
+    const second = buildSystemPrompt(ctx({ appName: beta }));
+    expect(second).not.toBe(first);
+    expect(second.replaceAll(beta, "<name>")).toBe(
+      first.replaceAll(acme, "<name>")
+    );
   });
 
   it("has a # User section with role, title and timezone", () => {
@@ -278,9 +302,11 @@ describe("buildVolatileSystemNote", () => {
 
 describe("aboutInstance", () => {
   it("names a release version, or a development build", () => {
-    expect(aboutInstance("1.4.0")).toContain("version 1.4.0");
-    expect(aboutInstance("1.5.0-beta.2")).toContain("version 1.5.0-beta.2");
-    const dev = aboutInstance("0.0.0-dev");
+    expect(aboutInstance("1.4.0", APP_NAME)).toContain("version 1.4.0");
+    expect(aboutInstance("1.5.0-beta.2", APP_NAME)).toContain(
+      "version 1.5.0-beta.2"
+    );
+    const dev = aboutInstance("0.0.0-dev", APP_NAME);
     expect(dev).toContain("development build");
     expect(dev).not.toContain("0.0.0-dev");
   });

@@ -1,5 +1,6 @@
 import { Resend } from "resend";
-import { DEFAULT_EMAIL_FROM } from "../branding";
+import { defaultEmailFrom } from "../branding";
+import { getBranding } from "../instance-branding";
 
 let _resend: Resend | null = null;
 
@@ -13,6 +14,9 @@ export function getResend(): Resend {
   return _resend;
 }
 
-export function getFromAddress(): string {
-  return process.env.EMAIL_FROM ?? DEFAULT_EMAIL_FROM;
+/** EMAIL_FROM, or `<instance name> <no-reply@ALLOWED_EMAIL_DOMAIN>`. */
+export async function emailFrom(): Promise<string> {
+  const configured = process.env.EMAIL_FROM;
+  if (configured) return configured;
+  return defaultEmailFrom((await getBranding()).name);
 }

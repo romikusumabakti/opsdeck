@@ -10,9 +10,10 @@ import {
   Section,
   Text,
 } from "react-email";
-import { APP_NAME } from "@/lib/branding";
 
 export interface InvitationEmailProps {
+  /** The instance name (Admin › Instance › Branding). */
+  appName: string;
   recipientName: string;
   inviterName?: string | null;
   inviteUrl: string;
@@ -20,6 +21,7 @@ export interface InvitationEmailProps {
 }
 
 export function InvitationEmail({
+  appName,
   recipientName,
   inviterName,
   inviteUrl,
@@ -28,14 +30,14 @@ export function InvitationEmail({
   return (
     <Html>
       <Head />
-      <Preview>Anda diundang ke {APP_NAME}</Preview>
+      <Preview>Anda diundang ke {appName}</Preview>
       <Body style={body}>
         <Container style={container}>
-          <Heading style={heading}>{APP_NAME}</Heading>
+          <Heading style={heading}>{appName}</Heading>
           <Text style={paragraph}>Halo {recipientName},</Text>
           <Text style={paragraph}>
             {inviterName ? `${inviterName} mengundang Anda` : "Anda diundang"}{" "}
-            untuk bergabung di {APP_NAME}. Klik tombol di bawah untuk membuat
+            untuk bergabung di {appName}. Klik tombol di bawah untuk membuat
             kata sandi dan mengaktifkan akun Anda.
           </Text>
           <Section style={{ textAlign: "center", margin: "32px 0" }}>

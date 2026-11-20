@@ -52,22 +52,23 @@ services:
       # the app throws on create/read of any secret when unset. Generate once
       # with `openssl rand -base64 32`; keep stable (rotating orphans ciphertext).
       SECRETS_KEY: ${SECRETS_KEY:?SECRETS_KEY is required}
-      # Whitelabel branding — read by the server at runtime and sent to the
-      # client, so a change takes a restart, not a rebuild.
+      # Instance branding: APP_NAME, COMPANY_NAME and BRAND are an initial
+      # value only, seeded once into Admin › Instance › Branding; BRAND=acme
+      # seeds the blue accent.
       APP_NAME: ${APP_NAME-}
       COMPANY_NAME: ${COMPANY_NAME-}
+      # The email domain allowed to sign in, read at runtime.
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN-}
       # IANA zone for the app's own clock (daily motif, default display zone).
       # Empty means the app default, Asia/Jakarta.
       APP_TIMEZONE: ${APP_TIMEZONE-}
-      # Brand — logo and colour theme: one of lib/branding.ts BRANDS.
-      # Read by the server at runtime, so changing it takes a restart, not a rebuild.
+      # Initial value only (see APP_NAME above).
       BRAND: ${BRAND-}
       # Cloudflare Access policy (by name) the New environment wizard preselects.
       ACCESS_DEFAULT_POLICY_NAME: ${ACCESS_DEFAULT_POLICY_NAME-}
       # Email (Resend) — optional; email features disabled if empty.
       # When EMAIL_FROM is unset, lib/branding.ts derives a default from
-      # APP_NAME + ALLOWED_EMAIL_DOMAIN.
+      # the instance name + ALLOWED_EMAIL_DOMAIN.
       RESEND_API_KEY: ${RESEND_API_KEY-}
       EMAIL_FROM: ${EMAIL_FROM-}
       # Background jobs (BullMQ). The in-process worker (started by the

@@ -15,6 +15,7 @@ import {
   type UIMessageChunk,
   UnsupportedFunctionalityError,
 } from "ai";
+import { getBranding } from "@/lib/instance-branding";
 import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
 import { type AssistantRuntime, loadAssistantRuntime } from "./client";
 import type { UploadSummary } from "./file-store";
@@ -1036,6 +1037,8 @@ async function runClaimedTurn(
   // (buildHistory), so switching it keeps the system message and the
   // replayed history cached.
   const cache = cacheControlFor(runtime.provider);
+  // The cached branding's name, so the stable prompt changes only on a rename.
+  const { name: appName } = await getBranding();
   const instructions: SystemModelMessage[] = [
     {
       role: "system",
@@ -1047,6 +1050,7 @@ async function runClaimedTurn(
         title: turn.userTitle,
         timeZone: turn.timeZone,
         lacking: capabilityGaps(viewer),
+        appName,
       }),
       ...(cache ? { providerOptions: cache } : {}),
     },

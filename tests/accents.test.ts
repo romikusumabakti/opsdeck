@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   ACCENTS,
   accentSchema,
+  type BootstrapIcon,
   brandIconSrc,
-  defaultAccent,
   effectiveAccent,
   isAccent,
 } from "@/lib/accents";
@@ -22,22 +22,17 @@ describe("accents", () => {
     ]);
   });
 
-  it("defaults to the brand's accent", () => {
-    expect(defaultAccent("acme")).toBe("blue");
-    expect(defaultAccent("default")).toBe("neutral");
-  });
-
   it("uses a valid stored accent", () => {
-    expect(effectiveAccent({ accentColor: "rose" }, "acme")).toBe("rose");
-    expect(effectiveAccent({ accentColor: "neutral" }, "acme")).toBe("neutral");
+    expect(effectiveAccent({ accentColor: "rose" }, "blue")).toBe("rose");
+    expect(effectiveAccent({ accentColor: "neutral" }, "blue")).toBe("neutral");
   });
 
-  it("falls back to the brand default for null, missing or unknown values", () => {
-    expect(effectiveAccent({ accentColor: null }, "acme")).toBe("blue");
-    expect(effectiveAccent({}, "acme")).toBe("blue");
-    expect(effectiveAccent(null, "acme")).toBe("blue");
-    expect(effectiveAccent({ accentColor: "teal" }, "acme")).toBe("blue");
-    expect(effectiveAccent({ accentColor: "" }, "acme")).toBe("blue");
+  it("falls back to the instance accent", () => {
+    expect(effectiveAccent(null, "blue")).toBe("blue");
+    expect(effectiveAccent({ accentColor: "teal" }, "green")).toBe("green");
+    expect(effectiveAccent({ accentColor: null }, "rose")).toBe("rose");
+    expect(effectiveAccent({}, "neutral")).toBe("neutral");
+    expect(effectiveAccent({ accentColor: "" }, "violet")).toBe("violet");
   });
 
   it("validates input to the closed set", () => {
@@ -48,8 +43,25 @@ describe("accents", () => {
     expect(isAccent(42)).toBe(false);
   });
 
-  it("builds the favicon URL, with no param meaning the brand default", () => {
-    expect(brandIconSrc("rose")).toBe("/brand/icon.svg?accent=rose");
-    expect(brandIconSrc()).toBe("/brand/icon.svg");
+  it("brandIconSrc adds the accent only to the default icon", () => {
+    const builtIn: BootstrapIcon = {
+      src: "/brand/icon.svg",
+      type: "image/svg+xml",
+      custom: false,
+    };
+    expect(brandIconSrc(builtIn, "rose")).toBe("/brand/icon.svg?accent=rose");
+    expect(brandIconSrc(builtIn)).toBe("/brand/icon.svg");
+    const svg: BootstrapIcon = {
+      src: "/brand/icon.svg?v=kx1",
+      type: "image/svg+xml",
+      custom: true,
+    };
+    expect(brandIconSrc(svg, "rose")).toBe("/brand/icon.svg?v=kx1");
+    const png: BootstrapIcon = {
+      src: "/brand/icon.png?v=kx1",
+      type: "image/png",
+      custom: true,
+    };
+    expect(brandIconSrc(png, "rose")).toBe("/brand/icon.png?v=kx1");
   });
 });
