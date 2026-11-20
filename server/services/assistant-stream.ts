@@ -18,8 +18,18 @@ export const STREAM_MAX_DURATION_MS = 10 * 60 * 1000;
 export const STREAM_CHECK_MS = 250;
 /** How often a waiting answer re-reads its row (stopped, deleted). */
 export const STATUS_CHECK_MS = 2000;
-/** An SSE comment while waiting, so proxies keep the socket open. */
+/**
+ * An SSE comment after this long without a frame (waiting, or a silent
+ * stretch of a followed stream: a long tool call), so proxies (Cloudflare
+ * cuts an idle socket after ~100 s) keep the socket open.
+ */
 export const KEEPALIVE_MS = 15_000;
+/**
+ * How long a streaming answer without a stream yet is waited for: claimed
+ * by its worker, the stream not set yet (or already gone). After that the
+ * follow ends without a finish; the client reads the row and reconnects.
+ */
+export const STREAM_GRACE_MS = 5000;
 /**
  * A resume waits this long for the producer's ack: one whose producer died
  * (or whose Valkey hangs) is given up, as if there were no stream.
@@ -40,6 +50,10 @@ export type AnswerStreamDeps = {
   waitMs?: number;
   /** How long a resume may take (default RESUME_TIMEOUT_MS). */
   resumeTimeoutMs?: number;
+  /** Silence before a keepalive comment (default KEEPALIVE_MS). */
+  keepaliveMs?: number;
+  /** How long a streaming answer's missing stream is waited for. */
+  graceMs?: number;
 };
 
 const pending = (status: AnswerState["status"]) =>
@@ -86,11 +100,13 @@ async function resumeWithin(
 /**
  * The live UI message stream (SSE text) of the caller's chat's latest answer,
  * from its first chunk; null when there is none to follow (the route's 204):
- * no answer, one that ended, or a streaming one whose stream is gone (Valkey
- * lost it: the client reads the row instead). A queued answer gets a stream
- * that waits for the worker to publish its turn, then pipes it. Every stream
- * returned ends with a finish chunk: the turn's own, or one from the row
- * when the turn's stream ended without it (or never came).
+ * no answer, or one that ended. A queued answer gets a stream that waits for
+ * the worker to publish its turn, then pipes it; a streaming one whose
+ * stream is not there (not set yet, or lost with Valkey) is waited for the
+ * same way for STREAM_GRACE_MS, then ends without a finish (the client reads
+ * the row and reconnects). Every other stream returned ends with a finish
+ * chunk: the turn's own, or one from the row when the turn's stream ended
+ * without it (or never came).
  * Another user's or an unknown chat: 404.
  */
 export async function openAnswerStream(
@@ -106,6 +122,8 @@ export async function openAnswerStream(
     now: deps.now ?? Date.now,
     waitMs: deps.waitMs ?? STREAM_MAX_DURATION_MS,
     resumeTimeoutMs: deps.resumeTimeoutMs ?? RESUME_TIMEOUT_MS,
+    keepaliveMs: deps.keepaliveMs ?? KEEPALIVE_MS,
+    graceMs: deps.graceMs ?? STREAM_GRACE_MS,
   };
   if (answer.status === "queued") return followAnswer(answer.id, resolved);
   const stream = await resumeWithin(
@@ -113,22 +131,29 @@ export async function openAnswerStream(
     answer.id,
     resolved.resumeTimeoutMs
   );
-  return stream ? followAnswer(answer.id, resolved, stream) : null;
+  return stream
+    ? followAnswer(answer.id, resolved, { initial: stream })
+    : followAnswer(answer.id, resolved, { grace: true });
 }
 
 /**
- * Follows an answer's stream (`initial`, or the one a queued answer's worker
- * publishes: looked for every STREAM_CHECK_MS) and makes sure it ends with a
- * finish: when the stream ended without one, or never came, the row is read
- * every STATUS_CHECK_MS until it ends, and its finish is written (a deleted
- * chat's as stopped). A keepalive comment goes out every KEEPALIVE_MS while
- * waiting; the wait gives up after `waitMs`. The only polling left, and only
- * while a turn is queued or its stream is lost.
+ * Follows an answer's stream (`initial`, or the one its worker publishes:
+ * looked for every STREAM_CHECK_MS) and makes sure it ends with a finish:
+ * when the stream ended without one, or never came, the row is read every
+ * STATUS_CHECK_MS until it ends, and its finish is written (a deleted chat's
+ * as stopped). A keepalive comment goes out after `keepaliveMs` without a
+ * frame, waiting or following; the wait gives up after `waitMs`, or after
+ * `graceMs` with `grace` (a streaming answer: its row is read at once) when
+ * no stream was found by then. The only polling left, and only while a turn
+ * is queued or its stream is missing.
  */
 function followAnswer(
   messageId: string,
   deps: Required<AnswerStreamDeps>,
-  initial?: ReadableStream<string>
+  {
+    initial,
+    grace = false,
+  }: { initial?: ReadableStream<string>; grace?: boolean } = {}
 ): ReadableStream<string> {
   let cancelled = false;
   let reader: ReadableStreamDefaultReader<string> | undefined;
@@ -144,14 +169,33 @@ function followAnswer(
           // Already closed: the reader went away.
         }
       };
+      /**
+       * The next read of `from`, with a keepalive comment for each
+       * `keepaliveMs` it stays silent.
+       */
+      const readAlive = async (from: ReadableStreamDefaultReader<string>) => {
+        const read = from.read();
+        for (;;) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          const silent = new Promise<"silent">((resolve) => {
+            timer = setTimeout(() => resolve("silent"), deps.keepaliveMs);
+          });
+          const result = await Promise.race([read, silent]).finally(() =>
+            clearTimeout(timer)
+          );
+          if (result !== "silent") return result;
+          send(KEEPALIVE);
+        }
+      };
       /** Pipes `stream`; true when it carried the finish. */
       const follow = async (stream: ReadableStream<string>) => {
-        reader = stream.getReader();
+        const current = stream.getReader();
+        reader = current;
         let finished = false;
         for (;;) {
-          const { done, value } = await reader.read();
+          const { done, value } = await readAlive(current);
           if (cancelled) {
-            await reader.cancel().catch(() => {});
+            await current.cancel().catch(() => {});
             return true;
           }
           if (done) return finished;
@@ -165,7 +209,9 @@ function followAnswer(
         let checked = started;
         // A turn's stream is followed once: a second resume would replay it.
         let followed = false;
-        let checkNow = false;
+        let piped = false;
+        // A streaming answer's row may have ended already.
+        let checkNow = grace;
         if (initial) {
           followed = true;
           if (await follow(initial)) return;
@@ -185,7 +231,10 @@ function followAnswer(
                 await stream?.cancel().catch(() => {});
                 return;
               }
-              if (stream && (await follow(stream))) return;
+              if (stream) {
+                piped = true;
+                if (await follow(stream)) return;
+              }
               checkNow = true;
             } else if (published === "DONE") {
               // Finished: the row has ended too.
@@ -219,7 +268,8 @@ function followAnswer(
             }
           }
           if (at - started >= deps.waitMs) return;
-          if (at - pinged >= KEEPALIVE_MS) {
+          if (grace && !piped && at - started >= deps.graceMs) return;
+          if (at - pinged >= deps.keepaliveMs) {
             pinged = at;
             send(KEEPALIVE);
           }

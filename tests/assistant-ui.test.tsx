@@ -1190,6 +1190,8 @@ describe("answer stream", () => {
       let read = 0;
       const fetches = vi.fn(async () => reads[Math.min(read++, 2)]);
       conversationFetch.set("c1", fetches);
+      // Reconnects find nothing (204s) and stay out of the way here.
+      transport.reconnect.mockImplementation(() => new Promise(() => {}));
       const live = nextStream();
       await render(<ChatThread conversationId="c1" />);
       await live.push(...start, { type: "text-delta", id: "t1", delta: "Se" });
@@ -1215,8 +1217,114 @@ describe("answer stream", () => {
         await vi.advanceTimersByTimeAsync(30_000);
       });
       expect(fetches).toHaveBeenCalledTimes(3);
-      // The stream was not opened again for the same answer.
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reconnects a dropped stream with backoff while the answer is pending, showing the stored row meanwhile", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    const tick = (ms: number) =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    try {
+      queryClient.setQueryData(key, conversation("streaming"));
+      let stored = withAnswer("streaming", {
+        content: "Stored part.",
+        parts: [
+          step,
+          { type: "text", text: "Stored part.", state: "streaming" },
+        ],
+      });
+      conversationFetch.set("c1", async () => stored);
+      const first = nextStream();
+      await render(<ChatThread conversationId="c1" />);
+      await first.push(...start, {
+        type: "text-delta",
+        id: "t1",
+        delta: "Live part.",
+      });
+      expect(text()).toContain("Live part.");
+      // The network drops mid-turn: the row (refetched) shows, not the
+      // frozen live view.
+      await act(async () => {
+        await first.close();
+      });
+      await tick(0);
+      expect(text()).toContain("Stored part.");
+      expect(text()).not.toContain("Live part.");
       expect(transport.reconnect).toHaveBeenCalledTimes(1);
+
+      // 1 s later: a reconnect, which finds nothing yet (a 204).
+      await tick(999);
+      expect(transport.reconnect).toHaveBeenCalledTimes(1);
+      await tick(1);
+      expect(transport.reconnect).toHaveBeenCalledTimes(2);
+      // 2 s after that: the stream is back, replayed from its start.
+      const second = nextStream();
+      await tick(1_999);
+      expect(transport.reconnect).toHaveBeenCalledTimes(2);
+      await tick(1);
+      expect(transport.reconnect).toHaveBeenCalledTimes(3);
+      await second.push(...start, {
+        type: "text-delta",
+        id: "t1",
+        delta: "Live part. And more.",
+      });
+      expect(text()).toContain("Live part. And more.");
+
+      stored = withAnswer("done", {
+        content: "Live part. And more.",
+        parts: [
+          step,
+          { type: "text", text: "Live part. And more.", state: "done" },
+        ],
+      });
+      await second.push({ type: "text-end", id: "t1" }, finishChunk("done"));
+      await second.close();
+      await tick(0);
+      await tick(60_000);
+      expect(transport.reconnect).toHaveBeenCalledTimes(3);
+      expect(text()).toContain("Live part. And more.");
+      expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("backs off reconnects up to 10 s apart and stops once the answer ended", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    const tick = (ms: number) =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    try {
+      queryClient.setQueryData(key, conversation("streaming"));
+      let stored = conversation("streaming");
+      conversationFetch.set("c1", async () => stored);
+      // Every reconnect is a 204: the answer's stream is not there.
+      await render(<ChatThread conversationId="c1" />);
+      expect(transport.reconnect).toHaveBeenCalledTimes(1);
+      const at: number[] = [];
+      let clock = 0;
+      for (let i = 0; i < 60; i++) {
+        const before = transport.reconnect.mock.calls.length;
+        await tick(500);
+        clock += 500;
+        if (transport.reconnect.mock.calls.length > before) at.push(clock);
+      }
+      // 1 s, then 2, 5, and 10 s apart from then on.
+      expect(at.slice(0, 5)).toEqual([1_000, 3_000, 8_000, 18_000, 28_000]);
+      stored = withAnswer("failed", { content: "", parts: null });
+      await tick(5_000);
+      const calls = transport.reconnect.mock.calls.length;
+      await tick(60_000);
+      expect(transport.reconnect).toHaveBeenCalledTimes(calls);
     } finally {
       vi.useRealTimers();
     }
@@ -1576,6 +1684,32 @@ describe("answer stream", () => {
       // Two reads still had the first title, the third the generated one.
       expect(listReads(spy)).toBe(3);
       expect(spy).toHaveBeenCalledWith({ queryKey: key });
+    });
+
+    it("refreshes the title when the first answer ends on the row after its stream was cut", async () => {
+      queryClient.setQueryData(key, conversation("streaming"));
+      queryClient.setQueryData(listKey, listed("Iuran"));
+      conversationFetch.set("c1", async () =>
+        withAnswer("done", { content: "Jawaban", parts: null })
+      );
+      const spy = serveTitles(["Iuran", "Cara hitung iuran"]);
+      // invalidateQueries is mocked for the list: the chat is read by hand.
+      follow();
+      await render(<ChatThread conversationId="c1" />);
+      await live.push(...start, { type: "text-delta", id: "t1", delta: "Ja" });
+      await live.close();
+      await act(async () => {
+        await queryClient.refetchQueries({ queryKey: key });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      for (const delay of TITLE_REFRESH_DELAYS_MS) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(delay);
+        });
+      }
+      expect(listReads(spy)).toBe(2);
     });
 
     it("gives up after the last delay when no title comes", async () => {

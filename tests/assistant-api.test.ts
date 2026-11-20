@@ -1842,16 +1842,24 @@ describe("answer-stream", () => {
     expect(turnStream.resume).toHaveBeenCalledWith(answer.id);
   });
 
-  it("answer-stream is 204 for a streaming answer whose stream is gone", async () => {
+  it("answer-stream waits briefly for a streaming answer's stream that is not published yet", async () => {
     const id = await newConversation();
     await send(id);
-    Object.assign(store.messages[1]!, { status: "streaming" });
-    for (const gone of [null, undefined]) {
-      turnStream.resume.mockResolvedValueOnce(gone);
-      expect((await get(`/answer-stream?conversationId=${id}`)).status).toBe(
-        204
-      );
-    }
+    const answer = store.messages[1]!;
+    // Claimed, its stream not set yet: the first resume finds nothing.
+    Object.assign(answer, { status: "streaming" });
+    turnStream.has
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(true);
+    turnStream.resume
+      .mockReset()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(sseStream());
+    const res = await get(`/answer-stream?conversationId=${id}`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe(SSE);
+    expect(turnStream.resume).toHaveBeenCalledTimes(2);
   });
 
   it("answer-stream waits for a queued answer's stream, then pipes it", async () => {
@@ -1934,16 +1942,24 @@ describe("openAnswerStream", () => {
     expect(check()).toBe(true);
   };
 
-  it("a resume that never answers is given up: 204 when streaming, the row's finish when queued", async () => {
+  it("a resume that never answers is given up: no finish after the grace when streaming, the row's finish when queued", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const id = await newConversation();
     await send(id);
     const answer = store.messages[1]!;
     const resume = vi.fn(() => new Promise<never>(() => {}));
     Object.assign(answer, { status: "streaming" });
+    // The client reconnects (and reads the row) after a follow without one.
     expect(
-      await openAnswerStream(id, { resume, resumeTimeoutMs: 20 })
-    ).toBeNull();
+      await textOf(
+        await openAnswerStream(id, {
+          resume,
+          has: vi.fn(async () => true as const),
+          resumeTimeoutMs: 20,
+          graceMs: 30,
+        })
+      )
+    ).toBe("");
 
     Object.assign(answer, { status: "queued" });
     const stream = await openAnswerStream(id, {
@@ -2039,6 +2055,73 @@ describe("openAnswerStream", () => {
       type: "finish",
       messageMetadata: { status: "failed", errorCode: "assistant.stopped" },
     });
+  });
+
+  it("a streaming answer whose stream is not there yet is looked for during the grace", async () => {
+    const id = await newConversation();
+    await send(id);
+    Object.assign(store.messages[1]!, { status: "streaming" });
+    const finish =
+      'data: {"type":"finish","messageMetadata":{"status":"done","errorCode":null}}\n\n';
+    const has = vi
+      .fn<() => Promise<null | true | "DONE">>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(true);
+    const resume = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(closedStream([TEXT, finish]));
+    const text = await textOf(await openAnswerStream(id, { has, resume }));
+    expect(text).toBe(TEXT + finish);
+  });
+
+  it("a streaming answer whose stream never comes ends without a finish after the grace", async () => {
+    const id = await newConversation();
+    await send(id);
+    Object.assign(store.messages[1]!, { status: "streaming" });
+    const has = vi.fn(async () => null);
+    const stream = await openAnswerStream(id, {
+      has,
+      resume: vi.fn(async () => undefined),
+      graceMs: 30,
+    });
+    expect(await textOf(stream)).toBe("");
+    expect(has).toHaveBeenCalled();
+  });
+
+  it("a streaming answer whose turn already ended gets the row's finish at once", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    Object.assign(answer, { status: "streaming" });
+    const resume = vi.fn(async () => {
+      // Its stream finished and the row ended while it was resumed.
+      Object.assign(answer, { status: "done", errorCode: null });
+      return null;
+    });
+    const stream = await openAnswerStream(id, {
+      has: vi.fn(async () => "DONE" as const),
+      resume,
+    });
+    expect(lastFrame(await textOf(stream))).toEqual({
+      type: "finish",
+      messageMetadata: { status: "done", errorCode: null },
+    });
+  });
+
+  it("a silent follow sends a keepalive comment so proxies keep the socket", async () => {
+    const id = await newConversation();
+    await send(id);
+    Object.assign(store.messages[1]!, { status: "streaming" });
+    const stream = await openAnswerStream(id, {
+      resume: vi.fn(async () => openStream([TEXT])),
+      keepaliveMs: 20,
+    });
+    const reader = (stream as ReadableStream<string>).getReader();
+    expect((await reader.read()).value).toBe(TEXT);
+    expect((await reader.read()).value).toBe(": waiting\n\n");
+    expect((await reader.read()).value).toBe(": waiting\n\n");
+    await reader.cancel();
   });
 
   it("keeps a queued answer's wait alive, then gives up after waitMs", async () => {

@@ -67,9 +67,9 @@ function shownLength(message: ShownMessage | undefined): number {
  * read. The unfinished answer is followed over its stream
  * (`useAnswerStream`) and shown from the live parts; once it ends the
  * conversation (sources, final status) and the allowance are refetched. A
- * chat's first answer done also gets an auto title, written after the
- * stream closed: the chat list is read again until it shows
- * (`refreshTitleAfterFirstAnswer`).
+ * chat's first answer done (its finish, or its row once its stream was cut)
+ * also gets an auto title, written after the stream closed: the chat list is
+ * read again until it shows (`refreshTitleAfterFirstAnswer`).
  */
 export function ChatThread(props: ThreadProps) {
   const conversation = useQuery(
@@ -94,20 +94,37 @@ function LoadedThread({
     conversationRef.current = conversation;
   });
 
+  // A chat's first answer done gets its auto title: told by its stream's
+  // finish, or by its row when the stream was cut (once per answer).
+  const titled = React.useRef<string | null>(null);
+  const titleAfter = (answerId: string | undefined) => {
+    const read = conversationRef.current;
+    if (!answerId || titled.current === answerId) return;
+    titled.current = answerId;
+    if (
+      !read.temporary &&
+      read.messages.filter((m) => m.role === "user").length === 1
+    ) {
+      refreshTitleAfterFirstAnswer(queryClient, conversationId, read.title);
+    }
+  };
   const { live } = useAnswerStream(
     conversationId,
     pending?.id ?? null,
     (status) => {
-      const read = conversationRef.current;
-      if (
-        status === "done" &&
-        !read.temporary &&
-        read.messages.filter((m) => m.role === "user").length === 1
-      ) {
-        refreshTitleAfterFirstAnswer(queryClient, conversationId, read.title);
-      }
+      if (status === "done")
+        titleAfter(pendingAnswer(conversationRef.current)?.id);
     }
   );
+  const wasPending = React.useRef(pending?.id);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the read conversation is the trigger
+  React.useEffect(() => {
+    const previous = wasPending.current;
+    wasPending.current = pending?.id;
+    if (!previous || previous === pending?.id) return;
+    const ended = conversation.messages.find((m) => m.id === previous);
+    if (ended?.status === "done") titleAfter(previous);
+  }, [conversation]);
   const liveParts = live?.parts.filter(isAssistantPart);
 
   const messages: ShownMessage[] = conversation.messages.map((m) =>
