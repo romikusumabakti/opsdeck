@@ -42,11 +42,43 @@ function absoluteNodeModulesRefs(code: string): string[] {
     );
 }
 
+/** Builds `entry` with the server's build options (scripts/build-server.ts). */
+async function buildWithServerConfig(entry: string, outDir: string) {
+  const { serverBuildConfig } = await import("../scripts/build-server");
+  const result = await Bun.build(serverBuildConfig([entry], outDir));
+  expect(result.success, String(result.logs)).toBe(true);
+}
+
+/**
+ * The CLI bundle minus jsdom's sync-XHR worker module, which only the CLI
+ * pulls in (through the require.resolve the plugin removes), and with the
+ * patched line normalised.
+ */
+function normaliseCliBundle(code: string): string {
+  const lines = code.split("\n");
+  const start = lines.findIndex(
+    (line) =>
+      line.startsWith("// ") &&
+      line.endsWith("/jsdom/lib/jsdom/living/xhr/xhr-sync-worker.js")
+  );
+  expect(start).toBeGreaterThan(-1);
+  const end = lines.findIndex((line, i) => i > start && line.startsWith("// "));
+  lines.splice(start, end - start);
+  return lines
+    .join("\n")
+    .replace(
+      /var syncWorkerFile = __require\.resolve\("[^"]*xhr-sync-worker\.js"\);/,
+      "var syncWorkerFile = null;"
+    );
+}
+
 describe("server bundle (scripts/build-server.ts)", () => {
   let outDir: string;
+  let cliDir: string;
 
   beforeAll(() => {
     outDir = mkdtempSync(join(tmpdir(), "server-build-"));
+    cliDir = mkdtempSync(join(tmpdir(), "server-build-cli-"));
     // The package's own step, so the test and the real build cannot drift.
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     const step = String(pkg.scripts.build)
@@ -60,9 +92,44 @@ describe("server bundle (scripts/build-server.ts)", () => {
       { encoding: "utf8" }
     );
     expect(result.status, result.stderr).toBe(0);
-  }, 120_000);
+    // The CLI command the script replaced, for comparison.
+    const cli = spawnSync(
+      "bun",
+      [
+        "build",
+        "server/index.ts",
+        "--target=bun",
+        "--define",
+        "process.env.NODE_ENV=process.env.NODE_ENV",
+        "--outdir",
+        cliDir,
+      ],
+      { encoding: "utf8" }
+    );
+    expect(cli.status, cli.stderr).toBe(0);
+  }, 180_000);
 
-  afterAll(() => rmSync(outDir, { recursive: true, force: true }));
+  afterAll(() => {
+    rmSync(outDir, { recursive: true, force: true });
+    rmSync(cliDir, { recursive: true, force: true });
+  });
+
+  it("matches the CLI build except for the stubbed jsdom worker", () => {
+    const code = readFileSync(join(outDir, "index.js"), "utf8");
+    expect(code).not.toContain("jsxDEV(");
+    const cli = normaliseCliBundle(
+      readFileSync(join(cliDir, "index.js"), "utf8")
+    );
+    // Compare without a 27 MB diff on failure: the first differing line.
+    const a = code.split("\n");
+    const b = cli.split("\n");
+    const first = a.findIndex((line, i) => line !== b[i]);
+    expect(
+      first === -1 && a.length === b.length
+        ? null
+        : { line: first, script: a[first], cli: b[first] }
+    ).toBeNull();
+  });
 
   it("loads no file from node_modules by absolute path", () => {
     const code = readFileSync(join(outDir, "index.js"), "utf8");
@@ -78,14 +145,7 @@ describe("sanitizer bundle", () => {
 
   beforeAll(async () => {
     outDir = mkdtempSync(join(tmpdir(), "svg-build-"));
-    const { jsdomNoSyncXhrWorker } = await import("../scripts/build-server");
-    const result = await Bun.build({
-      entrypoints: ["lib/svg-sanitize.ts"],
-      target: "bun",
-      outdir: outDir,
-      plugins: [jsdomNoSyncXhrWorker],
-    });
-    expect(result.success, String(result.logs)).toBe(true);
+    await buildWithServerConfig("lib/svg-sanitize.ts", outDir);
   }, 60_000);
 
   afterAll(() => rmSync(outDir, { recursive: true, force: true }));
@@ -142,4 +202,30 @@ console.log(r.svg);`;
     },
     120_000
   );
+});
+
+describe("email templates from a server-config bundle", () => {
+  let outDir: string;
+
+  beforeAll(async () => {
+    outDir = mkdtempSync(join(tmpdir(), "email-build-"));
+    await buildWithServerConfig(
+      "tests/fixtures/build/render-invitation.ts",
+      outDir
+    );
+  }, 60_000);
+
+  afterAll(() => rmSync(outDir, { recursive: true, force: true }));
+
+  // The image runs with NODE_ENV=production, where react/jsx-dev-runtime
+  // exports no jsxDEV: a dev-runtime bundle throws on every render.
+  it("renders under NODE_ENV=production", () => {
+    const result = spawnSync("bun", [join(outDir, "render-invitation.js")], {
+      cwd: outDir,
+      encoding: "utf8",
+      env: { ...BARE_ENV, NODE_ENV: "production" },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout.trim()).toBe("rendered");
+  });
 });

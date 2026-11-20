@@ -2383,7 +2383,14 @@
     "storageAssigned": "{actor} assigned the storage {name} to {environment}",
     "backupDestinationSet": "{actor} set the backup destination to {bucket} at {endpoint}",
     "backupDestinationCleared": "{actor} removed the backup destination; backups stay on this server",
-    "instanceBrandingChanged": "{actor} updated the instance branding{nameChanged, select, true {: name} other {}}{companyChanged, select, true {, company} other {}}{accentChanged, select, true {, accent} other {}}{logoChanged, select, true {, logo} other {}}{logoDarkChanged, select, true {, dark logo} other {}}",
+    "instanceBrandingChanged": "{actor} updated the instance branding{hasFields, select, true {: {fields}} other {}}",
+    "instanceBrandingField": {
+      "name": "name",
+      "company": "company",
+      "accent": "accent",
+      "logo": "logo",
+      "logoDark": "dark logo"
+    },
     "projectDefaultServerSet": "{actor} set the default server of {project} to {server}",
     "projectDefaultServerCleared": "{actor} cleared the default server of {project}",
     "projectGroupCreated": "{actor} created the project group {group}",

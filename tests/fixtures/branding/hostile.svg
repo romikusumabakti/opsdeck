@@ -19,5 +19,13 @@
   <foreignObject width="64" height="64"><div xmlns="http://www.w3.org/1999/xhtml" onmouseover="alert(4)">x</div></foreignObject>
   <animate attributeName="href" to="javascript:alert(5)"/>
   <set attributeName="xlink:href" to="https://evil.example.com/"/>
+  <style>rect{fill:u\72l(https://evil.example.com/escaped.svg#p)} @\69mport "https://evil.example.com/escaped.css";</style>
+  <style>rect{background:image-set("https://evil.example.com/set.png" 1x)}</style>
+  <style>rect{background:-webkit-image-set("https://evil.example.com/webkit.png" 1x)}</style>
+  <style>rect{background:cross-fade(url(#gradient), "https://evil.example.com/fade.png")}</style>
+  <rect x="40" y="0" width="8" height="8" style="fill:u\72l(https://evil.example.com/escaped-attr.svg#p)"/>
+  <rect x="48" y="0" width="8" height="8" fill="u\72l(https://evil.example.com/escaped-fill.svg#p)"/>
+  <rect x="56" y="0" width="8" height="8" style="fill:image-set(&quot;https://evil.example.com/attr-set.png&quot; 1x)"/>
+  <rect x="0" y="48" width="8" height="8" style="fill:-webkit-image-set(&quot;https://evil.example.com/attr-webkit.png&quot; 1x)"/>
   <path class="keep" d="M40 40h16v16H40z" fill="#1e3a8a"/>
 </svg>

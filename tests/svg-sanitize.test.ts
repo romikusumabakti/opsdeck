@@ -59,6 +59,14 @@ describe("sanitizeSvg", () => {
     expect(hostile).not.toMatch(/expression\(/i);
   });
 
+  it("drops CSS escapes and string-URL functions in style attributes and <style>", () => {
+    expect(hostile).not.toContain("\\");
+    expect(hostile).not.toMatch(/image-set\(|cross-fade\(/i);
+    expect(hostile).not.toMatch(/escaped|set\.png|webkit\.png|fade\.png/);
+    // The rects themselves stay; only the unsafe attributes go.
+    expect(hostile).toContain('<rect x="48" y="0" width="8" height="8"/>');
+  });
+
   it("removes a <style> with @import or an external url()", () => {
     expect(hostile).not.toMatch(/@import/i);
     // The harmless stylesheet stays.

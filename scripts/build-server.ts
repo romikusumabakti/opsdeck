@@ -35,15 +35,28 @@ export const jsdomNoSyncXhrWorker: BunPlugin = {
   },
 };
 
-if (import.meta.main) {
-  const outdir = process.argv[2] ?? "dist/server";
-  const result = await Bun.build({
-    entrypoints: ["server/index.ts"],
+/** The server bundle's build options; tests build probe entries with them. */
+export function serverBuildConfig(
+  entrypoints: string[],
+  outdir: string
+): Bun.BuildConfig {
+  return {
+    entrypoints,
     target: "bun",
     outdir,
     define: { "process.env.NODE_ENV": "process.env.NODE_ENV" },
+    // The CLI's default; the API otherwise emits jsxDEV, which
+    // react/jsx-dev-runtime leaves undefined under NODE_ENV=production.
+    jsx: { development: false },
     plugins: [jsdomNoSyncXhrWorker],
-  });
+  };
+}
+
+if (import.meta.main) {
+  const outdir = process.argv[2] ?? "dist/server";
+  const result = await Bun.build(
+    serverBuildConfig(["server/index.ts"], outdir)
+  );
   for (const log of result.logs) console.error(log);
   if (!result.success) process.exit(1);
   for (const output of result.outputs) console.log(output.path);

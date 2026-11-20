@@ -85,6 +85,17 @@ describe("validateBrandLogo", () => {
     });
   });
 
+  it("rejects an SVG that only grows past 100 KB when serialized", async () => {
+    // Under the limit as uploaded; each bare ">" in text is written as "&gt;".
+    const text = ">".repeat(40_000);
+    const source = svg("0 0 10 10", `<text>${text}</text>`);
+    expect(source.length).toBeLessThan(102_400);
+    expect(await validateBrandLogo(source)).toEqual({
+      ok: false,
+      error: "too_large",
+    });
+  });
+
   it("rejects 1100×1100 as too_large_dimensions and 32×32 as too_small", async () => {
     expect(await validateBrandLogo(await raster(1100, 1100))).toEqual({
       ok: false,

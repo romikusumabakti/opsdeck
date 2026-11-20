@@ -17,8 +17,21 @@ export type SanitizeSvgResult =
 
 // XML entity expansion and external entities: refused outright, never parsed.
 const DECLARATION = /<!(?:DOCTYPE|ENTITY)/i;
-// A reference that leaves the document, or old IE script-in-CSS.
-const UNSAFE_VALUE = [/url\(\s*['"]?(?!#)/i, /@import/i, /expression\(/i];
+// Checked on every attribute value (presentation attributes such as fill are
+// CSS too) and on <style> text:
+//   - a reference that leaves the document: url() other than url(#…),
+//     @import, and the CSS functions that take a URL as a plain string;
+//   - old IE script-in-CSS;
+//   - any backslash: a CSS escape (`u\72l(`, `@\69mport`) hides the rest.
+const UNSAFE_VALUE = [
+  /url\(\s*['"]?(?!#)/i,
+  /@import/i,
+  /expression\(/i,
+  /(?:-webkit-)?image-set\(/i,
+  /cross-fade\(/i,
+  /(?<![-\w])(?:image|src)\(/i,
+  /\\/,
+];
 
 const unsafe = (value: string) => UNSAFE_VALUE.some((re) => re.test(value));
 

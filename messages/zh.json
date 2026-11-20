@@ -2383,7 +2383,14 @@
     "storageAssigned": "{actor} 将存储 {name} 分配给了 {environment}",
     "backupDestinationSet": "{actor} 将备份目标设为 {endpoint} 上的 {bucket}",
     "backupDestinationCleared": "{actor} 移除了备份目标；备份保存在本服务器",
-    "instanceBrandingChanged": "{actor} 更新了实例品牌{nameChanged, select, true {：名称} other {}}{companyChanged, select, true {，公司} other {}}{accentChanged, select, true {，强调色} other {}}{logoChanged, select, true {，标志} other {}}{logoDarkChanged, select, true {，深色标志} other {}}",
+    "instanceBrandingChanged": "{actor} 更新了实例品牌{hasFields, select, true {：{fields}} other {}}",
+    "instanceBrandingField": {
+      "name": "名称",
+      "company": "公司",
+      "accent": "强调色",
+      "logo": "标志",
+      "logoDark": "深色标志"
+    },
     "projectDefaultServerSet": "{actor} 将 {project} 的默认服务器设为 {server}",
     "projectDefaultServerCleared": "{actor} 清除了 {project} 的默认服务器",
     "projectGroupCreated": "{actor} 创建了项目分组 {group}",

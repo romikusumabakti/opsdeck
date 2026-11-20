@@ -73,11 +73,10 @@ async function validateSvg(bytes: Uint8Array): Promise<LogoValidation> {
   const size = svgSize(result.svg);
   if (!size) return fail("invalid_image");
   if (!square(size.width, size.height)) return fail("not_square");
-  return {
-    ok: true,
-    bytes: new TextEncoder().encode(result.svg),
-    type: "image/svg+xml",
-  };
+  // Serializing can grow it (declared namespaces, escaped text).
+  const out = new TextEncoder().encode(result.svg);
+  if (out.length > SVG_LOGO_MAX_BYTES) return fail("too_large");
+  return { ok: true, bytes: out, type: "image/svg+xml" };
 }
 
 async function validateRaster(bytes: Uint8Array): Promise<LogoValidation> {

@@ -2383,7 +2383,14 @@
     "storageAssigned": "{actor} asignó el almacenamiento {name} a {environment}",
     "backupDestinationSet": "{actor} fijó el destino de las copias en {bucket} de {endpoint}",
     "backupDestinationCleared": "{actor} quitó el destino de las copias; se quedan en este servidor",
-    "instanceBrandingChanged": "{actor} actualizó la imagen de marca de la instancia{nameChanged, select, true {: nombre} other {}}{companyChanged, select, true {, empresa} other {}}{accentChanged, select, true {, acento} other {}}{logoChanged, select, true {, logotipo} other {}}{logoDarkChanged, select, true {, logotipo oscuro} other {}}",
+    "instanceBrandingChanged": "{actor} actualizó la imagen de marca de la instancia{hasFields, select, true {: {fields}} other {}}",
+    "instanceBrandingField": {
+      "name": "nombre",
+      "company": "empresa",
+      "accent": "acento",
+      "logo": "logotipo",
+      "logoDark": "logotipo oscuro"
+    },
     "projectDefaultServerSet": "{actor} fijó el servidor predeterminado de {project} en {server}",
     "projectDefaultServerCleared": "{actor} quitó el servidor predeterminado de {project}",
     "projectGroupCreated": "{actor} creó el grupo de proyectos {group}",

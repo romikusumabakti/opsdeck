@@ -282,6 +282,22 @@ describe("instance branding API", () => {
     expect(huge.status).toBe(413);
     expect(await huge.json()).toMatchObject({ error: "too_large" });
 
+    // The same for a chunked body with no Content-Length.
+    const form = new FormData();
+    form.append("file", new File([new Uint8Array(2 * 1024 * 1024)], "x.png"));
+    const encoded = new Response(form);
+    const chunked = await app.request(`${BASE}/logo?theme=light`, {
+      method: "PUT",
+      headers: {
+        Origin: ORIGIN,
+        "Content-Type": String(encoded.headers.get("content-type")),
+      },
+      body: encoded.body,
+      duplex: "half",
+    } as RequestInit);
+    expect(chunked.status).toBe(413);
+    expect(await chunked.json()).toMatchObject({ error: "too_large" });
+
     const jpeg = await new Bun.Image(SEED).resize(128, 128).jpeg().bytes();
     const unsupported = await upload("light", jpeg, "logo.png");
     expect(unsupported.status).toBe(415);
@@ -305,6 +321,15 @@ describe("instance branding API", () => {
 
     expect((await upload("sideways", LOGO)).status).toBe(400);
     expect(state.logos).toEqual([]);
+    expect(activity.record).not.toHaveBeenCalled();
+    expect(branding.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("removing a logo that is not there writes nothing", async () => {
+    const res = await send("DELETE", `${BASE}/logo?theme=dark`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ logoDark: null });
+    expect(state.settings.brandUpdatedAt).toBeNull();
     expect(activity.record).not.toHaveBeenCalled();
     expect(branding.invalidate).not.toHaveBeenCalled();
   });

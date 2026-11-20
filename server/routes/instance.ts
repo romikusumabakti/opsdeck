@@ -1,4 +1,5 @@
 import { bodyLimit } from "hono/body-limit";
+import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { RASTER_LOGO_MAX_BYTES } from "@/lib/brand-logo-validate";
 import { backupDestinationInputSchema, uuidSchema } from "@/lib/validation";
@@ -93,7 +94,11 @@ export const instanceRouter = sessionRouter()
     query(brandThemeSchema),
     brandLogoBodyLimit,
     async (c) => {
-      const form = await c.req.raw.formData().catch(() => null);
+      // A malformed body is no_file; an HTTP error (a body-limit refusal) is not.
+      const form = await c.req.raw.formData().catch((error) => {
+        if (error instanceof HTTPException) throw error;
+        return null;
+      });
       const file = form?.get("file");
       if (!(file instanceof File)) return c.json({ error: "no_file" }, 400);
       // Before decoding: the part size alone settles the raster limit.

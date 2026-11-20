@@ -2383,7 +2383,14 @@
     "storageAssigned": "{actor} menetapkan storage {name} ke {environment}",
     "backupDestinationSet": "{actor} mengatur tujuan backup ke {bucket} di {endpoint}",
     "backupDestinationCleared": "{actor} menghapus tujuan backup; backup tetap di server ini",
-    "instanceBrandingChanged": "{actor} memperbarui branding instance{nameChanged, select, true {: nama} other {}}{companyChanged, select, true {, perusahaan} other {}}{accentChanged, select, true {, aksen} other {}}{logoChanged, select, true {, logo} other {}}{logoDarkChanged, select, true {, logo mode gelap} other {}}",
+    "instanceBrandingChanged": "{actor} memperbarui branding instance{hasFields, select, true {: {fields}} other {}}",
+    "instanceBrandingField": {
+      "name": "nama",
+      "company": "perusahaan",
+      "accent": "aksen",
+      "logo": "logo",
+      "logoDark": "logo mode gelap"
+    },
     "projectDefaultServerSet": "{actor} mengatur server default {project} ke {server}",
     "projectDefaultServerCleared": "{actor} menghapus server default {project}",
     "projectGroupCreated": "{actor} membuat grup proyek {group}",

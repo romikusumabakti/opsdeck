@@ -401,18 +401,31 @@ describe("activity page backup destination events", () => {
 });
 
 describe("activity page instance events", () => {
-  it("renders instance.brandingChanged with the fields that changed", async () => {
-    const text = await renderEvents([
-      row("1", "instance.brandingChanged", {
-        nameChanged: "true",
-        companyChanged: "false",
-        accentChanged: "true",
-        logoChanged: "false",
-        logoDarkChanged: "true",
-      }),
-    ]);
-    expect(text).toContain(
-      "Rina updated the instance branding: name, accent, dark logo"
+  const flags = (changed: string[]) =>
+    Object.fromEntries(
+      ["name", "company", "accent", "logo", "logoDark"].map((field) => [
+        `${field}Changed`,
+        String(changed.includes(field)),
+      ])
     );
+
+  it("renders instance.brandingChanged as a list of the fields that changed", async () => {
+    const text = await renderEvents([
+      row("1", "instance.brandingChanged", flags(["company"])),
+      row(
+        "2",
+        "instance.brandingChanged",
+        flags(["name", "accent", "logoDark"])
+      ),
+      row("3", "instance.brandingChanged", flags(["logo"])),
+      row("4", "instance.brandingChanged", flags([])),
+    ]);
+    expect(text).toContain("Rina updated the instance branding: company");
+    expect(text).toContain(
+      "Rina updated the instance branding: name, accent, and dark logo"
+    );
+    expect(text).toContain("Rina updated the instance branding: logo");
+    expect(text).not.toMatch(/branding, /);
+    expect(text).toMatch(/updated the instance branding(?!:)/);
   });
 });

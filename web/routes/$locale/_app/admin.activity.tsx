@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Activity } from "lucide-react";
-import { useTranslations } from "use-intl";
+import { useFormatter, useTranslations } from "use-intl";
 import { PageHeader } from "@/components/page-header";
 import { RelativeTime } from "@/components/relative-time";
 import { UserAvatar } from "@/components/user/user-avatar";
@@ -52,11 +52,21 @@ function authMethod(
     : value;
 }
 
+// instance.brandingChanged flags, in the order the sentence lists them.
+const BRANDING_FIELDS = [
+  "name",
+  "company",
+  "accent",
+  "logo",
+  "logoDark",
+] as const;
+
 // Render one event to a localized sentence. `data` is the denormalized params
 // snapshotted at write time (see lib/activity.ts).
 function message(
   t: ReturnType<typeof useTranslations<"activity">>,
   tIssues: ReturnType<typeof useTranslations<"issues">>,
+  format: ReturnType<typeof useFormatter>,
   row: ActivityRow
 ): string {
   const actor = row.actorName ?? t("someone");
@@ -278,15 +288,16 @@ function message(
             endpoint: String(d.endpoint),
           });
     // Admin › Instance › Branding: which fields changed, never the logo.
-    case "instance.brandingChanged":
+    case "instance.brandingChanged": {
+      const fields = BRANDING_FIELDS.filter(
+        (field) => String(d[`${field}Changed`]) === "true"
+      ).map((field) => t(`instanceBrandingField.${field}`));
       return t("instanceBrandingChanged", {
         actor,
-        nameChanged: String(d.nameChanged),
-        companyChanged: String(d.companyChanged),
-        accentChanged: String(d.accentChanged),
-        logoChanged: String(d.logoChanged),
-        logoDarkChanged: String(d.logoDarkChanged),
+        hasFields: String(fields.length > 0),
+        fields: format.list(fields, { type: "conjunction" }),
       });
+    }
     case "mailpit.configured":
       return t("mailpitConfigured", {
         actor,
@@ -680,6 +691,7 @@ function message(
 function ActivityPage() {
   const t = useTranslations("activity");
   const tIssues = useTranslations("issues");
+  const format = useFormatter();
   const events = useSuspenseQuery(listActivityQuery(FEED_LIMIT)).data;
 
   return (
@@ -709,7 +721,9 @@ function ActivityPage() {
               ) : (
                 <Activity className="size-4 shrink-0 text-muted-foreground" />
               )}
-              <span className="flex-1 min-w-0">{message(t, tIssues, e)}</span>
+              <span className="flex-1 min-w-0">
+                {message(t, tIssues, format, e)}
+              </span>
               <span className="shrink-0 text-xs text-muted-foreground">
                 <RelativeTime date={e.createdAt} />
               </span>

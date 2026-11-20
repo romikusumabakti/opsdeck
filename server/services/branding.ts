@@ -185,6 +185,8 @@ export async function removeBrandLogo(
 ): Promise<BrandingSettings> {
   const session = await requireInstanceManage();
   const before = await loadRaw();
+  // Nothing to remove: no write, no version bump, no activity row.
+  if (!before.logos.has(theme)) return before.view;
   await db.transaction(async (tx) => {
     await tx
       .delete(instanceBrandLogos)
@@ -194,9 +196,8 @@ export async function removeBrandLogo(
       .set({ brandUpdatedAt: new Date() })
       .where(eq(instanceSettings.id, 1));
   });
-  const removed = before.logos.has(theme);
   return afterWrite(session.user.id, {
-    logo: theme === "light" && removed,
-    logoDark: theme === "dark" && removed,
+    logo: theme === "light",
+    logoDark: theme === "dark",
   });
 }
