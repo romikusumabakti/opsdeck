@@ -196,6 +196,30 @@ describe("buildSystemPrompt", () => {
     }
   });
 
+  it("defaults a log check to the backend service", () => {
+    const text = buildSystemPrompt(ctx());
+    const mapping = text
+      .split("\n")
+      .find((line) => line.startsWith('- "check logs of some env"'));
+    expect(mapping).toContain("get_service_logs");
+    expect(mapping).toContain("backend service by default");
+  });
+
+  it("introduces itself for every role, on the code and the operations data", () => {
+    const text = buildSystemPrompt(ctx());
+    const intro = text.split("\n\n")[0] ?? "";
+    expect(intro).toContain("code");
+    expect(intro).toContain("operations data");
+    expect(intro).not.toMatch(
+      /Project managers, business analysts, QA testers and engineers/
+    );
+    expect(intro).not.toMatch(
+      /BRD sections and Jira tickets match the real code/
+    );
+    expect(intro).toContain("every role");
+    expect(intro.length).toBeLessThan(420);
+  });
+
   it("never calls the product the Panel", () => {
     for (const role of ["qa", "engineer", "staff"] as const) {
       const text = buildSystemPrompt(

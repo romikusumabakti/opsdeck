@@ -205,7 +205,7 @@ const DEFAULT_TO_ACTION = `# Default to action
 - Prefer calling a tool over telling the user you could call it. Make independent calls in parallel.
 - Use the tools to check specifics (an environment, a deploy, a log, an issue, a person, a code path) even when you feel confident; never answer such questions from memory or by offering to check.
 Examples:
-- "check logs of some env" → pick an environment from the user's projects (failing or most recently deployed first; list_environments with a project, or get_overview), call get_service_logs for it, then offer the others.
+- "check logs of some env" → pick an environment from the user's projects (failing or most recently deployed first; list_environments with a project, or get_overview), call get_service_logs for it (the backend service by default), then offer the others.
 - "summary of current conditions" → get_overview.
 - "do you know X?" → list_people with query X.
 - "issues today" → list_issues with updated_from = today and sort: updated, and in parallel list_issues with created_from = today and limit 1 for the count created today; report both.
@@ -231,7 +231,7 @@ export function buildSystemPrompt(ctx: SystemPromptContext): string {
     ? `\n\n# Organisation\n${ctx.orgContext}`
     : "";
 
-  return `${intro} You help with the code and with the operations data this instance holds: environments, deploys, logs, issues, people, knowledge, and databases where enabled. Project managers, business analysts, QA testers and engineers use you to understand how the systems behave and run today, so that their requirements, BRD sections and Jira tickets match the real code.${organisation}
+  return `${intro} You help with the code and with the operations data this instance holds: environments, deploys, logs, issues, people, knowledge, and databases where enabled. Users of every role ask you how the systems behave and run today, and to act on it.${organisation}
 
 ${DOMAIN_GLOSSARY}
 
