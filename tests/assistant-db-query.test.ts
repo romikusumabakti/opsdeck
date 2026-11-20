@@ -94,6 +94,45 @@ describe("assistantQueryCommand", () => {
     );
   });
 
+  it("postgres on systemd: queries over 127.0.0.1 as the role, password on stdin only", () => {
+    const { command, stdin } = assistantQueryCommand(
+      { ...PG, password: "pg-Gen3rated-pw" },
+      { ...service, serviceType: "systemd", serviceName: "postgresql" },
+      "SELECT id FROM orders",
+      101
+    );
+    expect(stdin).toBe("pg-Gen3rated-pw\n");
+    expect(command).toContain("-h 127.0.0.1");
+    expect(command).toContain("PGOPTIONS=");
+    expect(command).toContain("IFS= read -r PGPASSWORD; export PGPASSWORD;");
+    expect(command).not.toContain("pg-Gen3rated-pw");
+    expect(command).not.toContain("runuser");
+    expect(command).not.toContain("sudo");
+  });
+
+  it("postgres on systemd without a password: throws", () => {
+    expect(() =>
+      assistantQueryCommand(
+        PG,
+        { ...service, serviceType: "systemd", serviceName: "postgresql" },
+        "SELECT 1",
+        101
+      )
+    ).toThrow("Assistant database login has no password");
+  });
+
+  it("postgres in a container: command unchanged", () => {
+    const { command } = assistantQueryCommand(PG, service, "SELECT 1", 5);
+    const inner =
+      "PGOPTIONS='-c default_transaction_read_only=on -c statement_timeout=10s' " +
+      "psql -X -q --csv -P 'null=\u0001' -v ON_ERROR_STOP=1 " +
+      "-U 'menara_ro_acme_qa' -d 'acme_qa' " +
+      "-c 'SELECT * FROM (SELECT 1) AS menara_q LIMIT 5'";
+    expect(command).toBe(
+      `docker exec 'acme-db' bash -c '${inner.replaceAll("'", "'\\''")}'`
+    );
+  });
+
   it("mssql: sqlcmd as the login, no variable substitution, -t 10, ROWCOUNT, password on stdin only", () => {
     const { command, stdin } = assistantQueryCommand(
       MSSQL,
@@ -189,6 +228,28 @@ d</field>
 });
 
 describe("runAssistantDbQuery", () => {
+  it("sends the systemd postgres password on stdin and redacts it from an error", async () => {
+    SERVICE.serviceType = "systemd" as never;
+    try {
+      ssh.results.push({
+        code: 1,
+        stdout: "",
+        stderr: "FATAL: password pg-Gen3rated-pw rejected",
+      });
+      const error = await runAssistantDbQuery(
+        "env-1",
+        { ...PG, password: "pg-Gen3rated-pw" },
+        "SELECT 1",
+        10
+      ).catch((e) => e);
+      expect(ssh.calls[0]?.stdin).toBe("pg-Gen3rated-pw\n");
+      expect(error).toBeInstanceOf(AssistantDbQueryError);
+      expect(error.message).not.toContain("pg-Gen3rated-pw");
+    } finally {
+      SERVICE.serviceType = "docker";
+    }
+  });
+
   it("runs over SSH and parses the result", async () => {
     ssh.results.push({ code: 0, stdout: "id\n1\n", stderr: "" });
     await expect(

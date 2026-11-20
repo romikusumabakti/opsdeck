@@ -103,10 +103,26 @@ export function assistantQueryCommand(
 ): { command: string; stdin?: string } {
   const text = cappedSql(login.engine, sql, rowLimit);
   if (login.engine === "postgres") {
-    const inner =
+    const psql =
       `PGOPTIONS=${shq(ASSISTANT_DB_PGOPTIONS)} ` +
-      `psql -X -q --csv -P ${shq(`null=${PG_NULL}`)} -v ON_ERROR_STOP=1 ` +
-      `-U ${shq(login.login)} -d ${shq(login.database)} -c ${shq(text)}`;
+      `psql -X -q --csv -P ${shq(`null=${PG_NULL}`)} -v ON_ERROR_STOP=1`;
+    const target = `-U ${shq(login.login)} -d ${shq(login.database)} -c ${shq(text)}`;
+    // Postgres on systemd: the role logs in over 127.0.0.1 with its password
+    // (the only stdin content), as the SSH user: no sudo, no peer auth.
+    if (service.serviceType === "systemd") {
+      if (!login.password) {
+        throw new Error("Assistant database login has no password");
+      }
+      return {
+        command: buildDbShellCommand(
+          "systemd",
+          service.serviceName,
+          `IFS= read -r PGPASSWORD; export PGPASSWORD; ${psql} -h 127.0.0.1 ${target}`
+        ),
+        stdin: `${login.password}\n`,
+      };
+    }
+    const inner = `${psql} ${target}`;
     // As postgres on systemd (peer auth); inside a container the exec lands
     // on the trusted local socket. -U makes the session the read-only role.
     return {

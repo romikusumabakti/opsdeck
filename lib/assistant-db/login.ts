@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { environmentServices } from "@/lib/db/schema";
 import { decryptNullable } from "@/lib/secrets";
@@ -9,15 +9,16 @@ export type AssistantDbLogin = {
   engine: DatabaseType;
   serviceId: string;
   login: string;
-  // mssql and mysql only (decrypted); postgres uses trusted local auth.
+  // Decrypted. mssql, mysql and Postgres on systemd (which logs in over
+  // 127.0.0.1); container and shared Postgres use trusted local auth, none.
   password?: string;
   database: string;
 };
 
 /**
  * The environment's read-only login, or null when an admin/infra hasn't
- * enabled it (or it can't be used: an external database, or an mssql/mysql
- * login without its password). Server-only; the password must never reach a
+ * enabled it (or it can't be used: a login that needs a password, mssql,
+ * mysql or systemd Postgres, without one it can decrypt). Server-only; the password must never reach a
  * response, a job payload, the activity log or a log line.
  */
 export async function getAssistantDbLogin(
@@ -27,6 +28,7 @@ export async function getAssistantDbLogin(
     .select({
       id: environmentServices.id,
       dbType: environmentServices.dbType,
+      serviceType: environmentServices.serviceType,
       dbName: environmentServices.dbName,
       login: environmentServices.assistantDbLogin,
       password: environmentServices.assistantDbPassword,
@@ -37,11 +39,7 @@ export async function getAssistantDbLogin(
         eq(environmentServices.environmentId, environmentId),
         eq(environmentServices.role, "db"),
         eq(environmentServices.assistantDbEnabled, true),
-        isNotNull(environmentServices.assistantDbLogin),
-        or(
-          isNull(environmentServices.dbKind),
-          ne(environmentServices.dbKind, "external")
-        )
+        isNotNull(environmentServices.assistantDbLogin)
       )
     )
     .limit(1);
@@ -52,7 +50,7 @@ export async function getAssistantDbLogin(
     login: row.login,
     database: row.dbName,
   };
-  if (row.dbType === "postgres") return base;
+  if (row.dbType === "postgres" && row.serviceType !== "systemd") return base;
   let password: string | null;
   try {
     password = decryptNullable(row.password);
