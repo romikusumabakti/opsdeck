@@ -4,7 +4,10 @@ import type { AddressInfo } from "node:net";
 /**
  * A tiny local stand-in for an OpenAI-compatible chat-completions API, so the
  * assistant specs never reach a real provider. It streams one text answer per
- * request and never calls a tool.
+ * request. A question containing "use a tool" (with no tool result in the
+ * request yet) streams a preamble and then a `list_issues` call, every
+ * argument null; once the request holds the tool's result it streams the
+ * final answer.
  *
  * A question containing "slow" streams a word every STEP_MS for a long time,
  * so a spec can click Stop mid-answer; only its first request is slow, so a
@@ -35,6 +38,30 @@ const FAST_ANSWER = [
 
 type Part = { type?: string; text?: string };
 type ChatMessage = { role?: string; content?: string | Part[] | null };
+
+const TOOL_PREAMBLE = ["Checking", " the", " issues."];
+const TOOL_FINAL = ["No", " issues", " match."];
+// list_issues' strict schema: every field is present and nullable.
+const LIST_ISSUES_ARGS = JSON.stringify({
+  query: null,
+  project: null,
+  status: null,
+  type: null,
+  priority: null,
+  assignee: null,
+  reporter: null,
+  labels: null,
+  environment: null,
+  milestone: null,
+  created_from: null,
+  created_to: null,
+  updated_from: null,
+  updated_to: null,
+  sort: null,
+  order: null,
+  limit: null,
+  offset: null,
+});
 
 function lastUserText(messages: ChatMessage[]): string {
   const last = messages.findLast((m) => m.role === "user");
@@ -91,9 +118,14 @@ export async function startAssistantStub(): Promise<AssistantStub> {
       }
       const slow = question.includes("slow") && !seenSlow.has(question);
       if (slow) seenSlow.add(question);
-      const words = slow
+      const messages = body.messages ?? [];
+      const hasToolResult = messages.some((m) => m.role === "tool");
+      const callsTool = question.includes("use a tool") && !hasToolResult;
+      let words = slow
         ? Array.from({ length: SLOW_WORDS }, (_, i) => `word${i} `)
         : FAST_ANSWER;
+      if (callsTool) words = TOOL_PREAMBLE;
+      else if (question.includes("use a tool")) words = TOOL_FINAL;
 
       const chunk = (delta: object, finish: string | null = null) =>
         `data: ${JSON.stringify({
@@ -118,7 +150,24 @@ export async function startAssistantStub(): Promise<AssistantStub> {
             return;
           }
           clearInterval(timer);
-          res.write(chunk({}, "stop"));
+          if (callsTool) {
+            res.write(
+              chunk({
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: "call_stub_1",
+                    type: "function",
+                    function: {
+                      name: "list_issues",
+                      arguments: LIST_ISSUES_ARGS,
+                    },
+                  },
+                ],
+              })
+            );
+          }
+          res.write(chunk({}, callsTool ? "tool_calls" : "stop"));
           res.write(
             `data: ${JSON.stringify({
               id: "chatcmpl-stub",

@@ -127,6 +127,32 @@ test("Stop ends a slow answer with a Stopped note, and Retry answers again", asy
   await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible();
 });
 
+test("a tool turn streams its preamble, shows the tool step, then the answer collapsed", async ({
+  page,
+}) => {
+  await page.goto("/en/assistant");
+  await page.getByPlaceholder(ASK).fill("please use a tool");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  // The preamble and the tool's chip (toolLabels.list_issues) show first.
+  await expect(page.getByText("Checking the issues.")).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.locator("[data-tool-chip]")).toContainText("Issues");
+  await expect(page.getByText("No issues match.")).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByRole("button", { name: "Copy answer" })).toBeVisible();
+
+  // Finished: the steps fold away, and the toggle brings them back.
+  const toggle = page.locator("[data-answer-steps] button").first();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByText("Checking the issues.")).toBeHidden();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("Checking the issues.")).toBeVisible();
+});
+
 // A mention in the middle of the text pins its project as the question's
 // context: the sent request carries it, wherever the @word sat.
 for (const how of ["click", "Enter"] as const) {
