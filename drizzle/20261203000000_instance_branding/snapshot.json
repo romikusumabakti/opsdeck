@@ -1,0 +1,274 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "0c886429-74b9-4ce4-92ca-eeda5d2b9591",
+  "prevIds": [
+    "b23c0124-23c0-43b1-a2d3-1fb19586a967"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "instance_brand_logos"
+      ],
+      "writes": [
+        "s|tbl|public.instance_brand_logos",
+        "n|tbl|public.instance_brand_logos",
+        "e|tbl|public.instance_brand_logos",
+        "n|rel|public.instance_brand_logos",
+        "n|type|public.instance_brand_logos",
+        "n|rel|public.instance_brand_logos_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "brand_name"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.brand_name",
+        "n|col|public.instance_settings.brand_name",
+        "e|col|public.instance_settings.brand_name"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "brand_company"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.brand_company",
+        "n|col|public.instance_settings.brand_company",
+        "e|col|public.instance_settings.brand_company"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "brand_accent"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.brand_accent",
+        "n|col|public.instance_settings.brand_accent",
+        "e|col|public.instance_settings.brand_accent"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "instance_settings",
+        "brand_updated_at"
+      ],
+      "writes": [
+        "s|col|public.instance_settings.brand_updated_at",
+        "n|col|public.instance_settings.brand_updated_at",
+        "e|col|public.instance_settings.brand_updated_at"
+      ],
+      "reads": [
+        "n|tbl|public.instance_settings",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "instance_brand_logos",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_brand_logos",
+        "name": "theme",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_brand_logos",
+        "name": "bytes",
+        "type": "bytea",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_brand_logos",
+        "name": "content_type",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_brand_logos",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "brand_name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "brand_company",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "brand_accent",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_settings",
+        "name": "brand_updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_brand_logos",
+        "name": "instance_brand_logos_pkey",
+        "columns": [
+          "theme"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_brand_logos",
+        "name": "instance_brand_logos_theme_check",
+        "value": "\"theme\" in ('light', 'dark')",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "instance_brand_logos",
+        "name": "instance_brand_logos_content_type_check",
+        "value": "\"content_type\" in ('image/svg+xml', 'image/png', 'image/webp')",
+        "entityType": "checks"
+      }
+    }
+  ]
+}

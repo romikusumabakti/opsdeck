@@ -4,12 +4,8 @@
 // evaluates that CommonJS side-effect import after the ES modules beside it,
 // so the bundled server (dist/server/index.js) died at boot without this.
 import "reflect-metadata";
-import { startAssistantWorker } from "@/lib/assistant/queue";
 import { validateEnv } from "@/lib/env";
-import { startWorker } from "@/lib/jobs/worker";
-import { app } from "@/server/app";
-import { syncInstanceBackupOnBoot } from "@/server/services/instance-backups";
-import { mountStatic } from "@/server/static";
+import { primeBranding } from "@/lib/instance-branding";
 
 // The server process. Two jobs besides serving requests:
 //
@@ -21,6 +17,18 @@ import { mountStatic } from "@/server/static";
 //     so the single app container both serves requests and processes jobs (no
 //     separate worker service).
 validateEnv();
+// Seed the stored branding from env once and load it before the app is
+// imported: better-auth initialises while server/app loads and must see the
+// primed instance name, hence the dynamic imports below.
+await primeBranding();
+const { startAssistantWorker } = await import("@/lib/assistant/queue");
+const { startWorker } = await import("@/lib/jobs/worker");
+const { app } = await import("@/server/app");
+const { syncInstanceBackupOnBoot } = await import(
+  "@/server/services/instance-backups"
+);
+const { mountStatic } = await import("@/server/static");
+
 startWorker();
 // Assistant turns on their own queue, so they never take deploy worker slots.
 startAssistantWorker();

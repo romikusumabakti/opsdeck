@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { BRANDS } from "@/lib/branding";
 import { deployRegistrySchema } from "@/lib/deploy/validation";
 import { isValidTimeZone } from "@/lib/timezone";
 
@@ -194,17 +193,6 @@ function collectFindings(): Finding[] {
   checkOptional("BETTER_AUTH_URL", urlSchema, findings);
 
   checkOptional("APP_TIMEZONE", timezoneSchema, findings);
-
-  // An unknown brand is a warning, not an error: an instance updated from an
-  // older release may still name a brand key this release no longer ships,
-  // and brand() in lib/branding.ts already falls back to the default one.
-  const brandValue = process.env.BRAND;
-  if (brandValue && !(BRANDS as readonly string[]).includes(brandValue)) {
-    findings.push({
-      level: "warn",
-      message: `BRAND "${brandValue}" is unknown (known: ${BRANDS.join(", ")}) — using the default brand`,
-    });
-  }
 
   // The Cloudflare Access policy the New environment wizard preselects, by
   // name. Unset is a supported state: no policy is preselected.

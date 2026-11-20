@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BRANDS } from "@/lib/brands";
 import { requireEnv, validateEnv } from "@/lib/env";
 
 // validateEnv reads process.env at call time, so each case builds the whole
@@ -141,29 +140,12 @@ describe("validateEnv", () => {
     expect(() => validateEnv()).not.toThrow();
   });
 
-  it("warns once about an unknown BRAND and falls back to the default", async () => {
-    // An instance updated from an older release may still carry a brand key
-    // this release no longer ships: it must boot, not fail validation.
-    const { brand } = await import("@/lib/branding");
+  it("does not warn about any BRAND value", () => {
     const warnings: string[] = [];
     console.warn = (message: string) => warnings.push(message);
     setEnv({ ...validCore(), BRAND: "legacy-unknown" });
     expect(() => validateEnv()).not.toThrow();
-    expect(warnings.filter((w) => w.includes("BRAND"))).toHaveLength(1);
-    expect(warnings.find((w) => w.includes("BRAND"))).toMatch(
-      /legacy-unknown.*default/
-    );
-    expect(brand()).toBe("default");
-  });
-
-  it("accepts every known BRAND without a warning", () => {
-    for (const logo of BRANDS) {
-      const warnings: string[] = [];
-      console.warn = (message: string) => warnings.push(message);
-      setEnv({ ...validCore(), BRAND: logo });
-      expect(() => validateEnv()).not.toThrow();
-      expect(warnings.filter((w) => w.includes("BRAND"))).toEqual([]);
-    }
+    expect(warnings.filter((w) => w.includes("BRAND"))).toEqual([]);
   });
 
   it("accepts a default Access policy name and rejects a blank one", () => {

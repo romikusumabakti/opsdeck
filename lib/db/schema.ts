@@ -2764,6 +2764,14 @@ export const instanceSettings = pgTable(
     // What the assistant is told about the organisation (at most 4000
     // characters); null = a generic description.
     assistantOrgContext: text("assistant_org_context"),
+    // Instance branding (lib/instance-branding.ts). All null = the defaults;
+    // seeded once from APP_NAME / COMPANY_NAME / BRAND at first boot.
+    brandName: text("brand_name"),
+    brandCompany: text("brand_company"),
+    // Read through isAccent; no database check, like users.accent_color.
+    brandAccent: text("brand_accent").$type<AccentColor>(),
+    // Last branding write; null = never written (and so seedable).
+    brandUpdatedAt: timestamp("brand_updated_at", { withTimezone: true }),
   },
   (t) => [
     check("instance_settings_singleton", sql`${t.id} = 1`),
@@ -2926,6 +2934,33 @@ export const releases = pgTable(
 );
 
 export type Release = InferSelectModel<typeof releases>;
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => "bytea",
+});
+
+// The instance logo, one row per theme.
+export const instanceBrandLogos = pgTable(
+  "instance_brand_logos",
+  {
+    theme: text("theme").primaryKey(),
+    bytes: bytea("bytes").notNull(),
+    contentType: text("content_type").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    check(
+      "instance_brand_logos_theme_check",
+      sql`${t.theme} in ('light', 'dark')`
+    ),
+    check(
+      "instance_brand_logos_content_type_check",
+      sql`${t.contentType} in ('image/svg+xml', 'image/png', 'image/webp')`
+    ),
+  ]
+);
+
 export type InstanceSettings = InferSelectModel<typeof instanceSettings>;
 export type SshKeyJob = InferSelectModel<typeof sshKeyJobs>;
 export type TeardownStep = InferSelectModel<typeof teardownSteps>;
