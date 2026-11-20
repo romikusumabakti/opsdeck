@@ -57,15 +57,23 @@ async function createPurifier(): Promise<Purifier> {
   purify.addHook("uponSanitizeAttribute", (_node, data) => {
     const name = data.attrName.toLowerCase();
     const value = data.attrValue.trim();
-    if (unsafe(value)) {
-      refused = true;
-      data.keepAttr = false;
-    } else if (
+    if (
       // href and xlink:href (any prefix: the name the parser gave it).
       ((name === "href" || name.endsWith(":href")) && !value.startsWith("#")) ||
       name.startsWith("on")
     ) {
       data.keepAttr = false;
+    }
+  });
+  // After DOMPurify's own allowlist: only the attributes the logo keeps can
+  // change how it looks, so only theirs refuse the file. Editor metadata it
+  // drops anyway (inkscape:export-filename="C:\…") does not.
+  purify.addHook("afterSanitizeAttributes", (node) => {
+    for (const attribute of Array.from(node.attributes ?? [])) {
+      if (unsafe(attribute.value)) {
+        refused = true;
+        node.removeAttribute(attribute.name);
+      }
     }
   });
   purify.addHook("uponSanitizeElement", (node, data) => {
@@ -89,6 +97,8 @@ export async function sanitizeSvg(source: string): Promise<SanitizeSvgResult> {
   const root = purify.sanitize(source, {
     USE_PROFILES: { svg: true, svgFilters: true },
     FORBID_TAGS: ["script", "foreignObject", "image", "a", "iframe"],
+    // data-* means nothing to an image; dropped like other unknown attributes.
+    ALLOW_DATA_ATTR: false,
     RETURN_DOM_FRAGMENT: true,
   });
   if (refused) return { ok: false, error: "invalid_svg" };

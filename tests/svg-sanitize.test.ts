@@ -136,6 +136,30 @@ describe("sanitizeSvg", () => {
     });
   }
 
+  // Only values on attributes the logo keeps count: an attribute DOMPurify
+  // drops anyway (editor metadata, data-*) cannot recolour anything.
+  it("accepts an Inkscape-on-Windows export, dropping its editor metadata", async () => {
+    const svg = await clean(fixture("inkscape-windows.svg"));
+    expect(svg).not.toContain("export-filename");
+    expect(svg).not.toContain("\\");
+    expect(svg).toContain('d="M20 20h24v24H20z"');
+    expect(svg).toContain('fill="#1e3a8a"');
+  });
+
+  it("accepts an unsafe value on an attribute it drops anyway", async () => {
+    for (const attribute of [
+      'data-foo="url(https://evil.example.com/x)"',
+      'inkscape:label="url(https://evil.example.com/x)"',
+    ]) {
+      const svg = await clean(
+        wrap(
+          `<g xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ${attribute}><path d="M0 0h8"/></g>`
+        )
+      );
+      expect(svg, attribute).not.toContain("evil.example.com");
+    }
+  });
+
   it("still accepts a file after rejecting one (the check is per upload)", async () => {
     await sanitizeSvg(wrap(refused[0]?.[1] ?? ""));
     expect((await sanitizeSvg(wrap(""))).ok).toBe(true);
