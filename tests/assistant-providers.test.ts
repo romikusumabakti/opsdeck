@@ -10,6 +10,7 @@ import {
   type Prices,
   probeOptionsFor,
   providerOptionsFor,
+  strictToolLimitFor,
   suggestedModels,
   titleModelFor,
 } from "@/lib/assistant/providers";
@@ -86,6 +87,15 @@ describe("cacheControlFor", () => {
     expect(cacheControlFor("openai")).toBeUndefined();
     expect(cacheControlFor("google")).toBeUndefined();
     expect(cacheControlFor("openai-compatible")).toBeUndefined();
+  });
+});
+
+describe("strictToolLimitFor", () => {
+  it("caps Anthropic at 20 strict tools and leaves the others uncapped", () => {
+    expect(strictToolLimitFor("anthropic")).toBe(20);
+    expect(strictToolLimitFor("openai")).toBeNull();
+    expect(strictToolLimitFor("google")).toBeNull();
+    expect(strictToolLimitFor("openai-compatible")).toBeNull();
   });
 });
 

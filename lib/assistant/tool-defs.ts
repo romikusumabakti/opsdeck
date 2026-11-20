@@ -261,6 +261,8 @@ export function buildTools(
   options: {
     execute?: ToolExecutor;
     lastToolProviderOptions?: ProviderOptions;
+    /** The provider's cap on strict tools per request (strictToolLimitFor). */
+    strictToolLimit?: number | null;
   } = {}
 ): ToolSet {
   const execute = options.execute ?? executeTool;
@@ -276,6 +278,7 @@ export function buildTools(
   ] as Array<
     [ToolName, { description: string; inputSchema: FlexibleSchema<unknown> }]
   >;
+  const strict = strictTools(entries, options.strictToolLimit ?? null);
   return Object.fromEntries(
     entries.map(([name, definition], index) => [
       name,
@@ -284,7 +287,7 @@ export function buildTools(
         inputSchema: definition.inputSchema as FlexibleSchema<
           Record<string, unknown>
         >,
-        strict: true,
+        strict: strict.has(name),
         ...(index === entries.length - 1 && options.lastToolProviderOptions
           ? { providerOptions: options.lastToolProviderOptions }
           : {}),
@@ -302,6 +305,39 @@ export function buildTools(
       }),
     ])
   );
+}
+
+/** Whether a tool takes any input; strict adds nothing to one that doesn't. */
+function takesInput(schema: FlexibleSchema<unknown>): boolean {
+  if (schema instanceof z.ZodObject) {
+    return Object.keys(schema.shape).length > 0;
+  }
+  const json = (schema as { jsonSchema?: unknown }).jsonSchema;
+  if (json && typeof json === "object" && "properties" in json) {
+    return Object.keys(json.properties ?? {}).length > 0;
+  }
+  return true;
+}
+
+/**
+ * The tools marked strict: those that take input, the database tools first
+ * (their SQL argument matters most), then in offered order, up to the
+ * provider's limit. Every input is validated again by executeTool, so a tool
+ * past the limit loses only the provider-side schema guarantee. Depends only
+ * on the offered set, so it is as stable as the tools for the prompt cache.
+ */
+function strictTools(
+  entries: Array<[ToolName, { inputSchema: FlexibleSchema<unknown> }]>,
+  limit: number | null
+): Set<ToolName> {
+  const withInput = entries
+    .filter(([, definition]) => takesInput(definition.inputSchema))
+    .map(([name]) => name);
+  const ordered = [
+    ...withInput.filter(isDatabaseTool),
+    ...withInput.filter((name) => !isDatabaseTool(name)),
+  ];
+  return new Set(limit === null ? ordered : ordered.slice(0, limit));
 }
 
 const line = z.number().int().min(1).nullish();

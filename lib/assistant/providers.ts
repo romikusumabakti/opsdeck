@@ -149,6 +149,15 @@ export function cacheControlFor(
 }
 
 /**
+ * The most tools one request may mark strict, or null when the provider sets
+ * no such cap. Anthropic refuses a request with more than 20 ("Too many strict
+ * tools (23). The maximum number of strict tools supported is 20.").
+ */
+export function strictToolLimitFor(provider: Provider): number | null {
+  return provider === "anthropic" ? 20 : null;
+}
+
+/**
  * The output token limit sent with every request. Only Anthropic requires
  * one; the others default to the model's maximum, and a fixed one can exceed
  * what a smaller model accepts.

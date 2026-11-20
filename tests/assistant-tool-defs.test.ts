@@ -314,13 +314,19 @@ describe("buildTools", () => {
     expect(found).toEqual([]);
   });
 
-  it("is strict: closed objects with every property required and described", async () => {
+  it("is strict-ready: closed objects with every property required and described", async () => {
     const all = [
       ...Object.entries(buildTools(adminCtx, noRecord)),
       ...Object.entries(buildTools(adminAutoCtx, noRecord)),
     ];
     for (const [name, tool] of all) {
-      expect((tool as { strict?: boolean }).strict, name).toBe(true);
+      // Strict whenever it takes input and the provider sets no cap.
+      const takesInput =
+        Object.keys(
+          ((await asSchema(tool.inputSchema).jsonSchema) as JsonSchema)
+            .properties ?? {}
+        ).length > 0;
+      expect((tool as { strict?: boolean }).strict, name).toBe(takesInput);
       expect(String(tool.description).length, name).toBeGreaterThan(20);
       const schema = (await asSchema(tool.inputSchema)
         .jsonSchema) as JsonSchema;

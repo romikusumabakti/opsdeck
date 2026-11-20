@@ -25,6 +25,7 @@ import {
   type ProviderOptions,
   providerOptionsFor,
   readsFilesNatively,
+  strictToolLimitFor,
 } from "./providers";
 import {
   ensureSnapshot as defaultEnsureSnapshot,
@@ -930,7 +931,11 @@ async function runClaimedTurn(
       // The chat was deleted: the turn stops (stop.gone).
       if (!stop.check(recorded)) throw new Error("turn stopped");
     },
-    { execute: deps.executeTool, lastToolProviderOptions: cache }
+    {
+      execute: deps.executeTool,
+      lastToolProviderOptions: cache,
+      strictToolLimit: strictToolLimitFor(runtime.provider),
+    }
   );
   const toolsChars = JSON.stringify(
     Object.entries(tools).map(([name, t]) => [name, t.description])

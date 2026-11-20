@@ -430,3 +430,41 @@ describe("list_tables", () => {
     expect(fakes.runs).toEqual([]);
   });
 });
+
+describe("strict tools", () => {
+  // A provider may cap strict tools per request (strictToolLimitFor); an
+  // admin in the automatic context is offered more than 20.
+  const strictOf = (limit: number | null) => {
+    const tools = buildTools(ctxFor(viewerAs("admin")), async () => {}, {
+      strictToolLimit: limit,
+    }) as Record<string, { strict?: boolean }>;
+    return {
+      total: Object.keys(tools).length,
+      strict: Object.entries(tools)
+        .filter(([, t]) => t.strict === true)
+        .map(([name]) => name),
+    };
+  };
+
+  it("marks at most the provider's limit strict, database tools first", () => {
+    const { total, strict } = strictOf(20);
+    expect(total).toBeGreaterThan(20);
+    expect(strict.length).toBeLessThanOrEqual(20);
+    expect(strict).toEqual(
+      expect.arrayContaining(["query_database", "list_tables"])
+    );
+  });
+
+  it("never marks a tool without arguments strict", () => {
+    for (const limit of [20, null]) {
+      const { strict } = strictOf(limit);
+      expect(strict).not.toContain("list_projects");
+      expect(strict).not.toContain("list_servers");
+    }
+  });
+
+  it("marks every tool with arguments strict when the provider sets no limit", () => {
+    const { total, strict } = strictOf(null);
+    expect(strict.length).toBe(total - 2);
+  });
+});
