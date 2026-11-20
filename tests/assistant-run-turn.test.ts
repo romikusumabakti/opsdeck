@@ -103,12 +103,15 @@ vi.mock("@/lib/assistant/turn-store", () => ({
   releaseStream: vi.fn(async (_id: string) => {
     state.events.push("release");
   }),
-  saveEndedParts: vi.fn(async (_id: string, parts: unknown[]) => {
-    state.events.push("saveEndedParts");
-    // Like the real WHERE status = 'failed'.
-    if (state.gone || state.message.status !== "failed") return;
-    state.endedParts = structuredClone(parts);
-  }),
+  saveEndedParts: vi.fn(
+    async (_id: string, value: { parts: unknown[]; content: string }) => {
+      state.events.push("saveEndedParts");
+      // Like the real WHERE status = 'failed'.
+      if (state.gone || state.message.status !== "failed") return;
+      state.endedParts = structuredClone(value.parts);
+      state.message.content = value.content;
+    }
+  ),
   saveSources: vi.fn(async (_id: string, sources: unknown) => {
     if (state.gone || state.message.status !== "streaming") return false;
     if (
@@ -951,6 +954,12 @@ describe("runTurn", () => {
     expect(state.endedParts).toContainEqual(
       expect.objectContaining({ type: "text", state: "done" })
     );
+    // Its content is the text of those parts, not the last throttled save.
+    const endedText = (state.endedParts as Array<{ text?: string }>)
+      .map((p) => p.text ?? "")
+      .join("");
+    expect(endedText).not.toBe("");
+    expect(state.message.content).toBe(endedText);
     expect(chunks.at(-1)).toEqual({
       type: "finish",
       messageMetadata: { status: "failed", errorCode: "assistant.stopped" },

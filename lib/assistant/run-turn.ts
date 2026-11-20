@@ -821,7 +821,8 @@ async function releaseStreamOf(messageId: string): Promise<void> {
 
 /**
  * The answer was stopped or its chat deleted mid-turn: its open parts are
- * ended and saved on the row the stop left (a no-op once deleted).
+ * ended and saved on the row the stop left, with their answer text (a
+ * no-op once deleted).
  */
 async function endGoneTurn(
   messageId: string,
@@ -830,7 +831,10 @@ async function endGoneTurn(
 ): Promise<void> {
   emit(recorder.finalize());
   try {
-    await saveEndedParts(messageId, recorder.parts);
+    await saveEndedParts(messageId, {
+      parts: recorder.parts,
+      content: recorder.answerText(),
+    });
   } catch (error) {
     console.error(
       `[assistant] failed to save the parts of stopped turn ${messageId}`,

@@ -442,20 +442,27 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       await client`select content, sources from assistant_messages where id = ${stopped.id}`;
     expect(after?.content).toBe("kept");
     expect(after?.sources).toBeNull();
-    // Its turn still writes the ended parts, keeping the content.
+    // Its turn still writes the ended parts and the text they hold.
     const ended = [
-      { type: "text" as const, text: "kept", state: "done" as const },
+      { type: "text" as const, text: "kept more", state: "done" as const },
     ];
-    await store.saveEndedParts(stopped.id, ended);
+    await store.saveEndedParts(stopped.id, {
+      parts: ended,
+      content: "kept more",
+    });
     const [endedRow] =
-      await client`select content, parts from assistant_messages where id = ${stopped.id}`;
-    expect(endedRow).toMatchObject({ content: "kept", parts: ended });
-    const live = await message("assistant", "streaming");
+      await client`select status, content, parts from assistant_messages where id = ${stopped.id}`;
+    expect(endedRow).toMatchObject({
+      status: "failed",
+      content: "kept more",
+      parts: ended,
+    });
+    const live = await message("assistant", "streaming", "live");
     // An answer still streaming is not touched.
-    await store.saveEndedParts(live.id, ended);
+    await store.saveEndedParts(live.id, { parts: ended, content: "x" });
     const [liveRow] =
-      await client`select parts from assistant_messages where id = ${live.id}`;
-    expect(liveRow?.parts).toBeNull();
+      await client`select content, parts from assistant_messages where id = ${live.id}`;
+    expect(liveRow).toMatchObject({ content: "live", parts: null });
     expect(await store.saveParts(live.id, { parts: [], content: "x" })).toBe(
       true
     );

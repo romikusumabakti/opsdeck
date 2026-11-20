@@ -189,16 +189,17 @@ export async function releaseStream(messageId: string): Promise<void> {
 
 /**
  * The final parts of an answer someone else ended mid-turn (stopped, or
- * failed by the boot sweep): the content it kept stays. A no-op for an
- * answer still streaming or done, or gone with its chat.
+ * failed by the boot sweep), and the answer text they hold: the last
+ * throttled save may be behind them. Its status and error code stay. A
+ * no-op for an answer still streaming or done, or gone with its chat.
  */
 export async function saveEndedParts(
   messageId: string,
-  parts: AssistantPart[]
+  value: { parts: AssistantPart[]; content: string }
 ): Promise<void> {
   await db
     .update(assistantMessages)
-    .set({ parts })
+    .set({ parts: value.parts, content: value.content })
     .where(
       and(
         eq(assistantMessages.id, messageId),
