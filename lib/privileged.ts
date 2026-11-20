@@ -67,7 +67,10 @@ export function privilegedViaStdin(
 
 /**
  * The line privilegedWithStdin puts right before the payload. Fixed, and
- * no generated password could be it.
+ * matched by exact line equality. If an unread password line happened to
+ * equal it, the payload would just start one line early with the marker
+ * itself. The marker begins with `--`, an SQL comment to psql, so that is
+ * harmless.
  */
 export const STDIN_PAYLOAD_MARKER =
   "--menara-stdin-payload-7f3c9a2e-4b1d-4e8a-9c6f-0d5e2b8a1c47--";

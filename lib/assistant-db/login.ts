@@ -18,8 +18,9 @@ export type AssistantDbLogin = {
 /**
  * The environment's read-only login, or null when an admin/infra hasn't
  * enabled it (or it can't be used: a login that needs a password, mssql,
- * mysql or systemd Postgres, without one it can decrypt). Server-only; the password must never reach a
- * response, a job payload, the activity log or a log line.
+ * mysql or systemd Postgres, without one it can decrypt). Server-only; the
+ * password must never reach a response, a job payload, the activity log or
+ * a log line.
  */
 export async function getAssistantDbLogin(
   environmentId: string
