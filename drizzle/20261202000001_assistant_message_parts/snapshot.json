@@ -1,0 +1,81 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "b23c0124-23c0-43b1-a2d3-1fb19586a967",
+  "prevIds": [
+    "56a3d09d-9c12-45d5-9240-8e038050b5ea"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_messages",
+        "parts"
+      ],
+      "writes": [
+        "s|col|public.assistant_messages.parts",
+        "n|col|public.assistant_messages.parts",
+        "e|col|public.assistant_messages.parts"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_messages",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "assistant_messages",
+        "active_stream_id"
+      ],
+      "writes": [
+        "s|col|public.assistant_messages.active_stream_id",
+        "n|col|public.assistant_messages.active_stream_id",
+        "e|col|public.assistant_messages.active_stream_id"
+      ],
+      "reads": [
+        "n|tbl|public.assistant_messages",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_messages",
+        "name": "parts",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "assistant_messages",
+        "name": "active_stream_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

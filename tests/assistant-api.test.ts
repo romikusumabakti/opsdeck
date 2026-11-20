@@ -29,6 +29,8 @@ type Message = {
   projectName: string | null;
   environmentId: string | null;
   environmentName: string | null;
+  /** Answers: the ordered UIMessage parts; absent until a turn writes them. */
+  parts?: unknown[] | null;
 };
 type Conversation = {
   id: string;
@@ -384,6 +386,7 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
             attachmentIds: m.attachmentIds,
             context: m.role === "user" ? messageContextOf(m) : null,
             sources: null,
+            parts: m.parts ?? null,
             createdAt: new Date(0),
             toolCalls: callsOf(m.id),
           })),
@@ -1567,6 +1570,32 @@ describe("send-message", () => {
 });
 
 describe("get-conversation", () => {
+  it("returns an answer's ordered parts, and null for messages without them", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    const parts = [
+      { type: "step-start" },
+      { type: "text", text: "Checking issues.", state: "done" },
+      {
+        type: "dynamic-tool",
+        toolName: "list_issues",
+        toolCallId: "tu_1",
+        state: "output-available",
+        input: { query: null },
+        output: { ok: true, meta: { issueKeys: ["A-1"] } },
+      },
+      { type: "step-start" },
+      { type: "text", text: "There are 3 issues.", state: "done" },
+    ];
+    answer.parts = parts;
+    const body = await (
+      await get(`/get-conversation?conversationId=${id}`)
+    ).json();
+    expect(body.messages[0].parts).toBeNull();
+    expect(body.messages[1].parts).toEqual(parts);
+  });
+
   it("returns messages with tool-call metas but never tool inputs, and drafts", async () => {
     const id = await newConversation();
     await send(id);

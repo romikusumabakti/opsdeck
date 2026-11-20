@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AccentColor } from "@/lib/accents";
 import type { AssistantSource } from "@/lib/assistant/sources";
+import type { AssistantPart } from "@/lib/assistant/turn-parts";
 import type { BuildSpec } from "@/lib/ci/build-spec";
 import type { PipelineFileCommits } from "@/lib/ci/types";
 import type { MotifPreference } from "@/lib/motifs";
@@ -3021,6 +3022,14 @@ export const assistantMessages = pgTable(
     status: assistantMessageStatusEnum("status").notNull(),
     errorCode: text("error_code"),
     sources: jsonb("sources").$type<AssistantSource[]>(),
+    // Assistant messages: the answer as ordered AI SDK UIMessage parts (step
+    // text, tool calls with an input summary and result metadata only); null
+    // on user messages and on answers written before parts existed, which
+    // render from content.
+    parts: jsonb("parts").$type<AssistantPart[]>(),
+    // The resumable UI stream of an answer being written (its message id),
+    // cleared when the turn ends.
+    activeStreamId: text("active_stream_id"),
     // Jira attachment ids the user ticked for this question.
     attachmentIds: text("attachment_ids").array().notNull().default(sql`'{}'`),
     // The context of a user message (lib/assistant/context.ts): the pinned

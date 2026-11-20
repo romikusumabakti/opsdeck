@@ -12,6 +12,7 @@ import {
   streamText,
   ToolChoiceViolationError,
   type ToolSet,
+  type UIMessageChunk,
   UnsupportedFunctionalityError,
 } from "ai";
 import { type AttachmentRef, parseAttachmentRefs } from "./attachment-refs";
@@ -54,12 +55,14 @@ import {
 } from "./tool-defs";
 import type { SnapshotRef } from "./tools/code";
 import { createDataTurn, type DataCores } from "./tools/data";
+import { type AnswerMetadata, TurnRecorder } from "./turn-parts";
 import {
   claimMessage,
   finishMessage,
   loadTurn,
   recordToolCall,
-  saveContent,
+  releaseStream,
+  saveParts,
   saveSources,
   type TurnContext,
 } from "./turn-store";
@@ -87,7 +90,10 @@ export const STEP_LIMIT_NOTE =
  */
 export const DAILY_CAP_NOTE =
   "Batas harian tercapai — jawab sekarang dengan temuan yang ada";
-/** Streamed text is written to Postgres at most this often. */
+/**
+ * Streamed parts are written to Postgres at most this often between step
+ * boundaries (and always at a step's end and before the finish).
+ */
 export const FLUSH_INTERVAL_MS = 400;
 
 export type AssistantErrorCode =
@@ -127,6 +133,8 @@ export type RunTurnDeps = {
   probeTimeoutMs?: number;
   /** The auto title, asked for after a done answer (lib/assistant/title.ts). */
   generateTitle?: (conversationId: string) => Promise<unknown>;
+  /** Receives the answer's UI message chunks as the turn records them. */
+  onChunks?: (chunks: UIMessageChunk[]) => void;
 };
 
 /** A turn- or request-level failure carrying its stable code. */
@@ -603,65 +611,87 @@ function projectAccess(
 }
 
 /**
- * The answer text, flushed to Postgres at most every 400 ms. Only the final
- * response's text is the answer: text of a response that ends in tool calls
- * streams live while it is written, then is dropped (R11).
+ * The turn's parts and answer text (TurnRecorder), saved to Postgres on both
+ * edges of FLUSH_INTERVAL_MS: at once when the last save is old enough, else
+ * once the interval has passed. `flush` saves at once, at a step's end and
+ * before the finish.
  */
-class ContentWriter {
-  private current = "";
-  private lastFlush = 0;
+class PartsWriter {
+  private lastSave = Number.NEGATIVE_INFINITY;
+  private dirty = false;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private pending: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly messageId: string,
+    private readonly recorder: TurnRecorder,
     private readonly now: () => Date,
     private readonly stop: TurnStop
   ) {}
 
-  get text(): string {
-    return this.current;
-  }
-
-  private save(snapshot: string): void {
-    // Writes are chained so an older snapshot never lands after a newer one.
-    this.pending = this.pending.then(() =>
-      saveContent(this.messageId, snapshot).then(
-        (found) => {
-          this.stop.check(found);
-        },
-        (error) => {
-          console.error("[assistant] failed to save streamed content", error);
-        }
-      )
-    );
-  }
-
-  append(delta: string): void {
-    this.current += delta;
-    const at = this.now().getTime();
-    if (at - this.lastFlush >= FLUSH_INTERVAL_MS) {
-      this.lastFlush = at;
-      this.save(this.current);
+  /** The recorder changed: save now, or at the trailing edge. */
+  update(): void {
+    this.dirty = true;
+    if (this.timer) return;
+    const wait = FLUSH_INTERVAL_MS - (this.now().getTime() - this.lastSave);
+    if (wait <= 0) {
+      this.save();
+      return;
     }
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.save();
+    }, wait);
   }
 
-  /** The response ended in tool calls: its text is not the answer. */
-  discard(): void {
-    if (this.current === "") return;
-    this.current = "";
-    this.save("");
-  }
-
-  async settle(): Promise<void> {
+  /** Saves any change now and waits for every write so far. */
+  async flush(): Promise<void> {
+    this.cancel();
+    if (this.dirty) this.save();
     await this.pending;
+  }
+
+  /** Drops a scheduled save (the turn ended or stopped). */
+  cancel(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+  }
+
+  private save(): void {
+    this.dirty = false;
+    this.lastSave = this.now().getTime();
+    // Chained, so an older snapshot never lands after a newer one; each
+    // write takes the recorder's state when it runs.
+    this.pending = this.pending.then(async () => {
+      if (this.stop.gone) return;
+      try {
+        this.stop.check(
+          await saveParts(this.messageId, {
+            parts: structuredClone(this.recorder.parts),
+            content: this.recorder.answerText(),
+          })
+        );
+      } catch (error) {
+        console.error("[assistant] failed to save streamed parts", error);
+      }
+    });
   }
 }
 
+/** fullStream parts that change what PartsWriter saves. */
+const SAVED_PART_TYPES = new Set([
+  "text-delta",
+  "tool-call",
+  "tool-result",
+  "tool-error",
+]);
+
 /**
  * Runs one assistant turn: the message row (status queued) was created with
- * the user's question. Streams the model's answer into the row, runs the tools
- * it asks for, meters every response, and ends the row done or failed with a
- * stable error code. Never throws for a turn-level failure.
+ * the user's question. Streams the model's answer into the row as ordered
+ * parts, runs the tools it asks for, meters every response, and ends the row
+ * done or failed with a stable error code. Never throws for a turn-level
+ * failure.
  */
 export async function runTurn(
   messageId: string,
@@ -676,51 +706,44 @@ export async function runTurn(
   if (turn.status === "streaming") {
     // A job redelivered after its worker died mid-turn: the first run's
     // partial state cannot be resumed.
-    await finishMessage(
-      messageId,
-      {
-        status: "failed",
-        content: turn.content,
-        errorCode: "assistant.interrupted",
-      },
-      now()
-    ).catch((error) => {
+    try {
+      await finishMessage(
+        messageId,
+        {
+          status: "failed",
+          content: turn.content,
+          errorCode: "assistant.interrupted",
+        },
+        now()
+      );
+      await releaseStream(messageId);
+    } catch (error) {
       console.error(
         `[assistant] failed to mark redelivered turn ${messageId} interrupted`,
         error
       );
-    });
+    }
     return;
   }
   if (turn.status !== "queued" || !(await claimMessage(messageId))) return;
 
-  const stop = new TurnStop();
-  const writer = new ContentWriter(messageId, now, stop);
+  const recorder = new TurnRecorder(messageId);
+  const emit = (chunks: UIMessageChunk[]) => {
+    if (chunks.length > 0) deps.onChunks?.(chunks);
+  };
+  emit(recorder.start());
+  let done: boolean;
   try {
-    await runClaimedTurn(turn, writer, deps, now, stop);
-    await writer.settle();
-    // Deleted mid-turn: nothing left to finish.
-    if (stop.gone) return;
-    await finishMessage(
-      messageId,
-      { status: "done", content: writer.text },
-      now()
-    );
-  } catch (error) {
-    await writer.settle();
-    // An error after the chat was deleted comes from the abort.
-    if (stop.gone) return;
-    const code = classifyError(error);
-    if (code === "assistant.failed") {
-      console.error(`[assistant] turn ${messageId} failed`, error);
-    }
-    await finishMessage(
-      messageId,
-      { status: "failed", content: writer.text, errorCode: code },
-      now()
-    );
-    return;
+    done = await settleTurn(turn, recorder, emit, deps, now);
+  } finally {
+    await releaseStream(messageId).catch((error) => {
+      console.error(
+        `[assistant] failed to release the stream of ${messageId}`,
+        error
+      );
+    });
   }
+  if (!done) return;
   // The answer is done: name the chat if it was the first (a no-op for any
   // other turn, a temporary chat or a renamed one). Its failure keeps the
   // answer done.
@@ -733,6 +756,73 @@ export async function runTurn(
       `[assistant] auto title of ${turn.conversationId} failed`,
       error
     );
+  }
+}
+
+/**
+ * Runs a claimed turn and writes its end: done (true), failed, or nothing
+ * once the answer is gone (stopped or deleted mid-turn). The last chunk is
+ * the finish, with how the row ended.
+ */
+async function settleTurn(
+  turn: TurnContext,
+  recorder: TurnRecorder,
+  emit: (chunks: UIMessageChunk[]) => void,
+  deps: RunTurnDeps,
+  now: () => Date
+): Promise<boolean> {
+  const { messageId } = turn;
+  const stop = new TurnStop();
+  const writer = new PartsWriter(messageId, recorder, now, stop);
+  let outcome: AnswerMetadata | undefined;
+  try {
+    try {
+      await runClaimedTurn(turn, recorder, writer, emit, deps, now, stop);
+      await writer.flush();
+      // Deleted or stopped mid-turn: nothing left to finish.
+      if (stop.gone) {
+        outcome = { status: "failed", errorCode: STOPPED_CODE };
+        return false;
+      }
+      await finishMessage(
+        messageId,
+        {
+          status: "done",
+          content: recorder.answerText(),
+          parts: recorder.parts,
+        },
+        now()
+      );
+      outcome = { status: "done", errorCode: null };
+      return true;
+    } catch (error) {
+      await writer.flush();
+      // An error after the chat was deleted comes from the abort.
+      if (stop.gone) {
+        outcome = { status: "failed", errorCode: STOPPED_CODE };
+        return false;
+      }
+      const code = classifyError(error);
+      if (code === "assistant.failed") {
+        console.error(`[assistant] turn ${messageId} failed`, error);
+      }
+      outcome = { status: "failed", errorCode: code };
+      await finishMessage(
+        messageId,
+        {
+          status: "failed",
+          content: recorder.answerText(),
+          parts: recorder.parts,
+          errorCode: code,
+        },
+        now()
+      );
+      return false;
+    }
+  } finally {
+    writer.cancel();
+    outcome ??= { status: "failed", errorCode: "assistant.failed" };
+    emit(recorder.finish(outcome));
   }
 }
 
@@ -816,7 +906,9 @@ function isFilePart(
 
 async function runClaimedTurn(
   turn: TurnContext,
-  writer: ContentWriter,
+  recorder: TurnRecorder,
+  writer: PartsWriter,
+  emit: (chunks: UIMessageChunk[]) => void,
   deps: RunTurnDeps,
   now: () => Date,
   stop: TurnStop
@@ -1034,37 +1126,35 @@ async function runClaimedTurn(
   });
 
   let streamError: unknown;
-  // Reasoning characters of the current step: part of what a request cut off
-  // by the abort is estimated from.
+  // Reasoning and text characters of the current step: what a request cut
+  // off by the abort is estimated from.
   let reasoningChars = 0;
+  let textChars = 0;
   for await (const part of result.fullStream) {
+    emit(recorder.push(part));
+    if (SAVED_PART_TYPES.has(part.type)) writer.update();
     switch (part.type) {
       case "text-delta":
-        writer.append(part.text);
+        textChars += part.text.length;
         break;
       case "reasoning-delta":
         reasoningChars += part.text.length;
-        break;
-      case "finish-step":
-        reasoningChars = 0;
-        // Text of a step that asked for tools is not the answer (R11).
-        if (part.finishReason === "tool-calls") writer.discard();
         break;
       case "error":
         streamError ??= part.error;
         break;
     }
+    if (recorder.stepEnded(part)) {
+      reasoningChars = 0;
+      textChars = 0;
+      await writer.flush();
+    }
   }
   // The request cut off by the abort never reached its call end: meter it
-  // from the text streamed so far (once; stepMetered guards a double count).
+  // from what streamed so far (once; stepMetered guards a double count).
   if (stop.gone && !stepMetered && promptChars > 0) {
     try {
-      await meter(
-        runtime.modelId,
-        EMPTY_USAGE,
-        [{ type: "text", text: writer.text }],
-        reasoningChars
-      );
+      await meter(runtime.modelId, EMPTY_USAGE, [], reasoningChars + textChars);
     } catch (error) {
       console.error("[assistant] could not meter a stopped request:", error);
     }

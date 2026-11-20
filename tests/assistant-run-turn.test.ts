@@ -41,6 +41,17 @@ const state = vi.hoisted(() => ({
     sources: unknown;
   },
   contentWrites: [] as string[],
+  /** Every saveParts call that found the row streaming, in order. */
+  partsWrites: [] as Array<{ parts: unknown[]; content: string }>,
+  /** The finishMessage outcomes, in order. */
+  finished: [] as Array<{
+    status: string;
+    content: string;
+    parts?: unknown[];
+    errorCode?: string;
+  }>,
+  /** saveParts, finishMessage, claimMessage and releaseStream calls, in order. */
+  events: [] as string[],
   toolCalls: [] as Array<{
     tool: string;
     input: Record<string, unknown>;
@@ -68,15 +79,23 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/assistant/turn-store", () => ({
   loadTurn: vi.fn(async () => state.turn),
   claimMessage: vi.fn(async () => {
+    state.events.push("claim");
     if (state.message.status !== "queued") return false;
     state.message.status = "streaming";
     return true;
   }),
-  saveContent: vi.fn(async (_id: string, content: string) => {
-    if (state.gone || state.message.status !== "streaming") return false;
-    state.contentWrites.push(content);
-    state.message.content = content;
-    return true;
+  saveParts: vi.fn(
+    async (_id: string, value: { parts: unknown[]; content: string }) => {
+      state.events.push("saveParts");
+      if (state.gone || state.message.status !== "streaming") return false;
+      state.contentWrites.push(value.content);
+      state.partsWrites.push(structuredClone(value));
+      state.message.content = value.content;
+      return true;
+    }
+  ),
+  releaseStream: vi.fn(async (_id: string) => {
+    state.events.push("release");
   }),
   saveSources: vi.fn(async (_id: string, sources: unknown) => {
     if (state.gone || state.message.status !== "streaming") return false;
@@ -94,9 +113,16 @@ vi.mock("@/lib/assistant/turn-store", () => ({
   finishMessage: vi.fn(
     async (
       _id: string,
-      outcome: { status: string; content: string; errorCode?: string }
+      outcome: {
+        status: string;
+        content: string;
+        parts?: unknown[];
+        errorCode?: string;
+      }
     ) => {
       state.finishes += 1;
+      state.events.push("finish");
+      state.finished.push(structuredClone(outcome));
       // Like the real WHERE status = 'streaming': first terminal write wins.
       if (state.gone) return;
       if (state.message.status !== "streaming") return;
@@ -482,6 +508,9 @@ beforeEach(() => {
     sources: null,
   } satisfies MessageRow;
   state.contentWrites = [];
+  state.partsWrites = [];
+  state.finished = [];
+  state.events = [];
   state.toolCalls = [];
   state.recordToolCallFails = false;
   state.gone = false;
@@ -620,7 +649,7 @@ describe("runTurn", () => {
     expect(state.message.sources).toEqual([SOURCE]);
   });
 
-  it("keeps only the final response's text in content (R11)", async () => {
+  it("persists ordered parts and content = the final step's text", async () => {
     const { model } = mockModel([
       {
         text: ["Saya cari dulu."],
@@ -634,14 +663,204 @@ describe("runTurn", () => {
     await runTurn(MESSAGE_ID, deps(model));
 
     expect(state.message.status).toBe("done");
-    expect(state.message.content).toBe("Jawaban akhir.");
-    // The intermediate text streamed live, then was cleared before the
-    // final response's text.
-    expect(state.contentWrites).toEqual([
-      "Saya cari dulu.",
-      "",
-      "Jawaban akhir.",
+    expect(state.finished).toHaveLength(1);
+    const outcome = state.finished[0];
+    expect(outcome?.content).toBe("Jawaban akhir.");
+    expect(outcome?.parts).toEqual([
+      { type: "step-start" },
+      { type: "text", text: "Saya cari dulu.", state: "done" },
+      {
+        type: "dynamic-tool",
+        toolName: "list_files",
+        toolCallId: "tu_1",
+        state: "output-available",
+        input: { glob: "**/*Iuran*" },
+        output: { ok: true, meta: { paths: ["backend/src/Iuran.java"] } },
+      },
+      { type: "step-start" },
+      { type: "text", text: "Jawaban akhir.", state: "done" },
     ]);
+    // The tool's data never reaches the parts.
+    expect(JSON.stringify(outcome?.parts)).not.toContain("line");
+  });
+
+  it("flushes parts at every finish-step and before finish", async () => {
+    const { model } = mockModel([
+      {
+        text: ["Saya cari dulu."],
+        toolCalls: [
+          { id: "tu_1", name: "list_files", input: { glob: "**/*" } },
+        ],
+        finish: "tool-calls",
+      },
+      { text: ["Jawaban ", "akhir."], finish: "stop" },
+    ]);
+    // A frozen clock: the 400 ms throttle never passes on its own.
+    const frozen = new Date("2026-11-16T05:00:00.000Z");
+    await runTurn(MESSAGE_ID, deps(model, { now: () => frozen }));
+
+    expect(state.message.status).toBe("done");
+    // Saved at step 1's end, before step 2 started: its tool part is done.
+    const stepOne = state.partsWrites.find(
+      (w) =>
+        w.parts.length === 3 &&
+        (w.parts[2] as { state?: string }).state === "output-available"
+    );
+    expect(stepOne?.content).toBe("Saya cari dulu.");
+    // Step 2's text is saved by the flush before finish, not by the throttle.
+    expect(state.partsWrites.at(-1)?.content).toBe("Jawaban akhir.");
+    expect(state.events.lastIndexOf("saveParts")).toBeLessThan(
+      state.events.indexOf("finish")
+    );
+  });
+
+  it("never saves an empty content after a tool step", async () => {
+    const { model } = mockModel([
+      {
+        text: ["Saya cari dulu."],
+        toolCalls: [
+          { id: "tu_1", name: "list_files", input: { glob: "**/*" } },
+        ],
+        finish: "tool-calls",
+      },
+      { text: ["Jawaban akhir."], finish: "stop" },
+    ]);
+    await runTurn(MESSAGE_ID, deps(model));
+    const seen = state.contentWrites.indexOf("Saya cari dulu.");
+    expect(seen).toBeGreaterThanOrEqual(0);
+    expect(state.contentWrites.slice(seen)).not.toContain("");
+  });
+
+  it("stopped mid-tool step keeps the last step text", async () => {
+    const { model } = mockModel([
+      {
+        text: ["Saya cari dulu."],
+        toolCalls: [
+          { id: "tu_1", name: "list_files", input: { glob: "**/*" } },
+        ],
+        finish: "tool-calls",
+      },
+      { text: ["never sent"], finish: "stop" },
+    ]);
+    const executeTool = vi.fn(async () => {
+      // The user presses Stop while the tool runs.
+      state.message.status = "failed";
+      state.message.errorCode = "assistant.stopped";
+      return { ok: true as const, data: { files: [] }, meta: { paths: [] } };
+    });
+    await runTurn(MESSAGE_ID, deps(model, { executeTool }));
+    expect(state.finishes).toBe(0);
+    expect(state.message).toMatchObject({
+      status: "failed",
+      errorCode: "assistant.stopped",
+      content: "Saya cari dulu.",
+    });
+  });
+
+  it("a capped turn ends with finish metadata", async () => {
+    const { model } = mockModel([
+      toolStep(1),
+      toolStep(2),
+      { text: ["never sent"], finish: "stop" },
+    ]);
+    const spentToday = vi.fn(async () => spentSoFar());
+    const chunks: Array<{ type: string; messageMetadata?: unknown }> = [];
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        spentToday,
+        onChunks: (batch: typeof chunks) => chunks.push(...batch),
+      })
+    );
+    expect(state.message.errorCode).toBe("assistant.daily_cap_reached");
+    expect(chunks[0]).toEqual({ type: "start", messageId: MESSAGE_ID });
+    expect(chunks.at(-1)).toEqual({
+      type: "finish",
+      messageMetadata: {
+        status: "failed",
+        errorCode: "assistant.daily_cap_reached",
+      },
+    });
+    expect(chunks.filter((c) => c.type === "finish")).toHaveLength(1);
+    expect(chunks.some((c) => c.type === "error")).toBe(false);
+  });
+
+  it("ends a done turn with done finish metadata", async () => {
+    const { model } = mockModel([{ text: ["Halo"], finish: "stop" }]);
+    const chunks: Array<{ type: string; messageMetadata?: unknown }> = [];
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        onChunks: (batch: typeof chunks) => chunks.push(...batch),
+      })
+    );
+    expect(chunks.map((c) => c.type)).toEqual([
+      "start",
+      "start-step",
+      "text-start",
+      "text-delta",
+      "text-end",
+      "finish-step",
+      "finish",
+    ]);
+    expect(chunks.at(-1)?.messageMetadata).toEqual({
+      status: "done",
+      errorCode: null,
+    });
+  });
+
+  it("claims with the stream id and releases it on done, failed and stopped", async () => {
+    const { claimMessage, releaseStream } = await import(
+      "@/lib/assistant/turn-store"
+    );
+    const reset = () => {
+      vi.mocked(releaseStream).mockClear();
+      vi.mocked(claimMessage).mockClear();
+      state.events = [];
+      state.message = {
+        status: "queued",
+        content: "",
+        errorCode: null,
+        sources: null,
+      };
+    };
+
+    reset();
+    await runTurn(
+      MESSAGE_ID,
+      deps(mockModel([{ text: ["Ok"], finish: "stop" }]).model)
+    );
+    expect(state.message.status).toBe("done");
+    expect(claimMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+    expect(releaseStream).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+    expect(state.events.indexOf("release")).toBeGreaterThan(
+      state.events.indexOf("finish")
+    );
+
+    reset();
+    await runTurn(
+      MESSAGE_ID,
+      deps(mockModel([]).model, { spentToday: async () => 1.5 })
+    );
+    expect(state.message.status).toBe("failed");
+    expect(releaseStream).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+
+    reset();
+    const executeTool = vi.fn(async () => {
+      state.message.status = "failed";
+      state.message.errorCode = "assistant.stopped";
+      return { ok: true as const, data: { files: [] }, meta: { paths: [] } };
+    });
+    await runTurn(
+      MESSAGE_ID,
+      deps(
+        mockModel([toolStep(1), { text: ["never sent"], finish: "stop" }])
+          .model,
+        { executeTool }
+      )
+    );
+    expect(state.message.errorCode).toBe("assistant.stopped");
+    expect(releaseStream).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
   });
 
   it("estimates a step the provider reports no usage for", async () => {
@@ -1043,8 +1262,8 @@ describe("runTurn", () => {
     const { model, calls } = mockModel([
       { text: ["Iuran ", "dihitung ", "per bulan"], finish: "stop" },
     ]);
-    const { saveContent } = await import("@/lib/assistant/turn-store");
-    vi.mocked(saveContent).mockImplementationOnce(async () => {
+    const { saveParts } = await import("@/lib/assistant/turn-store");
+    vi.mocked(saveParts).mockImplementationOnce(async () => {
       state.gone = true;
       return false;
     });
@@ -1091,8 +1310,8 @@ describe("runTurn", () => {
         usage: NO_USAGE,
       },
     ]);
-    const { saveContent } = await import("@/lib/assistant/turn-store");
-    vi.mocked(saveContent).mockImplementationOnce(async () => {
+    const { saveParts } = await import("@/lib/assistant/turn-store");
+    vi.mocked(saveParts).mockImplementationOnce(async () => {
       state.message.status = "failed";
       state.message.errorCode = "assistant.stopped";
       return false;
@@ -1177,8 +1396,8 @@ describe("runTurn", () => {
         usage: NO_USAGE,
       },
     ]);
-    const { saveContent } = await import("@/lib/assistant/turn-store");
-    vi.mocked(saveContent).mockImplementationOnce(async () => {
+    const { saveParts } = await import("@/lib/assistant/turn-store");
+    vi.mocked(saveParts).mockImplementationOnce(async () => {
       state.message.status = "failed";
       state.message.errorCode = "assistant.stopped";
       return false;

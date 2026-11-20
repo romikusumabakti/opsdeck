@@ -281,7 +281,29 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
 
     expect(await store.claimMessage(answer.id)).toBe(true);
     expect(await store.claimMessage(answer.id)).toBe(false);
-    await store.saveContent(answer.id, "partial");
+    // The claim records the answer's stream id: its own id.
+    const [claimed] =
+      await client`select active_stream_id from assistant_messages where id = ${answer.id}`;
+    expect(claimed?.active_stream_id).toBe(answer.id);
+    const parts = [
+      { type: "step-start" as const },
+      { type: "text" as const, text: "partial", state: "done" as const },
+      {
+        type: "dynamic-tool" as const,
+        toolName: "search_code",
+        toolCallId: "tu_1",
+        state: "output-available" as const,
+        input: { pattern: "x" },
+        output: { ok: true, meta: { paths: ["backend/a.java"] } },
+      },
+    ];
+    expect(
+      await store.saveParts(answer.id, { parts, content: "partial" })
+    ).toBe(true);
+    // Stored as a jsonb array, not a JSON string.
+    const [saved] =
+      await client`select jsonb_typeof(parts) as kind, parts, content from assistant_messages where id = ${answer.id}`;
+    expect(saved).toMatchObject({ kind: "array", parts, content: "partial" });
     await store.recordToolCall(
       answer.id,
       "search_code",
@@ -303,9 +325,23 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       error_code: "assistant.credit_exhausted",
     });
     expect(row?.finished_at).not.toBeNull();
+    // A failure without parts keeps the parts saved so far.
+    const [kept] =
+      await client`select parts, active_stream_id from assistant_messages where id = ${answer.id}`;
+    expect(kept?.parts).toEqual(parts);
+    expect(kept?.active_stream_id).toBe(answer.id);
+    // Released whatever the status.
+    await store.releaseStream(answer.id);
+    const [released] =
+      await client`select active_stream_id from assistant_messages where id = ${answer.id}`;
+    expect(released?.active_stream_id).toBeNull();
 
     // The first terminal write wins: a second finish is a no-op.
-    await store.finishMessage(answer.id, { status: "done", content: "late" });
+    await store.finishMessage(answer.id, {
+      status: "done",
+      content: "late",
+      parts: [],
+    });
     const [again] =
       await client`select status, content, error_code from assistant_messages where id = ${answer.id}`;
     expect(again).toMatchObject({
@@ -315,7 +351,11 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     });
     // A queued (never claimed) message is not finished either.
     const unclaimed = await message("assistant", "queued");
-    await store.finishMessage(unclaimed.id, { status: "done", content: "x" });
+    await store.finishMessage(unclaimed.id, {
+      status: "done",
+      content: "x",
+      parts: [],
+    });
     const [still] =
       await client`select status from assistant_messages where id = ${unclaimed.id}`;
     expect(still?.status).toBe("queued");
@@ -369,14 +409,15 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     // Boot sweep: only queued/streaming rows older than 15 minutes.
     const stale = await message("assistant", "streaming", "half");
     const fresh = await message("assistant", "queued");
-    await client`update assistant_messages set created_at = now() - interval '20 minutes' where id = ${stale.id}`;
+    await client`update assistant_messages set created_at = now() - interval '20 minutes', active_stream_id = ${stale.id} where id = ${stale.id}`;
     expect(await store.failStaleAssistantMessages()).toBe(1);
     const rows =
-      await client`select id, status, error_code, content from assistant_messages where id in (${stale.id}, ${fresh.id})`;
+      await client`select id, status, error_code, content, active_stream_id from assistant_messages where id in (${stale.id}, ${fresh.id})`;
     const byId = new Map(rows.map((r) => [r.id, r]));
     expect(byId.get(stale.id)).toMatchObject({
       status: "failed",
       error_code: "assistant.interrupted",
+      active_stream_id: null,
       content: "half",
     });
     expect(byId.get(fresh.id)).toMatchObject({ status: "queued" });
@@ -385,6 +426,7 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
     await store.finishMessage(stale.id, {
       status: "done",
       content: "too late",
+      parts: [],
     });
     const [swept] =
       await client`select status, content from assistant_messages where id = ${stale.id}`;
@@ -392,14 +434,18 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
 
     // A stopped (failed) answer takes no more content or sources.
     const stopped = await message("assistant", "failed", "kept");
-    expect(await store.saveContent(stopped.id, "more")).toBe(false);
+    expect(
+      await store.saveParts(stopped.id, { parts: [], content: "more" })
+    ).toBe(false);
     expect(await store.saveSources(stopped.id, [])).toBe(false);
     const [after] =
       await client`select content, sources from assistant_messages where id = ${stopped.id}`;
     expect(after?.content).toBe("kept");
     expect(after?.sources).toBeNull();
     const live = await message("assistant", "streaming");
-    expect(await store.saveContent(live.id, "x")).toBe(true);
+    expect(await store.saveParts(live.id, { parts: [], content: "x" })).toBe(
+      true
+    );
     // A tool call is audited only while the answer streams.
     expect(await store.recordToolCall(stopped.id, "search_code", {}, {})).toBe(
       false

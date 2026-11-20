@@ -15,6 +15,7 @@ import {
   uploadsOfConversation,
 } from "./file-store";
 import type { AssistantSource } from "./sources";
+import type { AssistantPart } from "./turn-parts";
 
 /**
  * The Postgres side of one assistant turn (lib/assistant/run-turn.ts): load
@@ -156,11 +157,15 @@ export async function loadTurn(messageId: string): Promise<TurnContext | null> {
   };
 }
 
-/** queued → streaming. False when the message was no longer queued. */
+/**
+ * queued → streaming, recording the answer's UI stream id: the message id
+ * (every turn, a retry or an edit too, writes a fresh message). False when
+ * the message was no longer queued.
+ */
 export async function claimMessage(messageId: string): Promise<boolean> {
   const claimed = await db
     .update(assistantMessages)
-    .set({ status: "streaming" })
+    .set({ status: "streaming", activeStreamId: messageId })
     .where(
       and(
         eq(assistantMessages.id, messageId),
@@ -172,16 +177,28 @@ export async function claimMessage(messageId: string): Promise<boolean> {
 }
 
 /**
- * False when the message is gone or no longer streaming (its chat was
- * deleted, or the answer was stopped).
+ * Clears the answer's stream id once its turn ended, however it ended (a
+ * stopped answer is no longer streaming, so there is no status guard).
  */
-export async function saveContent(
+export async function releaseStream(messageId: string): Promise<void> {
+  await db
+    .update(assistantMessages)
+    .set({ activeStreamId: null })
+    .where(eq(assistantMessages.id, messageId));
+}
+
+/**
+ * The parts so far and the answer text they hold. False when the message is
+ * gone or no longer streaming (its chat was deleted, or the answer was
+ * stopped).
+ */
+export async function saveParts(
   messageId: string,
-  content: string
+  value: { parts: AssistantPart[]; content: string }
 ): Promise<boolean> {
   const saved = await db
     .update(assistantMessages)
-    .set({ content })
+    .set({ parts: value.parts, content: value.content })
     .where(
       and(
         eq(assistantMessages.id, messageId),
@@ -213,12 +230,20 @@ export async function saveSources(
   return saved.length > 0;
 }
 
-/** streaming → done | failed. A no-op once the message is terminal. */
+/**
+ * streaming → done | failed. A no-op once the message is terminal. Without
+ * `parts`, the parts saved so far are kept (a redelivered turn).
+ */
 export async function finishMessage(
   messageId: string,
   outcome:
-    | { status: "done"; content: string }
-    | { status: "failed"; content: string; errorCode: string },
+    | { status: "done"; content: string; parts: AssistantPart[] }
+    | {
+        status: "failed";
+        content: string;
+        parts?: AssistantPart[];
+        errorCode: string;
+      },
   now: Date = new Date()
 ): Promise<void> {
   await db
@@ -226,6 +251,7 @@ export async function finishMessage(
     .set({
       status: outcome.status,
       content: outcome.content,
+      ...(outcome.parts ? { parts: outcome.parts } : {}),
       errorCode: outcome.status === "failed" ? outcome.errorCode : null,
       finishedAt: now,
     })
@@ -295,6 +321,8 @@ export async function failStaleAssistantMessages(): Promise<number> {
     .set({
       status: "failed",
       errorCode: "assistant.interrupted",
+      // Its worker is gone, and the stream with it.
+      activeStreamId: null,
       finishedAt: sql`now()`,
     })
     .where(

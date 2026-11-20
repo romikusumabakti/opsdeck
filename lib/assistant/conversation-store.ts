@@ -39,6 +39,7 @@ import {
 } from "./file-store";
 import { readsFilesNatively } from "./providers";
 import type { AssistantSource } from "./sources";
+import type { AssistantPart } from "./turn-parts";
 
 /**
  * The Postgres side of the assistant API (server/services/assistant.ts):
@@ -506,6 +507,12 @@ export type ConversationMessage = {
   status: MessageStatus;
   errorCode: string | null;
   sources: AssistantSource[] | null;
+  /**
+   * Answers: the ordered UIMessage parts (lib/assistant/turn-parts.ts); null
+   * on user messages and on answers from before parts, which render from
+   * content.
+   */
+  parts: AssistantPart[] | null;
   attachmentIds: string[];
   /** User messages: the files uploaded with the question. */
   files: UploadSummary[];
@@ -592,6 +599,7 @@ export async function loadConversationDetail(
         status: assistantMessages.status,
         errorCode: assistantMessages.errorCode,
         sources: assistantMessages.sources,
+        parts: assistantMessages.parts,
         attachmentIds: assistantMessages.attachmentIds,
         projectId: assistantMessages.projectId,
         projectName: assistantMessages.projectName,

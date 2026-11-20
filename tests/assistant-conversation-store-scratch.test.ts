@@ -223,6 +223,18 @@ describe.skipIf(!enabled)(
       expect([a, b]).toEqual(["busy", "busy"]);
 
       await client`update assistant_messages set status = 'done', content = 'Di IuranService.' where id = ${first.assistantMessageId}`;
+      const answerParts = [
+        { type: "step-start" as const },
+        {
+          type: "text" as const,
+          text: "Di IuranService.",
+          state: "done" as const,
+        },
+      ];
+      await d
+        .update(schema.assistantMessages)
+        .set({ parts: answerParts })
+        .where(eq(schema.assistantMessages.id, first.assistantMessageId));
       // Two sends at once: the conversation row lock lets exactly one through.
       const [c1, c2] = await Promise.all([
         store.insertTurn({
@@ -301,7 +313,12 @@ describe.skipIf(!enabled)(
       });
       // The answer carries no context; the second question asked about the
       // project branches.
-      expect(detail?.messages[1]).toMatchObject({ context: null });
+      expect(detail?.messages[1]).toMatchObject({
+        context: null,
+        parts: answerParts,
+      });
+      // A question, and an answer from before parts, have none.
+      expect(detail?.messages[0]?.parts).toBeNull();
       expect(detail?.messages[2]).toMatchObject({
         context: {
           kind: "project",
@@ -585,12 +602,18 @@ describe.skipIf(!enabled)(
       // A turn writing after the deletion finds its message gone: no rows,
       // no error; its usage is still recorded, without the message.
       const answer = turn.assistantMessageId;
-      expect(await turns.saveContent(answer, "late")).toBe(false);
+      expect(
+        await turns.saveParts(answer, { parts: [], content: "late" })
+      ).toBe(false);
       expect(await turns.saveSources(answer, [])).toBe(false);
       expect(await turns.recordToolCall(answer, "list_files", {}, {})).toBe(
         false
       );
-      await turns.finishMessage(answer, { status: "done", content: "late" });
+      await turns.finishMessage(answer, {
+        status: "done",
+        content: "late",
+        parts: [],
+      });
       await recordUsage({
         messageId: answer,
         userId: user.id,
@@ -607,9 +630,12 @@ describe.skipIf(!enabled)(
       ).toBe(0);
       // The live chat's writes still land (while its answer streams).
       await turns.claimMessage(keptTurn.assistantMessageId);
-      expect(await turns.saveContent(keptTurn.assistantMessageId, "ok")).toBe(
-        true
-      );
+      expect(
+        await turns.saveParts(keptTurn.assistantMessageId, {
+          parts: [],
+          content: "ok",
+        })
+      ).toBe(true);
     });
 
     it("stops a pending answer without touching a finished one", async () => {
@@ -647,7 +673,10 @@ describe.skipIf(!enabled)(
       const chat = await store.insertConversation({ userId: user.id });
       const streaming = await ask(chat);
       expect(await turns.claimMessage(streaming)).toBe(true);
-      await turns.saveContent(streaming, "half an answer");
+      await turns.saveParts(streaming, {
+        parts: [],
+        content: "half an answer",
+      });
       expect(await store.stopPendingAnswer(chat, at)).toBe(streaming);
       expect(await row(streaming)).toMatchObject({
         status: "failed",
@@ -656,7 +685,9 @@ describe.skipIf(!enabled)(
         finished_at: "2026-11-18 03:00:00",
       });
       // The turn's own later writes no-op.
-      expect(await turns.saveContent(streaming, "late")).toBe(false);
+      expect(
+        await turns.saveParts(streaming, { parts: [], content: "late" })
+      ).toBe(false);
       expect((await row(streaming)).content).toBe("half an answer");
       // Nothing pending any more.
       expect(await store.stopPendingAnswer(chat)).toBeNull();
