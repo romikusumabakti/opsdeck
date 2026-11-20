@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { UIMessageChunk } from "ai";
 import type * as React from "react";
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1325,6 +1325,81 @@ describe("answer stream", () => {
       const calls = transport.reconnect.mock.calls.length;
       await tick(60_000);
       expect(transport.reconnect).toHaveBeenCalledTimes(calls);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a new pending answer mid-follow is followed once, with no reconnect loop", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    const tick = (ms: number) =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    try {
+      queryClient.setQueryData(key, conversation("streaming"));
+      conversationFetch.set("c1", () => new Promise(() => {}));
+      const first = nextStream();
+      await render(<ChatThread conversationId="c1" />);
+      await first.push(...start, { type: "text-delta", id: "t1", delta: "A" });
+      // The question is edited while m2 runs: m3 replaces it.
+      const second = nextStream();
+      await act(async () =>
+        queryClient.setQueryData(key, {
+          ...conversation("streaming"),
+          messages: conversation("streaming").messages.map((m) =>
+            m.id === "m2" ? { ...m, id: "m3", status: "queued" } : m
+          ),
+        })
+      );
+      await tick(0);
+      expect(transport.reconnect).toHaveBeenCalledTimes(2);
+      await second.push(
+        { type: "start", messageId: "m3" },
+        { type: "start-step" },
+        { type: "text-start", id: "t1" }
+      );
+      await tick(30_000);
+      expect(transport.reconnect).toHaveBeenCalledTimes(2);
+      expect(transport.reconnect.mock.calls[1]?.[0].abortSignal?.aborted).toBe(
+        false
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a StrictMode double mount leaves one follow open and no reconnect loop", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    const tick = (ms: number) =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    try {
+      queryClient.setQueryData(key, conversation("streaming"));
+      conversationFetch.set("c1", () => new Promise(() => {}));
+      // Every reconnect gets a stream that stays open.
+      transport.reconnect.mockImplementation(
+        async () => answerStream().stream as ReadableStream<unknown>
+      );
+      await render(
+        <StrictMode>
+          <ChatThread conversationId="c1" />
+        </StrictMode>
+      );
+      await tick(0);
+      const opened = transport.reconnect.mock.calls.length;
+      expect(opened).toBeLessThanOrEqual(2);
+      await tick(30_000);
+      expect(transport.reconnect).toHaveBeenCalledTimes(opened);
+      const open = transport.reconnect.mock.calls.filter(
+        ([options]) => !options.abortSignal?.aborted
+      );
+      expect(open).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }

@@ -89,12 +89,18 @@ export function useAnswerStream(
   });
 
   // A follow in flight (its request, then its stream), and a count of the
-  // follows that ended, which schedules the next reconnect.
+  // follows that ended, which schedules the next reconnect. Each follow
+  // aborts the one before it (the SDK keeps one resume at a time): only the
+  // latest one's end counts, else a superseded follow would schedule a
+  // reconnect that aborts the live one, and so on.
   const inFlight = React.useRef(false);
+  const latestFollow = React.useRef(0);
   const [ended, setEnded] = React.useState(0);
   const follow = React.useCallback(() => {
+    const seq = ++latestFollow.current;
     inFlight.current = true;
     void resumeStream().finally(() => {
+      if (latestFollow.current !== seq) return;
       inFlight.current = false;
       setEnded((n) => n + 1);
     });
