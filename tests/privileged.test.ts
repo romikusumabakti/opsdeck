@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   privileged,
   privilegedViaStdin,
+  privilegedWithStdin,
   privilegeMode,
 } from "@/lib/privileged";
 
@@ -149,5 +150,44 @@ describe("privilegedViaStdin", () => {
     expect(command).toBe("sudo -S -p '' rm -rf -- '/d/x'");
     expect(command).not.toContain("word");
     expect(stdin).toBe("p@ss'word\n");
+  });
+});
+
+describe("privilegedWithStdin", () => {
+  const sql = "SELECT 'fictional secret';\n";
+  it("root: runuser, stdin as given", () => {
+    expect(
+      privilegedWithStdin("bash -c 'psql'", root, {
+        runAsUser: "postgres",
+        stdin: sql,
+      })
+    ).toEqual({
+      command: "runuser -u 'postgres' -- bash -c 'psql'",
+      stdin: sql,
+    });
+  });
+
+  it("sudo-nopasswd: sudo -n, stdin as given", () => {
+    expect(
+      privilegedWithStdin("bash -c 'psql'", keyUser, {
+        runAsUser: "postgres",
+        stdin: sql,
+      })
+    ).toEqual({ command: "sudo -n -u 'postgres' bash -c 'psql'", stdin: sql });
+  });
+
+  it("sudo-password: the password is the first stdin line, never in the command", () => {
+    const result = privilegedWithStdin("bash -c 'psql'", passwordUser, {
+      runAsUser: "postgres",
+      stdin: sql,
+    });
+    expect(result).toEqual({
+      command: "sudo -S -p '' -u 'postgres' bash -c 'psql'",
+      stdin: `${passwordUser.password}\n${sql}`,
+    });
+    expect(result.command).not.toContain(passwordUser.password);
+    expect(privilegedWithStdin("id", passwordUser, { stdin: "" }).command).toBe(
+      "sudo -S -p '' id"
+    );
   });
 });

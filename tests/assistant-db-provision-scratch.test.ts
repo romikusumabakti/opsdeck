@@ -1,10 +1,13 @@
 import { spawn } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  pgAssistantDbAdminPsql,
   pgAssistantDbCheckCommand,
   pgDisableAssistantDbPipeline,
   pgEnableAssistantDbPipeline,
+  pgEnableAssistantDbSql,
 } from "@/lib/assistant-db/provision";
+import { scramSha256Verifier } from "@/lib/assistant-db/scram";
 
 // The Assistant's read-only Postgres role on a real cluster (Stage 9 spec
 // F.2, Review Focus 2): two databases on one host, like a shared database
@@ -386,6 +389,61 @@ describe.skipIf(!enabled)("assistant read-only role on Postgres", () => {
         )
       ).stdout
     ).toBe("0");
+  });
+
+  it("a role set from our verifier logs in over 127.0.0.1", async () => {
+    // Plaintext only here and on stdin; Postgres gets the verifier alone.
+    const password = "Fictional1Scratch2Password3abcde";
+    const verifier = await scramSha256Verifier(password);
+    const admin = await run(
+      ["exec", "-i", CONTAINER, "bash", "-c", pgAssistantDbAdminPsql(DB_A)],
+      pgEnableAssistantDbSql({
+        database: DB_A,
+        role: RO_A,
+        environmentId: ENV_A,
+        appRoles: [APP_A],
+        adopt: true,
+        passwordVerifier: verifier,
+      })
+    );
+    expect(admin).toMatchObject({ code: 0 });
+    // Stored as given, not hashed again.
+    expect(
+      (
+        await superuser(
+          `SELECT rolpassword FROM pg_authid WHERE rolname = '${RO_A}'`
+        )
+      ).stdout
+    ).toBe(verifier);
+    // The scratch container trusts 127.0.0.1, so the production check
+    // command is pointed at its own non-loopback address, where pg_hba asks
+    // for scram-sha-256 and the verifier is really checked.
+    const address = (await shell("hostname -i")).stdout.split(/\s+/)[0] ?? "";
+    expect(address).not.toMatch(/^(127\.|::1$|$)/);
+    const production = pgAssistantDbCheckCommand(RO_A, DB_A, { tcp: true });
+    expect(production).toContain("-h 127.0.0.1");
+    const check = production.replace("-h 127.0.0.1", `-h ${address}`);
+    const login = (pw: string) =>
+      run(["exec", "-i", CONTAINER, "bash", "-c", check], `${pw}\n`);
+    expect(await login(password)).toMatchObject({ code: 0, stdout: "1" });
+    const wrong = await login("Wrong1Password2For3The4Login5abc");
+    expect(wrong.code).not.toBe(0);
+    expect(wrong.stderr).toMatch(/password authentication failed/);
+    // The brief's literal form, over loopback (trusted here, so it proves
+    // only that the command shape runs).
+    expect(
+      await run(
+        [
+          "exec",
+          "-i",
+          CONTAINER,
+          "bash",
+          "-c",
+          `IFS= read -r PGPASSWORD; export PGPASSWORD; psql -h 127.0.0.1 -U ${RO_A} -d ${DB_A} -Atc "select 1"`,
+        ],
+        `${password}\n`
+      )
+    ).toMatchObject({ code: 0, stdout: "1" });
   });
 
   it("disable drops the role with its grants and default privileges; again is a no-op", async () => {

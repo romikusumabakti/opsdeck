@@ -1,5 +1,6 @@
 import { createHash, randomInt } from "node:crypto";
 import { assistantDbUnavailableReason } from "@/lib/assistant-db/availability";
+import { scramSha256Verifier } from "@/lib/assistant-db/scram";
 import {
   mysqlQuoteId,
   mysqlStdinCommand,
@@ -8,6 +9,7 @@ import {
   sqlcmdStdinCommand,
   sqlQuoteString,
 } from "@/lib/jobs/commands";
+import { privilegedWithStdin } from "@/lib/privileged";
 import { provisionedRoleMarker } from "@/lib/provisioning/database";
 import {
   buildDbShellCommand,
@@ -27,8 +29,7 @@ import {
 // F.2). Enabling creates, through the Panel's admin path, a login that reads
 // only that environment's database; disabling drops it. Server-only (SSH).
 //
-// - Postgres: role `menara_ro_<db>` with LOGIN and no password (the Panel
-//   connects over the container's trusted local socket), CONNECT on this
+// - Postgres: role `menara_ro_<db>` with LOGIN, CONNECT on this
 //   database, USAGE + SELECT on its non-system schemas and tables, default
 //   privileges so new tables stay readable, `default_transaction_read_only`
 //   and a 10 s statement timeout. No predefined pg_* role, no
@@ -36,14 +37,23 @@ import {
 //   databases (lib/provisioning/database), but without grants their tables
 //   stay unreadable. Marked like every role the Panel makes for the
 //   environment, so the teardown of a shared database drops it too.
+//   In a container (or on a shared host) it has no password: the Panel
+//   connects over the container's trusted local socket. Run by systemd,
+//   where the socket only admits `postgres` (peer), it gets a generated
+//   password, set as a pre-computed SCRAM-SHA-256 verifier so Postgres and
+//   its log never see the plaintext, and logs in over 127.0.0.1.
 // - SQL Server: a login plus a user in this database, member of
 //   db_datareader only.
 // - MySQL/MariaDB: a user on 127.0.0.1 with SELECT on this database only.
 //   Neither engine stores a per-user statement timeout, so the query path
 //   sets MAX_EXECUTION_TIME (MySQL) / max_statement_time (MariaDB) itself.
 //
-// The MSSQL/MySQL password is generated here, stored encrypted by the
-// caller, and only ever travels on stdin (lib/jobs/commands#sqlcmdStdinCommand).
+// External databases are provisioned the same way: the engine and service
+// type pick the path, never `dbKind`.
+//
+// The MSSQL/MySQL/systemd-Postgres password is generated here, stored
+// encrypted by the caller, and only ever travels on stdin
+// (lib/jobs/commands#sqlcmdStdinCommand).
 
 export const ASSISTANT_DB_LOGIN_PREFIX = "menara_ro_";
 export const ASSISTANT_DB_STATEMENT_TIMEOUT = "10s";
@@ -117,6 +127,9 @@ const NON_SYSTEM_SCHEMA =
   "nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'";
 const TABLE_KINDS = "('r', 'v', 'm', 'p', 'f')";
 const SEARCH_PATH = "SET search_path = pg_catalog, pg_temp;";
+// What lib/assistant-db/scram produces: nothing a literal must escape.
+const SCRAM_VERIFIER =
+  /^SCRAM-SHA-256\$[0-9]+:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/;
 
 // --- Postgres ------------------------------------------------------------------
 
@@ -135,6 +148,10 @@ const SEARCH_PATH = "SET search_path = pg_catalog, pg_temp;";
  * Default privileges are set for the database owner, the owners of its
  * schemas and tables, and `appRoles` (the shared binding's role): whoever
  * creates the next table, it stays readable. They live in this database only.
+ *
+ * `passwordVerifier` (lib/assistant-db/scram) becomes the role's password,
+ * on create and on every refresh; without it the role has none. Only a
+ * verifier is accepted, never a plaintext password.
  */
 export function pgEnableAssistantDbSql(input: {
   database: string;
@@ -142,10 +159,16 @@ export function pgEnableAssistantDbSql(input: {
   environmentId: string;
   appRoles: string[];
   adopt: boolean;
+  passwordVerifier?: string;
 }): string {
   if (!UUID.test(input.environmentId)) {
     throw new Error("environmentId must be a uuid");
   }
+  const verifier = input.passwordVerifier;
+  if (verifier !== undefined && !SCRAM_VERIFIER.test(verifier)) {
+    throw new Error("passwordVerifier must be a SCRAM-SHA-256 verifier");
+  }
+  const verifierLit = verifier === undefined ? null : pgQuoteLiteral(verifier);
   const db = pgQuoteId(input.database);
   const role = pgQuoteId(input.role);
   const dbLit = pgQuoteLiteral(input.database);
@@ -166,7 +189,9 @@ export function pgEnableAssistantDbSql(input: {
     "  END IF;",
     `  SELECT oid INTO role_oid FROM pg_roles WHERE rolname = ${roleLit};`,
     "  IF role_oid IS NULL THEN",
-    `    EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS', ${roleLit});`,
+    verifierLit === null
+      ? `    EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS', ${roleLit});`
+      : `    EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', ${roleLit}, ${verifierLit});`,
     `    EXECUTE format('COMMENT ON ROLE %I IS %L', ${roleLit}, ${markerLit});`,
     // Not recorded as the environment's own: never taken over, even when
     // it carries the marker (a leftover nobody tracks any more).
@@ -230,7 +255,7 @@ export function pgEnableAssistantDbSql(input: {
   return [
     SEARCH_PATH,
     `DO ${pgQuoteLiteral(guard)};`,
-    `ALTER ROLE ${role} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 5 PASSWORD NULL;`,
+    `ALTER ROLE ${role} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 5 PASSWORD ${verifierLit ?? "NULL"};`,
     `ALTER ROLE ${role} SET default_transaction_read_only = on;`,
     `ALTER ROLE ${role} SET statement_timeout = ${pgQuoteLiteral(ASSISTANT_DB_STATEMENT_TIMEOUT)};`,
     `GRANT CONNECT ON DATABASE ${db} TO ${role};`,
@@ -274,17 +299,38 @@ const PSQL_ADMIN = "psql -X -q -1 -v ON_ERROR_STOP=on -U postgres";
 
 /**
  * The inner shell command that runs pgEnableAssistantDbSql as postgres in the
- * environment's database (the SQL carries no secret).
+ * environment's database, the SQL in the command (container/shared Postgres:
+ * it carries no secret, so no verifier is accepted here).
  */
 export function pgEnableAssistantDbPipeline(
-  input: Parameters<typeof pgEnableAssistantDbSql>[0]
+  input: Omit<Parameters<typeof pgEnableAssistantDbSql>[0], "passwordVerifier">
 ): string {
   const sql = pgEnableAssistantDbSql(input);
-  return `printf '%s\\n' ${shq(sql)} | ${PSQL_ADMIN} -d ${shq(input.database)}`;
+  return `printf '%s\\n' ${shq(sql)} | ${pgAssistantDbAdminPsql(input.database)}`;
 }
 
-/** Logs in as the role the way the query path will, over the local socket. */
-export function pgAssistantDbCheckCommand(role: string, database: string) {
+/**
+ * psql as postgres in `database`, one transaction, reading its script from
+ * stdin: how systemd Postgres gets pgEnableAssistantDbSql with a verifier.
+ */
+export function pgAssistantDbAdminPsql(database: string): string {
+  return `${PSQL_ADMIN} -d ${shq(database)}`;
+}
+
+/**
+ * Logs in as the role the way the query path will: over the local socket
+ * (container), or with `tcp` over 127.0.0.1 with its password, which the
+ * shell reads from the first stdin line into PGPASSWORD (never argv). Feed
+ * it `${password}\n` and run it as the SSH user (no runAsUser).
+ */
+export function pgAssistantDbCheckCommand(
+  role: string,
+  database: string,
+  opts: { tcp?: boolean } = {}
+) {
+  if (opts.tcp) {
+    return `IFS= read -r PGPASSWORD; export PGPASSWORD; psql -X -q -v ON_ERROR_STOP=on -h 127.0.0.1 -U ${shq(role)} -d ${shq(database)} -Atc 'select 1'`;
+  }
   return `psql -X -q -v ON_ERROR_STOP=on -U ${shq(role)} -d ${shq(database)} -Atc 'select 1'`;
 }
 
@@ -615,9 +661,9 @@ function secretsOf(service: AssistantDbService, password: string | null) {
  * login, role or user of that name is refused with AssistantDbLoginRefused
  * before anything changes, as is a SQL Server login with a user in another
  * database. A first enable that fails halfway drops what it created.
- * Returns the login and, for mssql/mysql, its password. Refuses an external
- * database or a missing admin password before any SSH. Errors never carry a
- * password.
+ * Returns the login and, for mssql/mysql and systemd Postgres, its password
+ * (container/shared Postgres: null). Refuses incomplete config or a missing
+ * admin password before any SSH. Errors never carry a password.
  */
 export async function enableAssistantDbLogin(
   input: AssistantDbService,
@@ -636,6 +682,19 @@ export async function enableAssistantDbLogin(
       environmentId: opts.environmentId,
       login,
     }).catch(() => {});
+  // The environment's own login keeps its stored password; a new one, or
+  // one recorded before it had a password, gets a fresh one.
+  const storedOrNew = () =>
+    (adopt ? opts.password : null) ?? generateAssistantDbPassword();
+  if (service.dbType === "postgres" && service.serviceType === "systemd") {
+    return enableSystemdPg(service, {
+      environmentId: opts.environmentId,
+      login,
+      adopt,
+      password: storedOrNew(),
+      dropAgain,
+    });
+  }
   if (service.dbType === "postgres") {
     const pipeline = pgEnableAssistantDbPipeline({
       database: service.dbName,
@@ -668,8 +727,7 @@ export async function enableAssistantDbLogin(
     return { login, password: null };
   }
 
-  const password =
-    (adopt ? opts.password : null) ?? generateAssistantDbPassword();
+  const password = storedOrNew();
   const secrets = secretsOf(service, password);
   const admin = dbAdminUser(service.dbType, service.dbUser);
   const adminPassword = service.dbPassword as string;
@@ -750,17 +808,75 @@ export async function enableAssistantDbLogin(
 }
 
 /**
+ * Postgres run by systemd: the admin script runs as `postgres` on the socket
+ * (peer), its SQL, which carries the role's SCRAM verifier, on stdin; then
+ * the role logs in over 127.0.0.1 with its password on stdin, as the query
+ * path will.
+ */
+async function enableSystemdPg(
+  service: Ready,
+  opts: {
+    environmentId: string;
+    login: string;
+    adopt: boolean;
+    password: string;
+    dropAgain: () => Promise<void>;
+  }
+): Promise<{ login: string; password: string }> {
+  const { login, adopt, password } = opts;
+  const creds = sshTarget(service.server);
+  const verifier = await scramSha256Verifier(password);
+  const secrets = [...secretsOf(service, password), verifier];
+  const sql = pgEnableAssistantDbSql({
+    database: service.dbName,
+    role: login,
+    environmentId: opts.environmentId,
+    appRoles: service.dbRole ? [service.dbRole] : [],
+    adopt,
+    passwordVerifier: verifier,
+  });
+  const admin = privilegedWithStdin(
+    `bash -c ${shq(pgAssistantDbAdminPsql(service.dbName))}`,
+    service.server,
+    { runAsUser: "postgres", stdin: sql }
+  );
+  // One transaction: a refusal or failure leaves nothing behind.
+  try {
+    await run(creds, admin.command, secrets, admin.stdin);
+  } catch (error) {
+    throw refusalOf(error, login);
+  }
+  try {
+    await run(
+      creds,
+      pgShell(
+        service,
+        pgAssistantDbCheckCommand(login, service.dbName, { tcp: true }),
+        { asSshUser: true }
+      ),
+      secrets,
+      `${password}\n`
+    );
+  } catch (error) {
+    if (!adopt) await opts.dropAgain();
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Role ${login} cannot log in to ${service.dbName} over 127.0.0.1 with its password; its pg_hba must allow scram-sha-256 from 127.0.0.1: ${message}`
+    );
+  }
+  return { login, password };
+}
+
+/**
  * Drops the login/role. Idempotent: a login that is already gone is fine.
- * Postgres refuses a role without this environment's marker.
+ * Postgres refuses a role without this environment's marker. Refuses
+ * incomplete config or a missing admin password before any SSH.
  */
 export async function disableAssistantDbLogin(
   input: AssistantDbService,
   opts: { environmentId: string; login: string }
 ): Promise<void> {
-  if (input.dbKind === "external" || !input.dbType || !input.dbName) {
-    throw new Error("Assistant database login unavailable");
-  }
-  const service = input as Ready;
+  const service = ready(input);
   const creds = sshTarget(service.server);
   if (service.dbType === "postgres") {
     const pipeline = pgDisableAssistantDbPipeline({
@@ -770,11 +886,6 @@ export async function disableAssistantDbLogin(
     });
     await run(creds, pgShell(service, pipeline), secretsOf(service, null));
     return;
-  }
-  if (!service.dbPassword) {
-    throw new Error(
-      "Assistant database login unavailable: adminPasswordMissing"
-    );
   }
   const admin = dbAdminUser(service.dbType, service.dbUser);
   const secrets = secretsOf(service, null);
@@ -795,13 +906,20 @@ export async function disableAssistantDbLogin(
   );
 }
 
-// Postgres runs as its OS user on systemd (peer auth); inside a container
-// the exec already lands on the trusted local socket.
-function pgShell(service: Ready, inner: string): string {
-  return buildDbShellCommand(service.serviceType, service.serviceName, inner, {
-    runAsUser: "postgres",
-    server: service.server,
-  });
+// Postgres admin work runs as its OS user on systemd (peer auth); inside a
+// container the exec already lands on the trusted local socket. `asSshUser`:
+// no user switch (systemd's login check over 127.0.0.1 with a password).
+function pgShell(
+  service: Ready,
+  inner: string,
+  opts: { asSshUser?: boolean } = {}
+): string {
+  return buildDbShellCommand(
+    service.serviceType,
+    service.serviceName,
+    inner,
+    opts.asSshUser ? {} : { runAsUser: "postgres", server: service.server }
+  );
 }
 
 /**

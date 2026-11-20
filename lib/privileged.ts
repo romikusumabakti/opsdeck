@@ -64,3 +64,26 @@ export function privilegedViaStdin(
   }
   return { command: privileged(cmd, server) };
 }
+
+/**
+ * As privileged(), for a command that reads `stdin` itself (SQL that holds a
+ * secret, say): nothing of it goes into the command string. In
+ * sudo-password mode `sudo -S -p ''` reads the password as the first stdin
+ * line, then the command gets the rest. Pass the result's `stdin` to
+ * executeRemoteCommand and the secrets in its `secrets`.
+ */
+export function privilegedWithStdin(
+  cmd: string,
+  server: PrivilegedServer,
+  opts: { runAsUser?: string; stdin: string }
+): { command: string; stdin: string } {
+  const { runAsUser, stdin } = opts;
+  if (privilegeMode(server) === "sudo-password") {
+    const sudoUser = runAsUser ? `-u ${shq(runAsUser)} ` : "";
+    return {
+      command: `sudo -S -p '' ${sudoUser}${cmd}`,
+      stdin: `${server.password as string}\n${stdin}`,
+    };
+  }
+  return { command: privileged(cmd, server, { runAsUser }), stdin };
+}

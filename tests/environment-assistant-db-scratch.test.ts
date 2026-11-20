@@ -189,7 +189,7 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
       (${SVC_MY}, ${ENV_MY}, 'db', ${SERVER}, 'docker', 'kestrel-uat-db',
        'mysql', 'kestrel_uat', null, ${encryptSecret(ADMIN_DB_PW)}, '/backups', null),
       (gen_random_uuid(), ${ENV_EXT}, 'db', ${SERVER}, 'systemd', 'postgresql',
-       'postgres', 'kestrel_ext', null, null, '/backups', 'external'),
+       'postgres', null, null, null, '/backups', 'external'),
       (${SVC_MS}, ${ENV_MS}, 'db', ${SERVER}, 'docker', 'kestrel-sql-db',
        'mssql', 'kestrel_sql', null, ${encryptSecret(ADMIN_DB_PW)}, '/backups', null)`;
     for (const env of [ENV_PG, ENV_MY, ENV_EXT, ENV_NODB, ENV_MS]) {
@@ -242,11 +242,14 @@ describe.skipIf(!enabled)("assistant database access on Postgres", () => {
     expect((await row(SVC_PG))?.assistant_db_enabled).toBe(false);
   });
 
-  it("refuses an external database and an environment without one, before SSH", async () => {
+  it("refuses a database without its name and an environment without one, before SSH", async () => {
+    // External databases are provisioned like the Panel's own; one the
+    // Panel can't provision (no database name) is refused.
     const external = await post(ENV_EXT, true);
     expect(external.status).toBe(409);
     expect(await external.json()).toMatchObject({
       code: "assistantDbUnavailable",
+      params: { reason: "incomplete" },
     });
     const bare = await post(ENV_NODB, true);
     expect(bare.status).toBe(409);

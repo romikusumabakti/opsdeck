@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The Assistant's read-only database login (Stage 9 spec F.2): the generated
@@ -123,14 +124,11 @@ describe("assistantDbUnavailableReason", () => {
     dbName: "kestrel_qa",
     hasAdminPassword: false,
   };
-  it("refuses external databases, incomplete config and missing admin passwords", () => {
+  it("refuses incomplete config and missing admin passwords", () => {
     expect(assistantDbUnavailableReason(base)).toBeNull();
     expect(assistantDbUnavailableReason({ ...base, dbKind: null })).toBeNull();
     expect(assistantDbUnavailableReason({ ...base, dbKind: "shared" })).toBe(
       null
-    );
-    expect(assistantDbUnavailableReason({ ...base, dbKind: "external" })).toBe(
-      "external"
     );
     expect(assistantDbUnavailableReason({ ...base, dbName: null })).toBe(
       "incomplete"
@@ -147,10 +145,35 @@ describe("assistantDbUnavailableReason", () => {
     ).toBeNull();
   });
 
-  it("refuses Postgres run by systemd (peer auth admits no other role), not other engines there", () => {
+  it("allows external databases the Panel has an admin path to", () => {
+    expect(
+      assistantDbUnavailableReason({
+        ...base,
+        dbKind: "external",
+        dbType: "mssql",
+        hasAdminPassword: true,
+      })
+    ).toBeNull();
+    expect(
+      assistantDbUnavailableReason({
+        ...base,
+        dbKind: "external",
+        serviceType: "systemd",
+      })
+    ).toBeNull();
+    expect(
+      assistantDbUnavailableReason({
+        ...base,
+        dbKind: "external",
+        dbType: "mysql",
+      })
+    ).toBe("adminPasswordMissing");
+  });
+
+  it("allows Postgres run by systemd", () => {
     expect(
       assistantDbUnavailableReason({ ...base, serviceType: "systemd" })
-    ).toBe("peerAuth");
+    ).toBeNull();
     expect(
       assistantDbUnavailableReason({ ...base, serviceType: "kubernetes" })
     ).toBeNull();
@@ -248,6 +271,56 @@ describe("pgEnableAssistantDbSql", () => {
         adopt: false,
       })
     ).toThrow(/uuid/);
+  });
+});
+
+describe("pgEnableAssistantDbSql with a password verifier", () => {
+  const VERIFIER = "SCRAM-SHA-256$4096:abc$def:ghi";
+  const base = {
+    database: "kestrel_qa",
+    role: "menara_ro_kestrel_qa",
+    environmentId: ENV_ID,
+    appRoles: [],
+  };
+
+  it("sets the role's password from a SCRAM verifier, never plaintext", () => {
+    for (const adopt of [false, true]) {
+      const sql = pgEnableAssistantDbSql({
+        ...base,
+        adopt,
+        passwordVerifier: VERIFIER,
+      });
+      expect(sql).toContain(`PASSWORD '${VERIFIER}'`);
+      expect(sql).not.toContain("PASSWORD NULL");
+    }
+    // A created role gets it in its CREATE ROLE too (inside the DO body).
+    expect(
+      pgEnableAssistantDbSql({
+        ...base,
+        adopt: false,
+        passwordVerifier: VERIFIER,
+      })
+    ).toContain("NOBYPASSRLS PASSWORD %L");
+  });
+
+  it("without a verifier the SQL is exactly today's", () => {
+    for (const adopt of [false, true]) {
+      expect(
+        pgEnableAssistantDbSql({ ...base, adopt, passwordVerifier: undefined })
+      ).toBe(pgEnableAssistantDbSql({ ...base, adopt }));
+    }
+  });
+
+  it("refuses anything that isn't a SCRAM-SHA-256 verifier", () => {
+    for (const bad of [
+      "plain-Password1",
+      "SCRAM-SHA-256$4096:a'b$c:d",
+      "md5abc",
+    ]) {
+      expect(() =>
+        pgEnableAssistantDbSql({ ...base, adopt: false, passwordVerifier: bad })
+      ).toThrow(/verifier/);
+    }
   });
 });
 
@@ -496,14 +569,7 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
     expect(log).not.toContain(reused);
   });
 
-  it("refuses an external database and a missing admin password before SSH", async () => {
-    await expect(
-      enableAssistantDbLogin(service({ dbKind: "external" }), {
-        environmentId: ENV_ID,
-        ownLogin: null,
-        password: null,
-      })
-    ).rejects.toThrow(/external/);
+  it("refuses a missing admin password before SSH", async () => {
     await expect(
       enableAssistantDbLogin(service({ dbType: "mssql" }), {
         environmentId: ENV_ID,
@@ -511,7 +577,179 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
         password: null,
       })
     ).rejects.toThrow(/adminPasswordMissing/);
+    await expect(
+      enableAssistantDbLogin(service({ dbKind: "external", dbType: "mysql" }), {
+        environmentId: ENV_ID,
+        ownLogin: null,
+        password: null,
+      })
+    ).rejects.toThrow(/adminPasswordMissing/);
+    await expect(
+      disableAssistantDbLogin(
+        service({ dbKind: "external", dbType: "mssql" }),
+        { environmentId: ENV_ID, login: "menara_ro_kestrel_qa" }
+      )
+    ).rejects.toThrow(/adminPasswordMissing/);
     expect(ssh.calls).toEqual([]);
+  });
+
+  it("external mssql: provisions like a container", async () => {
+    const result = await enableAssistantDbLogin(
+      service({
+        dbType: "mssql",
+        dbPassword: ADMIN_PW,
+        dbUser: "sa",
+        dbKind: "external",
+      }),
+      { environmentId: ENV_ID, ownLogin: null, password: null }
+    );
+    expect(result.login).toBe("menara_ro_kestrel_qa");
+    expect(result.password).toMatch(/^[A-Za-z0-9]{32}$/);
+    const password = result.password as string;
+    const [provision, check] = ssh.calls;
+    expect(provision?.command).toMatch(/^docker exec -i 'kestrel-db' bash -c /);
+    expect(provision?.stdin?.startsWith(`${ADMIN_PW}\n`)).toBe(true);
+    expect(provision?.stdin).toContain(password);
+    expect(check?.stdin).toBe(`${password}\n`);
+    for (const call of ssh.calls) {
+      expect(call.command).not.toContain(password);
+      expect(call.command).not.toContain(ADMIN_PW);
+    }
+  });
+
+  it("container postgres commands are unchanged", async () => {
+    // Captured from the code before external/systemd support: sha256 of the
+    // SQL-bearing commands, the check command verbatim.
+    const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+    const shared = service({ dbKind: "shared", dbRole: "kestrel_app" });
+    const result = await enableAssistantDbLogin(shared, {
+      environmentId: ENV_ID,
+      ownLogin: null,
+      password: null,
+    });
+    expect(result).toEqual({ login: "menara_ro_kestrel_qa", password: null });
+    await disableAssistantDbLogin(shared, {
+      environmentId: ENV_ID,
+      login: "menara_ro_kestrel_qa",
+    });
+    expect(ssh.calls).toHaveLength(3);
+    const [provision, check, drop] = ssh.calls;
+    expect(sha(provision?.command ?? "")).toBe(
+      "92212088058ae6a6232b3da512dda0a9309974dc37215684ab7387692f283226"
+    );
+    expect(check?.command).toBe(
+      "docker exec 'kestrel-db' bash -c 'psql -X -q -v ON_ERROR_STOP=on -U '\\''menara_ro_kestrel_qa'\\'' -d '\\''kestrel_qa'\\'' -Atc '\\''select 1'\\'''"
+    );
+    expect(sha(drop?.command ?? "")).toBe(
+      "c7bd55ab4324ca28bf60e626d2d6452ab713ace5fc48a7dbdb5191c2b5f19b94"
+    );
+    for (const call of ssh.calls) expect(call.stdin).toBeUndefined();
+  });
+
+  describe("postgres on systemd", () => {
+    const STORED = "Stored1Password2For3The4Login5ab";
+    const keyServer = { ...server, password: null, auth: "key" as const };
+    const systemd = (over: Record<string, unknown> = {}) =>
+      service({
+        serviceType: "systemd",
+        serviceName: "postgresql",
+        dbKind: "external",
+        server: keyServer,
+        ...over,
+      });
+
+    it("postgres on systemd: verifier and SQL on stdin, check over 127.0.0.1 with the password on stdin", async () => {
+      const result = await enableAssistantDbLogin(systemd(), {
+        environmentId: ENV_ID,
+        ownLogin: "menara_ro_kestrel_qa",
+        password: STORED,
+      });
+      expect(result).toEqual({
+        login: "menara_ro_kestrel_qa",
+        password: STORED,
+      });
+      expect(ssh.calls).toHaveLength(2);
+      const [admin, check] = ssh.calls;
+      for (const call of ssh.calls) {
+        expect(call.command).not.toContain(STORED);
+        expect(call.command).not.toContain("SCRAM-SHA-256");
+      }
+      expect(admin?.command).toBe(
+        "sudo -n -u 'postgres' bash -c 'psql -X -q -1 -v ON_ERROR_STOP=on -U postgres -d '\\''kestrel_qa'\\'''"
+      );
+      expect(admin?.stdin).toMatch(
+        /PASSWORD 'SCRAM-SHA-256\$4096:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+'/
+      );
+      expect(admin?.stdin).not.toContain(STORED);
+      expect(admin?.stdin).toContain('GRANT CONNECT ON DATABASE "kestrel_qa"');
+      expect(check?.command).toContain("-h 127.0.0.1");
+      expect(check?.command).toContain("IFS= read -r PGPASSWORD");
+      expect(check?.command).not.toMatch(/runuser|sudo/);
+      expect(check?.stdin).toBe(`${STORED}\n`);
+    });
+
+    it("postgres on systemd without a stored password generates one", async () => {
+      const result = await enableAssistantDbLogin(systemd(), {
+        environmentId: ENV_ID,
+        ownLogin: null,
+        password: null,
+      });
+      expect(result.password).toMatch(/^[A-Za-z0-9]{32}$/);
+      const password = result.password as string;
+      expect(ssh.calls[1]?.stdin).toBe(`${password}\n`);
+      for (const call of ssh.calls) {
+        expect(call.command).not.toContain(password);
+      }
+      // The environment's own role, recorded before it had a password: one
+      // is generated and set.
+      ssh.calls = [];
+      const adopted = await enableAssistantDbLogin(systemd(), {
+        environmentId: ENV_ID,
+        ownLogin: "menara_ro_kestrel_qa",
+        password: null,
+      });
+      expect(adopted.password).toMatch(/^[A-Za-z0-9]{32}$/);
+      expect(adopted.password).not.toBe(password);
+    });
+
+    it("postgres on systemd, sudo-password host: sudo password and SQL both on stdin", async () => {
+      const sudoPassword = server.password;
+      await enableAssistantDbLogin(systemd({ server }), {
+        environmentId: ENV_ID,
+        ownLogin: null,
+        password: null,
+      });
+      const [admin, check] = ssh.calls;
+      expect(admin?.command).toContain("sudo -S -p ''");
+      expect(admin?.command).toContain("-u 'postgres'");
+      expect(admin?.command).not.toContain(sudoPassword);
+      expect(admin?.stdin?.startsWith(`${sudoPassword}\n`)).toBe(true);
+      expect(admin?.stdin).toContain("SCRAM-SHA-256$4096:");
+      expect(check?.command).not.toContain(sudoPassword);
+      expect(check?.command).not.toMatch(/sudo/);
+    });
+
+    it("a role that can't log in over 127.0.0.1 is dropped again and the error says why", async () => {
+      ssh.results = [
+        { code: 0, stdout: "", stderr: "" },
+        {
+          code: 2,
+          stdout: "",
+          stderr:
+            'FATAL:  password authentication failed for user "menara_ro_kestrel_qa"',
+        },
+        { code: 0, stdout: "", stderr: "" },
+      ];
+      await expect(
+        enableAssistantDbLogin(systemd(), {
+          environmentId: ENV_ID,
+          ownLogin: null,
+          password: null,
+        })
+      ).rejects.toThrow(/127\.0\.0\.1/);
+      expect(ssh.calls).toHaveLength(3);
+      expect(ssh.calls[2]?.command).toContain("DROP ROLE");
+    });
   });
 
   it("postgres disable drops the role in its database when it exists", async () => {
@@ -522,6 +760,26 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
     expect(ssh.calls).toHaveLength(1);
     expect(ssh.calls[0]?.command).toContain("DROP ROLE");
     expect(ssh.calls[0]?.command).toContain("pg_database WHERE datname");
+  });
+
+  it("disables an external mssql and an external systemd postgres login", async () => {
+    await disableAssistantDbLogin(
+      service({ dbType: "mssql", dbPassword: ADMIN_PW, dbKind: "external" }),
+      { environmentId: ENV_ID, login: "menara_ro_kestrel_qa" }
+    );
+    expect(ssh.calls).toHaveLength(1);
+    expect(ssh.calls[0]?.stdin).toContain("DROP LOGIN");
+    await disableAssistantDbLogin(
+      service({
+        serviceType: "systemd",
+        serviceName: "postgresql",
+        dbKind: "external",
+      }),
+      { environmentId: ENV_ID, login: "menara_ro_kestrel_qa" }
+    );
+    expect(ssh.calls).toHaveLength(2);
+    expect(ssh.calls[1]?.command).toContain("DROP ROLE");
+    expect(ssh.calls[1]?.command).toContain("-u 'postgres'");
   });
 
   it("mysql disable runs DROP USER on stdin", async () => {
