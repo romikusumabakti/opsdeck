@@ -117,6 +117,7 @@ const ALWAYS_PANEL_TOOLS = [
   "list_builds",
   "list_issues",
   "list_people",
+  "get_overview",
 ];
 /** Only the named tools of a wire map. */
 const pick = (wire: Record<string, unknown>, names: string[]) =>
@@ -294,6 +295,21 @@ describe("buildTools", () => {
           "recent_activity",
         ]);
       }
+    }
+  });
+
+  it("offers get_overview to every viewer, unstrict", () => {
+    for (const role of ["qa", "engineer", "admin"] as const) {
+      const v = viewerAs(role);
+      const tools = buildTools(
+        { ...autoCtx, viewer: v, data: panelFor(v) },
+        noRecord,
+        { strictBudget: strictBudgetFor("anthropic") }
+      );
+      expect(tools.get_overview, role).toBeDefined();
+      expect((tools.get_overview as { strict?: boolean }).strict, role).toBe(
+        false
+      );
     }
   });
 

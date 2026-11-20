@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq, gte } from "drizzle-orm";
 import { type OrgScope, requireOrgPermissionIn } from "@/lib/access-scope";
 import { requireSession } from "@/lib/auth-session";
 import { db } from "@/lib/db";
@@ -40,6 +40,19 @@ export async function listActivityFor(
   requireOrgPermissionIn(scope, { audit: ["read"] });
   const rows = Number.isFinite(limit) ? Math.trunc(limit) : 100;
   return selectActivity(Math.min(Math.max(1, rows), ACTIVITY_MAX_LIMIT));
+}
+
+/** How many activity entries were logged at or after `since`. */
+export async function countActivitySinceFor(
+  scope: OrgScope,
+  since: Date
+): Promise<number> {
+  requireOrgPermissionIn(scope, { audit: ["read"] });
+  const [row] = await db
+    .select({ total: count() })
+    .from(activityLog)
+    .where(gte(activityLog.createdAt, since));
+  return row?.total ?? 0;
 }
 
 async function selectActivity(limit: number): Promise<ActivityRow[]> {

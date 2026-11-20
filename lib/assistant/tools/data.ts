@@ -9,14 +9,17 @@ import { type EnvironmentListItem, labels, milestones } from "@/lib/db/schema";
 import { resolveEnvironmentBySlug } from "@/lib/environment-slug";
 import { listPeopleFor } from "@/lib/people/queries";
 import type { OrgPermissions } from "@/lib/permissions";
-import { APP_TIMEZONE } from "@/lib/timezone";
+import { APP_TIMEZONE, zonedDayStart, zonedToday } from "@/lib/timezone";
 import { callName } from "@/lib/user-display";
 import {
   issuePrioritySchema,
   issueStatusSchema,
   issueTypeSchema,
 } from "@/lib/validation";
-import { listActivityFor } from "@/server/services/activity";
+import {
+  countActivitySinceFor,
+  listActivityFor,
+} from "@/server/services/activity";
 import { listProjectBuildsFor } from "@/server/services/deploy-builds";
 import { getDeployLockStateFor } from "@/server/services/deploy-locks";
 import {
@@ -27,7 +30,11 @@ import {
   getEnvironmentRunningFor,
   listEnvironmentsFor,
 } from "@/server/services/environments";
-import { getIssueDetailFor, listAllIssuesFor } from "@/server/services/issues";
+import {
+  countIssuesByProjectFor,
+  getIssueDetailFor,
+  listAllIssuesFor,
+} from "@/server/services/issues";
 import {
   getEnvironmentKpisFor,
   getRunSnapshotFor,
@@ -52,6 +59,7 @@ import {
   iso,
   mapLimit,
   ok,
+  personMatchesQuery,
   projectByKey,
   safeText,
   unknownEnvironment,
@@ -84,6 +92,8 @@ export const MAX_ENVIRONMENTS = 100;
 /** Environments whose deploy state list_environments reads at once. */
 const ENVIRONMENT_STATE_CONCURRENCY = 5;
 export const MAX_PEOPLE = 200;
+export const OVERVIEW_PROJECT_LIMIT = 10;
+export const OVERVIEW_ENVIRONMENTS_PER_PROJECT = 10;
 export const MAX_SERVERS = 100;
 export const ACTIVITY_LIMIT = 50;
 export const DEFAULT_ACTIVITY_LIMIT = 20;
@@ -113,6 +123,8 @@ export type DataCores = {
   getServers: typeof getServersFor;
   getServer: typeof getServerFor;
   listActivity: typeof listActivityFor;
+  countActivitySince: typeof countActivitySinceFor;
+  countIssuesByProject: typeof countIssuesByProjectFor;
   /** The environment an old (renamed) slug still names, if any. */
   resolveEnvironmentSlug: typeof resolveEnvironmentBySlug;
   /** Display names of environment owners, by user id. */
@@ -167,6 +179,8 @@ export const DATA_CORES: DataCores = {
   getServers: getServersFor,
   getServer: getServerFor,
   listActivity: listActivityFor,
+  countActivitySince: countActivitySinceFor,
+  countIssuesByProject: countIssuesByProjectFor,
   resolveEnvironmentSlug: resolveEnvironmentBySlug,
   ownerNames,
   listLabels,
@@ -420,6 +434,19 @@ const ALWAYS = {
         z.string(),
         "Only people who can see this project key; null for everyone."
       ),
+      query: nullable(
+        z.string(),
+        "Find people whose name, email or title contains this text (case- and accent-insensitive); null for everyone."
+      ),
+    }),
+  },
+  get_overview: {
+    description: `A one-call summary of the user's projects in Menara (at most ${OVERVIEW_PROJECT_LIMIT}, most recently active first): each environment's last deploy and whether one is running or failed, the open and in-progress issue counts and how many issues changed today, plus today's activity count where the user may read the log. Reads stored data only; it never probes live services (use get_environment_status for that).`,
+    inputSchema: jsonSchema<Record<string, never>>({
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
     }),
   },
 } as const;
@@ -550,7 +577,11 @@ export const DATA_INPUTS = {
     limit,
     offset: limit,
   }),
-  list_people: z.strictObject({ project: z.string().nullish() }),
+  list_people: z.strictObject({
+    project: z.string().nullish(),
+    query: z.string().nullish(),
+  }),
+  get_overview: empty,
   list_servers: empty,
   get_server: z.strictObject({ server: z.string() }),
   recent_activity: z.strictObject({ limit }),
@@ -1009,7 +1040,8 @@ async function listBuildsTool(
 
 async function listPeopleTool(
   ctx: DataContext,
-  project: string | null | undefined
+  project: string | null | undefined,
+  query: string | null | undefined
 ) {
   let projectId: string | undefined;
   let meta: ToolMeta = {};
@@ -1033,7 +1065,10 @@ async function listPeopleTool(
   const keyOf = new Map(
     (await ctx.data.projects()).map((p) => [p.id, p.key] as const)
   );
-  const shown = people.slice(0, MAX_PEOPLE);
+  const matching = query?.trim()
+    ? people.filter((p) => personMatchesQuery(p, query))
+    : people;
+  const shown = matching.slice(0, MAX_PEOPLE);
   return ok(
     compact({
       people: shown.map((p) =>
@@ -1050,9 +1085,80 @@ async function listPeopleTool(
           deactivated: p.deactivated || null,
         })
       ),
-      more: people.length > shown.length ? people.length - shown.length : null,
+      more:
+        matching.length > shown.length ? matching.length - shown.length : null,
     }),
     meta
+  );
+}
+
+async function getOverviewTool(ctx: DataContext) {
+  const { viewer, data } = ctx;
+  const now = new Date();
+  const since = zonedDayStart(zonedToday(now, data.timeZone), data.timeZone);
+  const [projects, envs, counts, activityToday] = await Promise.all([
+    data.projects(),
+    data.environments(),
+    data.cores.countIssuesByProject(viewer.scope, since),
+    dataToolOffered(viewer, "recent_activity")
+      ? data.cores.countActivitySince(viewer.scope, since)
+      : Promise.resolve(null),
+  ]);
+  const visible = new Set(projects.map((p) => p.id));
+  const latest = new Map<string, number>();
+  for (const c of counts) {
+    if (!visible.has(c.projectId)) continue;
+    latest.set(
+      c.projectId,
+      Math.max(latest.get(c.projectId) ?? 0, c.lastUpdatedAt.getTime())
+    );
+  }
+  const ranked = [...projects].sort(
+    (a, b) =>
+      (latest.get(b.id) ?? 0) - (latest.get(a.id) ?? 0) ||
+      a.key.localeCompare(b.key)
+  );
+  const shown = ranked.slice(0, OVERVIEW_PROJECT_LIMIT);
+  const entries = await mapLimit(shown, 1, async (p) => {
+    const projectEnvs = envs
+      .filter((e) => e.projectId === p.id)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, OVERVIEW_ENVIRONMENTS_PER_PROJECT);
+    const states = await mapLimit(
+      projectEnvs,
+      ENVIRONMENT_STATE_CONCURRENCY,
+      (e) => environmentDeployState(ctx, e)
+    );
+    const mine = counts.filter((c) => c.projectId === p.id);
+    const open = (status: string) =>
+      mine.find((c) => c.status === status)?.count ?? 0;
+    return {
+      key: p.key,
+      name: p.name,
+      environments: projectEnvs.map((e, i) => {
+        const last = states[i]?.lastDeploy;
+        const status = last?.status;
+        return {
+          ref: envRef(e),
+          name: e.name,
+          lastDeploy: last ?? null,
+          deploying: status === "queued" || status === "running",
+          failed: status === "failed",
+        };
+      }),
+      issues: {
+        open: open("open"),
+        in_progress: open("in_progress"),
+        updatedToday: mine.reduce((sum, c) => sum + c.updatedSince, 0),
+      },
+    };
+  });
+  return ok(
+    compact({
+      projects: entries,
+      more: ranked.length > shown.length ? ranked.length - shown.length : null,
+      activityToday,
+    })
   );
 }
 
@@ -1170,8 +1276,10 @@ export async function runDataTool(
       );
     case "list_people": {
       const i = data as z.infer<typeof DATA_INPUTS.list_people>;
-      return listPeopleTool(ctx, i.project);
+      return listPeopleTool(ctx, i.project, i.query);
     }
+    case "get_overview":
+      return getOverviewTool(ctx);
     case "list_servers":
       return listServersTool(ctx);
     case "get_server": {

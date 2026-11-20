@@ -461,11 +461,13 @@ describe("strict tools", () => {
       const { strict } = strictOf(limit);
       expect(strict).not.toContain("list_projects");
       expect(strict).not.toContain("list_servers");
+      expect(strict).not.toContain("get_overview");
     }
   });
 
   it("marks every tool with arguments strict when the provider sets no limit", () => {
     const { total, strict } = strictOf(null);
-    expect(strict.length).toBe(total - 2);
+    // list_projects, list_servers and get_overview take no arguments.
+    expect(strict.length).toBe(total - 3);
   });
 });

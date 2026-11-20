@@ -1,6 +1,7 @@
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   exists,
@@ -10,6 +11,7 @@ import {
   inArray,
   isNull,
   lt,
+  max,
   or,
   type SQL,
   sql,
@@ -465,6 +467,42 @@ export async function listAllIssues(
   query: IssueQuery = {}
 ): Promise<IssuePage> {
   return listAllIssuesFor(await accessScopeFromSession(), query);
+}
+
+/**
+ * Issue counts per project and status over the scope's projects, one grouped
+ * query: how many issues, how many were updated at or after `since`, and the
+ * latest update. The assistant's overview reads it.
+ */
+export async function countIssuesByProjectFor(
+  scope: AccessScope,
+  since: Date
+): Promise<
+  Array<{
+    projectId: string;
+    status: IssueStatus;
+    count: number;
+    updatedSince: number;
+    lastUpdatedAt: Date;
+  }>
+> {
+  const visible = scopedProjectFilter(scope, issues.projectId);
+  const rows = await db
+    .select({
+      projectId: issues.projectId,
+      status: issues.status,
+      count: count(),
+      updatedSince: count(
+        sql`CASE WHEN ${issues.updatedAt} >= ${since} THEN 1 END`
+      ),
+      lastUpdatedAt: max(issues.updatedAt),
+    })
+    .from(issues)
+    .where(visible)
+    .groupBy(issues.projectId, issues.status);
+  return rows.flatMap((r) =>
+    r.lastUpdatedAt ? [{ ...r, lastUpdatedAt: r.lastUpdatedAt }] : []
+  );
 }
 
 /**

@@ -450,6 +450,36 @@ describe.skipIf(!enabled)(
         expect("status" in feed ? feed.status : 200).toBe(
           readsAudit.has(person.id) ? 200 : 403
         );
+
+        // Today's activity count: the same audit:read gate; both seeded rows
+        // are newer than the epoch.
+        const epoch = new Date(0);
+        const counted = await outcome(() =>
+          activity.countActivitySinceFor(scope, epoch)
+        );
+        expect(counted).toEqual(
+          readsAudit.has(person.id) ? { value: 2 } : { status: 403 }
+        );
+
+        // Issue counts per project and status, over the visible projects only.
+        const grouped = await issuesService.countIssuesByProjectFor(
+          scope,
+          epoch
+        );
+        const seen = new Set(grouped.map((g) => g.projectId));
+        expect(seen.has(p1.project.id)).toBe(seesP1.has(person.id));
+        expect(seen.has(p2.project.id)).toBe(seesP2.has(person.id));
+        for (const g of grouped) {
+          // Each seeded project: one open, one resolved, one closed issue.
+          expect(g.count).toBe(1);
+          expect(g.updatedSince).toBe(1);
+          expect(g.lastUpdatedAt).toBeInstanceOf(Date);
+        }
+        const future = await issuesService.countIssuesByProjectFor(
+          scope,
+          new Date(Date.now() + 86_400_000)
+        );
+        expect(future.every((g) => g.updatedSince === 0)).toBe(true);
       }
 
       // Seen by an admin, staff holds no project: not on the People page, not

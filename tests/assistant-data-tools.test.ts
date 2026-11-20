@@ -100,6 +100,8 @@ function fakeCores(envs: EnvironmentListItem[]): Fakes {
     getServers: vi.fn(async () => []),
     getServer: vi.fn(async () => undefined),
     listActivity: vi.fn(async () => []),
+    countIssuesByProject: vi.fn(async () => []),
+    countActivitySince: vi.fn(async () => 0),
     resolveEnvironmentSlug: vi.fn(async () => null),
     ownerNames: vi.fn(async () => new Map()),
     listLabels: vi.fn(async () => []),
@@ -938,6 +940,192 @@ describe("builds, issues and people", () => {
       engineer.scope,
       undefined
     );
+  });
+});
+
+describe("list_people query", () => {
+  const person = (
+    id: string,
+    name: string,
+    over: Record<string, unknown> = {}
+  ) => ({
+    id,
+    name,
+    preferredName: null,
+    email: `${id}@x.id`,
+    image: null,
+    title: null,
+    role: "qa",
+    timeZone: "Asia/Jakarta",
+    workingHours: null,
+    status: null,
+    lastActiveAt: null,
+    projectIds: [],
+    deactivated: false,
+    ...over,
+  });
+
+  it("list_people matches name, email and title, case- and accent-insensitively", async () => {
+    const cores = fakeCores([]);
+    cores.listPeople.mockResolvedValue([
+      person("wulan", "Wulan Anggraeni", { title: "QA Lead" }),
+      person("jose", "José Ramos", { email: "jose@x" }),
+      person("andi", "Andi", { title: "Business Analyst" }),
+    ]);
+    const ctx = contextFor(engineer, cores);
+    const names = async (query: string) => {
+      const result = await executeTool(
+        "list_people",
+        { project: null, query },
+        ctx
+      );
+      if (!result.ok) throw new Error(result.error);
+      return (result.data as { people: { name: string }[] }).people.map(
+        (p) => p.name
+      );
+    };
+    expect(await names("wulan")).toEqual(["Wulan Anggraeni"]);
+    expect(await names("jose")).toEqual(["José Ramos"]);
+    expect(await names("ANALYST")).toEqual(["Andi"]);
+    // An accented query folds to its base letter, so it finds the plain "e"
+    // in every title and name too.
+    expect(await names("é")).toEqual(["Wulan Anggraeni", "José Ramos", "Andi"]);
+    // And an unaccented query finds the accented name.
+    expect(await names("jos")).toEqual(["José Ramos"]);
+  });
+});
+
+describe("get_overview", () => {
+  const NOW = new Date("2026-11-20T05:00:00Z");
+  const group = (
+    projectId: string,
+    status: "open" | "in_progress",
+    count: number,
+    updatedSince: number,
+    lastUpdatedAt: Date
+  ) => ({ projectId, status, count, updatedSince, lastUpdatedAt });
+
+  const overview = async (
+    viewer: AssistantViewer,
+    cores: Fakes,
+    projects: ProjectEntry[] = PROJECTS
+  ) => {
+    const data = createDataTurn(viewer, {
+      projects: async () => projects,
+      cores: cores as unknown as DataCores,
+    });
+    const result = await executeTool(
+      "get_overview",
+      {},
+      {
+        ...contextFor(viewer, cores),
+        data,
+      }
+    );
+    if (!result.ok) throw new Error(result.error);
+    return result.data as Record<string, unknown> & {
+      projects: Array<Record<string, unknown>>;
+    };
+  };
+
+  it("get_overview reads only the viewer's projects and never probes", async () => {
+    const cores = fakeCores([
+      env(1),
+      env(2, { projectId: BETA_ID, key: "BETA", slug: "qa" }),
+    ]);
+    const result = await overview(engineer, cores);
+    expect(cores.getServiceStatuses).not.toHaveBeenCalled();
+    expect(cores.countIssuesByProject).toHaveBeenCalledTimes(1);
+    expect(cores.countIssuesByProject.mock.calls[0]?.[0]).toBe(engineer.scope);
+    expect(cores.listDeployTargets).toHaveBeenCalledTimes(2);
+    expect(result.projects.map((p) => p.key)).toEqual(["ACME", "BETA"]);
+    // An environment of a project outside the viewer's list is never shown.
+    const stray = fakeCores([
+      env(1, {
+        projectId: "01900000-0000-7000-8000-0000000000ff",
+        key: "HIDE",
+      }),
+    ]);
+    const hidden = await overview(engineer, stray);
+    expect(JSON.stringify(hidden)).not.toContain("HIDE");
+    expect(stray.listDeployTargets).not.toHaveBeenCalled();
+  });
+
+  it("get_overview caps projects at 10 with more", async () => {
+    const many: ProjectEntry[] = Array.from({ length: 12 }, (_, n) => ({
+      id: `01900000-0000-7000-8000-${String(5000 + n).padStart(12, "0")}`,
+      key: `P${String(n).padStart(2, "0")}`,
+      name: `Project ${n}`,
+      group: null,
+      description: null,
+    }));
+    const result = await overview(admin, fakeCores([]), many);
+    expect(result.projects).toHaveLength(10);
+    expect(result.more).toBe(2);
+    expect(result.projects[0]?.key).toBe("P00");
+  });
+
+  it("get_overview reports open and in_progress counts and updatedToday", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    try {
+      const cores = fakeCores([env(1)]);
+      cores.countIssuesByProject.mockResolvedValue([
+        group(ACME_ID, "open", 4, 1, new Date("2026-11-20T01:00:00Z")),
+        group(ACME_ID, "in_progress", 2, 2, new Date("2026-11-19T01:00:00Z")),
+        group(BETA_ID, "open", 1, 0, new Date("2026-11-21T01:00:00Z")),
+      ]);
+      cores.listDeployTargets.mockResolvedValue([
+        {
+          recentDeployments: [
+            {
+              id: "d1",
+              status: "failed",
+              tag: "v1",
+              createdAt: new Date("2026-11-20T02:00:00Z"),
+            },
+          ],
+        },
+      ]);
+      const result = await overview(engineer, cores);
+      // Asia/Jakarta midnight of 2026-11-20 is 2026-11-19T17:00Z.
+      expect(cores.countIssuesByProject.mock.calls[0]?.[1]).toEqual(
+        new Date("2026-11-19T17:00:00Z")
+      );
+      // BETA was updated last, so it ranks first.
+      expect(result.projects.map((p) => p.key)).toEqual(["BETA", "ACME"]);
+      expect(result.projects[1]).toEqual({
+        key: "ACME",
+        name: "Acme Membership",
+        environments: [
+          {
+            ref: "ACME/env-1",
+            name: "Env 1",
+            lastDeploy: {
+              status: "failed",
+              tag: "v1",
+              at: "2026-11-20T02:00:00Z",
+            },
+            deploying: false,
+            failed: true,
+          },
+        ],
+        issues: { open: 4, in_progress: 2, updatedToday: 3 },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("get_overview adds activityToday only for audit:read", async () => {
+    const cores = fakeCores([]);
+    cores.countActivitySince.mockResolvedValue(7);
+    expect((await overview(admin, cores)).activityToday).toBe(7);
+    expect(cores.countActivitySince.mock.calls[0]?.[0]).toBe(admin.scope);
+    const qaCores = fakeCores([]);
+    const qa = viewerAs("qa");
+    expect(await overview(qa, qaCores)).not.toHaveProperty("activityToday");
+    expect(qaCores.countActivitySince).not.toHaveBeenCalled();
   });
 });
 
