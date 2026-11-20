@@ -3,6 +3,9 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   type AssistantPart,
   summarizeToolInput,
+  TOOL_FAILED_TEXT,
+  TOOL_INVALID_TEXT,
+  TOOL_STOPPED_TEXT,
   TurnRecorder,
 } from "@/lib/assistant/turn-parts";
 
@@ -130,43 +133,109 @@ describe("TurnRecorder", () => {
     });
   });
 
-  it("records a tool error and an invalid call as output errors, cut short", () => {
+  it("records an invalid call as an output error with a fixed text", () => {
     const { recorder, chunks } = record([
       startStep,
       {
         type: "tool-call",
         toolCallId: "tu_2",
         toolName: "read_file",
-        input: "{not json",
+        input: "{not json at db.internal.example",
         dynamic: true,
         invalid: true,
-        error: new Error("bad"),
+        error: new Error("Invalid input for tool read_file: {not json"),
       } as Part,
       {
         type: "tool-error",
         toolCallId: "tu_2",
         toolName: "read_file",
-        input: "{not json",
-        error: "e".repeat(500),
+        input: "{not json at db.internal.example",
+        error:
+          "Invalid input for tool read_file: {not json at db.internal.example",
         dynamic: true,
       } as Part,
       finishStep("tool-calls"),
     ]);
-    const tool = recorder.parts[1];
-    expect(tool).toMatchObject({
+    expect(recorder.parts[1]).toMatchObject({
       type: "dynamic-tool",
       state: "output-error",
       input: {},
+      errorText: TOOL_INVALID_TEXT,
     });
-    const errorText = tool && "errorText" in tool ? tool.errorText : "";
-    expect(errorText).toHaveLength(201);
-    expect(errorText?.endsWith("…")).toBe(true);
     expect(chunks.find((c) => c.type === "tool-output-error")).toEqual({
       type: "tool-output-error",
       toolCallId: "tu_2",
-      errorText,
+      errorText: TOOL_INVALID_TEXT,
       dynamic: true,
     });
+    expect(JSON.stringify([recorder.parts, chunks])).not.toContain(
+      "db.internal"
+    );
+  });
+
+  it("never records a thrown tool error's message", () => {
+    const message =
+      "connect ECONNREFUSED https://db.internal.example:5432/ledger?password=hunter2";
+    const { recorder, chunks } = record([
+      startStep,
+      listIssuesCall,
+      {
+        type: "tool-error",
+        toolCallId: "tu_1",
+        toolName: "list_issues",
+        input: { query: null },
+        error: new Error(message),
+      } as Part,
+      finishStep("tool-calls"),
+    ]);
+    expect(recorder.parts[1]).toMatchObject({
+      state: "output-error",
+      errorText: TOOL_FAILED_TEXT,
+    });
+    const all = JSON.stringify([recorder.parts, chunks]);
+    expect(all).not.toContain("db.internal");
+    expect(all).not.toContain("hunter2");
+  });
+
+  it("finalize ends open text and tools still waiting for output", () => {
+    const { recorder, chunks } = record([
+      startStep,
+      { type: "text-start", id: "0" } as Part,
+      { type: "text-delta", id: "0", text: "Checking" } as Part,
+      listIssuesCall,
+    ]);
+    const ending = recorder.finalize();
+    expect(recorder.parts).toEqual([
+      { type: "step-start" },
+      { type: "text", text: "Checking", state: "done" },
+      {
+        type: "dynamic-tool",
+        toolName: "list_issues",
+        toolCallId: "tu_1",
+        state: "output-error",
+        input: { query: null },
+        errorText: TOOL_STOPPED_TEXT,
+      },
+    ]);
+    expect(ending).toEqual([
+      { type: "text-end", id: "0" },
+      {
+        type: "tool-output-error",
+        toolCallId: "tu_1",
+        errorText: TOOL_STOPPED_TEXT,
+        dynamic: true,
+      },
+    ]);
+    expect(chunks.some((c) => c.type === "text-end")).toBe(false);
+    // Nothing is left open: a second finalize changes nothing.
+    expect(recorder.finalize()).toEqual([]);
+  });
+
+  it("finalize leaves a finished turn as it is", () => {
+    const { recorder } = record(twoStepTurn);
+    const before = structuredClone(recorder.parts);
+    expect(recorder.finalize()).toEqual([]);
+    expect(recorder.parts).toEqual(before);
   });
 
   it("ignores reasoning and tool input streaming", () => {

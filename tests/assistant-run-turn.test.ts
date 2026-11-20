@@ -52,6 +52,8 @@ const state = vi.hoisted(() => ({
   }>,
   /** saveParts, finishMessage, claimMessage and releaseStream calls, in order. */
   events: [] as string[],
+  /** The parts saveEndedParts wrote on a stopped (failed) row. */
+  endedParts: null as unknown[] | null,
   toolCalls: [] as Array<{
     tool: string;
     input: Record<string, unknown>;
@@ -96,6 +98,12 @@ vi.mock("@/lib/assistant/turn-store", () => ({
   ),
   releaseStream: vi.fn(async (_id: string) => {
     state.events.push("release");
+  }),
+  saveEndedParts: vi.fn(async (_id: string, parts: unknown[]) => {
+    state.events.push("saveEndedParts");
+    // Like the real WHERE status = 'failed'.
+    if (state.gone || state.message.status !== "failed") return;
+    state.endedParts = structuredClone(parts);
   }),
   saveSources: vi.fn(async (_id: string, sources: unknown) => {
     if (state.gone || state.message.status !== "streaming") return false;
@@ -166,6 +174,9 @@ const {
 const { buildSourceNote, buildSystemPrompt, buildVolatileSystemNote } =
   await import("@/lib/assistant/system-prompt");
 const { SnapshotUnavailableError } = await import("@/lib/assistant/snapshot");
+const { TOOL_FAILED_TEXT, TOOL_STOPPED_TEXT } = await import(
+  "@/lib/assistant/turn-parts"
+);
 const { executeTool: realExecuteTool } = await import(
   "@/lib/assistant/tool-defs"
 );
@@ -511,6 +522,7 @@ beforeEach(() => {
   state.partsWrites = [];
   state.finished = [];
   state.events = [];
+  state.endedParts = null;
   state.toolCalls = [];
   state.recordToolCallFails = false;
   state.gone = false;
@@ -861,6 +873,130 @@ describe("runTurn", () => {
     );
     expect(state.message.errorCode).toBe("assistant.stopped");
     expect(releaseStream).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+  });
+
+  it("ends open parts on a stopped answer and saves them on its row", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { saveParts } = await import("@/lib/assistant/turn-store");
+    // The user presses Stop as the first text lands: that write finds the
+    // answer no longer streaming, while its text part is still open.
+    vi.mocked(saveParts).mockImplementationOnce(async () => {
+      state.message.status = "failed";
+      state.message.errorCode = "assistant.stopped";
+      return false;
+    });
+    const chunks: Array<{ type: string; messageMetadata?: unknown }> = [];
+    const { model } = mockModel([
+      { text: ["Iuran ", "dihitung ", "per bulan"], finish: "stop" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        onChunks: (batch: typeof chunks) => chunks.push(...batch),
+      })
+    );
+    expect(state.finishes).toBe(0);
+    expect(state.endedParts).not.toBeNull();
+    expect(JSON.stringify(state.endedParts)).not.toMatch(
+      /"state":"(streaming|input-available|input-streaming)"/
+    );
+    expect(state.endedParts).toContainEqual(
+      expect.objectContaining({ type: "text", state: "done" })
+    );
+    expect(chunks.at(-1)).toEqual({
+      type: "finish",
+      messageMetadata: { status: "failed", errorCode: "assistant.stopped" },
+    });
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("ends a tool still running when the answer is stopped", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { saveParts } = await import("@/lib/assistant/turn-store");
+    // Stopped at the write the tool call triggers, while the tool runs.
+    vi.mocked(saveParts).mockImplementation(async (_id, value) => {
+      if (value.parts.some((p) => p.type === "dynamic-tool")) {
+        state.message.status = "failed";
+        state.message.errorCode = "assistant.stopped";
+      }
+      return state.message.status === "streaming";
+    });
+    const executeTool = vi.fn(
+      () =>
+        new Promise<never>(() => {
+          // Never settles: the abort ends the turn first.
+        })
+    );
+    const { model } = mockModel([
+      toolStep(1),
+      { text: ["never sent"], finish: "stop" },
+    ]);
+    try {
+      await runTurn(MESSAGE_ID, deps(model, { executeTool }));
+    } finally {
+      vi.mocked(saveParts).mockReset();
+      vi.mocked(saveParts).mockImplementation(async (_id, value) => {
+        state.events.push("saveParts");
+        if (state.gone || state.message.status !== "streaming") return false;
+        state.contentWrites.push(value.content);
+        state.partsWrites.push(structuredClone(value));
+        state.message.content = value.content;
+        return true;
+      });
+    }
+    expect(state.finishes).toBe(0);
+    expect(state.endedParts).toContainEqual(
+      expect.objectContaining({
+        type: "dynamic-tool",
+        state: "output-error",
+        errorText: TOOL_STOPPED_TEXT,
+      })
+    );
+    error.mockRestore();
+  });
+
+  it("ends a failed turn with no part left open and no exception text", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const executeTool = vi.fn(async () => {
+      throw new Error("connect ECONNREFUSED https://db.internal.example:5432");
+    });
+    const chunks: unknown[] = [];
+    const { model } = mockModel([
+      toolStep(1),
+      { text: ["Gagal membaca."], streamError: new Error("socket hang up") },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        executeTool,
+        onChunks: (batch: unknown[]) => chunks.push(...batch),
+      })
+    );
+    expect(state.message.status).toBe("failed");
+    const outcome = state.finished.at(-1);
+    expect(outcome?.parts).toContainEqual(
+      expect.objectContaining({
+        type: "dynamic-tool",
+        state: "output-error",
+        errorText: TOOL_FAILED_TEXT,
+      })
+    );
+    const persisted = JSON.stringify([outcome, state.partsWrites, chunks]);
+    expect(persisted).not.toContain("db.internal");
+    // Snapshots taken while streaming may hold open parts; the final one not.
+    expect(JSON.stringify(outcome?.parts)).not.toMatch(
+      /"state":"(streaming|input-available|input-streaming)"/
+    );
+    // The real error is logged on the server.
+    expect(
+      error.mock.calls.some((args) =>
+        args.some(
+          (a) => a instanceof Error && a.message.includes("db.internal")
+        )
+      )
+    ).toBe(true);
+    error.mockRestore();
   });
 
   it("estimates a step the provider reports no usage for", async () => {
@@ -2180,6 +2316,21 @@ describe("runTurn", () => {
     expect(state.message.status).toBe("failed");
     expect(state.message.errorCode).toBe("assistant.interrupted");
     expect(state.message.content).toBe("Sebagian");
+  });
+
+  it("clears a redelivered turn's stream id even when marking it fails", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { finishMessage, releaseStream } = await import(
+      "@/lib/assistant/turn-store"
+    );
+    vi.mocked(releaseStream).mockClear();
+    vi.mocked(finishMessage).mockRejectedValueOnce(new Error("db blip"));
+    state.turn = { ...baseTurn(), status: "streaming", content: "Sebagian" };
+    state.message.status = "streaming";
+    await runTurn(MESSAGE_ID, deps(mockModel([]).model));
+    expect(releaseStream).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("does nothing for a turn that is already finished", async () => {

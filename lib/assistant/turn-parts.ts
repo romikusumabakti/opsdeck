@@ -46,7 +46,14 @@ export type AnswerMetadata = {
 export type ToolInputSummary = Record<string, string | number | boolean | null>;
 
 const INPUT_STRING_MAX = 120;
-const ERROR_TEXT_MAX = 200;
+/**
+ * The error texts a tool part may carry: fixed, so no exception message (a
+ * host, a path, the call's input) is persisted or sent to the browser. The
+ * tool's own failures are logged where they happen.
+ */
+export const TOOL_FAILED_TEXT = "The tool failed.";
+export const TOOL_INVALID_TEXT = "The tool call was invalid.";
+export const TOOL_STOPPED_TEXT = "Stopped before the tool finished.";
 
 /** `text` cut to `max` code points, with "…" when it was cut. */
 function cut(text: string, max: number): string {
@@ -96,11 +103,6 @@ function toolOutputOf(output: unknown): ToolPartOutput {
   return { ok: result.ok !== false, meta };
 }
 
-function errorTextOf(error: unknown): string {
-  const text = error instanceof Error ? error.message : String(error);
-  return cut(text, ERROR_TEXT_MAX);
-}
-
 /**
  * Turns streamText's fullStream into the turn's parts and the UI message
  * chunks a client renders them from (the same parts, chunk by chunk).
@@ -113,6 +115,8 @@ export class TurnRecorder {
   private readonly toolIndex = new Map<string, number>();
   /** The text of each step so far, in order. */
   private readonly stepTexts: string[] = [];
+  /** Calls the SDK rejected (unknown tool, input not matching the schema). */
+  private readonly invalidCalls = new Set<string>();
 
   constructor(private readonly messageId: string) {}
 
@@ -154,6 +158,7 @@ export class TurnRecorder {
         return [{ type: "text-end", id: part.id }];
       }
       case "tool-call": {
+        if (part.invalid) this.invalidCalls.add(part.toolCallId);
         const input = summarizeToolInput(part.toolName, part.input);
         this.toolIndex.set(part.toolCallId, this.list.length);
         this.list.push({
@@ -186,7 +191,9 @@ export class TurnRecorder {
         ];
       }
       case "tool-error": {
-        const errorText = errorTextOf(part.error);
+        const errorText = this.invalidCalls.has(part.toolCallId)
+          ? TOOL_INVALID_TEXT
+          : TOOL_FAILED_TEXT;
         if (!this.settleTool(part.toolCallId, { errorText })) return [];
         return [
           {
@@ -217,6 +224,34 @@ export class TurnRecorder {
    */
   answerText(): string {
     return this.stepTexts.findLast((text) => text.trim() !== "") ?? "";
+  }
+
+  /**
+   * Ends what is still open when the turn ends, however it ends: streaming
+   * text is done, and a tool still waiting for its output failed with
+   * TOOL_STOPPED_TEXT. Returns the chunks that tell a client so.
+   */
+  finalize(): UIMessageChunk[] {
+    const chunks: UIMessageChunk[] = [];
+    for (const [id, text] of this.openText) {
+      text.state = "done";
+      chunks.push({ type: "text-end", id });
+    }
+    this.openText.clear();
+    for (const [toolCallId, index] of this.toolIndex) {
+      const part = this.list[index];
+      if (part?.type !== "dynamic-tool") continue;
+      if (part.state !== "input-available" && part.state !== "input-streaming")
+        continue;
+      this.settleTool(toolCallId, { errorText: TOOL_STOPPED_TEXT });
+      chunks.push({
+        type: "tool-output-error",
+        toolCallId,
+        errorText: TOOL_STOPPED_TEXT,
+        dynamic: true,
+      });
+    }
+    return chunks;
   }
 
   stepEnded(part: TextStreamPart<ToolSet>): boolean {

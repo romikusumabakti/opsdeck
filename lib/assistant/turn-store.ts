@@ -188,6 +188,26 @@ export async function releaseStream(messageId: string): Promise<void> {
 }
 
 /**
+ * The final parts of an answer someone else ended mid-turn (stopped, or
+ * failed by the boot sweep): the content it kept stays. A no-op for an
+ * answer still streaming or done, or gone with its chat.
+ */
+export async function saveEndedParts(
+  messageId: string,
+  parts: AssistantPart[]
+): Promise<void> {
+  await db
+    .update(assistantMessages)
+    .set({ parts })
+    .where(
+      and(
+        eq(assistantMessages.id, messageId),
+        eq(assistantMessages.status, "failed")
+      )
+    );
+}
+
+/**
  * The parts so far and the answer text they hold. False when the message is
  * gone or no longer streaming (its chat was deleted, or the answer was
  * stopped).

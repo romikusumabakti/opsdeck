@@ -442,7 +442,20 @@ describe.skipIf(!enabled)("assistant turn store on a real Postgres", () => {
       await client`select content, sources from assistant_messages where id = ${stopped.id}`;
     expect(after?.content).toBe("kept");
     expect(after?.sources).toBeNull();
+    // Its turn still writes the ended parts, keeping the content.
+    const ended = [
+      { type: "text" as const, text: "kept", state: "done" as const },
+    ];
+    await store.saveEndedParts(stopped.id, ended);
+    const [endedRow] =
+      await client`select content, parts from assistant_messages where id = ${stopped.id}`;
+    expect(endedRow).toMatchObject({ content: "kept", parts: ended });
     const live = await message("assistant", "streaming");
+    // An answer still streaming is not touched.
+    await store.saveEndedParts(live.id, ended);
+    const [liveRow] =
+      await client`select parts from assistant_messages where id = ${live.id}`;
+    expect(liveRow?.parts).toBeNull();
     expect(await store.saveParts(live.id, { parts: [], content: "x" })).toBe(
       true
     );

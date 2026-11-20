@@ -62,6 +62,7 @@ import {
   loadTurn,
   recordToolCall,
   releaseStream,
+  saveEndedParts,
   saveParts,
   saveSources,
   type TurnContext,
@@ -716,12 +717,13 @@ export async function runTurn(
         },
         now()
       );
-      await releaseStream(messageId);
     } catch (error) {
       console.error(
         `[assistant] failed to mark redelivered turn ${messageId} interrupted`,
         error
       );
+    } finally {
+      await releaseStreamOf(messageId);
     }
     return;
   }
@@ -736,12 +738,7 @@ export async function runTurn(
   try {
     done = await settleTurn(turn, recorder, emit, deps, now);
   } finally {
-    await releaseStream(messageId).catch((error) => {
-      console.error(
-        `[assistant] failed to release the stream of ${messageId}`,
-        error
-      );
-    });
+    await releaseStreamOf(messageId);
   }
   if (!done) return;
   // The answer is done: name the chat if it was the first (a no-op for any
@@ -754,6 +751,38 @@ export async function runTurn(
   } catch (error) {
     console.error(
       `[assistant] auto title of ${turn.conversationId} failed`,
+      error
+    );
+  }
+}
+
+/** Clears the answer's stream id; a failure is logged, never thrown. */
+async function releaseStreamOf(messageId: string): Promise<void> {
+  try {
+    await releaseStream(messageId);
+  } catch (error) {
+    console.error(
+      `[assistant] failed to release the stream of ${messageId}`,
+      error
+    );
+  }
+}
+
+/**
+ * The answer was stopped or its chat deleted mid-turn: its open parts are
+ * ended and saved on the row the stop left (a no-op once deleted).
+ */
+async function endGoneTurn(
+  messageId: string,
+  recorder: TurnRecorder,
+  emit: (chunks: UIMessageChunk[]) => void
+): Promise<void> {
+  emit(recorder.finalize());
+  try {
+    await saveEndedParts(messageId, recorder.parts);
+  } catch (error) {
+    console.error(
+      `[assistant] failed to save the parts of stopped turn ${messageId}`,
       error
     );
   }
@@ -782,8 +811,10 @@ async function settleTurn(
       // Deleted or stopped mid-turn: nothing left to finish.
       if (stop.gone) {
         outcome = { status: "failed", errorCode: STOPPED_CODE };
+        await endGoneTurn(messageId, recorder, emit);
         return false;
       }
+      emit(recorder.finalize());
       await finishMessage(
         messageId,
         {
@@ -800,6 +831,7 @@ async function settleTurn(
       // An error after the chat was deleted comes from the abort.
       if (stop.gone) {
         outcome = { status: "failed", errorCode: STOPPED_CODE };
+        await endGoneTurn(messageId, recorder, emit);
         return false;
       }
       const code = classifyError(error);
@@ -807,6 +839,7 @@ async function settleTurn(
         console.error(`[assistant] turn ${messageId} failed`, error);
       }
       outcome = { status: "failed", errorCode: code };
+      emit(recorder.finalize());
       await finishMessage(
         messageId,
         {
@@ -1130,6 +1163,7 @@ async function runClaimedTurn(
   // off by the abort is estimated from.
   let reasoningChars = 0;
   let textChars = 0;
+  const invalidCalls = new Set<string>();
   for await (const part of result.fullStream) {
     emit(recorder.push(part));
     if (SAVED_PART_TYPES.has(part.type)) writer.update();
@@ -1139,6 +1173,17 @@ async function runClaimedTurn(
         break;
       case "reasoning-delta":
         reasoningChars += part.text.length;
+        break;
+      case "tool-call":
+        if (part.invalid) invalidCalls.add(part.toolCallId);
+        break;
+      case "tool-error":
+        // The part carries a fixed text; the real error stays in the log.
+        // Invalid calls are audited instead, and a failed audit or a stop
+        // is handled (and logged) where it happens.
+        if (!invalidCalls.has(part.toolCallId) && !auditError && !stop.gone) {
+          console.error(`[assistant] tool ${part.toolName} failed`, part.error);
+        }
         break;
       case "error":
         streamError ??= part.error;
