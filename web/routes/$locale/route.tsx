@@ -64,14 +64,19 @@ export const Route = createFileRoute("/$locale")({
       queryClient.query(bootstrapQuery()),
       loadCatalogue(locale),
     ]);
-    return { messages: applyBranding(catalogue, bootstrap) };
+    return {
+      messages: applyBranding(catalogue, bootstrap),
+      // The tab title is plain text: the name as set, not the messages'
+      // ICU-escaped copy of it ("It''s" for "It's").
+      appName: bootstrap.appName,
+    };
   },
   // The messages depend only on the locale (part of the match) and on the
   // branding, kept for the life of the page like bootstrapQuery: load them
   // once per locale rather than re-walking the catalogue on every navigation.
   staleTime: Number.POSITIVE_INFINITY,
   head: ({ loaderData }) => ({
-    meta: [{ title: loaderData?.messages.app?.name }],
+    meta: [{ title: loaderData?.appName }],
   }),
   component: LocaleLayout,
   errorComponent: LocaleError,
