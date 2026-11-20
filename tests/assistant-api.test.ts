@@ -535,6 +535,18 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
       Object.assign(m, { status: "failed", errorCode: "assistant.stopped" });
       return m.id;
     },
+    findLatestAnswer: async (conversationId: string) => {
+      const m = store.messages.findLast(
+        (x) => x.conversationId === conversationId && x.role === "assistant"
+      );
+      return m ? { id: m.id, status: m.status, errorCode: m.errorCode } : null;
+    },
+    readAnswerStatus: async (id: string) => {
+      const m = store.messages.find(
+        (x) => x.id === id && x.role === "assistant"
+      );
+      return m ? { status: m.status, errorCode: m.errorCode } : null;
+    },
     readStreamSnapshot: async (id: string) => {
       const m = store.messages.find((x) => x.id === id);
       return m
@@ -548,6 +560,17 @@ vi.mock("@/lib/assistant/conversation-store", async (importOriginal) => {
     },
   };
 });
+
+// The answers' resumable streams (Valkey): their own tests are
+// tests/assistant-turn-stream*.test.ts.
+const turnStream = vi.hoisted(() => ({
+  resume: vi.fn(),
+  has: vi.fn(),
+}));
+vi.mock("@/lib/assistant/turn-stream", () => ({
+  resumeTurnStream: turnStream.resume,
+  hasTurnStream: turnStream.has,
+}));
 
 const storage = vi.hoisted(() => ({ deleteObject: vi.fn(async () => {}) }));
 vi.mock("@/lib/storage", () => storage);
@@ -1788,6 +1811,154 @@ describe("stream", () => {
         toolCalls: [],
       })
     );
+  });
+});
+
+describe("answer-stream", () => {
+  const SSE =
+    'data: {"type":"start","messageId":"m"}\n\ndata: {"type":"text-delta","id":"t","delta":"Iuran"}\n\n';
+  const sseStream = () =>
+    new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue(SSE);
+        controller.close();
+      },
+    });
+  const lastFrame = (text: string) =>
+    JSON.parse(
+      text
+        .split("\n\n")
+        .filter((f) => f.startsWith("data: "))
+        .at(-1)
+        ?.slice("data: ".length) ?? "null"
+    );
+
+  it("answer-stream is 204 for a done answer even if its stream id was never cleared", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    Object.assign(answer, { status: "done", activeStreamId: answer.id });
+    turnStream.resume.mockResolvedValue(sseStream());
+    turnStream.has.mockResolvedValue(true);
+    const res = await get(`/answer-stream?conversationId=${id}`);
+    expect(res.status).toBe(204);
+    expect(turnStream.resume).not.toHaveBeenCalled();
+    // A chat with no answer yet: 204 too.
+    const empty = await newConversation();
+    expect((await get(`/answer-stream?conversationId=${empty}`)).status).toBe(
+      204
+    );
+  });
+
+  it("answer-stream is 404 for another user's or an unknown chat", async () => {
+    as(OTHER);
+    const theirs = await newConversation();
+    await send(theirs);
+    Object.assign(store.messages[1]!, { status: "streaming" });
+    turnStream.resume.mockResolvedValue(sseStream());
+    for (const user of [QA, ADMIN]) {
+      as(user, user === ADMIN ? "admin" : "qa");
+      expect(
+        (await get(`/answer-stream?conversationId=${theirs}`)).status
+      ).toBe(404);
+    }
+    expect(
+      (await get(`/answer-stream?conversationId=${UNKNOWN_ID}`)).status
+    ).toBe(404);
+    expect(turnStream.resume).not.toHaveBeenCalled();
+  });
+
+  it("answer-stream resumes a streaming answer as a UI message stream", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    Object.assign(answer, { status: "streaming" });
+    turnStream.resume.mockResolvedValue(sseStream());
+    const res = await get(`/answer-stream?conversationId=${id}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-vercel-ai-ui-message-stream")).toBe("v1");
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    expect(res.headers.get("cache-control")).toBe("no-cache, no-transform");
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+    expect(await res.text()).toBe(SSE);
+    expect(turnStream.resume).toHaveBeenCalledWith(answer.id);
+  });
+
+  it("answer-stream is 204 for a streaming answer whose stream is gone", async () => {
+    const id = await newConversation();
+    await send(id);
+    Object.assign(store.messages[1]!, { status: "streaming" });
+    for (const gone of [null, undefined]) {
+      turnStream.resume.mockResolvedValueOnce(gone);
+      expect((await get(`/answer-stream?conversationId=${id}`)).status).toBe(
+        204
+      );
+    }
+  });
+
+  it("answer-stream waits for a queued answer's stream, then pipes it", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    expect(answer.status).toBe("queued");
+    turnStream.has
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(true);
+    turnStream.resume.mockReset().mockResolvedValue(sseStream());
+    const res = await get(`/answer-stream?conversationId=${id}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-vercel-ai-ui-message-stream")).toBe("v1");
+    expect(await res.text()).toBe(SSE);
+    expect(turnStream.has).toHaveBeenCalledTimes(3);
+    expect(turnStream.resume).toHaveBeenCalledExactlyOnceWith(answer.id);
+  });
+
+  it("a queued answer stopped before it started ends with a finish chunk", async () => {
+    const id = await newConversation();
+    await send(id);
+    const answer = store.messages[1]!;
+    turnStream.has.mockReset().mockResolvedValue(null);
+    turnStream.resume.mockReset();
+    const res = await get(`/answer-stream?conversationId=${id}`);
+    expect(res.status).toBe(200);
+    // The user presses Stop before the worker picks the turn up.
+    Object.assign(answer, { status: "failed", errorCode: "assistant.stopped" });
+    const text = await res.text();
+    expect(lastFrame(text)).toEqual({
+      type: "finish",
+      messageMetadata: { status: "failed", errorCode: "assistant.stopped" },
+    });
+    expect(turnStream.resume).not.toHaveBeenCalled();
+  });
+});
+
+describe("openAnswerStream", () => {
+  it("keeps a queued answer's wait alive, then gives up after waitMs", async () => {
+    const { openAnswerStream } = await import(
+      "@/server/services/assistant-stream"
+    );
+    const id = await newConversation();
+    await send(id);
+    let clock = 0;
+    const has = vi.fn(async () => null);
+    const stream = await openAnswerStream(id, {
+      has,
+      resume: vi.fn(),
+      now: () => (clock += 8000),
+      waitMs: 30_000,
+    });
+    expect(stream).toBeInstanceOf(ReadableStream);
+    let text = "";
+    const reader = (stream as ReadableStream<string>).getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += value;
+    }
+    expect(text).toBe(": waiting\n\n");
+    expect(has.mock.calls.length).toBeGreaterThan(1);
   });
 });
 

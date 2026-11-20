@@ -67,6 +67,7 @@ import {
   saveSources,
   type TurnContext,
 } from "./turn-store";
+import { publishTurnStream } from "./turn-stream";
 import { recordUsage, reportedUsage, spentTodayUsd } from "./usage";
 import {
   type AssistantViewer,
@@ -134,9 +135,46 @@ export type RunTurnDeps = {
   probeTimeoutMs?: number;
   /** The auto title, asked for after a done answer (lib/assistant/title.ts). */
   generateTitle?: (conversationId: string) => Promise<unknown>;
-  /** Receives the answer's UI message chunks as the turn records them. */
-  onChunks?: (chunks: UIMessageChunk[]) => void;
+  /**
+   * Publishes the answer's UI message chunks, written as the turn records
+   * them and closed when it ends (default: the resumable stream on Valkey,
+   * lib/assistant/turn-stream.ts). Never awaited: a failure is logged.
+   */
+  publishStream?: (
+    messageId: string,
+    chunks: ReadableStream<UIMessageChunk>
+  ) => Promise<void>;
 };
+
+/**
+ * The turn's UI message chunks as a stream: written as the recorder makes
+ * them, closed once. Writes after the close (or after the reader cancelled)
+ * are dropped.
+ */
+function chunkChannel() {
+  let controller: ReadableStreamDefaultController<UIMessageChunk> | undefined;
+  let open = true;
+  const stream = new ReadableStream<UIMessageChunk>({
+    start(c) {
+      controller = c;
+    },
+    cancel() {
+      open = false;
+    },
+  });
+  return {
+    stream,
+    write(chunks: UIMessageChunk[]) {
+      if (!open) return;
+      for (const chunk of chunks) controller?.enqueue(chunk);
+    },
+    close() {
+      if (!open) return;
+      open = false;
+      controller?.close();
+    },
+  };
+}
 
 /** A turn- or request-level failure carrying its stable code. */
 export class TurnError extends Error {
@@ -730,14 +768,27 @@ export async function runTurn(
   if (turn.status !== "queued" || !(await claimMessage(messageId))) return;
 
   const recorder = new TurnRecorder(messageId);
-  const emit = (chunks: UIMessageChunk[]) => {
-    if (chunks.length > 0) deps.onChunks?.(chunks);
-  };
+  const channel = chunkChannel();
+  const publish = deps.publishStream ?? publishTurnStream;
+  // Postgres keeps the durable copy: a publish failure never fails or delays
+  // the turn, it only costs the live view.
+  Promise.resolve()
+    .then(() => publish(messageId, channel.stream))
+    .catch((error) => {
+      console.error(
+        `[assistant] failed to publish the stream of ${messageId}`,
+        error
+      );
+      channel.close();
+    });
+  const emit = (chunks: UIMessageChunk[]) => channel.write(chunks);
   emit(recorder.start());
   let done: boolean;
   try {
+    // Every exit ends the chunks with the finish (settleTurn).
     done = await settleTurn(turn, recorder, emit, deps, now);
   } finally {
+    channel.close();
     await releaseStreamOf(messageId);
   }
   if (!done) return;

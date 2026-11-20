@@ -103,6 +103,7 @@
     "rehype-slug": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "resend": "^6.38.0",
+    "resumable-stream": "^2.2.13",
     "sonner": "^2.0.8",
     "ssh2": "^1.17.0",
     "streamdown": "~2.8.0",

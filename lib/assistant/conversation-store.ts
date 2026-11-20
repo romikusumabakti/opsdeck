@@ -1044,3 +1044,50 @@ export async function readStreamSnapshot(
   const calls = await toolCallsByMessage([messageId]);
   return { ...message, toolCalls: calls.get(messageId) ?? [] };
 }
+
+export type AnswerState = {
+  status: MessageStatus;
+  errorCode: string | null;
+};
+
+/** The chat's latest answer (by id, uuidv7), null before its first one. */
+export async function findLatestAnswer(
+  conversationId: string
+): Promise<({ id: string } & AnswerState) | null> {
+  const [answer] = await db
+    .select({
+      id: assistantMessages.id,
+      status: assistantMessages.status,
+      errorCode: assistantMessages.errorCode,
+    })
+    .from(assistantMessages)
+    .where(
+      and(
+        eq(assistantMessages.conversationId, conversationId),
+        eq(assistantMessages.role, "assistant")
+      )
+    )
+    .orderBy(desc(assistantMessages.id))
+    .limit(1);
+  return answer ?? null;
+}
+
+/** How an answer stands; null once it is gone with its chat. */
+export async function readAnswerStatus(
+  messageId: string
+): Promise<AnswerState | null> {
+  const [answer] = await db
+    .select({
+      status: assistantMessages.status,
+      errorCode: assistantMessages.errorCode,
+    })
+    .from(assistantMessages)
+    .where(
+      and(
+        eq(assistantMessages.id, messageId),
+        eq(assistantMessages.role, "assistant")
+      )
+    )
+    .limit(1);
+  return answer ?? null;
+}

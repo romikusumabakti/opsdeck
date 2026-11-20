@@ -181,7 +181,8 @@ async function requireOwnConversation(
   return { conversation, userId: session.user.id };
 }
 
-function ownConversation(conversationId: string) {
+/** The caller's own conversation by id; unknown or someone else's: 404. */
+export function ownConversation(conversationId: string) {
   return requireOwnConversation(async () =>
     uuidSchema.safeParse(conversationId).success
       ? findConversation(conversationId)

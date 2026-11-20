@@ -1,3 +1,4 @@
+import { UI_MESSAGE_STREAM_HEADERS } from "ai";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { readStreamSnapshot } from "@/lib/assistant/conversation-store";
@@ -39,6 +40,7 @@ import {
   uploadFile,
   uploadGate,
 } from "@/server/services/assistant-files";
+import { openAnswerStream } from "@/server/services/assistant-stream";
 import { eventStream, pollSnapshots, sendEvent } from "@/server/sse";
 import { json, query } from "@/server/validation";
 
@@ -153,6 +155,21 @@ export const assistantRouter = sessionRouter()
       return c.json(await listIssueAttachmentsForPicker(issueKey));
     }
   )
+  /**
+   * The live answer of a chat as an AI SDK UI message stream, from its first
+   * chunk (lib/assistant/turn-stream.ts); 204 when none is running.
+   */
+  .get("/answer-stream", query(conversationIdInputSchema), async (c) => {
+    const stream = await openAnswerStream(c.req.valid("query").conversationId);
+    if (!stream) return c.body(null, 204);
+    return new Response(stream.pipeThrough(new TextEncoderStream()), {
+      headers: {
+        ...UI_MESSAGE_STREAM_HEADERS,
+        "cache-control": "no-cache, no-transform",
+        "x-accel-buffering": "no",
+      },
+    });
+  })
   /**
    * One assistant message as SSE: a `snapshot` event (content, status,
    * errorCode, toolCalls) on every change, ending once it is done or failed.

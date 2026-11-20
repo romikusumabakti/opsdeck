@@ -66,6 +66,10 @@ const state = vi.hoisted(() => ({
   sourceWriteFailures: 0,
   usage: [] as Array<Record<string, unknown>>,
   finishes: 0,
+  /** One counter for published chunks and finishMessage calls (ordering). */
+  order: 0,
+  /** The order of each finishMessage call. */
+  finishOrder: [] as number[],
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -129,6 +133,7 @@ vi.mock("@/lib/assistant/turn-store", () => ({
       }
     ) => {
       state.finishes += 1;
+      state.finishOrder.push(state.order++);
       state.events.push("finish");
       state.finished.push(structuredClone(outcome));
       // Like the real WHERE status = 'streaming': first terminal write wins.
@@ -506,8 +511,50 @@ function deps(
       data: { matches: [{ path: "backend/src/Iuran.java", line: 42 }] },
       meta: { paths: ["backend/src/Iuran.java"] },
     })),
+    // Drains the published stream: no Valkey in unit tests.
+    publishStream: (_id: string, stream: ReadableStream<unknown>) =>
+      stream.pipeTo(new WritableStream()),
     ...overrides,
   } as Parameters<typeof runTurn>[1];
+}
+
+type PublishedChunk = { type: string; messageMetadata?: unknown };
+
+/**
+ * A publishStream fake that reads the turn's chunk stream as it is written,
+ * each chunk with its place on state.order; `closed` settles when it ends.
+ */
+function published() {
+  const chunks: PublishedChunk[] = [];
+  const ordered: Array<{ at: number; chunk: PublishedChunk }> = [];
+  let ended = false;
+  let resolveClosed!: () => void;
+  const closed = new Promise<void>((resolve) => {
+    resolveClosed = resolve;
+  });
+  const publishStream = async (
+    _id: string,
+    stream: ReadableStream<PublishedChunk>
+  ) => {
+    const reader = stream.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      ordered.push({ at: state.order++, chunk: value });
+    }
+    ended = true;
+    resolveClosed();
+  };
+  return {
+    chunks,
+    ordered,
+    closed,
+    get ended() {
+      return ended;
+    },
+    publishStream,
+  };
 }
 
 beforeEach(() => {
@@ -529,6 +576,8 @@ beforeEach(() => {
   state.sourceWriteFailures = 0;
   state.usage = [];
   state.finishes = 0;
+  state.order = 0;
+  state.finishOrder = [];
   title.generate.mockClear();
 });
 
@@ -776,14 +825,13 @@ describe("runTurn", () => {
       { text: ["never sent"], finish: "stop" },
     ]);
     const spentToday = vi.fn(async () => spentSoFar());
-    const chunks: Array<{ type: string; messageMetadata?: unknown }> = [];
+    const sink = published();
     await runTurn(
       MESSAGE_ID,
-      deps(model, {
-        spentToday,
-        onChunks: (batch: typeof chunks) => chunks.push(...batch),
-      })
+      deps(model, { spentToday, publishStream: sink.publishStream })
     );
+    await sink.closed;
+    const chunks = sink.chunks;
     expect(state.message.errorCode).toBe("assistant.daily_cap_reached");
     expect(chunks[0]).toEqual({ type: "start", messageId: MESSAGE_ID });
     expect(chunks.at(-1)).toEqual({
@@ -799,13 +847,13 @@ describe("runTurn", () => {
 
   it("ends a done turn with done finish metadata", async () => {
     const { model } = mockModel([{ text: ["Halo"], finish: "stop" }]);
-    const chunks: Array<{ type: string; messageMetadata?: unknown }> = [];
+    const sink = published();
     await runTurn(
       MESSAGE_ID,
-      deps(model, {
-        onChunks: (batch: typeof chunks) => chunks.push(...batch),
-      })
+      deps(model, { publishStream: sink.publishStream })
     );
+    await sink.closed;
+    const chunks = sink.chunks;
     expect(chunks.map((c) => c.type)).toEqual([
       "start",
       "start-step",
@@ -885,16 +933,16 @@ describe("runTurn", () => {
       state.message.errorCode = "assistant.stopped";
       return false;
     });
-    const chunks: Array<{ type: string; messageMetadata?: unknown }> = [];
+    const sink = published();
     const { model } = mockModel([
       { text: ["Iuran ", "dihitung ", "per bulan"], finish: "stop" },
     ]);
     await runTurn(
       MESSAGE_ID,
-      deps(model, {
-        onChunks: (batch: typeof chunks) => chunks.push(...batch),
-      })
+      deps(model, { publishStream: sink.publishStream })
     );
+    await sink.closed;
+    const chunks = sink.chunks;
     expect(state.finishes).toBe(0);
     expect(state.endedParts).not.toBeNull();
     expect(JSON.stringify(state.endedParts)).not.toMatch(
@@ -961,18 +1009,17 @@ describe("runTurn", () => {
     const executeTool = vi.fn(async () => {
       throw new Error("connect ECONNREFUSED https://db.internal.example:5432");
     });
-    const chunks: unknown[] = [];
+    const sink = published();
     const { model } = mockModel([
       toolStep(1),
       { text: ["Gagal membaca."], streamError: new Error("socket hang up") },
     ]);
     await runTurn(
       MESSAGE_ID,
-      deps(model, {
-        executeTool,
-        onChunks: (batch: unknown[]) => chunks.push(...batch),
-      })
+      deps(model, { executeTool, publishStream: sink.publishStream })
     );
+    await sink.closed;
+    const chunks = sink.chunks;
     expect(state.message.status).toBe("failed");
     const outcome = state.finished.at(-1);
     expect(outcome?.parts).toContainEqual(
@@ -1357,6 +1404,103 @@ describe("runTurn", () => {
       )
     ).toBe(true);
     error.mockRestore();
+  });
+
+  it("publishes text deltas before the turn ends", async () => {
+    const sink = published();
+    const { model } = mockModel([
+      { text: ["Iuran ", "dihitung ", "per bulan"], finish: "stop" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, { publishStream: sink.publishStream })
+    );
+    await sink.closed;
+    const firstDelta = sink.ordered.find((c) => c.chunk.type === "text-delta");
+    expect(firstDelta).toBeDefined();
+    expect(state.finishOrder).toHaveLength(1);
+    expect(firstDelta?.at).toBeLessThan(state.finishOrder[0] as number);
+  });
+
+  it("a failing publisher does not fail the turn", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { model } = mockModel([
+      { text: ["Iuran ", "dihitung ", "per bulan"], finish: "stop" },
+    ]);
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, {
+        publishStream: () => Promise.reject(new Error("valkey down")),
+      })
+    );
+    // Logged, never thrown.
+    expect(
+      error.mock.calls.some((args) =>
+        args.some((a) => a instanceof Error && a.message === "valkey down")
+      )
+    ).toBe(true);
+    expect(state.finished).toHaveLength(1);
+    expect(state.finished[0]).toMatchObject({
+      status: "done",
+      content: "Iuran dihitung per bulan",
+    });
+    expect(state.finished[0]?.parts).toContainEqual(
+      expect.objectContaining({
+        type: "text",
+        text: "Iuran dihitung per bulan",
+      })
+    );
+    expect(state.message.status).toBe("done");
+    error.mockRestore();
+  });
+
+  it("closes the published stream with finish when the chat is deleted mid-turn", async () => {
+    const sink = published();
+    const { model } = mockModel([
+      toolStep(1),
+      { text: ["never sent"], finish: "stop" },
+    ]);
+    const executeTool = vi.fn(async () => {
+      // The user deletes the chat while the tool runs.
+      state.gone = true;
+      return { ok: true as const, data: { files: [] }, meta: { paths: [] } };
+    });
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, { executeTool, publishStream: sink.publishStream })
+    );
+    await sink.closed;
+    expect(sink.ended).toBe(true);
+    expect(sink.chunks.at(-1)).toEqual({
+      type: "finish",
+      messageMetadata: { status: "failed", errorCode: "assistant.stopped" },
+    });
+    expect(sink.chunks.filter((c) => c.type === "finish")).toHaveLength(1);
+  });
+
+  it("stop ends the published stream", async () => {
+    const sink = published();
+    const { model } = mockModel([
+      { text: ["Iuran ", "dihitung ", "per bulan"], finish: "stop" },
+    ]);
+    const { saveParts } = await import("@/lib/assistant/turn-store");
+    // The user presses Stop while the text streams.
+    vi.mocked(saveParts).mockImplementationOnce(async () => {
+      state.message.status = "failed";
+      state.message.errorCode = "assistant.stopped";
+      return false;
+    });
+    await runTurn(
+      MESSAGE_ID,
+      deps(model, { publishStream: sink.publishStream })
+    );
+    await sink.closed;
+    expect(sink.ended).toBe(true);
+    expect(sink.chunks.some((c) => c.type === "text-delta")).toBe(true);
+    expect(sink.chunks.at(-1)).toEqual({
+      type: "finish",
+      messageMetadata: { status: "failed", errorCode: "assistant.stopped" },
+    });
   });
 
   it("stops quietly, without a request, when the chat was deleted before the turn started writing", async () => {
