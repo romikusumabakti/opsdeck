@@ -467,6 +467,34 @@ describe("Deploy timeline", () => {
     ).toBeNull();
   });
 
+  it("no second rollback from the row menu while one runs", async () => {
+    // The rollback to v1 started its script: the tags moved on, so v2 is now
+    // the previous tag, but the rollback still runs.
+    await mount([
+      liveTarget({
+        currentTag: "v1",
+        currentStatus: "running",
+        previousTag: "v2",
+        recentDeployments: [
+          deployment("v1", "running", {
+            id: "d-v1-rollback",
+            createdAt: at("10:03:00"),
+            finishedAt: null,
+            trigger: "rollback",
+          }),
+          deployment("v2", "success", {
+            createdAt: at("10:00:00"),
+            finishedAt: at("10:01:30"),
+          }),
+          deployment("v1", "success", { createdAt: at("09:10:00") }),
+        ],
+      }),
+    ]);
+    await openRowMenu("v2");
+    expect(menuItems()).not.toContain("Roll back to this");
+    expect(menuItems().length).toBeGreaterThan(0);
+  });
+
   it("roll back from the menu keeps the destructive confirmation", async () => {
     await mount([liveTarget()]);
     await openRowMenu("v1");

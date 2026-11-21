@@ -68,6 +68,8 @@ export function TargetCard({
     canRelease,
     // Only a jar or static build can be kept as a release.
     releasableKind: target.kind === "jar" || target.kind === "static",
+    // No second rollback while one runs, as in the header.
+    rollbackBusy: header.rollbackBusy,
   };
   const queuedHint = environmentBusy ? t("startsAfterRunning") : null;
   const services = target.services.join(", ");

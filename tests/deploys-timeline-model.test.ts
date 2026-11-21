@@ -679,6 +679,7 @@ function plan(r: TimelineRow, ctx: Partial<Parameters<typeof rowActions>[1]>) {
     canRollback: true,
     canRelease: true,
     releasableKind: true,
+    rollbackBusy: false,
     ...ctx,
   });
 }
@@ -764,6 +765,14 @@ describe("rowActions", () => {
     const older = plan(row(rows, "v1"), {});
     expect(kinds(older)).toContain("deploy");
     expect(kinds(older)).not.toContain("rollback");
+  });
+
+  it("no Roll back to this while a rollback of the target is queued or running", () => {
+    const rows = buildTimeline(actionInput());
+    expect(kinds(plan(row(rows, "v2"), {}))).toContain("rollback");
+    expect(kinds(plan(row(rows, "v2"), { rollbackBusy: true }))).not.toContain(
+      "rollback"
+    );
   });
 
   it("deploying and held rows offer no deploy and no rollback", () => {

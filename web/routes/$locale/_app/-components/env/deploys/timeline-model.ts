@@ -404,6 +404,8 @@ export function rowActions(
     canRollback: boolean;
     canRelease: boolean;
     releasableKind: boolean;
+    /** A rollback of the target is queued or running (HeaderState). */
+    rollbackBusy: boolean;
   }
 ): RowActionPlan[] {
   const busy = BUSY_STATUSES.has(row.status);
@@ -421,7 +423,7 @@ export function rowActions(
   if (ctx.canRelease && ctx.releasableKind && releaseDeployment(row)) {
     plan.push({ kind: "markRelease" });
   }
-  if (ctx.canRollback && row.isPrevious && !busy) {
+  if (ctx.canRollback && row.isPrevious && !busy && !ctx.rollbackBusy) {
     plan.push({ kind: "rollback" });
   }
   return plan;

@@ -507,7 +507,7 @@
       "history": "{count, plural, one {# despliegue anterior} other {# despliegues anteriores}}"
     },
     "loadFailed": "No se pudieron actualizar los despliegues. Es posible que la lista esté desactualizada.",
-    "showMore": "{count, plural, one {Mostrar # más} other {Mostrar # más}}"
+    "showMore": "{count, plural, other {Mostrar # más}}"
   },
   "provisioning": {
     "title": "Aprovisionamiento",
