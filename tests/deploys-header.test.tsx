@@ -363,6 +363,72 @@ describe("Deploy target header", () => {
     expect(state.rollbackTarget).toHaveBeenCalledWith("a");
   });
 
+  it("Roll back and Deploy latest on the same tag: only the clicked one spins", async () => {
+    let resolve: (v: { runId: string }) => void = () => {};
+    state.rollbackTarget.mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      })
+    );
+    await mount([
+      liveTarget({
+        // v1 was built again after v2 went live: it is the latest build and
+        // the rollback target at once.
+        recentBuilds: [
+          build("v1", at("10:02:00")),
+          build("v2", at("09:50:00")),
+        ],
+      }),
+    ]);
+    const rollback = buttonNamed(d.rollbackTo.replace("{tag}", "v1"));
+    expect(deployLatest()?.textContent).toBe("Deploy latest (v1)");
+    await act(async () => rollback?.click());
+    const confirm = [...(alertDialog()?.querySelectorAll("button") ?? [])].find(
+      (b) => b.textContent === "Roll back to v1"
+    );
+    await act(async () => confirm?.click());
+    expect(state.rollbackTarget).toHaveBeenCalledWith("a");
+    const spins = (b: HTMLButtonElement | undefined) =>
+      Boolean(b?.querySelector(".animate-spin"));
+    expect(spins(buttonNamed(d.rollbackTo.replace("{tag}", "v1")))).toBe(true);
+    expect(spins(deployLatest())).toBe(false);
+    await act(async () => resolve({ runId: "run-rb" }));
+  });
+
+  it("Roll back is disabled with its reason while a rollback is queued", async () => {
+    await mount([
+      liveTarget({
+        recentDeployments: [
+          {
+            ...deployment("v1", "queued", {
+              createdAt: at("10:04:00"),
+              finishedAt: null,
+              runId: null,
+            }),
+            trigger: "rollback",
+          },
+          deployment("v2", "success", {
+            createdAt: at("10:00:00"),
+            finishedAt: at("10:01:30"),
+          }),
+        ],
+      }),
+    ]);
+    const rollback = buttonNamed(d.rollbackTo.replace("{tag}", "v1"));
+    expect(rollback?.disabled).toBe(true);
+    expect(rollback?.getAttribute("aria-disabled")).toBe("true");
+    const describedBy = rollback?.getAttribute("aria-describedby");
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy ?? "")?.textContent).toBe(
+      d.rollbackInProgress.replace("{tag}", "v1")
+    );
+    // Deploy latest keeps its own reason.
+    const deployReason = deployLatest()?.getAttribute("aria-describedby");
+    expect(document.getElementById(deployReason ?? "")?.textContent).toBe(
+      d.latestIsLive.replace("{tag}", "v2")
+    );
+  });
+
   it("lock chip shows who and until, the reason in its accessible description, and the reason under the disabled actions", async () => {
     state.lock = {
       lockedBy: { name: "Dana" },

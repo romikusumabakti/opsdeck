@@ -482,6 +482,7 @@
     "latestIsLive": "The latest build, {tag}, is live.",
     "latestDeploying": "The latest build is being deployed.",
     "latestHeld": "The latest build is waiting for the deploy lock.",
+    "rollbackInProgress": "A rollback to {tag} is already queued or running.",
     "lockChip": "Locked by {name} · until {time}",
     "viewPipelineFor": "View pipeline for {sha}",
     "opensInNewTab": "(opens in a new tab)",

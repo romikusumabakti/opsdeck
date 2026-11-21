@@ -482,6 +482,7 @@
     "latestIsLive": "最新构建 {tag} 已在运行。",
     "latestDeploying": "最新构建正在部署。",
     "latestHeld": "最新构建正在等待部署锁解除。",
+    "rollbackInProgress": "回滚到 {tag} 的操作已在排队或正在运行。",
     "lockChip": "由 {name} 锁定 · 至 {time}",
     "viewPipelineFor": "查看 {sha} 的流水线",
     "opensInNewTab": "（在新标签页中打开）",

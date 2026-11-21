@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, Plus, Rocket, Settings } from "lucide-react";
+import { CircleAlert, Loader2, Plus, Rocket, Settings } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { LiveRunDialog } from "@/components/live-run-dialog";
@@ -28,6 +28,7 @@ export function DeploysClient({
   addTargetHref,
   refreshFailed = false,
   onRetry,
+  retrying = false,
 }: {
   environment: EnvironmentWithServers;
   targets: DeployTargetState[];
@@ -36,6 +37,8 @@ export function DeploysClient({
   // A background refetch failed: the list on screen may be out of date.
   refreshFailed?: boolean;
   onRetry?: () => void;
+  // The retried refetch is in flight.
+  retrying?: boolean;
 }) {
   const t = useTranslations("deploys");
   const tCommon = useTranslations("common");
@@ -93,7 +96,15 @@ export function DeploysClient({
           <AlertDescription className="flex flex-wrap items-center gap-x-3 gap-y-2">
             {t("loadFailed")}
             {onRetry && (
-              <Button variant="outline" size="sm" onClick={onRetry}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={retrying}
+                onClick={onRetry}
+              >
+                {retrying && (
+                  <Loader2 data-icon="inline-start" className="animate-spin" />
+                )}
                 {tCommon("tryAgain")}
               </Button>
             )}

@@ -482,6 +482,7 @@
     "latestIsLive": "أحدث بناء، {tag}، قيد التشغيل.",
     "latestDeploying": "يجري نشر أحدث بناء.",
     "latestHeld": "أحدث بناء ينتظر رفع قفل النشر.",
+    "rollbackInProgress": "هناك تراجع إلى {tag} في الانتظار أو قيد التشغيل بالفعل.",
     "lockChip": "مقفل بواسطة {name} · حتى {time}",
     "viewPipelineFor": "عرض خط الأنابيب لـ {sha}",
     "opensInNewTab": "(يفتح في علامة تبويب جديدة)",

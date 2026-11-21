@@ -12,7 +12,11 @@ import {
 } from "@/web/api/deploys";
 import { useDeployLock } from "./deploy-lock";
 import { MarkReleaseDialog, type ReleaseSource } from "./mark-release-dialog";
-import { type CardActions, TargetHeader } from "./target-header";
+import {
+  type CardActions,
+  type PendingAction,
+  TargetHeader,
+} from "./target-header";
 import { Timeline } from "./timeline";
 import {
   buildTimeline,
@@ -53,8 +57,8 @@ export function TargetCard({
   const lock = useDeployLock(environmentId).data?.lock ?? null;
   const [releaseSource, setReleaseSource] =
     React.useState<ReleaseSource | null>(null);
-  // The tag being deployed or rolled back to, while its request is in flight.
-  const [pending, setPending] = React.useState<string | null>(null);
+  // The deploy or rollback whose request is in flight.
+  const [pending, setPending] = React.useState<PendingAction | null>(null);
 
   const header = React.useMemo(() => headerState(target), [target]);
   const rows = React.useMemo(() => buildTimeline(target), [target]);
@@ -82,8 +86,12 @@ export function TargetCard({
     return error instanceof Error ? error.message : tCommon("errorGeneric");
   }
 
-  async function start(tag: string, request: () => Promise<{ runId: string }>) {
-    setPending(tag);
+  async function start(
+    action: PendingAction,
+    request: () => Promise<{ runId: string }>
+  ) {
+    const { tag } = action;
+    setPending(action);
     try {
       const { runId } = await request();
       onRun({ runId, tag, componentKey: target.componentKey });
@@ -122,7 +130,9 @@ export function TargetCard({
       confirmText: t(redeploy ? "redeploy" : "deploy"),
       cancelText: tCommon("cancel"),
     });
-    if (ok) await start(tag, () => deployTag(target.id, tag));
+    if (ok) {
+      await start({ kind: "deploy", tag }, () => deployTag(target.id, tag));
+    }
   }
 
   async function rollback() {
@@ -138,7 +148,9 @@ export function TargetCard({
       cancelText: tCommon("cancel"),
       destructive: true,
     });
-    if (ok) await start(tag, () => rollbackTarget(target.id));
+    if (ok) {
+      await start({ kind: "rollback", tag }, () => rollbackTarget(target.id));
+    }
   }
 
   const actions: CardActions = {

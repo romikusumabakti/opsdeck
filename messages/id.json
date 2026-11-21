@@ -482,6 +482,7 @@
     "latestIsLive": "Build terbaru, {tag}, sudah aktif.",
     "latestDeploying": "Build terbaru sedang di-deploy.",
     "latestHeld": "Build terbaru menunggu kunci deploy dibuka.",
+    "rollbackInProgress": "Rollback ke {tag} sudah dalam antrean atau sedang berjalan.",
     "lockChip": "Dikunci oleh {name} · sampai {time}",
     "viewPipelineFor": "Lihat pipeline untuk {sha}",
     "opensInNewTab": "(terbuka di tab baru)",

@@ -605,6 +605,62 @@ describe("headerState", () => {
     expect(h.deployLatest).toEqual({ tag: "v2", blocked });
   });
 
+  it("rollbackBusy while a rollback is queued or running, or the rollback tag deploys", () => {
+    const base = {
+      currentTag: "v2",
+      currentStatus: "success" as const,
+      previousTag: "v1",
+      recentBuilds: [build("v2", at(2)), build("v1", at(1))],
+    };
+    const settled = [
+      deployment("v2", "success", { createdAt: at(4) }),
+      deployment("v1", "success", { createdAt: at(3) }),
+    ];
+    expect(
+      headerState(input({ ...base, recentDeployments: settled })).rollbackBusy
+    ).toBe(false);
+    expect(
+      headerState(
+        input({
+          ...base,
+          recentDeployments: [
+            deployment("v1", "queued", { createdAt: at(5) }),
+            ...settled,
+          ],
+        })
+      ).rollbackBusy
+    ).toBe(true);
+    // Running once its script started: the tags moved on, the rollback did not.
+    const rollback = {
+      ...deployment("v1", "running", { createdAt: at(5) }),
+      trigger: "rollback",
+    } as TimelineDeployment;
+    expect(
+      headerState(
+        input({
+          ...base,
+          currentTag: "v1",
+          currentStatus: "running",
+          previousTag: "v2",
+          recentDeployments: [rollback, ...settled],
+        })
+      ).rollbackBusy
+    ).toBe(true);
+    // A deploy of another tag does not block the rollback.
+    expect(
+      headerState(
+        input({
+          ...base,
+          recentBuilds: [build("v3", at(5)), ...base.recentBuilds],
+          recentDeployments: [
+            deployment("v3", "running", { createdAt: at(6) }),
+            ...settled,
+          ],
+        })
+      ).rollbackBusy
+    ).toBe(false);
+  });
+
   it("running on the newest build is blocked as deploying", () => {
     const h = headerState(
       input({

@@ -148,6 +148,7 @@ async function render(
     locale?: "en" | "ar";
     refreshFailed?: boolean;
     onRetry?: () => void;
+    retrying?: boolean;
   } = {}
 ) {
   const queryClient = new QueryClient({
@@ -171,6 +172,7 @@ async function render(
                 addTargetHref="/a"
                 refreshFailed={extra.refreshFailed}
                 onRetry={extra.onRetry}
+                retrying={extra.retrying}
               />
             </ProjectRoleProvider>
           </DialogProvider>
@@ -336,6 +338,18 @@ describe("Deploy timeline layout", () => {
     const retry = buttonIn(alert, messages.common.tryAgain);
     await act(async () => retry?.click());
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("Try again is disabled with a spinner while the refetch runs", async () => {
+    await mount([liveTarget()], "engineer", {
+      refreshFailed: true,
+      onRetry: vi.fn(),
+      retrying: true,
+    });
+    const alert = container.querySelector('[role="alert"]');
+    const retry = buttonIn(alert, messages.common.tryAgain);
+    expect(retry?.disabled).toBe(true);
+    expect(retry?.querySelector(".animate-spin")).not.toBeNull();
   });
 
   it("pending skeleton is shaped like the cards", async () => {

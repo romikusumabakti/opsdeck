@@ -234,6 +234,13 @@ export function buildTimeline(input: TimelineInput): TimelineRow[] {
   });
 }
 
+// A row whose tag is being (or waits to be) deployed: no deploy or rollback.
+const BUSY_STATUSES: ReadonlySet<RowStatusKind> = new Set([
+  "queued",
+  "deploying",
+  "held",
+]);
+
 export type HeaderState = {
   focal:
     | {
@@ -256,6 +263,8 @@ export type HeaderState = {
     blocked: "latestIsLive" | "deploying" | "held" | null;
   } | null;
   rollbackTag: string | null;
+  /** A rollback is queued or running, or the rollback tag itself deploys. */
+  rollbackBusy: boolean;
 };
 
 function liveFocal(
@@ -315,10 +324,11 @@ export function headerState(input: TimelineInput): HeaderState {
       ? { tag: lastSettled.tag, deployment: lastSettled }
       : null;
 
+  const rows = buildTimeline(input);
   const latest = input.recentBuilds[0];
   let deployLatest: HeaderState["deployLatest"] = null;
   if (latest) {
-    const latestRow = buildTimeline(input).find((r) => r.tag === latest.tag);
+    const latestRow = rows.find((r) => r.tag === latest.tag);
     let blocked: NonNullable<HeaderState["deployLatest"]>["blocked"] = null;
     if (latestRow?.isLive) {
       blocked = "latestIsLive";
@@ -333,7 +343,22 @@ export function headerState(input: TimelineInput): HeaderState {
     deployLatest = { tag: latest.tag, blocked };
   }
 
-  return { focal, failure, deployLatest, rollbackTag: input.previousTag };
+  const rollbackRow = rows.find((r) => r.tag === input.previousTag);
+  const rollbackBusy =
+    all.some(
+      (d) =>
+        d.trigger === "rollback" &&
+        (d.status === "queued" || d.status === "running")
+    ) ||
+    (rollbackRow !== undefined && BUSY_STATUSES.has(rollbackRow.status));
+
+  return {
+    focal,
+    failure,
+    deployLatest,
+    rollbackTag: input.previousTag,
+    rollbackBusy,
+  };
 }
 
 export type RowActionKind =
@@ -374,10 +399,7 @@ export function rowActions(
     releasableKind: boolean;
   }
 ): RowActionPlan[] {
-  const busy =
-    row.status === "queued" ||
-    row.status === "deploying" ||
-    row.status === "held";
+  const busy = BUSY_STATUSES.has(row.status);
   const plan: RowActionPlan[] = [];
   if (ctx.canRun && !busy) {
     const kind = row.isCurrent ? "redeploy" : "deploy";

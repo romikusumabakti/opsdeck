@@ -46,6 +46,7 @@ function DeploysPage() {
       targets={targets}
       refreshFailed={targetsQuery.isRefetchError}
       onRetry={() => targetsQuery.refetch()}
+      retrying={targetsQuery.isFetching}
       settingsHref={`/${projectKey}/${envSlug}/settings?tab=source`}
       addTargetHref={`/${projectKey}/${envSlug}/settings?tab=source&add=target`}
     />

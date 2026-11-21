@@ -32,13 +32,16 @@ import {
   type TimelineDeployment,
 } from "./timeline-model";
 
-/** What the card's controls do; `pending` is the tag whose request is in flight. */
+/** A deploy or rollback whose request is in flight. */
+export type PendingAction = { kind: "deploy" | "rollback"; tag: string };
+
+/** What the card's controls do; `pending` is the request in flight. */
 export type CardActions = {
   deploy(tag: string): Promise<void>;
   rollback(): Promise<void>;
   markRelease(d: TimelineDeployment): void;
   viewLog(d: { runId: string; tag: string }): void;
-  pending: string | null;
+  pending: PendingAction | null;
 };
 
 export type HeaderLock = {
@@ -46,19 +49,6 @@ export type HeaderLock = {
   reason: string;
   expiresAt: string;
 } | null;
-
-type ReasonKind =
-  | "locked"
-  | "latestIsLive"
-  | "latestDeploying"
-  | "latestHeld"
-  | "queued";
-
-const BLOCKED_REASON = {
-  latestIsLive: "latestIsLive",
-  deploying: "latestDeploying",
-  held: "latestHeld",
-} as const;
 
 const SHORT_SHA = 7;
 
@@ -93,44 +83,48 @@ export function TargetHeader({
   canRollback: boolean;
 }) {
   const t = useTranslations("deploys");
-  const reasonId = React.useId();
+  const deployReasonId = React.useId();
+  const rollbackReasonId = React.useId();
   const { pending } = actions;
   const latest = canRun ? header.deployLatest : null;
   const rollbackTag = canRollback ? header.rollbackTag : null;
 
-  let reasonKind: ReasonKind | null = null;
-  if (latest || rollbackTag) {
-    if (lockedReason !== null) {
-      reasonKind = "locked";
-    } else if (latest?.blocked) {
-      reasonKind = BLOCKED_REASON[latest.blocked];
-    } else if (queuedHint !== null) {
-      reasonKind = "queued";
-    }
-  }
-  const reasonText = (() => {
-    switch (reasonKind) {
-      case "locked":
-        return lockedReason;
+  // Why each button is off (or, for the queue, when it starts).
+  const deployReason = (() => {
+    if (!latest) return null;
+    if (lockedReason !== null) return lockedReason;
+    switch (latest.blocked) {
       case "latestIsLive":
-        return t("latestIsLive", { tag: latest?.tag ?? "" });
-      case "latestDeploying":
+        return t("latestIsLive", { tag: latest.tag });
+      case "deploying":
         return t("latestDeploying");
-      case "latestHeld":
+      case "held":
         return t("latestHeld");
-      case "queued":
-        return queuedHint;
       default:
-        return null;
+        return queuedHint;
     }
   })();
+  const rollbackReason = (() => {
+    if (!rollbackTag) return null;
+    if (lockedReason !== null) return lockedReason;
+    if (header.rollbackBusy) {
+      return t("rollbackInProgress", { tag: rollbackTag });
+    }
+    return queuedHint;
+  })();
+  // One line when both buttons share the reason.
+  const sharedReason = deployReason !== null && deployReason === rollbackReason;
+  const reasons = [
+    deployReason !== null && { id: deployReasonId, text: deployReason },
+    rollbackReason !== null &&
+      !sharedReason && { id: rollbackReasonId, text: rollbackReason },
+  ].filter((r) => r !== false);
 
   const deployDisabled =
     latest !== null &&
     (latest.blocked !== null || lockedReason !== null || pending !== null);
-  const rollbackDisabled = lockedReason !== null || pending !== null;
-  // A blocked rollback is only ever explained by the lock or the queue.
-  const rollbackDescribed = reasonKind === "locked" || reasonKind === "queued";
+  const rollbackDisabled =
+    lockedReason !== null || pending !== null || header.rollbackBusy;
 
   return (
     <CardHeader>
@@ -153,11 +147,15 @@ export function TargetHeader({
                 disabled={rollbackDisabled}
                 aria-disabled={rollbackDisabled || undefined}
                 aria-describedby={
-                  rollbackDescribed && reasonText ? reasonId : undefined
+                  rollbackReason === null
+                    ? undefined
+                    : sharedReason
+                      ? deployReasonId
+                      : rollbackReasonId
                 }
                 onClick={() => actions.rollback()}
               >
-                {pending === rollbackTag ? (
+                {pending?.kind === "rollback" ? (
                   <Loader2 data-icon="inline-start" className="animate-spin" />
                 ) : (
                   <Undo2 data-icon="inline-start" />
@@ -170,10 +168,12 @@ export function TargetHeader({
                 size="sm"
                 disabled={deployDisabled}
                 aria-disabled={deployDisabled || undefined}
-                aria-describedby={reasonText ? reasonId : undefined}
+                aria-describedby={
+                  deployReason === null ? undefined : deployReasonId
+                }
                 onClick={() => actions.deploy(latest.tag)}
               >
-                {pending === latest.tag ? (
+                {pending?.kind === "deploy" && pending.tag === latest.tag ? (
                   <Loader2 data-icon="inline-start" className="animate-spin" />
                 ) : (
                   <Rocket data-icon="inline-start" />
@@ -182,15 +182,16 @@ export function TargetHeader({
               </Button>
             )}
           </div>
-          {reasonText && (
+          {reasons.map((r) => (
             <p
-              id={reasonId}
+              key={r.id}
+              id={r.id}
               data-slot="deploy-actions-reason"
               className="max-w-xs text-start text-xs md:text-end text-muted-foreground"
             >
-              {reasonText}
+              {r.text}
             </p>
-          )}
+          ))}
         </CardAction>
       )}
 

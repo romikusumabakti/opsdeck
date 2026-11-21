@@ -482,6 +482,7 @@
     "latestIsLive": "La última compilación, {tag}, está en vivo.",
     "latestDeploying": "La última compilación se está desplegando.",
     "latestHeld": "La última compilación espera a que se libere el bloqueo de despliegues.",
+    "rollbackInProgress": "Ya hay una reversión a {tag} en cola o en curso.",
     "lockChip": "Bloqueado por {name} · hasta {time}",
     "viewPipelineFor": "Ver pipeline de {sha}",
     "opensInNewTab": "(se abre en una pestaña nueva)",
