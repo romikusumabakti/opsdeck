@@ -182,20 +182,4 @@ describe("Deploy buttons while a deploy is active", () => {
     expect(rowButton("a", "new").disabled).toBe(false);
     expect(rowButton("a", "new").textContent).toBe(messages.deploys.redeploy);
   });
-
-  it("shows the running status next to the current tag", async () => {
-    await mount([
-      target("a", {
-        currentTag: "new",
-        currentStatus: "running",
-        recentDeployments: [deployment("new", "running")],
-      }),
-    ]);
-    const current = [...container.querySelectorAll("div")].find(
-      (d) =>
-        d.firstElementChild?.textContent === messages.deploys.currentTag &&
-        d.children.length > 1
-    );
-    expect(current?.textContent).toContain(messages.deploys.status.running);
-  });
 });

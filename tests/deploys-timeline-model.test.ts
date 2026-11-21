@@ -421,6 +421,7 @@ describe("headerState", () => {
     });
     expect(h.failure).toBeNull();
     expect(h.deployLatest).toEqual({ tag: "v3", blocked: null });
+    expect(h.rollbackTag).toBe("v1");
   });
 
   it("failed current is retried by Deploy latest when it is the newest build", () => {
@@ -626,6 +627,30 @@ describe("rowActions", () => {
     const r = row(buildTimeline(failedCurrentInput()), "v2");
     expect(kinds(plan(r, {}))).toContain("redeploy");
     expect(kinds(plan(r, {}))).not.toContain("rollback");
+  });
+
+  it("the last good row offers Roll back to this", () => {
+    const r = row(buildTimeline(failedCurrentInput()), "v1");
+    expect(r.status).toBe("lastGood");
+    expect(kinds(plan(r, {}))).toContain("rollback");
+  });
+
+  it("current row without a build on the branch: Redeploy disabled with notBuilt", () => {
+    const rows = buildTimeline(
+      input({
+        currentTag: "v0",
+        currentStatus: "success",
+        recentDeployments: [
+          deployment("v0", "success", {
+            build: { branch: "release", commitSha: "x" },
+          }),
+        ],
+      })
+    );
+    const redeploy = plan(row(rows, "v0"), {}).find(
+      (a) => a.kind === "redeploy"
+    );
+    expect(redeploy).toEqual({ kind: "redeploy", disabledReason: "notBuilt" });
   });
 
   it("previous row offers Roll back to this; an older success offers only Deploy this version", () => {

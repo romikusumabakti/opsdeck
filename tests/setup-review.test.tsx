@@ -6,7 +6,7 @@ import { IntlProvider } from "use-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProvisioningStepSpec } from "@/lib/provisioning/plan";
 import messages from "../messages/en.json";
-import { WaitingForFirstBuild } from "../web/routes/$locale/_app/-components/env/deploys/deploys-client";
+import { WaitingForFirstBuild } from "../web/routes/$locale/_app/-components/env/deploys/first-build";
 import type { ProvisioningLookups } from "../web/routes/$locale/_app/-components/env/provisioning-step-sentence";
 import { SetupReview } from "../web/routes/$locale/_app/-components/setup/review";
 

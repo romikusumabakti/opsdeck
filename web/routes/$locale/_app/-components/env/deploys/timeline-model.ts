@@ -352,15 +352,8 @@ export function rowActions(
     row.status === "held";
   const plan: RowActionPlan[] = [];
   if (ctx.canRun && !busy) {
-    if (row.isCurrent) {
-      plan.push({ kind: "redeploy" });
-    } else {
-      plan.push(
-        row.deployable
-          ? { kind: "deploy" }
-          : { kind: "deploy", disabledReason: "notBuilt" }
-      );
-    }
+    const kind = row.isCurrent ? "redeploy" : "deploy";
+    plan.push(row.deployable ? { kind } : { kind, disabledReason: "notBuilt" });
   }
   if (logDeployment(row)) {
     plan.push({ kind: "viewLog" });
