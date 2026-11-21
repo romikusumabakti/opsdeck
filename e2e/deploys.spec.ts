@@ -21,7 +21,7 @@ const MINUTE_MS = 60_000;
 
 let envSlug = "";
 let envId = "";
-let sql: ReturnType<typeof postgres>;
+let sql: ReturnType<typeof postgres> | undefined;
 
 test.beforeAll(async ({ request }) => {
   const project = await request.post("/api/project-catalog/add-project", {
@@ -71,22 +71,23 @@ test.beforeAll(async ({ request }) => {
   envSlug = body.data.slug;
   envId = body.data.id;
 
-  sql = postgres(process.env.DATABASE_URL ?? "", {
+  const db = postgres(process.env.DATABASE_URL ?? "", {
     max: 1,
     onnotice: () => {},
   });
+  sql = db;
   const ago = (minutes: number) => new Date(Date.now() - minutes * MINUTE_MS);
 
-  const [conn] = await sql<{ id: string }[]>`
+  const [conn] = await db<{ id: string }[]>`
     insert into ci_connections (name, provider, forge, base_url)
     values (${`E2E CI ${RUN}`}, 'woodpecker', 'bitbucket', 'https://ci.example.com')
     returning id`;
-  await sql`
+  await db`
     insert into app_components
       (component_key, ci_connection_id, repo_full_name, bundle_image, notify_secret)
     values
       (${COMPONENT}, ${conn?.id ?? ""}, ${`acme/${COMPONENT}`}, ${`${COMPONENT}-deploy`}, 'e2e-not-a-secret')`;
-  const [target] = await sql<{ id: string }[]>`
+  const [target] = await db<{ id: string }[]>`
     insert into deploy_targets
       (environment_id, component_key, server_id, source_branch, kind, deploy_dir, services)
     values
@@ -101,12 +102,14 @@ test.beforeAll(async ({ request }) => {
     [LONG_TAG, 400, LONG_MESSAGE],
   ];
   const buildIds = new Map<string, string>();
-  for (const [tag, minutesAgo, message] of builds) {
-    const [row] = await sql<{ id: string }[]>`
+  for (const [i, [tag, minutesAgo, message]] of builds.entries()) {
+    // Its own commit per tag: the index, padded to a 40-character sha.
+    const commitSha = `${i + 1}`.padStart(40, "c");
+    const [row] = await db<{ id: string }[]>`
       insert into builds
         (component_key, branch, tag, commit_sha, pipeline_url, commit_message, received_at)
       values
-        (${COMPONENT}, 'main', ${tag}, ${`${tag.length}`.padEnd(40, "a")},
+        (${COMPONENT}, 'main', ${tag}, ${commitSha},
          ${tag === "v3" ? "https://ci.example.com/p/3" : null}, ${message}, ${ago(minutesAgo)})
       returning id`;
     buildIds.set(tag, row?.id ?? "");
@@ -119,12 +122,12 @@ test.beforeAll(async ({ request }) => {
     scriptStarted: boolean,
     output: string
   ) {
-    const [run] = await sql<{ id: string }[]>`
+    const [run] = await db<{ id: string }[]>`
       insert into runs (environment_id, description, status, kind, output, run_at, completed_at)
       values (${envId}, ${`Deploy ${tag}`}, ${status}, 'deploy', ${output},
               ${ago(minutesAgo)}, ${ago(minutesAgo - 1)})
       returning id`;
-    await sql`
+    await db`
       insert into deployments
         (target_id, environment_id, run_id, tag, trigger, status, build_id,
          created_at, started_at, script_started_at, finished_at)
@@ -140,12 +143,17 @@ test.beforeAll(async ({ request }) => {
 });
 
 test.afterAll(async () => {
-  // Deleting the environment cascades to its targets, deployments and runs;
-  // the component (and its builds) and the connection go after the target.
-  if (envId) await sql`delete from environments where id = ${envId}`;
-  await sql`delete from app_components where component_key = ${COMPONENT}`;
-  await sql`delete from ci_connections where name = ${`E2E CI ${RUN}`}`;
-  await sql.end();
+  // beforeAll may have failed before it connected: nothing seeded to remove.
+  if (!sql) return;
+  try {
+    // Deleting the environment cascades to its targets, deployments and
+    // runs; the component (and its builds) and the connection go after it.
+    if (envId) await sql`delete from environments where id = ${envId}`;
+    await sql`delete from app_components where component_key = ${COMPONENT}`;
+    await sql`delete from ci_connections where name = ${`E2E CI ${RUN}`}`;
+  } finally {
+    await sql.end();
+  }
 });
 
 const deploysUrl = (locale: string) => `/${locale}/${KEY}/${envSlug}/deploys`;
