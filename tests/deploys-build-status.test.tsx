@@ -106,6 +106,7 @@ function startButton(): HTMLButtonElement | undefined {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  document.body.innerHTML = "";
   vi.clearAllMocks();
 });
 
@@ -198,6 +199,7 @@ describe("Deploys page build status for a branch with no builds", () => {
 });
 
 describe("Deploy button of the deployed build", () => {
+  const d = messages.deploys;
   const build = {
     id: "b1",
     tag: "abc1234",
@@ -208,7 +210,23 @@ describe("Deploy button of the deployed build", () => {
     pipelineUrl: null,
   };
 
-  it("offers Redeploy for the tag running cleanly", async () => {
+  // The items of the open ⋯ menu of the row of `tag`.
+  async function openRowMenu(tag: string): Promise<HTMLElement[]> {
+    const trigger = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${d.rowActionsLabel.replace("{tag}", tag)}"]`
+    );
+    await act(async () => trigger?.click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    return [
+      ...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+    ];
+  }
+  const item = (items: HTMLElement[], label: string) =>
+    items.find((el) => el.textContent === label);
+
+  it("offers Redeploy in the menu of the tag running cleanly", async () => {
     api.getActiveBuild.mockResolvedValue(null);
     await mount(
       target({
@@ -217,14 +235,12 @@ describe("Deploy button of the deployed build", () => {
         recentBuilds: [build],
       })
     );
-    const redeploy = [...container.querySelectorAll("button")].find(
-      (b) => b.textContent === messages.deploys.redeploy
-    );
-    expect(redeploy?.disabled).toBe(false);
-    expect(redeploy?.closest('[data-slot="tooltip-trigger"]')).toBeNull();
+    const redeploy = item(await openRowMenu("abc1234"), d.redeploy);
+    expect(redeploy).toBeDefined();
+    expect(redeploy?.getAttribute("aria-disabled")).not.toBe("true");
   });
 
-  it("offers a plain Deploy to retry a failed tag", async () => {
+  it("offers Redeploy on a failed current tag to retry it", async () => {
     api.getActiveBuild.mockResolvedValue(null);
     await mount(
       target({
@@ -233,13 +249,12 @@ describe("Deploy button of the deployed build", () => {
         recentBuilds: [build],
       })
     );
-    const deploy = [...container.querySelectorAll("button")].find(
-      (b) => b.textContent === messages.deploys.deploy
-    );
-    expect(deploy?.disabled).toBe(false);
+    const redeploy = item(await openRowMenu("abc1234"), d.redeploy);
+    expect(redeploy).toBeDefined();
+    expect(redeploy?.getAttribute("aria-disabled")).not.toBe("true");
   });
 
-  it("stays enabled for another build", async () => {
+  it("offers Deploy this version, enabled, for another build", async () => {
     api.getActiveBuild.mockResolvedValue(null);
     await mount(
       target({
@@ -248,10 +263,8 @@ describe("Deploy button of the deployed build", () => {
         recentBuilds: [build],
       })
     );
-    const deploy = [...container.querySelectorAll("button")].find(
-      (b) => b.textContent === messages.deploys.deploy
-    );
-    expect(deploy?.disabled).toBe(false);
-    expect(deploy?.closest('[data-slot="tooltip-trigger"]')).toBeNull();
+    const deploy = item(await openRowMenu("abc1234"), d.deployThis);
+    expect(deploy).toBeDefined();
+    expect(deploy?.getAttribute("aria-disabled")).not.toBe("true");
   });
 });

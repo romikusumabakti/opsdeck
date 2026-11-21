@@ -42,13 +42,13 @@ function build(tag: string) {
   };
 }
 
-function deployment(tag: string, status: string) {
+function deployment(tag: string, status: string, runId: string | null = null) {
   return {
     id: `d-${tag}-${status}`,
     tag,
     status,
     trigger: "manual",
-    runId: null,
+    runId,
     userName: null,
     triggeredBy: null,
     build: null,
@@ -111,43 +111,73 @@ async function mount(
   );
 }
 
-// The deploy button on the build row of `tag` in the card of target `id`.
-function rowButton(id: string, tag: string): HTMLButtonElement {
+async function settle() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+const d = messages.deploys;
+
+// The ⋯ trigger of the row of `tag` in the card of target `id`.
+function menuTrigger(id: string, tag: string): HTMLButtonElement | null {
   const card = [...container.querySelectorAll('[data-slot="card"]')].find((c) =>
     c.textContent?.includes(`app-${id}`)
   );
-  const row = [...(card?.querySelectorAll("tr") ?? [])].find(
-    (r) => r.querySelector("td")?.textContent === tag
+  return (
+    card?.querySelector<HTMLButtonElement>(
+      `button[aria-label="${d.rowActionsLabel.replace("{tag}", tag)}"]`
+    ) ?? null
   );
-  const button = row?.querySelector("button");
-  if (!button) throw new Error(`no button for ${id}/${tag}`);
-  return button;
 }
+
+// Opens the row's menu and returns its items, then closes it again.
+async function rowMenu(id: string, tag: string): Promise<HTMLElement[]> {
+  const trigger = menuTrigger(id, tag);
+  if (!trigger) throw new Error(`no menu for ${id}/${tag}`);
+  await act(async () => trigger.click());
+  await settle();
+  const items = [
+    ...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+  ];
+  const snapshot = items.map((el) => el.cloneNode(true) as HTMLElement);
+  await act(async () => trigger.click());
+  await settle();
+  return snapshot;
+}
+
+const labelled = (items: HTMLElement[], label: string) =>
+  items.find((el) => el.textContent?.startsWith(label));
 
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  document.body.innerHTML = "";
 });
 
 describe("Deploy buttons while a deploy is active", () => {
-  it("disables the row being deployed and labels it Deploying…", async () => {
+  it("offers no deploy on the row being deployed", async () => {
     await mount([
       target("a", {
         currentTag: "new",
         currentStatus: "running",
-        recentDeployments: [deployment("new", "running")],
+        recentDeployments: [deployment("new", "running", "run-new")],
       }),
     ]);
-    const button = rowButton("a", "new");
-    expect(button.disabled).toBe(true);
-    expect(button.textContent).toBe(messages.deploys.deploying);
+    const items = await rowMenu("a", "new");
+    expect(labelled(items, d.deployThis)).toBeUndefined();
+    expect(labelled(items, d.redeploy)).toBeUndefined();
+    expect(labelled(items, d.viewLog)).toBeDefined();
   });
 
   it("treats a queued deployment as active too", async () => {
     await mount([
-      target("a", { recentDeployments: [deployment("new", "queued")] }),
+      target("a", {
+        recentDeployments: [deployment("new", "queued", "run-new")],
+      }),
     ]);
-    expect(rowButton("a", "new").disabled).toBe(true);
+    const items = await rowMenu("a", "new");
+    expect(labelled(items, d.deployThis)).toBeUndefined();
   });
 
   it("keeps the other rows enabled and says they start after the running one", async () => {
@@ -155,20 +185,19 @@ describe("Deploy buttons while a deploy is active", () => {
       target("a", { recentDeployments: [deployment("new", "running")] }),
       target("b"),
     ]);
-    const other = rowButton("a", "old");
-    expect(other.disabled).toBe(false);
-    expect(other.textContent).toBe(messages.deploys.deploy);
-    const elsewhere = rowButton("b", "new");
-    expect(elsewhere.disabled).toBe(false);
-    // The hint wraps the button in a tooltip trigger.
-    expect(elsewhere.parentElement?.tagName).toBe("SPAN");
+    const other = labelled(await rowMenu("a", "old"), d.deployThis);
+    expect(other?.getAttribute("aria-disabled")).not.toBe("true");
+    expect(other?.textContent).toBe(`${d.deployThis}${d.startsAfterRunning}`);
+    const elsewhere = labelled(await rowMenu("b", "new"), d.deployThis);
+    expect(elsewhere?.getAttribute("aria-disabled")).not.toBe("true");
+    expect(elsewhere?.textContent).toContain(d.startsAfterRunning);
   });
 
   it("shows no hint when nothing is active", async () => {
     await mount([target("a")]);
-    const button = rowButton("a", "new");
-    expect(button.disabled).toBe(false);
-    expect(button.parentElement?.tagName).toBe("TD");
+    const item = labelled(await rowMenu("a", "new"), d.deployThis);
+    expect(item?.getAttribute("aria-disabled")).not.toBe("true");
+    expect(item?.textContent).toBe(d.deployThis);
   });
 
   it("offers Redeploy on the cleanly deployed tag once the deploy succeeded", async () => {
@@ -179,7 +208,9 @@ describe("Deploy buttons while a deploy is active", () => {
         recentDeployments: [deployment("new", "success")],
       }),
     ]);
-    expect(rowButton("a", "new").disabled).toBe(false);
-    expect(rowButton("a", "new").textContent).toBe(messages.deploys.redeploy);
+    const items = await rowMenu("a", "new");
+    const redeploy = labelled(items, d.redeploy);
+    expect(redeploy?.getAttribute("aria-disabled")).not.toBe("true");
+    expect(labelled(items, d.deployThis)).toBeUndefined();
   });
 });

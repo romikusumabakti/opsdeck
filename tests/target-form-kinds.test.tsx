@@ -452,8 +452,8 @@ describe("target summary", () => {
   async function confirmText(target: Record<string, unknown>) {
     api.getActiveBuild.mockResolvedValue(null);
     await show({ recentBuilds: [build], ...target });
-    const deploy = [...container.querySelectorAll("button")].find(
-      (b) => b.textContent === messages.deploys.deploy
+    const deploy = [...container.querySelectorAll("button")].find((b) =>
+      b.textContent?.startsWith("Deploy latest")
     );
     await act(async () => deploy?.click());
     await settle();

@@ -155,53 +155,90 @@ async function mountDeploys(
   );
 }
 
-const markButtons = () =>
-  [...container.querySelectorAll("button")].filter(
-    (b) => b.textContent === "Mark as release"
+const rowMenus = () => [
+  ...container.querySelectorAll<HTMLButtonElement>(
+    'button[aria-label^="Actions for "]'
+  ),
+];
+const openMarkItem = () =>
+  [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (el) => el.textContent === "Mark as release"
   );
+async function toggle(trigger: HTMLButtonElement) {
+  await act(async () => trigger.click());
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+// "Mark as release" in each row's ⋯ menu; each menu is closed again.
+async function markItems(): Promise<HTMLElement[]> {
+  const found: HTMLElement[] = [];
+  for (const trigger of rowMenus()) {
+    await toggle(trigger);
+    const item = openMarkItem();
+    if (item) found.push(item);
+    await toggle(trigger);
+  }
+  return found;
+}
+
+// Opens the first row menu that offers "Mark as release" and picks it.
+async function clickMarkItem() {
+  for (const trigger of rowMenus()) {
+    await toggle(trigger);
+    const item = openMarkItem();
+    if (item) {
+      await act(async () => item.click());
+      return;
+    }
+    await toggle(trigger);
+  }
+  throw new Error("no Mark as release item");
+}
 
 describe("Mark as release on the Deploys page", () => {
   it("shows an engineer the action on a success jar row only", async () => {
     await mountDeploys(
       target("jar", [deployment("1", "success"), deployment("2", "failed")])
     );
-    expect(markButtons()).toHaveLength(1);
+    expect(await markItems()).toHaveLength(1);
   });
 
   it("offers it on a static target too", async () => {
     await mountDeploys(target("static", [deployment("1", "success")]));
-    expect(markButtons()).toHaveLength(1);
+    expect(await markItems()).toHaveLength(1);
   });
 
   it("does not offer it on a compose target", async () => {
     await mountDeploys(target("compose", [deployment("1", "success")]));
-    expect(markButtons()).toHaveLength(0);
+    expect(await markItems()).toHaveLength(0);
   });
 
   it("does not offer it to a QA user or a viewer", async () => {
     await mountDeploys(target("jar", [deployment("1", "success")]), "qa");
-    expect(markButtons()).toHaveLength(0);
+    expect(await markItems()).toHaveLength(0);
     act(() => root.unmount());
     container.remove();
     await mountDeploys(target("jar", [deployment("1", "success")]), "viewer");
-    expect(markButtons()).toHaveLength(0);
+    expect(await markItems()).toHaveLength(0);
   });
 
   it("does not offer it on a success row whose build is unknown", async () => {
     await mountDeploys(target("jar", [deployment("1", "success", null)]));
-    expect(markButtons()).toHaveLength(0);
+    expect(await markItems()).toHaveLength(0);
   });
 
   it("shows the source branch and short commit in the dialog", async () => {
     await mountDeploys(target("jar", [deployment("1", "success")]));
-    await act(async () => markButtons()[0]?.click());
+    await clickMarkItem();
     const dialog = document.querySelector("[role=dialog]");
     expect(dialog?.textContent).toContain("feature/risk-profile · 0123456");
     expect(dialog?.textContent).not.toContain("0123456789abcdef");
   });
 
   async function openDialogAndSubmit(version: string) {
-    await act(async () => markButtons()[0]?.click());
+    await clickMarkItem();
     const input = document.querySelector<HTMLInputElement>(
       'input[name="version"]'
     );

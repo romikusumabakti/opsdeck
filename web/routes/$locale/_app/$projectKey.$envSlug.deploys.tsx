@@ -5,11 +5,8 @@ import { listDeployTargetsQuery } from "@/web/api/deploys";
 import { getEnvironmentByIdQuery } from "@/web/api/environments";
 import { loaderQuery } from "@/web/query-client";
 import { DeploysClient } from "./-components/env/deploys/deploys-client";
+import { deploysPollInterval } from "./-components/env/deploys/timeline-model";
 import { HistoryPending } from "./-components/env/skeletons";
-
-// While a deployment is queued or running, poll so its status (and the running
-// tag) moves on without a manual reload.
-const ACTIVE_POLL_MS = 5000;
 
 export const Route = createFileRoute(
   "/$locale/_app/$projectKey/$envSlug/deploys"
@@ -33,14 +30,9 @@ function DeploysPage() {
   ).data;
   const targets = useSuspenseQuery({
     ...listDeployTargetsQuery(environmentId),
-    refetchInterval: (query) =>
-      query.state.data?.some((target) =>
-        target.recentDeployments.some(
-          (d) => d.status === "queued" || d.status === "running"
-        )
-      )
-        ? ACTIVE_POLL_MS
-        : false,
+    // Every 5 s while a deploy is queued or running, every 30 s while one
+    // waits for the lock, so statuses move on without a manual reload.
+    refetchInterval: (query) => deploysPollInterval(query.state.data),
   }).data;
 
   if (!environment) {

@@ -1,65 +1,79 @@
 import {
   CheckCircle2,
+  ChevronDown,
   CircleAlert,
-  ExternalLink,
+  History,
   Loader2,
   Lock,
-  PackageCheck,
-  Rocket,
-  RotateCcw,
   ScrollText,
+  ShieldCheck,
+  SkipForward,
   Zap,
 } from "lucide-react";
-import type * as React from "react";
-import { useFormatter, useTranslations } from "use-intl";
-import { RelativeTime } from "@/components/relative-time";
+import * as React from "react";
+import { useFormatter, useNow, useTranslations } from "use-intl";
+import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { firstLine, runActorLabel } from "@/lib/deploy/run-actor";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { runActorLabel } from "@/lib/deploy/run-actor";
+import { cn } from "@/lib/utils";
 import type { DeployTargetState } from "@/web/api/deploys";
+import { FirstBuild, WaitingForFirstBuild } from "./first-build";
+import { TimelineRowMenu } from "./row-menu";
+import type { CardActions } from "./target-header";
+import {
+  deploymentDurationMs,
+  elapsedMs,
+  logDeployment,
+  type RowActionPlan,
+  rowActions,
+  type TimelineDeployment,
+  type TimelineRow,
+} from "./timeline-model";
 
 type Deployment = DeployTargetState["recentDeployments"][number];
-type Build = DeployTargetState["recentBuilds"][number];
+
+/** Rows shown at first, and how many more each "Show more" adds. */
+export const PAGE_FIRST = 10;
+export const PAGE_MORE = 20;
 
 const SECOND_MS = 1000;
 const MINUTE_S = 60;
 const HOUR_S = 3600;
+const SHORT_SHA = 7;
+const ELAPSED_TICK_MS = 1000;
+
+/** A run's length as text: "45s", "2m 5s", "1h 3m"; null when unknown. */
+export function useDurationText(): (ms: number | null) => string | null {
+  const format = useFormatter();
+  return (ms) => {
+    if (ms === null) return null;
+    const unit = (n: number, u: "second" | "minute" | "hour") =>
+      format.number(n, { style: "unit", unit: u, unitDisplay: "narrow" });
+    const total = Math.round(ms / SECOND_MS);
+    if (total < MINUTE_S) return unit(total, "second");
+    if (total < HOUR_S) {
+      return `${unit(Math.floor(total / MINUTE_S), "minute")} ${unit(
+        total % MINUTE_S,
+        "second"
+      )}`;
+    }
+    return `${unit(Math.floor(total / HOUR_S), "hour")} ${unit(
+      Math.floor((total % HOUR_S) / MINUTE_S),
+      "minute"
+    )}`;
+  };
+}
 
 /** A run's length: "45s", "2m 5s", "1h 3m"; nothing when unknown. */
 export function DurationText({ ms }: { ms: number | null }) {
-  const format = useFormatter();
-  if (ms === null) return null;
-  const unit = (n: number, u: "second" | "minute" | "hour") =>
-    format.number(n, { style: "unit", unit: u, unitDisplay: "narrow" });
-  const total = Math.round(ms / SECOND_MS);
-  if (total < MINUTE_S) return <>{unit(total, "second")}</>;
-  if (total < HOUR_S) {
-    return (
-      <>
-        {unit(Math.floor(total / MINUTE_S), "minute")}{" "}
-        {unit(total % MINUTE_S, "second")}
-      </>
-    );
-  }
-  return (
-    <>
-      {unit(Math.floor(total / HOUR_S), "hour")}{" "}
-      {unit(Math.floor((total % HOUR_S) / MINUTE_S), "minute")}
-    </>
-  );
+  const text = useDurationText()(ms);
+  return text;
 }
 
 /** Who started a deployment, as plain text for translated sentences. */
@@ -87,203 +101,382 @@ export function useDeploymentActorText(): (d: Deployment) => string {
   };
 }
 
-export function BuildsTable({
-  builds,
-  deployedTag,
-  activeTags,
-  pending,
+export type TimelineContext = Parameters<typeof rowActions>[1];
+
+/**
+ * One row per tag (builds and deployed tags merged), newest first, each with
+ * its status, who deployed it, its earlier deploys and a ⋯ menu.
+ */
+export function Timeline({
+  target,
+  rows,
+  actions,
+  ctx,
   lockedReason,
-  environmentBusy,
-  onDeploy,
+  queuedHint,
 }: {
-  builds: Build[];
-  // The tag the target runs after a successful deploy: its row reads Redeploy.
-  deployedTag: string | null;
-  // Tags with a queued or running deployment on this target.
-  activeTags: ReadonlySet<string>;
-  pending: string | null;
+  target: DeployTargetState;
+  rows: TimelineRow[];
+  actions: CardActions;
+  ctx: TimelineContext;
+  // Set while the environment is locked: manual deploys and rollbacks are off.
   lockedReason: string | null;
-  environmentBusy: boolean;
-  // Null when the caller may not deploy: the column is left out entirely.
-  onDeploy: ((tag: string) => void) | null;
+  // Set while another deploy in the environment runs first.
+  queuedHint: string | null;
 }) {
   const t = useTranslations("deploys");
+  const [shown, setShown] = React.useState(PAGE_FIRST);
+  const remaining = rows.length - shown;
+  const firstBuild = target.repoFullName !== null && (
+    <FirstBuild
+      componentKey={target.componentKey}
+      branch={target.sourceBranch}
+      canStart={ctx.canRun}
+      deploysOnArrival={target.autoDeploy || target.deployNextBuild}
+    />
+  );
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("colTag")}</TableHead>
-          <TableHead>{t("colCommit")}</TableHead>
-          <TableHead>{t("colReceived")}</TableHead>
-          <TableHead>
-            <span className="sr-only">{t("pipeline")}</span>
-          </TableHead>
-          {onDeploy && (
-            <TableHead>
-              <span className="sr-only">{t("deploy")}</span>
-            </TableHead>
+    <div className="flex flex-col gap-2">
+      {target.deployNextBuild && (
+        <WaitingForFirstBuild branch={target.sourceBranch} />
+      )}
+      {rows.length === 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {t("buildsEmpty", { branch: target.sourceBranch })}
+          </p>
+          {firstBuild}
+        </div>
+      ) : (
+        <>
+          {/* Only deployed tags of other branches: the branch still needs
+              its first build before anything new can be deployed. */}
+          {target.recentBuilds.length === 0 && firstBuild && (
+            <div className="flex justify-end">{firstBuild}</div>
           )}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {builds.map((build) => {
-          const active = activeTags.has(build.tag);
-          const redeploy = build.tag === deployedTag;
-          const hint = active
-            ? null
-            : (lockedReason ??
-              (environmentBusy ? t("startsAfterRunning") : null));
-          return (
-            <TableRow key={build.id}>
-              <TableCell className="font-mono text-sm">{build.tag}</TableCell>
-              <TableCell
-                className="font-mono text-sm text-muted-foreground"
-                title={build.commitSha}
-              >
-                {build.commitSha.slice(0, 7)}
-                <BuildCommitDetail build={build} />
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                <RelativeTime date={build.receivedAt} />
-              </TableCell>
-              <TableCell>
-                {build.pipelineUrl && (
-                  <a
-                    href={build.pipelineUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
-                  >
-                    <ExternalLink className="size-3.5" />
-                    {t("pipeline")}
-                  </a>
-                )}
-              </TableCell>
-              {onDeploy && (
-                <TableCell className="text-end">
-                  <ButtonHint hint={hint}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={
-                        active || pending !== null || lockedReason !== null
-                      }
-                      onClick={() => onDeploy(build.tag)}
-                    >
-                      {active || pending === build.tag ? (
-                        <Loader2
-                          data-icon="inline-start"
-                          className="animate-spin"
-                        />
-                      ) : redeploy ? (
-                        <RotateCcw data-icon="inline-start" />
-                      ) : (
-                        <Rocket data-icon="inline-start" />
-                      )}
-                      {active
-                        ? t("deploying")
-                        : redeploy
-                          ? t("redeploy")
-                          : t("deploy")}
-                    </Button>
-                  </ButtonHint>
-                </TableCell>
-              )}
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+          {/* biome-ignore lint/a11y/noRedundantRoles: list-none drops the list role in Safari. */}
+          <ul role="list" className="flex list-none flex-col divide-y">
+            {rows.slice(0, shown).map((row) => (
+              <TimelineRowItem
+                key={row.tag}
+                row={row}
+                plans={rowActions(row, ctx)}
+                actions={actions}
+                lockedReason={lockedReason}
+                queuedHint={queuedHint}
+                sourceBranch={target.sourceBranch}
+              />
+            ))}
+          </ul>
+          {remaining > 0 && (
+            <Button
+              variant="link"
+              size="sm"
+              className="self-start"
+              onClick={() => setShown((n) => n + PAGE_MORE)}
+            >
+              {t("showMore", { count: Math.min(PAGE_MORE, remaining) })}
+            </Button>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
-// The commit's first message line, with the author's email on hover.
-function BuildCommitDetail({ build }: { build: Build }) {
-  const message = firstLine(build.commitMessage);
-  if (!message) return null;
+function TimelineRowItem({
+  row,
+  plans,
+  actions,
+  lockedReason,
+  queuedHint,
+  sourceBranch,
+}: {
+  row: TimelineRow;
+  plans: RowActionPlan[];
+  actions: CardActions;
+  lockedReason: string | null;
+  queuedHint: string | null;
+  sourceBranch: string;
+}) {
+  const sha = row.commitSha?.slice(0, SHORT_SHA) ?? null;
+  const shownAt =
+    row.receivedAt ??
+    row.subject?.createdAt ??
+    row.deployments[0]?.createdAt ??
+    null;
+
   return (
-    <span
-      className="block max-w-[28rem] truncate font-sans"
-      title={build.commitAuthorEmail ?? undefined}
+    <li
+      // biome-ignore lint/a11y/noRedundantRoles: list-none drops the list role in Safari.
+      role="listitem"
+      data-slot="timeline-row"
+      data-status={row.status}
+      className={cn(
+        "grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_7rem_minmax(0,14rem)_auto] items-start gap-x-3 gap-y-1 px-2 py-2",
+        row.status === "live" && "rounded-lg bg-success/5"
+      )}
     >
-      {message}
+      <span data-slot="row-tag" className="truncate font-mono text-sm">
+        {row.tag}
+      </span>
+      <span className="flex min-w-0 items-baseline gap-2 text-sm">
+        {sha && (
+          <code className="shrink-0 font-mono text-muted-foreground">
+            {sha}
+          </code>
+        )}
+        {row.commitMessage && (
+          <span className="truncate" title={row.commitMessage}>
+            {row.commitMessage}
+          </span>
+        )}
+      </span>
+      <span className="text-sm text-muted-foreground">
+        {shownAt && <RelativeTime date={shownAt} />}
+      </span>
+      <div className="flex min-w-0 flex-col gap-1">
+        <RowStatus row={row} onViewLog={actions.viewLog} />
+        <SubjectMeta deployment={row.subject} />
+        <RowHistory row={row} onViewLog={actions.viewLog} />
+      </div>
+      <TimelineRowMenu
+        row={row}
+        plans={plans}
+        actions={actions}
+        lockedReason={lockedReason}
+        queuedHint={queuedHint}
+        sourceBranch={sourceBranch}
+      />
+    </li>
+  );
+}
+
+function StatusLine({
+  icon: Icon,
+  className,
+  iconClassName,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  className?: string;
+  iconClassName?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 text-sm", className)}>
+      <Icon className={cn("size-4 shrink-0", iconClassName)} aria-hidden />
+      {children}
     </span>
   );
 }
 
-export function DeploymentsTable({
-  deployments,
-  onMarkRelease,
-  onViewRun,
+// Always an icon plus text; the deploying and failed states link their log.
+function RowStatus({
+  row,
+  onViewLog,
 }: {
-  deployments: Deployment[];
-  // Null when the caller may not make releases of this target.
-  onMarkRelease:
-    | ((
-        deployment: Deployment,
-        build: NonNullable<Deployment["build"]>
-      ) => void)
-    | null;
-  onViewRun: (deployment: Deployment, runId: string) => void;
+  row: TimelineRow;
+  onViewLog: CardActions["viewLog"];
 }) {
   const t = useTranslations("deploys");
+  const relative = useRelativeTimeText();
+  const log = logDeployment(row);
+  const viewLog = log?.runId ? (
+    <ViewLogButton
+      onClick={() => log.runId && onViewLog({ runId: log.runId, tag: row.tag })}
+    />
+  ) : null;
+
+  const content = (() => {
+    switch (row.status) {
+      case "live":
+        return (
+          <Badge className="border-transparent bg-success/15 text-success">
+            <CheckCircle2 data-icon="inline-start" />
+            {t("row.live")}
+          </Badge>
+        );
+      case "previous":
+        return <StatusLine icon={History}>{t("row.previous")}</StatusLine>;
+      case "lastGood":
+        return <StatusLine icon={ShieldCheck}>{t("row.lastGood")}</StatusLine>;
+      case "queued":
+        return (
+          <StatusLine icon={Loader2} iconClassName="animate-spin">
+            {t("row.queued")}
+          </StatusLine>
+        );
+      case "deploying":
+        return (
+          <>
+            <StatusLine icon={Loader2} iconClassName="animate-spin">
+              <DeployingLabel deployment={row.subject} />
+            </StatusLine>
+            {viewLog}
+          </>
+        );
+      case "held":
+        return <StatusLine icon={Lock}>{t("row.held")}</StatusLine>;
+      case "failed":
+        return (
+          <>
+            <StatusLine icon={CircleAlert} className="text-destructive">
+              {t("row.failed")}
+            </StatusLine>
+            {viewLog}
+          </>
+        );
+      case "skipped":
+        return (
+          <StatusLine icon={SkipForward} className="text-muted-foreground">
+            {t("row.skipped")}
+          </StatusLine>
+        );
+      case "deployedEarlier": {
+        const d = row.subject;
+        return (
+          <StatusLine icon={CheckCircle2} className="text-muted-foreground">
+            {t("row.deployedEarlier", {
+              time: d ? relative(d.finishedAt ?? d.createdAt) : "",
+            })}
+          </StatusLine>
+        );
+      }
+      default:
+        return (
+          <span className="text-sm text-muted-foreground">
+            <span aria-hidden="true">—</span>
+            <span className="sr-only">{t("row.never")}</span>
+          </span>
+        );
+    }
+  })();
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{t("colTag")}</TableHead>
-          <TableHead>{t("colTrigger")}</TableHead>
-          <TableHead>{t("colStatus")}</TableHead>
-          <TableHead>{t("colBy")}</TableHead>
-          <TableHead>{t("colTime")}</TableHead>
-          <TableHead>
-            <span className="sr-only">{t("viewRun")}</span>
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {deployments.map((d) => (
-          <TableRow key={d.id}>
-            <TableCell className="font-mono text-sm">{d.tag}</TableCell>
-            <TableCell>{t(`trigger.${d.trigger}`)}</TableCell>
-            <TableCell>
+    <div
+      data-slot="row-status"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1"
+    >
+      {content}
+    </div>
+  );
+}
+
+// Ticks every second while mounted, so only deploying rows re-render.
+function DeployingLabel({
+  deployment,
+}: {
+  deployment: TimelineDeployment | null;
+}) {
+  const t = useTranslations("deploys");
+  const now = useNow({ updateInterval: ELAPSED_TICK_MS });
+  const duration = useDurationText();
+  const elapsed = deployment ? elapsedMs(deployment, now) : null;
+  if (elapsed === null) return t("row.deployingNoTime");
+  return t("row.deploying", { elapsed: duration(Math.max(0, elapsed)) ?? "" });
+}
+
+// Who deployed, whether it was a rollback, and how long it took.
+function SubjectMeta({
+  deployment: d,
+}: {
+  deployment: TimelineDeployment | null;
+}) {
+  const t = useTranslations("deploys");
+  if (!d) return null;
+  const duration = deploymentDurationMs(d);
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+      <DeploymentActor deployment={d} />
+      {d.trigger === "rollback" && (
+        <>
+          <span aria-hidden="true">·</span>
+          <span>{t("trigger.rollback")}</span>
+        </>
+      )}
+      {duration !== null && (
+        <>
+          <span aria-hidden="true">·</span>
+          <DurationText ms={duration} />
+        </>
+      )}
+    </span>
+  );
+}
+
+// The tag's other deployments, so the history of who deployed what stays.
+function RowHistory({
+  row,
+  onViewLog,
+}: {
+  row: TimelineRow;
+  onViewLog: CardActions["viewLog"];
+}) {
+  const t = useTranslations("deploys");
+  if (row.deployments.length < 2) return null;
+  const shownId = row.subject?.id ?? row.deployments[0]?.id;
+  const earlier = row.deployments.filter((d) => d.id !== shownId);
+  return (
+    <Collapsible>
+      <CollapsibleTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="xs"
+            className="group/history -ms-2 self-start text-muted-foreground"
+          />
+        }
+      >
+        {t("row.history", { count: earlier.length })}
+        <ChevronDown
+          data-icon="inline-end"
+          className="transition-transform group-data-[panel-open]/history:rotate-180"
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="flex list-none flex-col gap-1.5 pt-1">
+          {earlier.map((d) => (
+            <li
+              key={d.id}
+              data-slot="history-entry"
+              className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground"
+            >
               <DeploymentStatusBadge status={d.status} />
-            </TableCell>
-            <TableCell className="text-muted-foreground">
+              <span>{t(`trigger.${d.trigger}`)}</span>
+              <span aria-hidden="true">·</span>
               <DeploymentActor deployment={d} />
-            </TableCell>
-            <TableCell className="text-muted-foreground">
+              <span aria-hidden="true">·</span>
               <RelativeTime date={d.createdAt} />
-            </TableCell>
-            <TableCell className="text-end">
-              {/* Without its build row the source commit is unknown, and
-                  the server refuses the release. */}
-              {onMarkRelease && d.status === "success" && d.build && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => d.build && onMarkRelease(d, d.build)}
-                >
-                  <PackageCheck data-icon="inline-start" />
-                  {t("markRelease")}
-                </Button>
+              {deploymentDurationMs(d) !== null && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <DurationText ms={deploymentDurationMs(d)} />
+                </>
               )}
-              {/* A held deployment has no run until the lock is released. */}
-              {d.runId !== null && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => d.runId && onViewRun(d, d.runId)}
-                >
-                  <ScrollText data-icon="inline-start" />
-                  {t("viewRun")}
-                </Button>
+              {d.runId && (
+                <ViewLogButton
+                  onClick={() =>
+                    d.runId && onViewLog({ runId: d.runId, tag: d.tag })
+                  }
+                />
               )}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+            </li>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function ViewLogButton({ onClick }: { onClick: () => void }) {
+  const t = useTranslations("deploys");
+  return (
+    <Button variant="ghost" size="xs" onClick={onClick}>
+      <ScrollText data-icon="inline-start" />
+      {t("viewLog")}
+    </Button>
   );
 }
 
@@ -297,7 +490,7 @@ function DeploymentActor({ deployment: d }: { deployment: Deployment }) {
   });
   switch (actor.kind) {
     case "user":
-      return actor.name;
+      return <span>{actor.name}</span>;
     case "autoUser":
       return (
         <span className="inline-flex items-center gap-1.5">
@@ -356,24 +549,4 @@ function DeploymentStatusBadge({ status }: { status: Deployment["status"] }) {
     default:
       return <Badge variant="secondary">{label}</Badge>;
   }
-}
-
-// A disabled button gets no pointer events of its own, so the tooltip hangs
-// off a wrapper. Without a hint the button renders as is.
-function ButtonHint({
-  hint,
-  children,
-}: {
-  hint: string | null;
-  children: React.ReactNode;
-}) {
-  if (hint === null) return <>{children}</>;
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span className="inline-flex" />}>
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{hint}</TooltipContent>
-    </Tooltip>
-  );
 }

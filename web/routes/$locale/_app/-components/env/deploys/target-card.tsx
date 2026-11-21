@@ -11,11 +11,14 @@ import {
   rollbackTarget,
 } from "@/web/api/deploys";
 import { useDeployLock } from "./deploy-lock";
-import { FirstBuild, WaitingForFirstBuild } from "./first-build";
 import { MarkReleaseDialog, type ReleaseSource } from "./mark-release-dialog";
 import { type CardActions, TargetHeader } from "./target-header";
-import { BuildsTable, DeploymentsTable } from "./timeline";
-import { headerState, type TimelineDeployment } from "./timeline-model";
+import { Timeline } from "./timeline";
+import {
+  buildTimeline,
+  headerState,
+  type TimelineDeployment,
+} from "./timeline-model";
 
 type Deployment = DeployTargetState["recentDeployments"][number];
 export type ActiveRun = { runId: string; tag: string; componentKey: string };
@@ -54,13 +57,16 @@ export function TargetCard({
   const [pending, setPending] = React.useState<string | null>(null);
 
   const header = React.useMemo(() => headerState(target), [target]);
-  const activeTags = new Set(
-    target.recentDeployments.filter(isActive).map((d) => d.tag)
-  );
+  const rows = React.useMemo(() => buildTimeline(target), [target]);
+  const timelineCtx = {
+    canRun,
+    canRollback,
+    canRelease,
+    // Only a jar or static build can be kept as a release.
+    releasableKind: target.kind === "jar" || target.kind === "static",
+  };
+  const queuedHint = environmentBusy ? t("startsAfterRunning") : null;
   const services = target.services.join(", ");
-  // Only a jar or static build can be kept as a release.
-  const releasable =
-    canRelease && (target.kind === "jar" || target.kind === "static");
 
   function errorText(error: unknown): string {
     if (error instanceof ApiError) {
@@ -166,62 +172,20 @@ export function TargetCard({
         actions={actions}
         lockedReason={lockedReason}
         lock={lock}
-        queuedHint={environmentBusy ? t("startsAfterRunning") : null}
+        queuedHint={queuedHint}
         canRun={canRun}
         canRollback={canRollback}
       />
 
-      <CardContent className="flex flex-col gap-6">
-        <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">{t("buildsTitle")}</h3>
-          {target.deployNextBuild && (
-            <WaitingForFirstBuild branch={target.sourceBranch} />
-          )}
-          {target.recentBuilds.length === 0 ? (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">
-                {t("buildsEmpty", { branch: target.sourceBranch })}
-              </p>
-              {target.repoFullName !== null && (
-                <FirstBuild
-                  componentKey={target.componentKey}
-                  branch={target.sourceBranch}
-                  canStart={canRun}
-                  deploysOnArrival={target.autoDeploy || target.deployNextBuild}
-                />
-              )}
-            </div>
-          ) : (
-            <BuildsTable
-              builds={target.recentBuilds}
-              // The tag running cleanly is offered as Redeploy (to apply a
-              // changed .env or override); a failed one is a plain retry.
-              deployedTag={
-                target.currentStatus === "success" ? target.currentTag : null
-              }
-              activeTags={activeTags}
-              pending={pending}
-              lockedReason={lockedReason}
-              environmentBusy={environmentBusy}
-              onDeploy={canRun ? deploy : null}
-            />
-          )}
-        </section>
-
-        <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">{t("deploymentsTitle")}</h3>
-          {target.recentDeployments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {t("deploymentsEmpty")}
-            </p>
-          ) : (
-            <DeploymentsTable
-              deployments={target.recentDeployments}
-              onMarkRelease={releasable ? (d) => actions.markRelease(d) : null}
-              onViewRun={(d, runId) => actions.viewLog({ runId, tag: d.tag })}
-            />
-          )}
-        </section>
+      <CardContent>
+        <Timeline
+          target={target}
+          rows={rows}
+          actions={actions}
+          ctx={timelineCtx}
+          lockedReason={lockedReason}
+          queuedHint={queuedHint}
+        />
       </CardContent>
       <MarkReleaseDialog
         source={releaseSource}

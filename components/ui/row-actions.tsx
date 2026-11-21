@@ -24,6 +24,10 @@ export type RowAction = {
   onSelect?: () => void;
   /** Navigates instead of running a handler. */
   href?: string;
+  /** Opens `href` (an outside URL) in a new tab instead of routing to it. */
+  external?: boolean;
+  /** Accessible name when the visible label is not enough (new-tab hint). */
+  ariaLabel?: string;
   /** Nested choices (e.g. roles); the item then opens a submenu. */
   submenu?: RowAction[];
   destructive?: boolean;
@@ -75,7 +79,16 @@ function MenuEntry({ action }: { action: RowAction }) {
       variant={action.destructive ? "destructive" : "default"}
       disabled={action.disabled}
       onClick={action.onSelect}
-      render={action.href ? <Link href={action.href} /> : undefined}
+      aria-label={action.ariaLabel}
+      render={
+        action.href ? (
+          action.external ? (
+            <a href={action.href} target="_blank" rel="noreferrer" />
+          ) : (
+            <Link href={action.href} />
+          )
+        ) : undefined
+      }
     >
       <ItemContent action={action} />
     </DropdownMenuItem>
