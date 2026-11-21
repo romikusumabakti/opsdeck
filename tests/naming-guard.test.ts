@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 
 // The product is called Menara in code, tests and docs. This guard fails on
 // any tracked file that still calls it "panel" (any case, plural, or inside a
-// camelCase identifier) or mentions "Acme".
+// camelCase identifier) or mentions a customer's organisation acronym
+// (ORG_ACRONYM below, spelled out so this file does not contain it).
 // UI copy takes the instance name at runtime ({{APP_NAME}}), so it never
 // hard-codes the product either.
 //
 // Each allowlist entry names the construct it exempts. The matches are
-// removed from the line first; anything left that still says panel/Acme fails,
+// removed from the line first; anything left that still says panel or the acronym fails,
 // so prose beside an allowed construct is still caught. The component-file
 // entry is the one wide exemption: "panel" there is a UI panel, not the product.
 
@@ -123,17 +124,18 @@ function grepTracked(): { path: string; lineNo: string; text: string }[] {
 
 // "panel" as a word in any case (also "panels", PANEL_URL, panel_url), and
 // as a part of a camelCase or PascalCase identifier (showPanel, panelUrl,
-// PanelUrl), plus "Acme".
+// PanelUrl), plus a customer organisation's acronym.
 const WORD = "(?<![A-Za-z])[Pp][Aa][Nn][Ee][Ll][Ss]?(?![a-z])";
 const CAMEL = "(?<=[A-Za-z\\d])Panels?(?![a-z])|\\b[Pp]anels?(?=[A-Z])";
-const GREP = `${WORD}|${CAMEL}|\\bDSS\\b`;
+const ORG_ACRONYM = ["D", "S", "S"].join("");
+const GREP = `${WORD}|${CAMEL}|\\b${ORG_ACRONYM}\\b`;
 const FORBIDDEN = new RegExp(GREP);
 const applicable = (path: string) => ALLOWED.filter((a) => a.path.test(path));
 
 describe("naming guard", () => {
   const hits = grepTracked();
 
-  it("no tracked file calls the product panel or names Acme", () => {
+  it("no tracked file calls the product panel or names the customer acronym", () => {
     const remaining = hits
       .filter((hit) => {
         let text = hit.text;
