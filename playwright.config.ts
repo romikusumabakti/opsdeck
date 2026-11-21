@@ -77,6 +77,8 @@ export default defineConfig({
       IMGPROXY_URL: "",
       IMGPROXY_KEY: "",
       IMGPROXY_SALT: "",
+      // A confirmed deploy in the deploys spec gets the API's 503 and nothing runs.
+      DEPLOY_REGISTRY: "",
     },
   },
 });
