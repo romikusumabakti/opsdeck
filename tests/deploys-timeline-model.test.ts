@@ -8,6 +8,7 @@ import {
   logDeployment,
   releaseDeployment,
   rowActions,
+  shortSha,
   type TimelineBuild,
   type TimelineDeployment,
   type TimelineInput,
@@ -866,5 +867,12 @@ describe("deploysPollInterval", () => {
     expect(deploysPollInterval([target("success", "failed")])).toBe(false);
     expect(deploysPollInterval([])).toBe(false);
     expect(deploysPollInterval(undefined)).toBe(false);
+  });
+});
+
+describe("shortSha", () => {
+  it("keeps the first 7 characters, null when unknown", () => {
+    expect(shortSha("abcdef0123456")).toBe("abcdef0");
+    expect(shortSha(null)).toBeNull();
   });
 });

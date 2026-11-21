@@ -297,6 +297,7 @@ describe("Deploy timeline layout", () => {
       "target-header.tsx",
       "row-menu.tsx",
       "deploys-pending.tsx",
+      "deployment-parts.tsx",
     ]) {
       const source = readFileSync(join(process.cwd(), DIR, file), "utf8");
       expect(source, file).not.toMatch(

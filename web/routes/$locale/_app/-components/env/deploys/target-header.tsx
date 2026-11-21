@@ -4,7 +4,6 @@ import {
   Loader2,
   Lock,
   Rocket,
-  ScrollText,
   Undo2,
 } from "lucide-react";
 import * as React from "react";
@@ -25,10 +24,15 @@ import {
 } from "@/components/ui/tooltip";
 import { DATE_TIME } from "@/lib/format-date";
 import type { DeployTargetState } from "@/web/api/deploys";
-import { DurationText, useDeploymentActorText } from "./timeline";
+import {
+  DurationText,
+  useDeploymentActorText,
+  ViewLogButton,
+} from "./deployment-parts";
 import {
   deploymentDurationMs,
   type HeaderState,
+  shortSha,
   type TimelineDeployment,
 } from "./timeline-model";
 
@@ -49,8 +53,6 @@ export type HeaderLock = {
   reason: string;
   expiresAt: string;
 } | null;
-
-const SHORT_SHA = 7;
 
 // When the deployment ended, or else when it was asked for.
 const settledAt = (d: TimelineDeployment) => d.finishedAt ?? d.createdAt;
@@ -310,7 +312,7 @@ function FocalLine({
 
   const d = focal.deployment;
   const duration = d ? deploymentDurationMs(d) : null;
-  const sha = focal.commitSha?.slice(0, SHORT_SHA) ?? null;
+  const sha = shortSha(focal.commitSha);
   return (
     <p
       data-slot="deploy-focal"
@@ -384,16 +386,6 @@ function FailureLine({
         />
       )}
     </div>
-  );
-}
-
-function ViewLogButton({ onClick }: { onClick: () => void }) {
-  const t = useTranslations("deploys");
-  return (
-    <Button variant="ghost" size="xs" onClick={onClick}>
-      <ScrollText data-icon="inline-start" />
-      {t("viewLog")}
-    </Button>
   );
 }
 

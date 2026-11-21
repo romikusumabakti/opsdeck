@@ -5,13 +5,11 @@ import {
   History,
   Loader2,
   Lock,
-  ScrollText,
   ShieldCheck,
   SkipForward,
-  Zap,
 } from "lucide-react";
 import * as React from "react";
-import { useFormatter, useNow, useTranslations } from "use-intl";
+import { useNow, useTranslations } from "use-intl";
 import { RelativeTime } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,9 +18,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { runActorLabel } from "@/lib/deploy/run-actor";
 import { cn } from "@/lib/utils";
 import type { DeployTargetState } from "@/web/api/deploys";
+import {
+  DeploymentActor,
+  DurationText,
+  useDurationText,
+  ViewLogButton,
+} from "./deployment-parts";
 import { FirstBuild, WaitingForFirstBuild } from "./first-build";
 import { TimelineRowMenu } from "./row-menu";
 import type { CardActions } from "./target-header";
@@ -32,6 +35,7 @@ import {
   logDeployment,
   type RowActionPlan,
   rowActions,
+  shortSha,
   type TimelineDeployment,
   type TimelineRow,
 } from "./timeline-model";
@@ -42,64 +46,7 @@ type Deployment = DeployTargetState["recentDeployments"][number];
 export const PAGE_FIRST = 10;
 export const PAGE_MORE = 20;
 
-const SECOND_MS = 1000;
-const MINUTE_S = 60;
-const HOUR_S = 3600;
-const SHORT_SHA = 7;
 const ELAPSED_TICK_MS = 1000;
-
-/** A run's length as text: "45s", "2m 5s", "1h 3m"; null when unknown. */
-export function useDurationText(): (ms: number | null) => string | null {
-  const format = useFormatter();
-  return (ms) => {
-    if (ms === null) return null;
-    const unit = (n: number, u: "second" | "minute" | "hour") =>
-      format.number(n, { style: "unit", unit: u, unitDisplay: "narrow" });
-    const total = Math.round(ms / SECOND_MS);
-    if (total < MINUTE_S) return unit(total, "second");
-    if (total < HOUR_S) {
-      return `${unit(Math.floor(total / MINUTE_S), "minute")} ${unit(
-        total % MINUTE_S,
-        "second"
-      )}`;
-    }
-    return `${unit(Math.floor(total / HOUR_S), "hour")} ${unit(
-      Math.floor((total % HOUR_S) / MINUTE_S),
-      "minute"
-    )}`;
-  };
-}
-
-/** A run's length: "45s", "2m 5s", "1h 3m"; nothing when unknown. */
-export function DurationText({ ms }: { ms: number | null }) {
-  const text = useDurationText()(ms);
-  return text;
-}
-
-/** Who started a deployment, as plain text for translated sentences. */
-export function useDeploymentActorText(): (d: Deployment) => string {
-  const t = useTranslations("deploys");
-  return (d) => {
-    const actor = runActorLabel({
-      userName: d.userName,
-      autoUserName: d.autoUser?.name,
-      triggeredBy: d.triggeredBy,
-      auto: d.trigger === "auto",
-    });
-    switch (actor.kind) {
-      case "user":
-        return actor.name;
-      case "autoUser":
-        return t("byAutoUser", { user: actor.name });
-      case "auto":
-        return actor.by === null
-          ? t("byAuto")
-          : t("byAutoUser", { user: actor.by });
-      default:
-        return t("userUnknown");
-    }
-  };
-}
 
 export type TimelineContext = Parameters<typeof rowActions>[1];
 
@@ -217,7 +164,7 @@ function TimelineRowItem({
   queuedHint: string | null;
   sourceBranch: string;
 }) {
-  const sha = row.commitSha?.slice(0, SHORT_SHA) ?? null;
+  const sha = shortSha(row.commitSha);
   const [tagRef, tagOverflows] = useOverflowsInline<HTMLSpanElement>();
   const shownAt =
     row.receivedAt ??
@@ -560,79 +507,40 @@ function RowHistory({
       </CollapsibleTrigger>
       <CollapsibleContent>
         <ul className="flex list-none flex-col gap-1.5 pt-1">
-          {earlier.map((d) => (
-            <li
-              key={d.id}
-              data-slot="history-entry"
-              className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground"
-            >
-              <DeploymentStatusBadge status={d.status} />
-              <span>{t(`trigger.${d.trigger}`)}</span>
-              <span aria-hidden="true">·</span>
-              <DeploymentActor deployment={d} />
-              <span aria-hidden="true">·</span>
-              <RelativeTime date={d.createdAt} />
-              {deploymentDurationMs(d) !== null && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <DurationText ms={deploymentDurationMs(d)} />
-                </>
-              )}
-              {d.runId && (
-                <ViewLogButton
-                  onClick={() =>
-                    d.runId && onViewLog({ runId: d.runId, tag: d.tag })
-                  }
-                />
-              )}
-            </li>
-          ))}
+          {earlier.map((d) => {
+            const duration = deploymentDurationMs(d);
+            return (
+              <li
+                key={d.id}
+                data-slot="history-entry"
+                className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground"
+              >
+                <DeploymentStatusBadge status={d.status} />
+                <span>{t(`trigger.${d.trigger}`)}</span>
+                <span aria-hidden="true">·</span>
+                <DeploymentActor deployment={d} />
+                <span aria-hidden="true">·</span>
+                <RelativeTime date={d.createdAt} />
+                {duration !== null && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <DurationText ms={duration} />
+                  </>
+                )}
+                {d.runId && (
+                  <ViewLogButton
+                    onClick={() =>
+                      d.runId && onViewLog({ runId: d.runId, tag: d.tag })
+                    }
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
       </CollapsibleContent>
     </Collapsible>
   );
-}
-
-function ViewLogButton({ onClick }: { onClick: () => void }) {
-  const t = useTranslations("deploys");
-  return (
-    <Button variant="ghost" size="xs" onClick={onClick}>
-      <ScrollText data-icon="inline-start" />
-      {t("viewLog")}
-    </Button>
-  );
-}
-
-function DeploymentActor({ deployment: d }: { deployment: Deployment }) {
-  const t = useTranslations("deploys");
-  const actor = runActorLabel({
-    userName: d.userName,
-    autoUserName: d.autoUser?.name,
-    triggeredBy: d.triggeredBy,
-    auto: d.trigger === "auto",
-  });
-  switch (actor.kind) {
-    case "user":
-      return <span>{actor.name}</span>;
-    case "autoUser":
-      return (
-        <span className="inline-flex items-center gap-1.5">
-          <Zap className="size-3.5 shrink-0" aria-hidden />
-          {t("byAutoUser", { user: actor.name })}
-        </span>
-      );
-    case "auto":
-      return (
-        <span className="inline-flex items-center gap-1.5">
-          <Zap className="size-3.5 shrink-0" aria-hidden />
-          {actor.by === null
-            ? t("byAuto")
-            : t("byAutoUser", { user: actor.by })}
-        </span>
-      );
-    default:
-      return <span className="italic">{t("userUnknown")}</span>;
-  }
 }
 
 function DeploymentStatusBadge({ status }: { status: Deployment["status"] }) {

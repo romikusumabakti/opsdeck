@@ -75,6 +75,13 @@ const newestFirst = (list: TimelineDeployment[]) => [...list].sort(byNewest);
 const newestWith = (list: TimelineDeployment[], status: DeploymentStatus) =>
   list.find((d) => d.status === status) ?? null;
 
+const SHORT_SHA_LENGTH = 7;
+
+/** A commit sha as shown: its first 7 characters; null when unknown. */
+export function shortSha(sha: string | null): string | null {
+  return sha?.slice(0, SHORT_SHA_LENGTH) ?? null;
+}
+
 export function deploymentDurationMs(
   d: Pick<TimelineDeployment, "startedAt" | "finishedAt">
 ): number | null {
