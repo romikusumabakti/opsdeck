@@ -34,6 +34,8 @@ const ALLOWED = [
   // A source line, not a template.
   "lib/db/schema.ts:sql`$" +
     "{t.assistantProvider} in ('anthropic', 'openai', 'google', 'openai-compatible')`",
+  // The README's feature list names the supported model providers.
+  "README.md:- Runs on Anthropic, OpenAI, Google or any OpenAI-compatible endpoint with",
   // A coding agent's local state directory, kept out of git and the image.
   ".dockerignore:.claude",
   ".gitignore:.claude/settings.local.json",
