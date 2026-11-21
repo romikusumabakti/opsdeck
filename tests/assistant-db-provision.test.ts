@@ -92,12 +92,12 @@ describe("assistantDbLoginName", () => {
     expect(ms.length).toBe(63);
     expect(my.length).toBe(32);
     for (const name of [pg, my, ms]) expect(name).toMatch(/^[a-z0-9_]+$/);
-    // MySQL's 32 characters: a 21-character name still fits as is.
-    expect(assistantDbLoginName("mysql", "a".repeat(21))).toBe(
-      `menara_ro_${"a".repeat(21)}`
+    // MySQL's 32 characters: a 22-character name still fits as is.
+    expect(assistantDbLoginName("mysql", "a".repeat(22))).toBe(
+      `menara_ro_${"a".repeat(22)}`
     );
-    expect(assistantDbLoginName("mysql", "a".repeat(22))).toMatch(
-      /^menara_ro_a{12}_[0-9a-f]{8}$/
+    expect(assistantDbLoginName("mysql", "a".repeat(23))).toMatch(
+      /^menara_ro_a{13}_[0-9a-f]{8}$/
     );
   });
 });
@@ -636,13 +636,13 @@ describe("enableAssistantDbLogin / disableAssistantDbLogin", () => {
     expect(ssh.calls).toHaveLength(3);
     const [provision, check, drop] = ssh.calls;
     expect(sha(provision?.command ?? "")).toBe(
-      "92212088058ae6a6232b3da512dda0a9309974dc37215684ab7387692f283226"
+      "4ae19ee09b3913a4d9f0419d451c56099cf56a4c011ef351841d183ee9bb52a8"
     );
     expect(check?.command).toBe(
       "docker exec 'kestrel-db' bash -c 'psql -X -q -v ON_ERROR_STOP=on -U '\\''menara_ro_kestrel_qa'\\'' -d '\\''kestrel_qa'\\'' -Atc '\\''select 1'\\'''"
     );
     expect(sha(drop?.command ?? "")).toBe(
-      "eb11ba65581532d179b93751e46e6113034aab9294a0b68bf0506ce0524b4565"
+      "21b2f1245aa36c9d9bfad515aa10d2d8363c04f0f703f1e5afd400e02d5a8b2a"
     );
     for (const call of ssh.calls) expect(call.stdin).toBeUndefined();
   });
