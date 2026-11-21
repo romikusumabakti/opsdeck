@@ -602,13 +602,13 @@ describe("Deploy timeline", () => {
     await mount([target({ recentBuilds: builds })]);
     const more = () =>
       [...container.querySelectorAll("button")].find((b) =>
-        b.textContent?.startsWith("Show more")
+        b.textContent?.startsWith("Show ")
       );
     expect(rows()).toHaveLength(10);
-    expect(more()?.textContent).toBe("Show more (20 more)");
+    expect(more()?.textContent).toBe("Show 20 more");
     await act(async () => more()?.click());
     expect(rows()).toHaveLength(30);
-    expect(more()?.textContent).toBe("Show more (5 more)");
+    expect(more()?.textContent).toBe("Show 5 more");
     await act(async () => more()?.click());
     expect(rows()).toHaveLength(35);
     expect(more()).toBeUndefined();

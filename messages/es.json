@@ -486,24 +486,25 @@
     "opensInNewTab": "(se abre en una pestaña nueva)",
     "rowActionsLabel": "Acciones para {tag}",
     "deployThis": "Desplegar esta versión",
-    "rollbackThis": "Revertir a esta",
+    "rollbackThis": "Revertir a esta versión",
     "notBuilt": "Ninguna compilación de {branch} tiene esta etiqueta",
     "viewPipeline": "Ver pipeline",
     "row": {
       "live": "En vivo",
       "previous": "Anterior",
-      "lastGood": "Última correcta",
+      "lastGood": "Último correcto",
       "queued": "En cola",
       "deploying": "Desplegando · {elapsed}",
       "deployingNoTime": "Desplegando",
       "held": "Esperando el desbloqueo",
       "failed": "Fallido",
       "skipped": "Omitido: se ejecutó un despliegue más reciente",
-      "deployedEarlier": "Desplegado {time}",
+      "deployedEarlier": "Desplegado",
       "never": "No desplegado",
       "history": "{count, plural, one {# despliegue anterior} other {# despliegues anteriores}}"
     },
-    "showMore": "Mostrar más ({count} más)"
+    "loadFailed": "No se pudieron actualizar los despliegues. Es posible que la lista esté desactualizada.",
+    "showMore": "{count, plural, one {Mostrar # más} other {Mostrar # más}}"
   },
   "provisioning": {
     "title": "Aprovisionamiento",

@@ -1,10 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Rocket, Settings } from "lucide-react";
+import { CircleAlert, Plus, Rocket, Settings } from "lucide-react";
 import * as React from "react";
 import { useTranslations } from "use-intl";
 import { LiveRunDialog } from "@/components/live-run-dialog";
 import { PageHeader } from "@/components/page-header";
 import { useProjectCan } from "@/components/project-role";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Link } from "@/i18n/navigation";
@@ -25,13 +26,19 @@ export function DeploysClient({
   targets,
   settingsHref,
   addTargetHref,
+  refreshFailed = false,
+  onRetry,
 }: {
   environment: EnvironmentWithServers;
   targets: DeployTargetState[];
   settingsHref: string;
   addTargetHref: string;
+  // A background refetch failed: the list on screen may be out of date.
+  refreshFailed?: boolean;
+  onRetry?: () => void;
 }) {
   const t = useTranslations("deploys");
+  const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
   const canConfigure = useProjectCan({ deploy: ["configure"] });
   const [run, setRun] = React.useState<ActiveRun | null>(null);
@@ -79,6 +86,20 @@ export function DeploysClient({
           )
         }
       />
+
+      {refreshFailed && (
+        <Alert variant="destructive">
+          <CircleAlert aria-hidden />
+          <AlertDescription className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {t("loadFailed")}
+            {onRetry && (
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                {tCommon("tryAgain")}
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <DeployLockPanel
         environmentId={environment.id}

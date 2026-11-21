@@ -482,7 +482,7 @@
     "latestDeploying": "يجري نشر أحدث بناء.",
     "latestHeld": "أحدث بناء ينتظر رفع قفل النشر.",
     "lockChip": "مقفل بواسطة {name} · حتى {time}",
-    "viewPipelineFor": "عرض خط المعالجة لـ {sha}",
+    "viewPipelineFor": "عرض خط الأنابيب لـ {sha}",
     "opensInNewTab": "(يفتح في علامة تبويب جديدة)",
     "rowActionsLabel": "إجراءات {tag}",
     "deployThis": "نشر هذا الإصدار",
@@ -498,12 +498,13 @@
       "deployingNoTime": "جارٍ النشر",
       "held": "بانتظار رفع القفل",
       "failed": "فشل",
-      "skipped": "تم التخطي — جرى نشر أحدث",
-      "deployedEarlier": "نُشر {time}",
+      "skipped": "تم التخطي — جرى نشر أحدث منه",
+      "deployedEarlier": "نُشر",
       "never": "لم يُنشر",
       "history": "{count, plural, zero {لا عمليات نشر سابقة} one {عملية نشر سابقة واحدة} two {عمليتا نشر سابقتان} few {# عمليات نشر سابقة} many {# عملية نشر سابقة} other {# عملية نشر سابقة}}"
     },
-    "showMore": "عرض المزيد ({count} إضافية)"
+    "loadFailed": "تعذّر تحديث عمليات النشر. قد تكون القائمة قديمة.",
+    "showMore": "{count, plural, zero {عرض 0 إضافي} one {عرض واحد إضافي} two {عرض اثنين إضافيين} few {عرض # إضافية} many {عرض # إضافياً} other {عرض # إضافي}}"
   },
   "provisioning": {
     "title": "التهيئة",

@@ -144,8 +144,8 @@ export function TargetHeader({
       <TargetSubtitle target={target} serverName={serverName} />
 
       {(latest || rollbackTag) && (
-        <CardAction className="flex flex-col items-end gap-1.5">
-          <div className="flex flex-wrap justify-end gap-2">
+        <CardAction className="col-start-1 row-span-1 row-start-auto flex flex-col items-start gap-1.5 justify-self-start md:col-start-2 md:row-span-2 md:row-start-1 md:items-end md:justify-self-end">
+          <div className="flex flex-wrap justify-start gap-2 md:justify-end">
             {rollbackTag && (
               <Button
                 variant="outline"
@@ -186,7 +186,7 @@ export function TargetHeader({
             <p
               id={reasonId}
               data-slot="deploy-actions-reason"
-              className="max-w-xs text-end text-xs text-muted-foreground"
+              className="max-w-xs text-start text-xs md:text-end text-muted-foreground"
             >
               {reasonText}
             </p>

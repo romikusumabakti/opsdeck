@@ -474,7 +474,7 @@
     "focalLive": "运行中：{tag}",
     "focalDeployedBy": "由 {actor} 于 {time} 部署",
     "focalFailed": "{tag} 的最近一次部署于 {time} 失败——服务器可能运行着不完整的版本",
-    "focalLastGood": "· 上一个正常版本：{tag}",
+    "focalLastGood": "· 上次成功版本：{tag}",
     "failureLine": "{tag} 的最近一次部署于 {time} 失败",
     "viewLog": "查看日志",
     "deployLatest": "部署最新版本（{tag}）",
@@ -498,12 +498,13 @@
       "deployingNoTime": "部署中",
       "held": "等待解锁",
       "failed": "失败",
-      "skipped": "已跳过 — 有更新的部署已运行",
-      "deployedEarlier": "部署于 {time}",
+      "skipped": "已跳过——已有更新的部署运行",
+      "deployedEarlier": "部署于",
       "never": "未部署",
       "history": "{count, plural, other {# 次更早的部署}}"
     },
-    "showMore": "显示更多（还有 {count} 条）"
+    "loadFailed": "无法刷新部署，列表可能已过期。",
+    "showMore": "{count, plural, other {再显示 # 条}}"
   },
   "provisioning": {
     "title": "环境配置",

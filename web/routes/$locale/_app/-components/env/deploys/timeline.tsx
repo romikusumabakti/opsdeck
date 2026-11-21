@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useFormatter, useNow, useTranslations } from "use-intl";
-import { RelativeTime, useRelativeTimeText } from "@/components/relative-time";
+import { RelativeTime } from "@/components/relative-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -126,7 +126,17 @@ export function Timeline({
 }) {
   const t = useTranslations("deploys");
   const [shown, setShown] = React.useState(PAGE_FIRST);
+  const listRef = React.useRef<HTMLUListElement>(null);
+  // Index of the first row a "Show more" click revealed, to move focus onto.
+  const [focusIndex, setFocusIndex] = React.useState<number | null>(null);
   const remaining = rows.length - shown;
+  React.useEffect(() => {
+    if (focusIndex === null) return;
+    listRef.current
+      ?.querySelectorAll<HTMLElement>('[data-slot="tag-scroll"]')
+      [focusIndex]?.focus();
+    setFocusIndex(null);
+  }, [focusIndex]);
   const firstBuild = target.repoFullName !== null && (
     <FirstBuild
       componentKey={target.componentKey}
@@ -155,8 +165,12 @@ export function Timeline({
           {target.recentBuilds.length === 0 && firstBuild && (
             <div className="flex justify-end">{firstBuild}</div>
           )}
-          {/* biome-ignore lint/a11y/noRedundantRoles: list-none drops the list role in Safari. */}
-          <ul role="list" className="flex list-none flex-col divide-y">
+          <ul
+            ref={listRef}
+            // biome-ignore lint/a11y/noRedundantRoles: list-none drops the list role in Safari.
+            role="list"
+            className="flex list-none flex-col divide-y"
+          >
             {rows.slice(0, shown).map((row) => (
               <TimelineRowItem
                 key={row.tag}
@@ -174,7 +188,10 @@ export function Timeline({
               variant="link"
               size="sm"
               className="self-start"
-              onClick={() => setShown((n) => n + PAGE_MORE)}
+              onClick={() => {
+                setFocusIndex(shown);
+                setShown((n) => n + PAGE_MORE);
+              }}
             >
               {t("showMore", { count: Math.min(PAGE_MORE, remaining) })}
             </Button>
@@ -214,41 +231,80 @@ function TimelineRowItem({
       data-slot="timeline-row"
       data-status={row.status}
       className={cn(
-        "grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_7rem_minmax(0,14rem)_auto] items-start gap-x-3 gap-y-1 px-2 py-2",
+        "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_8rem_minmax(0,14rem)_auto]",
+        "items-start px-2 py-2",
         row.status === "live" && "rounded-lg bg-success/5"
       )}
     >
-      <span data-slot="row-tag" className="truncate font-mono text-sm">
-        {row.tag}
-      </span>
-      <span className="flex min-w-0 items-baseline gap-2 text-sm">
-        {sha && (
-          <code className="shrink-0 font-mono text-muted-foreground">
-            {sha}
-          </code>
-        )}
-        {row.commitMessage && (
-          <span className="truncate" title={row.commitMessage}>
-            {row.commitMessage}
+      {/* Below md the tag and status share line 1; from md both become
+          grid cells of their own. */}
+      <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 md:contents">
+        <span
+          data-slot="tag-scroll"
+          // The one scrollable box: a long tag scrolls here, not the card.
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users scroll it.
+          tabIndex={0}
+          role="group"
+          aria-label={row.tag}
+          className="max-w-full min-w-0 overflow-x-auto whitespace-nowrap md:col-start-1 md:row-start-1"
+        >
+          <span data-slot="row-tag" className="font-mono text-sm">
+            {row.tag}
+          </span>
+        </span>
+        <div className="flex min-w-0 flex-col gap-1 md:col-start-4 md:row-start-1">
+          <RowStatus row={row} onViewLog={actions.viewLog} />
+          <SubjectMeta deployment={row.subject} />
+          <RowHistory row={row} onViewLog={actions.viewLog} />
+        </div>
+      </div>
+      <div
+        data-slot="row-commit"
+        className="col-span-1 flex min-w-0 flex-col md:col-start-2 md:row-start-1"
+      >
+        <span
+          className="flex min-w-0 items-baseline gap-2 text-sm"
+          title={row.build?.commitAuthorEmail ?? undefined}
+        >
+          {sha && (
+            <code
+              className="shrink-0 font-mono text-muted-foreground"
+              title={row.commitSha ?? undefined}
+            >
+              {sha}
+            </code>
+          )}
+          {row.commitMessage && (
+            <span className="truncate" title={row.commitMessage}>
+              {row.commitMessage}
+            </span>
+          )}
+        </span>
+        {shownAt && (
+          <span
+            data-slot="row-received"
+            className="text-xs text-muted-foreground md:hidden"
+          >
+            <RelativeTime date={shownAt} />
           </span>
         )}
-      </span>
-      <span className="text-sm text-muted-foreground">
+      </div>
+      <span
+        data-slot="row-time"
+        className="hidden text-sm text-muted-foreground md:col-start-3 md:row-start-1 md:block"
+      >
         {shownAt && <RelativeTime date={shownAt} />}
       </span>
-      <div className="flex min-w-0 flex-col gap-1">
-        <RowStatus row={row} onViewLog={actions.viewLog} />
-        <SubjectMeta deployment={row.subject} />
-        <RowHistory row={row} onViewLog={actions.viewLog} />
+      <div className="col-start-2 row-span-2 row-start-1 self-start md:col-start-5 md:row-span-1">
+        <TimelineRowMenu
+          row={row}
+          plans={plans}
+          actions={actions}
+          lockedReason={lockedReason}
+          queuedHint={queuedHint}
+          sourceBranch={sourceBranch}
+        />
       </div>
-      <TimelineRowMenu
-        row={row}
-        plans={plans}
-        actions={actions}
-        lockedReason={lockedReason}
-        queuedHint={queuedHint}
-        sourceBranch={sourceBranch}
-      />
     </li>
   );
 }
@@ -281,7 +337,6 @@ function RowStatus({
   onViewLog: CardActions["viewLog"];
 }) {
   const t = useTranslations("deploys");
-  const relative = useRelativeTimeText();
   const log = logDeployment(row);
   const viewLog = log?.runId ? (
     <ViewLogButton
@@ -338,9 +393,8 @@ function RowStatus({
         const d = row.subject;
         return (
           <StatusLine icon={CheckCircle2} className="text-muted-foreground">
-            {t("row.deployedEarlier", {
-              time: d ? relative(d.finishedAt ?? d.createdAt) : "",
-            })}
+            {t("row.deployedEarlier")}{" "}
+            {d && <RelativeTime date={d.finishedAt ?? d.createdAt} />}
           </StatusLine>
         );
       }

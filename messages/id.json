@@ -498,12 +498,13 @@
       "deployingNoTime": "Sedang deploy",
       "held": "Menunggu kunci dibuka",
       "failed": "Gagal",
-      "skipped": "Dilewati — deploy yang lebih baru berjalan",
-      "deployedEarlier": "Di-deploy {time}",
+      "skipped": "Dilewati — deploy yang lebih baru sudah berjalan",
+      "deployedEarlier": "Di-deploy",
       "never": "Belum di-deploy",
       "history": "{count, plural, other {# deploy sebelumnya}}"
     },
-    "showMore": "Tampilkan lagi ({count} lagi)"
+    "loadFailed": "Gagal menyegarkan deploy. Daftar mungkin sudah usang.",
+    "showMore": "{count, plural, other {Tampilkan # lagi}}"
   },
   "provisioning": {
     "title": "Provisioning",

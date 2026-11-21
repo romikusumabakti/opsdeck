@@ -499,11 +499,12 @@
       "held": "Waiting for unlock",
       "failed": "Failed",
       "skipped": "Skipped — a newer deploy ran",
-      "deployedEarlier": "Deployed {time}",
+      "deployedEarlier": "Deployed",
       "never": "Not deployed",
       "history": "{count, plural, one {# earlier deploy} other {# earlier deploys}}"
     },
-    "showMore": "Show more ({count} more)"
+    "loadFailed": "Couldn't refresh deploys. The list may be out of date.",
+    "showMore": "{count, plural, one {Show # more} other {Show # more}}"
   },
   "provisioning": {
     "title": "Provisioning",
