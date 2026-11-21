@@ -133,7 +133,7 @@ export function Timeline({
   React.useEffect(() => {
     if (focusIndex === null) return;
     listRef.current
-      ?.querySelectorAll<HTMLElement>('[data-slot="tag-scroll"]')
+      ?.querySelectorAll<HTMLElement>('[data-slot="timeline-row"]')
       [focusIndex]?.focus();
     setFocusIndex(null);
   }, [focusIndex]);
@@ -218,6 +218,7 @@ function TimelineRowItem({
   sourceBranch: string;
 }) {
   const sha = row.commitSha?.slice(0, SHORT_SHA) ?? null;
+  const [tagRef, tagOverflows] = useOverflowsInline<HTMLSpanElement>();
   const shownAt =
     row.receivedAt ??
     row.subject?.createdAt ??
@@ -230,22 +231,28 @@ function TimelineRowItem({
       role="listitem"
       data-slot="timeline-row"
       data-status={row.status}
+      // Not a tab stop: "Show more" moves focus here.
+      tabIndex={-1}
       className={cn(
         "grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_8rem_minmax(0,14rem)_auto]",
-        "items-start px-2 py-2",
-        row.status === "live" && "rounded-lg bg-success/5"
+        "items-start rounded-lg px-2 py-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        row.status === "live" && "bg-success/5"
       )}
     >
       {/* Below md the tag and status share line 1; from md both become
           grid cells of their own. */}
       <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 md:contents">
         <span
+          ref={tagRef}
           data-slot="tag-scroll"
           // The one scrollable box: a long tag scrolls here, not the card.
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users scroll it.
-          tabIndex={0}
-          role="group"
-          aria-label={row.tag}
+          // Only a tag that overflows is a tab stop, so keyboard users can
+          // scroll it; one that fits adds nothing to the tab order.
+          {...(tagOverflows && {
+            tabIndex: 0,
+            role: "group",
+            "aria-label": row.tag,
+          })}
           className="max-w-full min-w-0 overflow-x-auto whitespace-nowrap md:col-start-1 md:row-start-1"
         >
           <span data-slot="row-tag" className="font-mono text-sm">
@@ -307,6 +314,24 @@ function TimelineRowItem({
       </div>
     </li>
   );
+}
+
+// Whether the element's content is wider than its box, kept up to date as
+// the box resizes.
+function useOverflowsInline<T extends HTMLElement>() {
+  const ref = React.useRef<T>(null);
+  const [overflows, setOverflows] = React.useState(false);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setOverflows(el.scrollWidth > el.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, overflows] as const;
 }
 
 function StatusLine({

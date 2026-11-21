@@ -235,9 +235,10 @@ describe("Deploy target header", () => {
       )
     ).toBe(false);
     expect(container.textContent).not.toContain(`${livePrefix} v2`);
-    const statuses = header().querySelectorAll('[role="status"]');
-    expect(statuses).toHaveLength(1);
-    expect(statuses[0]?.textContent).toContain("v2");
+    // Its relative time changes every minute: no live region, so screen
+    // readers do not re-announce it.
+    expect(header().querySelectorAll('[role="status"]')).toHaveLength(0);
+    expect(header().querySelectorAll("[aria-live]")).toHaveLength(0);
 
     const button = deployLatest();
     expect(button?.textContent).toBe("Deploy latest (v3)");
@@ -267,7 +268,8 @@ describe("Deploy target header", () => {
     const failures = header().querySelectorAll('[data-slot="deploy-failure"]');
     expect(failures).toHaveLength(1);
     const failure = failures[0];
-    expect(failure?.getAttribute("role")).toBe("status");
+    expect(failure?.hasAttribute("role")).toBe(false);
+    expect(header().querySelectorAll("[aria-live]")).toHaveLength(0);
     expect(failure?.textContent).toContain(
       prefix(d.failureLine, "time").replace("{tag}", "v2")
     );

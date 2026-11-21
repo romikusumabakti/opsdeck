@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { IntlProvider } from "use-intl";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { DialogProvider } from "@/components/dialog-provider";
 import { ProjectRoleProvider } from "@/components/project-role";
 import arMessages from "../messages/ar.json";
@@ -227,7 +227,32 @@ describe("Deploy timeline layout", () => {
     );
   });
 
+  it("a tag that fits is no tab stop and no extra group", async () => {
+    await mount([liveTarget()]);
+    const scrollers = container.querySelectorAll('[data-slot="tag-scroll"]');
+    expect(scrollers.length).toBeGreaterThan(0);
+    for (const scroller of scrollers) {
+      expect(scroller.hasAttribute("tabindex")).toBe(false);
+      expect(scroller.hasAttribute("role")).toBe(false);
+      expect(scroller.hasAttribute("aria-label")).toBe(false);
+    }
+  });
+
   it("long tag sits in its own scroll wrapper", async () => {
+    // happy-dom lays nothing out: make every box report an overflow.
+    const proto = HTMLElement.prototype;
+    Object.defineProperty(proto, "scrollWidth", {
+      configurable: true,
+      get: () => 500,
+    });
+    Object.defineProperty(proto, "clientWidth", {
+      configurable: true,
+      get: () => 100,
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(proto, "scrollWidth");
+      Reflect.deleteProperty(proto, "clientWidth");
+    });
     const longTag = "v".repeat(120);
     const longMessage = `${"m".repeat(500)}\n\nbody`;
     await mount([
@@ -243,6 +268,7 @@ describe("Deploy timeline layout", () => {
     expect(scroller).not.toBeNull();
     expect(scroller?.classList.contains("overflow-x-auto")).toBe(true);
     expect(scroller?.getAttribute("tabindex")).toBe("0");
+    expect(scroller?.getAttribute("role")).toBe("group");
     expect(scroller?.getAttribute("aria-label")).toBe(longTag);
     for (
       let el = scroller?.parentElement;
@@ -341,8 +367,7 @@ describe("Deploy timeline layout", () => {
     await act(async () => Promise.resolve());
     const rows = container.querySelectorAll('[data-slot="timeline-row"]');
     expect(rows).toHaveLength(12);
-    expect(document.activeElement).toBe(
-      rows[10]?.querySelector('[data-slot="tag-scroll"]')
-    );
+    expect(document.activeElement).toBe(rows[10]);
+    expect(rows[10]?.getAttribute("tabindex")).toBe("-1");
   });
 });

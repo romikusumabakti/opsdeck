@@ -283,7 +283,6 @@ function FocalLine({
     return (
       <div
         data-slot="deploy-focal"
-        role="status"
         className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-destructive"
       >
         <CircleAlert className="size-4 shrink-0" aria-hidden />
@@ -373,7 +372,6 @@ function FailureLine({
   return (
     <div
       data-slot="deploy-failure"
-      role="status"
       className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-destructive"
     >
       <CircleAlert className="size-4 shrink-0" aria-hidden />
