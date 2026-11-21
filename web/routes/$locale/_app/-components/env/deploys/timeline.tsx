@@ -373,15 +373,28 @@ function RowStatus({
     switch (row.status) {
       case "live":
         return (
-          <Badge className="border-transparent bg-success/15 text-success">
-            <CheckCircle2 data-icon="inline-start" />
-            {t("row.live")}
-          </Badge>
+          <>
+            <Badge className="border-transparent bg-success/15 text-success">
+              <CheckCircle2 data-icon="inline-start" />
+              {t("row.live")}
+            </Badge>
+            <LaterFailure row={row} onViewLog={onViewLog} />
+          </>
         );
       case "previous":
-        return <StatusLine icon={History}>{t("row.previous")}</StatusLine>;
+        return (
+          <>
+            <StatusLine icon={History}>{t("row.previous")}</StatusLine>
+            <LaterFailure row={row} onViewLog={onViewLog} />
+          </>
+        );
       case "lastGood":
-        return <StatusLine icon={ShieldCheck}>{t("row.lastGood")}</StatusLine>;
+        return (
+          <>
+            <StatusLine icon={ShieldCheck}>{t("row.lastGood")}</StatusLine>
+            <LaterFailure row={row} onViewLog={onViewLog} />
+          </>
+        );
       case "queued":
         return (
           <StatusLine icon={Loader2} iconClassName="animate-spin">
@@ -417,10 +430,13 @@ function RowStatus({
       case "deployedEarlier": {
         const d = row.subject;
         return (
-          <StatusLine icon={CheckCircle2} className="text-muted-foreground">
-            {t("row.deployedEarlier")}{" "}
-            {d && <RelativeTime date={d.finishedAt ?? d.createdAt} />}
-          </StatusLine>
+          <>
+            <StatusLine icon={CheckCircle2} className="text-muted-foreground">
+              {t("row.deployedEarlier")}{" "}
+              {d && <RelativeTime date={d.finishedAt ?? d.createdAt} />}
+            </StatusLine>
+            <LaterFailure row={row} onViewLog={onViewLog} />
+          </>
         );
       }
       default:
@@ -440,6 +456,34 @@ function RowStatus({
     >
       {content}
     </div>
+  );
+}
+
+// A failed redeploy after the row's success, so the row shows the failure.
+function LaterFailure({
+  row,
+  onViewLog,
+}: {
+  row: TimelineRow;
+  onViewLog: CardActions["viewLog"];
+}) {
+  const t = useTranslations("deploys");
+  const d = row.laterFailure;
+  if (!d) return null;
+  return (
+    <span
+      data-slot="row-later-failure"
+      className="inline-flex flex-wrap items-center gap-x-2 gap-y-1"
+    >
+      <StatusLine icon={CircleAlert} className="text-destructive">
+        {t("row.redeployFailed")}
+      </StatusLine>
+      {d.runId && (
+        <ViewLogButton
+          onClick={() => d.runId && onViewLog({ runId: d.runId, tag: d.tag })}
+        />
+      )}
+    </span>
   );
 }
 

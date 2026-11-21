@@ -337,6 +337,48 @@ describe("buildTimeline", () => {
     expect(row(rows, "d").status).toBe("held");
   });
 
+  it("laterFailure: a failed redeploy after the subject's success, on rows that show no failure", () => {
+    const rows = buildTimeline(
+      input({
+        currentTag: "v2",
+        currentStatus: "success",
+        previousTag: "v1",
+        recentBuilds: [build("v2", at(20)), build("v1", at(10))],
+        recentDeployments: [
+          deployment("v2", "failed", { id: "v2-redo", createdAt: at(40) }),
+          deployment("v2", "success", { createdAt: at(30) }),
+          deployment("v1", "failed", { id: "v1-redo", createdAt: at(35) }),
+          deployment("v1", "success", { createdAt: at(15) }),
+        ],
+      })
+    );
+    expect(row(rows, "v2").status).toBe("live");
+    expect(row(rows, "v2").laterFailure?.id).toBe("v2-redo");
+    expect(row(rows, "v1").status).toBe("previous");
+    expect(row(rows, "v1").laterFailure?.id).toBe("v1-redo");
+  });
+
+  it("laterFailure is null when the newest settled deployment succeeded, or the row already reads Failed", () => {
+    const rows = buildTimeline(
+      input({
+        currentTag: "v2",
+        currentStatus: "failed",
+        previousTag: "v1",
+        recentDeployments: [
+          deployment("v2", "failed", { createdAt: at(40) }),
+          deployment("v1", "success", { createdAt: at(30) }),
+          deployment("v1", "failed", { createdAt: at(20) }),
+          deployment("v0", "failed", { createdAt: at(5) }),
+        ],
+      })
+    );
+    expect(row(rows, "v2").status).toBe("failed");
+    expect(row(rows, "v2").laterFailure).toBeNull();
+    expect(row(rows, "v1").laterFailure).toBeNull();
+    expect(row(rows, "v0").status).toBe("failed");
+    expect(row(rows, "v0").laterFailure).toBeNull();
+  });
+
   it("durations", () => {
     const t = at(0);
     expect(

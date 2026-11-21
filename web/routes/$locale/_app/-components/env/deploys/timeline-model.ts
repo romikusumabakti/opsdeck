@@ -39,6 +39,12 @@ export type TimelineRow = {
   status: RowStatusKind;
   /** The deployment the status describes. */
   subject: TimelineDeployment | null;
+  /**
+   * A failed deployment of this tag newer than its last success, on a row
+   * whose status shows no failure (say a redeploy of the live tag that failed
+   * before its script started), so the row still shows it.
+   */
+  laterFailure: TimelineDeployment | null;
   durationMs: number | null;
   isLive: boolean;
   isCurrent: boolean;
@@ -143,6 +149,27 @@ function classify(
   return { status: "never", subject: null };
 }
 
+// Statuses that describe a past success, which a newer failure would hide.
+const SUCCESS_STATUSES: ReadonlySet<RowStatusKind> = new Set([
+  "live",
+  "previous",
+  "lastGood",
+  "deployedEarlier",
+]);
+
+function laterFailureOf(
+  deployments: TimelineDeployment[],
+  status: RowStatusKind
+): TimelineDeployment | null {
+  if (!SUCCESS_STATUSES.has(status)) {
+    return null;
+  }
+  const settled = deployments.find(
+    (d) => d.status === "success" || d.status === "failed"
+  );
+  return settled?.status === "failed" ? settled : null;
+}
+
 export function buildTimeline(input: TimelineInput): TimelineRow[] {
   const buildByTag = new Map(input.recentBuilds.map((b) => [b.tag, b]));
   const deploymentsByTag = new Map<string, TimelineDeployment[]>();
@@ -182,6 +209,7 @@ export function buildTimeline(input: TimelineInput): TimelineRow[] {
       deployments,
       status,
       subject,
+      laterFailure: laterFailureOf(deployments, status),
       durationMs: subject ? deploymentDurationMs(subject) : null,
       isLive: isCurrent && input.currentStatus === "success",
       isCurrent,

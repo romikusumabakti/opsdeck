@@ -250,6 +250,25 @@ describe("Deploy target header", () => {
     );
   });
 
+  it("failed current without its deployment in the list leaves out the time", async () => {
+    await mount([
+      target({
+        currentTag: "v2",
+        currentStatus: "failed",
+        previousTag: "v1",
+        recentBuilds: [build("v1", at("09:00:00"))],
+        recentDeployments: [
+          deployment("v1", "success", { createdAt: at("09:10:00") }),
+        ],
+      }),
+    ]);
+    const focal = slot("deploy-focal");
+    expect(focal?.textContent).toContain(
+      d.focalFailedNoTime.replace("{tag}", "v2")
+    );
+    expect(focal?.textContent).not.toContain("failed  ");
+  });
+
   it("a failed later deploy shows one failure line with View log, and no badge in the title", async () => {
     await mount([
       liveTarget({

@@ -408,6 +408,65 @@ describe("Deploy timeline", () => {
     expect(state.deployTag).toHaveBeenCalledWith("a", "v2");
   });
 
+  it("Redeploy on a failed current row confirms as a redeploy", async () => {
+    await mount([
+      target({
+        currentTag: "v2",
+        currentStatus: "failed",
+        previousTag: "v1",
+        recentBuilds: [
+          build("v2", at("09:50:00")),
+          build("v1", at("09:00:00")),
+        ],
+        recentDeployments: [
+          deployment("v2", "failed", { createdAt: at("10:00:00") }),
+          deployment("v1", "success", { createdAt: at("09:10:00") }),
+        ],
+      }),
+    ]);
+    await openRowMenu("v2");
+    await act(async () => menuItem(d.redeploy)?.click());
+    await settle();
+    expect(alertDialog()?.textContent).toContain(
+      d.redeployConfirmTitle.replace("{tag}", "v2")
+    );
+    await act(async () => buttonIn(alertDialog(), d.redeploy)?.click());
+    await settle();
+    expect(state.deployTag).toHaveBeenCalledWith("a", "v2");
+  });
+
+  it("a live row shows its later failed redeploy with View log", async () => {
+    await mount([
+      liveTarget({
+        recentDeployments: [
+          // Failed before its script started: v2 stays live.
+          deployment("v2", "failed", {
+            id: "d-v2-redeploy",
+            createdAt: at("10:03:00"),
+            runId: "run-v2-redeploy",
+          }),
+          deployment("v2", "success", {
+            createdAt: at("10:00:00"),
+            finishedAt: at("10:01:30"),
+          }),
+          deployment("v1", "success", { createdAt: at("09:10:00") }),
+        ],
+      }),
+    ]);
+    expect(row("v2").dataset.status).toBe("live");
+    const status = statusOf("v2");
+    expect(status?.textContent).toContain(d.row.live);
+    const marker = status?.querySelector('[data-slot="row-later-failure"]');
+    expect(marker?.textContent).toContain(d.row.redeployFailed);
+    expect(marker?.querySelector("svg")).not.toBeNull();
+    await act(async () => buttonIn(status, d.viewLog)?.click());
+    expect(container.textContent).toContain("run:run-v2-redeploy");
+    // The previous row has no failure of its own.
+    expect(
+      statusOf("v1")?.querySelector('[data-slot="row-later-failure"]')
+    ).toBeNull();
+  });
+
   it("roll back from the menu keeps the destructive confirmation", async () => {
     await mount([liveTarget()]);
     await openRowMenu("v1");

@@ -112,8 +112,8 @@ export function TargetCard({
   }
 
   async function deploy(tag: string) {
-    const redeploy =
-      tag === target.currentTag && target.currentStatus === "success";
+    // The tag the server runs (or failed to run): the row menu's Redeploy.
+    const redeploy = tag === target.currentTag;
     const ok = await dialog.confirm({
       title: t(redeploy ? "redeployConfirmTitle" : "deployConfirmTitle", {
         tag,

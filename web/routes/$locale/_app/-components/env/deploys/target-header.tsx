@@ -291,10 +291,9 @@ function FocalLine({
             d ? format.dateTime(new Date(settledAt(d)), DATE_TIME) : undefined
           }
         >
-          {t("focalFailed", {
-            tag: focal.tag,
-            time: d ? relative(settledAt(d)) : "",
-          })}
+          {d
+            ? t("focalFailed", { tag: focal.tag, time: relative(settledAt(d)) })
+            : t("focalFailedNoTime", { tag: focal.tag })}
         </span>
         {focal.lastGood && (
           <span>{t("focalLastGood", { tag: focal.lastGood })}</span>
