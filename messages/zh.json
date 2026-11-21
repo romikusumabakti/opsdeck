@@ -501,7 +501,7 @@
       "held": "等待解锁",
       "failed": "失败",
       "redeployFailed": "最近一次重新部署失败",
-      "skipped": "已跳过——已有更新的部署运行",
+      "skipped": "已跳过——已有更新的部署运行过",
       "deployedEarlier": "部署于",
       "never": "未部署",
       "history": "{count, plural, other {# 次更早的部署}}"

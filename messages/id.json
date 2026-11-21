@@ -501,7 +501,7 @@
       "held": "Menunggu kunci dibuka",
       "failed": "Gagal",
       "redeployFailed": "Deploy ulang terakhir gagal",
-      "skipped": "Dilewati — deploy yang lebih baru sudah berjalan",
+      "skipped": "Dilewati — deploy yang lebih baru sudah dijalankan",
       "deployedEarlier": "Di-deploy",
       "never": "Belum di-deploy",
       "history": "{count, plural, other {# deploy sebelumnya}}"

@@ -507,7 +507,7 @@
       "history": "{count, plural, one {# earlier deploy} other {# earlier deploys}}"
     },
     "loadFailed": "Couldn't refresh deploys. The list may be out of date.",
-    "showMore": "{count, plural, one {Show # more} other {Show # more}}"
+    "showMore": "{count, plural, other {Show # more}}"
   },
   "provisioning": {
     "title": "Provisioning",
