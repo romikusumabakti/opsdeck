@@ -28,9 +28,7 @@ describe("sameS3Bucket", () => {
     ["a bare path", "https://objects.example.test/"],
     ["surrounding blanks", "  https://objects.example.test  "],
   ])("treats %s as the same endpoint", (_label, endpoint) => {
-    expect(sameS3Bucket(BASE, { endpoint, bucket: "menara-dumps" })).toBe(
-      true
-    );
+    expect(sameS3Bucket(BASE, { endpoint, bucket: "menara-dumps" })).toBe(true);
   });
 
   it("keeps other hosts, ports, paths and buckets apart", () => {

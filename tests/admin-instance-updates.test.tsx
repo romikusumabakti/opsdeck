@@ -59,8 +59,7 @@ function data(extra: Record<string, unknown> = {}) {
     timeZone: "Asia/Jakarta",
     available: {
       version: "1.2.1",
-      notesUrl:
-        "https://github.com/romikusumabakti/menara/releases/tag/v1.2.1",
+      notesUrl: "https://github.com/romikusumabakti/menara/releases/tag/v1.2.1",
       minFrom: "1.0.0",
     },
     checkError: null,

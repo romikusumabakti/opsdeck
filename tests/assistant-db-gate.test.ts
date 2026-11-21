@@ -54,10 +54,7 @@ describe("checkReadOnlyQuery: one read-only SELECT (Review Focus 1)", () => {
     ["DELETE FROM accounts", "not_select"],
     ["UPDATE accounts SET balance = 0", "not_select"],
     ["DROP TABLE accounts", "not_select"],
-    [
-      "ALTER ROLE menara_ro_x SET default_transaction_read_only = off",
-      "parse",
-    ],
+    ["ALTER ROLE menara_ro_x SET default_transaction_read_only = off", "parse"],
     ["ALTER TABLE accounts ADD COLUMN x int", "not_select"],
     ["SET default_transaction_read_only = off", "not_select"],
     ["COPY accounts TO PROGRAM 'id'", "parse"],

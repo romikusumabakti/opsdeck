@@ -170,10 +170,7 @@ export async function applyInstanceUpdate(
 ): Promise<{ requested: true }> {
   const session = await requireInstanceManage();
   const row = await loadSettings();
-  const { available } = await checkForUpdate(
-    row.updateChannel,
-    MENARA_VERSION
-  );
+  const { available } = await checkForUpdate(row.updateChannel, MENARA_VERSION);
   if (!available || available.version !== version) {
     throw await updateRefusal(409, "updateNotAvailable");
   }

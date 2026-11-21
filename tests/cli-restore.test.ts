@@ -392,9 +392,7 @@ describe("pgRestoreDatabase", () => {
     expect(all).toContain(
       'ALTER DATABASE "menara" RENAME TO "menara_pre_restore"'
     );
-    expect(all).toContain(
-      'ALTER DATABASE "menara_restore" RENAME TO "menara"'
-    );
+    expect(all).toContain('ALTER DATABASE "menara_restore" RENAME TO "menara"');
     expect(all).toContain('DROP DATABASE IF EXISTS "menara_pre_restore"');
   });
 

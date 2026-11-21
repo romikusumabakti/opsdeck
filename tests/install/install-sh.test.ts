@@ -629,9 +629,7 @@ describe("install.sh --adopt --dry-run", () => {
     // The old container hostname is replaced by the service name.
     expect(r.stdout).toContain("DATABASE_URL: host set to postgres");
     expect(r.stdout).toContain("MENARA_VOLUME_POSTGRES=menara_postgres_data");
-    expect(r.stdout).toContain(
-      "MENARA_VOLUME_GARAGE_DATA=menara_garage_data"
-    );
+    expect(r.stdout).toContain("MENARA_VOLUME_GARAGE_DATA=menara_garage_data");
     inOrder(r.stdout, [
       "==> Docker",
       "==> Install dir",

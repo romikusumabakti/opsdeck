@@ -423,9 +423,9 @@ describe.concurrent("buildArtifactDeployScript stub runs (jar)", () => {
       expect(r.stdout).toContain("HEALTHY");
       expect(r.status).toBe(0);
       expect(read(join(r.deployDir, "core-web-service.jar"))).toBe("NEW");
-      expect(
-        read(join(r.deployDir, ".menara-prev/core-web-service.jar"))
-      ).toBe("OLD");
+      expect(read(join(r.deployDir, ".menara-prev/core-web-service.jar"))).toBe(
+        "OLD"
+      );
       expect(existsSync(join(r.deployDir, INCOMING))).toBe(false);
       const calls = r.log
         .split("\n")
